@@ -1392,6 +1392,36 @@
     // =========================================================================
     // MAP INITIALIZATION & DISPLAY
     // =========================================================================
+    function waitForMapReady(timeoutMs = 4000) {
+        if (!state.map || typeof state.map.isStyleLoaded !== 'function') return Promise.resolve();
+        if (state.map.isStyleLoaded()) return Promise.resolve();
+        
+        return new Promise((resolve) => {
+            let resolved = false;
+            const cleanup = () => {
+                if (state.map?.off && handler) state.map.off('load', handler);
+                resolved = true;
+                if (timeout) clearTimeout(timeout);
+            };
+            const handler = () => {
+                cleanup();
+                resolve();
+            };
+            const timeout = setTimeout(() => {
+                if (!resolved) {
+                    cleanup();
+                    resolve();
+                }
+            }, timeoutMs);
+            
+            if (state.map?.on) {
+                state.map.on('load', handler);
+            } else {
+                resolve();
+            }
+        });
+    }
+
     async function processAndDisplayData(trips) {
         resetStatistics();
         refreshStatsDisplay();
@@ -1407,8 +1437,9 @@
 
         if (!state.map) {
             initMap();
-            await new Promise(r => state.map.on('load', r));
         }
+
+        await waitForMapReady();
 
         // Add layers with mobile compatibility
         const addRouteLayers = () => {
