@@ -156,7 +156,21 @@
         .layer-item:hover { background: var(--hover-bg); transform: translateX(2px); }
         .layer-item.active { background: var(--bg-tertiary); color: var(--text-primary); font-weight: 700; }
         .layer-item.dragging { opacity: 0.5; transform: rotate(2deg) scale(1.05); }
-        .layer-item.drag-over { border-top: 3px solid var(--accent-color); }
+        .layer-item.drag-over { background: rgba(102, 126, 234, 0.15); }
+        .layer-item.drag-over::before,
+        .layer-item.drag-over::after {
+            content: "";
+            position: absolute;
+            left: 10px;
+            right: 10px;
+            height: 3px;
+            border-radius: 3px;
+            background: var(--accent-color);
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+        .layer-item.drag-over-before::before { top: -6px; opacity: 1; }
+        .layer-item.drag-over-after::after { bottom: -6px; opacity: 1; }
         .toggle { position: relative; width: 48px; height: 26px; display: inline-block; }
         .toggle input { opacity: 0; width: 0; height: 0; }
         .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
@@ -1861,6 +1875,28 @@
         
         // Shared dragged item variable for all layer items
         let draggedItem = null;
+        const clearDropIndicators = () => {
+            layerList.querySelectorAll('.layer-item').forEach(item => {
+                item.classList.remove('drag-over', 'drag-over-before', 'drag-over-after');
+                delete item.dataset.dropPosition;
+            });
+        };
+        const applyDropIndicator = (item, position) => {
+            clearDropIndicators();
+            item.classList.add('drag-over');
+            if (position === 'before') {
+                item.classList.add('drag-over-before');
+                item.dataset.dropPosition = 'before';
+            } else {
+                item.classList.add('drag-over-after');
+                item.dataset.dropPosition = 'after';
+            }
+        };
+        const computeDropPosition = (event, item) => {
+            const rect = item.getBoundingClientRect();
+            const offset = event.clientY - rect.top;
+            return offset < rect.height / 2 ? 'before' : 'after';
+        };
         
         // Create layer items in the order defined in state (bottom to top)
         // This matches v4 behavior where menu shows from bottom layer to top layer
@@ -1898,6 +1934,7 @@
             layerItem.addEventListener('dragend', (e) => {
                 layerItem.classList.remove('dragging');
                 draggedItem = null;
+                clearDropIndicators();
             });
             
             layerItem.addEventListener('dragover', (e) => {
@@ -1905,17 +1942,22 @@
                 e.dataTransfer.dropEffect = 'move';
                 
                 if (draggedItem && draggedItem !== layerItem) {
-                    layerItem.classList.add('drag-over');
+                    const position = computeDropPosition(e, layerItem);
+                    applyDropIndicator(layerItem, position);
                 }
             });
             
             layerItem.addEventListener('dragleave', (e) => {
-                layerItem.classList.remove('drag-over');
+                if (!layerItem.contains(e.relatedTarget)) {
+                    layerItem.classList.remove('drag-over', 'drag-over-before', 'drag-over-after');
+                    delete layerItem.dataset.dropPosition;
+                }
             });
             
             layerItem.addEventListener('drop', (e) => {
                 e.preventDefault();
-                layerItem.classList.remove('drag-over');
+                const dropPosition = layerItem.dataset.dropPosition || computeDropPosition(e, layerItem);
+                clearDropIndicators();
                 
                 if (draggedItem && draggedItem !== layerItem) {
                     const draggedLayerId = draggedItem.dataset.layerId;
@@ -1924,11 +1966,15 @@
                     // Get current positions
                     const draggedIndex = state.layers.order.indexOf(draggedLayerId);
                     const targetIndex = state.layers.order.indexOf(targetLayerId);
+                    let insertIndex = dropPosition === 'after' ? targetIndex + 1 : targetIndex;
                     
                     // Remove from old position
                     state.layers.order.splice(draggedIndex, 1);
+                    if (draggedIndex < insertIndex) insertIndex--;
+                    if (insertIndex < 0) insertIndex = 0;
+                    if (insertIndex > state.layers.order.length) insertIndex = state.layers.order.length;
                     // Insert at new position
-                    state.layers.order.splice(targetIndex, 0, draggedLayerId);
+                    state.layers.order.splice(insertIndex, 0, draggedLayerId);
                     
                     // Reload layers to reflect new order
                     reloadAllLayers();
