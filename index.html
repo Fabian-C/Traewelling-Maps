@@ -466,6 +466,7 @@
         username: null,
         datasetVersion: 0,
         fetchedTrips: [],
+        activeTrips: [],
         filters: { fromDate: null, toDate: null, hideInaccurate: false },
         railway: { enabled: false },
         heatmap: { 
@@ -962,6 +963,7 @@
         state.token = token; state.username = username; state.isFetching = true;
         if (token) rememberToken(token, { autoValidate: false });
         state.cancelFetch = false; state.fetchedTrips = [];
+        state.activeTrips = [];
         state.queriedUserProfile = null; // Reset queried user profile
         RateLimitUI.reset();
         UI.toggleSetup(false);
@@ -1057,6 +1059,7 @@
             }
 
             state.fetchedTrips = allStatuses;
+            state.activeTrips = allStatuses;
             saveCurrentSession();
             UI.updateFetchStats({ status: 'Processing data...' });
             await processAndDisplayData(allStatuses);
@@ -1128,6 +1131,28 @@
             return true;
         });
         return { type: 'FeatureCollection', features: filtered };
+    }
+
+    function filterTripsByDateRange(trips = [], fromDate, toDate) {
+        if (!trips.length) return [];
+        if (!fromDate && !toDate) return trips.slice();
+        
+        const from = fromDate ? new Date(fromDate + 'T00:00:00Z') : null;
+        const to = toDate ? new Date(toDate + 'T23:59:59Z') : null;
+        
+        return trips.filter(trip => {
+            if (!trip?.createdAt) return true;
+            const created = new Date(trip.createdAt);
+            if (from && created < from) return false;
+            if (to && created > to) return false;
+            return true;
+        });
+    }
+
+    function refreshActiveTrips() {
+        const sourceTrips = state.fetchedTrips || [];
+        state.activeTrips = filterTripsByDateRange(sourceTrips, state.filters.fromDate, state.filters.toDate);
+        return state.activeTrips;
     }
 
     // =========================================================================
@@ -1362,7 +1387,9 @@
         state.heatmap.needsRebuild = true;
         state.heatmap.cacheKey = null;
 
-        const categories = processTripsToGeoJSON(trips);
+        state.fetchedTrips = Array.isArray(trips) ? trips.slice() : [];
+        const activeTrips = refreshActiveTrips();
+        const categories = processTripsToGeoJSON(activeTrips);
 
         if (!state.map) {
             initMap();
@@ -2364,7 +2391,8 @@
             if (state.map?.getSource(id)) state.map.removeSource(id);
         });
         
-        const categories = processTripsToGeoJSON(state.fetchedTrips);
+        const sourceTrips = state.activeTrips?.length ? state.activeTrips : refreshActiveTrips();
+        const categories = processTripsToGeoJSON(sourceTrips);
         state.layers.order.forEach((id, index) => {
             let data = categories[id] || { type: 'FeatureCollection', features: [] };
             if (state.filters.hideInaccurate) data = filterInaccurateData(data, id);
@@ -2406,18 +2434,12 @@
         const to = document.getElementById('dateTo').value || null;
         state.filters.fromDate = from; state.filters.toDate = to;
 
-        const filtered = state.fetchedTrips.filter(trip => {
-            if (!trip.createdAt) return true;
-            const d = new Date(trip.createdAt);
-            if (from && d < new Date(from + 'T00:00:00Z')) return false;
-            if (to && d > new Date(to + 'T23:59:59Z')) return false;
-            return true;
-        });
+        const filteredTrips = refreshActiveTrips();
 
         state.datasetVersion++;
         state.heatmap.needsRebuild = true;
         state.heatmap.cacheKey = null;
-        const categories = processTripsToGeoJSON(filtered);
+        const categories = processTripsToGeoJSON(filteredTrips);
         state.layers.order.forEach(layerId => {
             let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
             if (state.filters.hideInaccurate) data = filterInaccurateData(data, layerId);
