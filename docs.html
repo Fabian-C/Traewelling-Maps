@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Träwelling Map Explorer · Feature Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #06070a;
+      --bg-panel: rgba(12, 14, 22, 0.9);
+      --bg-panel-strong: rgba(16, 19, 32, 0.98);
+      --text: #f6f7fb;
+      --text-muted: #a1a4ba;
+      --accent: #66e0ff;
+      --accent-strong: #4cc0ff;
+      --gradient: linear-gradient(135deg, #66e0ff 0%, #7c5dff 50%, #ff6b9c 100%);
+      --panel-radius: 18px;
+      --border: rgba(255, 255, 255, 0.08);
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Space Grotesk", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: radial-gradient(circle at 20% 20%, rgba(102, 224, 255, 0.18), transparent 45%),
+                  radial-gradient(circle at 80% 0%, rgba(124, 93, 255, 0.25), transparent 50%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 60px 5vw 80px;
+      line-height: 1.6;
+    }
+    header {
+      max-width: 960px;
+      margin: 0 auto 60px;
+      padding: 40px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--panel-radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+    header h1 {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(2.4rem, 4vw, 3.4rem);
+      margin: 0 0 16px;
+      letter-spacing: -0.03em;
+    }
+    header p {
+      margin: 0 0 24px;
+      color: var(--text-muted);
+      font-size: 1.05rem;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 22px;
+      border-radius: 999px;
+      font-weight: 600;
+      border: 1px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .btn-primary {
+      background: var(--gradient);
+      color: #05070d;
+      box-shadow: 0 12px 30px rgba(255, 107, 156, 0.3);
+    }
+    .btn-secondary {
+      background: transparent;
+      border-color: rgba(255, 255, 255, 0.2);
+      color: var(--text);
+    }
+    .btn:hover { transform: translateY(-2px); }
+    section {
+      max-width: 1100px;
+      margin: 0 auto 50px;
+    }
+    h2 {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(1.8rem, 3vw, 2.4rem);
+      margin-bottom: 20px;
+      letter-spacing: -0.02em;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px;
+    }
+    .card {
+      background: var(--bg-panel-strong);
+      border: 1px solid var(--border);
+      border-radius: var(--panel-radius);
+      padding: 26px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top right, rgba(102, 224, 255, 0.18), transparent 50%);
+      opacity: 0.8;
+      pointer-events: none;
+    }
+    .card h3 {
+      font-family: "Space Grotesk", sans-serif;
+      margin: 0 0 12px;
+      font-size: 1.25rem;
+    }
+    .card p { margin: 0; color: var(--text-muted); }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      counter-reset: step;
+    }
+    .step {
+      padding: 20px 22px 20px 26px;
+      background: rgba(8, 10, 18, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      position: relative;
+      min-height: 140px;
+    }
+    .step::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 700;
+      font-size: 2rem;
+      color: var(--accent);
+      opacity: 0.3;
+    }
+    .step h4 { margin: 0 0 10px; font-size: 1.05rem; }
+    .split {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .list {
+      margin: 0;
+      padding-left: 1.1rem;
+      color: var(--text-muted);
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      font-size: 0.85rem;
+      margin: 6px 10px 0 0;
+    }
+    .faq {
+      display: grid;
+      gap: 18px;
+    }
+    .faq-item {
+      padding: 20px;
+      border-radius: 16px;
+      background: rgba(5, 7, 12, 0.8);
+      border: 1px solid var(--border);
+    }
+    .faq-item h4 { margin: 0 0 8px; font-size: 1.05rem; }
+    .notice {
+      max-width: 960px;
+      margin: -20px auto 40px;
+    }
+    .notice-card {
+      border-radius: var(--panel-radius);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 165, 0, 0.07);
+      color: var(--text);
+      padding: 20px 26px;
+      font-size: 0.98rem;
+      line-height: 1.5;
+      box-shadow: var(--shadow);
+    }
+    .notice-card strong { color: #ffb347; }
+    footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-top: 60px;
+    }
+    @media (max-width: 640px) {
+      body { padding: 40px 6vw 60px; }
+      header { padding: 30px; }
+      .hero-actions { flex-direction: column; }
+      .btn { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="chip">Made for phones • Works great on desktop too</p>
+    <h1>Träwelling Map Explorer Feature Guide</h1>
+    <p>Pop in a username, zoom through your check-ins, and share the coolest routes with your crew. This guide keeps things chill and user-focused so you know exactly what to tap next.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="./mapv5.html">🚀 Launch Map Explorer</a>
+      <a class="btn btn-secondary" href="https://traewelling.de/settings/security/api-tokens" target="_blank" rel="noopener">🔑 Grab an API Token (only for private profiles)</a>
+    </div>
+  </header>
+
+  <section class="notice">
+    <div class="notice-card">
+      <p><strong>Preview mode:</strong> This build is an early test access release crafted by @Hash for the Träwelling community. Expect some rough edges while feedback rolls in.</p>
+      <p><strong>Heads up on loading:</strong> Querying lots of check-ins can take a bit—Träwelling’s rate limits intentionally slow requests, so larger histories may need patience.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Quick Start</h2>
+    <div class="steps">
+      <div class="step">
+        <h4>Enter Username</h4>
+        <p>Type any Träwelling username you can view. Hit 🚀 Load Travel Data and the trips start rolling in.</p>
+      </div>
+      <div class="step">
+        <h4>Optional: API Token</h4>
+        <p>Paste your Traewelling API token if you want to see private check-ins you already have access to.</p>
+      </div>
+      <div class="step">
+        <h4>Fetch & Explore</h4>
+        <p>Progress bars, friendly status text, and haptics-ready controls guide you while you Explore and filter your data. Longer histories can take time because we respect Träwelling’s rate limits.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Feature Highlights</h2>
+    <div class="card-grid">
+      <article class="card">
+        <h3>Transport Layers</h3>
+        <p>Toggle each category (ICE, RE, S-Bahn, bus, tram, subway, plane, ship, unknown) and drag to reorder visibility.</p>
+      </article>
+      <article class="card">
+        <h3>Route Density & Animation</h3>
+        <p>Heatmaps highlight frequently travelled corridors.</p>
+      </article>
+      <article class="card">
+        <h3>Date Window</h3>
+        <p>Use the from/to pickers to focus on a semester, a challenge month, or the latest vacation without re-fetching.</p>
+      </article>
+      <article class="card">
+        <h3>Account Switcher</h3>
+        <p>Hop between friends or alt accounts from a tidy list. Everything stays on your device.</p>
+      </article>
+      <article class="card">
+        <h3>Stats & Moments</h3>
+        <p>See total trips, total distance, and the oldest/newest check-ins at a glance—perfect for reminiscing.</p>
+      </article>
+      <article class="card">
+        <h3>Railway Basemap Overlay</h3>
+        <p>Load high-resolution railway lines for spatial reference when exploring trips.</p>
+      </article>
+      <article class="card">
+        <h3>Hide Inaccurate Toggle</h3>
+        <p>Filter out likely inacurate check-ins with a single switch so your map stays clean and story-ready.</p>
+      </article>
+      <article class="card">
+        <h3>Shareable Views</h3>
+        <p>Use “Share View” to copy the current map angle, zoom, and filters. It only shares the map look, never your actual data.</p>
+      </article>
+      <article class="card">
+        <h3>Saved Sessions</h3>
+        <p>Recent usernames and trips stay cached locally for faster reloads, plus a one-tap 🧹 clear option.</p>
+      </article>
+      <article class="card">
+        <h3>Touch-Friendly Menus</h3>
+        <p>Large tap targets, swipeable lists, and haptic-safe toggles keep everything comfy on smaller screens.</p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Data & Privacy Notes</h2>
+    <div class="split">
+      <div class="card">
+        <h3>Where data lives</h3>
+        <p class="chip">No data is uploaded anywhere else.</p>
+        <ul class="list">
+          <li>Trips are fetched directly from <code>https://traewelling.de/api/v1</code> when you ask for them.</li>
+          <li>Your browser keeps the temporary bits it needs locally—no cloud sync, no surprise uploads.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Good housekeeping</h3>
+        <ul class="list">
+          <li><strong>Keep API tokens secret.</strong> Never paste them into shared screens or streams.</li>
+          <li><strong>Private profiles stay private.</strong> You’ll only see them if you supply the API token tied to an account that already has access through Träwelling.</li>
+          <li>Use the 🧹 “Clear cached data” action whenever you want a clean slate.</li>
+        </ul>
+        <p class="chip" style="margin-top: 16px;">No data is uploaded anywhere else.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Built by a fellow traveller</h2>
+    <div class="card">
+      <p>This whole experience was crafted by a Träwelling user who wanted a friendlier, tap-first way to reminisce about trips. It’s community-driven and totally unofficial—built by someone who also loves comparing ICE routes at 2 AM.</p>
+      <p style="margin-top: 18px; font-family: 'Space Grotesk', sans-serif; font-size: 1rem; color: var(--text-muted);">
+        — <a href="https://traewelling.de/Hash" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none;">@Hash</a>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tips & Tricks</h2>
+    <div class="card">
+      <h3>Combine these controls for the best experience</h3>
+      <div>
+        <span class="chip">⌘ + Scroll to zoom</span>
+        <span class="chip">Shift + Drag for tilt</span>
+        <span class="chip">Toggle “Hide inaccurate” to remove GPS glitches</span>
+        <span class="chip">Stats → “📊” button to dock the insights panel</span>
+        <span class="chip">Saved accounts list doubles as a quick switcher</span>
+        <span class="chip">Share button only shares the map view, not your trip data</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>FAQ</h2>
+    <div class="faq">
+      <div class="faq-item">
+        <h4>Do I need an API token?</h4>
+        <p>No. Public profiles work without it. Tokens are only required for private profiles or private check-ins.</p>
+      </div>
+      <div class="faq-item">
+        <h4>Can I export the trips?</h4>
+        <p>Map Explorer focuses on visual exploration. For CSV exports, use Träwelling’s native export or the official API directly. Advanced users can poke around their browser’s IndexedDB to grab cached data, but that path isn’t documented or supported.</p>
+      </div>
+      <div class="faq-item">
+        <h4>Does caching sync between browsers?</h4>
+        <p>Caching is local-only for privacy reasons. Use the same browser profile if you want persistent sessions.</p>
+      </div>
+      <div class="faq-item">
+        <h4>Is there a mobile mode?</h4>
+        <p>Yes. The UI switches to a compact menu, gestures are touch-friendly, and stats can be accessed through the floating “📊” toggle.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Built by @Hash for the Träwelling community · Preview build · Last updated January 2026.
+  </footer>
+</body>
+</html>
