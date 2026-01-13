@@ -587,17 +587,7 @@
     };
 
     function getTapTolerancePx() {
-        const isCoarsePointer = window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth <= 768;
-        const base = isCoarsePointer ? 16 : 12;
-        const zoom = state.map?.getZoom?.() ?? 6;
-        const farZoomDelta = Math.max(0, 13 - zoom);
-        const farZoomBoost = Math.pow(farZoomDelta, 1.4) * (isCoarsePointer ? 2.2 : 1.5);
-        const closeZoomDelta = Math.max(0, zoom - 14);
-        const closeZoomDamp = closeZoomDelta * (isCoarsePointer ? 0.6 : 0.4);
-        const tolerance = Math.round(base + farZoomBoost - closeZoomDamp);
-        const minTolerance = isCoarsePointer ? 10 : 8;
-        const maxTolerance = isCoarsePointer ? 70 : 55;
-        return Math.max(minTolerance, Math.min(maxTolerance, tolerance));
+        return window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth <= 768 ? 12 : 10;
     }
 
     function snapLngLatToLine(lngLat, featureOrGeometry) {
@@ -1975,7 +1965,7 @@
         }
     }
 
-    function queryLayersNearPoint(point, layers, tolerance = getTapTolerancePx()) {
+    function queryLayersNearPoint(point, layers, tolerance = 10) {
         if (!state.map || !point || !layers?.length) return [];
         const clamped = Math.max(2, Math.min(50, tolerance));
         const bounds = [
