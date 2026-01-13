@@ -224,9 +224,40 @@
         .btn-logout { margin-left: auto; padding: 4px 8px; font-size: 12px; background: transparent;
             border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer; border-radius: 4px; }
         .btn-logout:hover { background: #ff4444; border-color: #ff4444; color: white; }
-        .route-popup .mapboxgl-popup-content { padding: 10px; max-width: 280px; font-size: 12px; background: var(--popup-bg);
-            color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 8px; backdrop-filter: blur(10px); }
-        .route-popup .popup-link { color: #4fc3f7; text-decoration: none; }
+        .route-popup .mapboxgl-popup-content { padding: 12px; max-width: 260px; font-size: 12px; background: rgba(15, 15, 18, 0.48);
+            color: var(--text-primary); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; backdrop-filter: blur(6px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.35); }
+        .route-popup .popup-title { font-size: 13px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: center; gap: 6px; }
+        .route-popup .popup-badge { padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+            background: rgba(102, 126, 234, 0.15); border: 1px solid rgba(102, 126, 234, 0.3); text-transform: uppercase; }
+        .route-popup .popup-route { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0 4px; }
+        .route-popup .popup-stop { flex: 1; }
+        .route-popup .popup-stop label { font-size: 10px; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase; display: block; margin-bottom: 3px; }
+        .route-popup .popup-stop strong { display: block; font-size: 12px; }
+        .route-popup .popup-stop small { display: block; font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+        .route-popup .popup-arrow { align-self: center; font-size: 14px; color: var(--text-muted); font-weight: 700; }
+        .route-popup .popup-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0; }
+        .route-popup .popup-meta div { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 8px;
+            border-radius: 8px; }
+        .route-popup .popup-meta label { display: block; font-size: 10px; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 3px; }
+        .route-popup .popup-meta span { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+        .route-popup details { border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; margin-top: 8px; }
+        .route-popup details + details { margin-top: 8px; }
+        .route-popup details summary { list-style: none; cursor: pointer; padding: 8px 10px; font-weight: 600; display: flex;
+            align-items: center; justify-content: space-between; font-size: 12px; }
+        .route-popup details summary::-webkit-details-marker { display: none; }
+        .route-popup details[open] summary { background: rgba(255,255,255,0.05); }
+        .route-popup .popup-body { padding: 8px 10px 10px; font-size: 11px; color: var(--text-secondary); }
+        .route-popup .popup-link { color: #4fc3f7; text-decoration: none; font-weight: 600; }
+        .route-popup .popup-actions { display: flex; gap: 6px; margin-top: 10px; }
+        .route-popup .popup-actions button,
+        .route-popup .popup-actions a { flex: 1; border-radius: 7px; border: 1px solid var(--border-color); background: transparent;
+            color: var(--text-secondary); padding: 7px 8px; font-weight: 600; cursor: pointer; font-size: 11px; text-align: center;
+            text-decoration: none; display: inline-flex; justify-content: center; align-items: center; }
+        .route-popup .popup-actions a.primary { background: var(--accent-gradient); border: none; color: white; }
+        .route-popup dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; }
+        .route-popup dl dt { font-size: 9px; color: var(--text-muted); letter-spacing: 0.45px; text-transform: uppercase; }
+        .route-popup dl dd { margin: 0; font-size: 11px; font-weight: 600; color: var(--text-primary); }
         @media (max-width: 768px) {
             .setup-container { padding: 30px 20px; }
             .setup-header h1 { font-size: 24px; }
@@ -1819,19 +1850,126 @@
 
         const statusId = props.statusId || 'unknown';
         const lineName = train.lineName || train.number || 'Unknown';
-        const origin = train.origin?.name || 'Unknown';
-        const dest = train.destination?.name || 'Unknown';
+        const originData = train.origin || {};
+        const destData = train.destination || {};
+        const origin = originData.name || 'Unknown';
+        const dest = destData.name || 'Unknown';
         const distance = Math.round((train.distance || 0) / 10) / 100;
+
+        const getDate = (value) => value ? new Date(value) : null;
+        const plannedDeparture = getDate(originData.departurePlanned || train.plannedDeparture);
+        const actualDeparture = getDate(originData.departureReal || originData.departure || train.departure);
+        const plannedArrival = getDate(destData.arrivalPlanned || train.plannedArrival);
+        const actualArrival = getDate(destData.arrivalReal || destData.arrival || train.arrival);
+        const derivedDepartureDelay = (plannedDeparture && actualDeparture) ? Math.round((actualDeparture - plannedDeparture) / 1000) : null;
+        const derivedArrivalDelay = (plannedArrival && actualArrival) ? Math.round((actualArrival - plannedArrival) / 1000) : null;
+        const departureDelay = typeof train.departureDelay === 'number' ? train.departureDelay : derivedDepartureDelay;
+        const arrivalDelay = typeof train.arrivalDelay === 'number' ? train.arrivalDelay : derivedArrivalDelay;
+        const platform = originData.departurePlatformReal || originData.platform || train.platform || train.track;
+        const seat = train.seat?.number || null;
+        const wagon = train.seat?.wagon || train.wagon;
+        const travelClass = train.class || train.travelClass;
+        const coachPosition = train.coaches || null;
+        const shareUrl = statusId !== 'unknown' ? `https://traewelling.de/status/${statusId}` : null;
+        const operator = train.operator?.name || train.operator?.identifier || train.provider?.name || train.provider || '—';
+
+        const formatTime = (dateObj) => dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+        const formatDate = (dateObj) => dateObj ? dateObj.toLocaleDateString() : '';
+        const formatDelay = (value) => {
+            if (value === null || value === undefined) return '—';
+            if (value === 0) return 'On time';
+            const minutes = Math.round(value / 60);
+            return `${minutes > 0 ? '+' : ''}${minutes} min`;
+        };
+        const formatDuration = (minutes) => {
+            if (minutes === null || minutes === undefined) return '—';
+            const hrs = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            if (hrs <= 0) return `${mins} min`;
+            if (mins === 0) return `${hrs} h`;
+            return `${hrs} h ${mins} min`;
+        };
+        const durationProvided = typeof train.duration === 'number' ? train.duration : null;
+        const durationPlanned = (plannedDeparture && plannedArrival) ? Math.round((plannedArrival - plannedDeparture) / 60000) : null;
+        const durationActual = (actualDeparture && actualArrival) ? Math.round((actualArrival - actualDeparture) / 60000) : durationProvided;
+        const departureLabel = actualDeparture || plannedDeparture;
+        const arrivalLabel = actualArrival || plannedArrival;
+        const durationDisplay = formatDuration(durationActual || durationPlanned);
+
         const category = feature.layer?.id || 'Unknown';
 
         // Highlight the selected route using full polyline data
         highlightRoute(feature, statusId);
 
+        const timingDetails = `
+            <details>
+                <summary>Timing & delays</summary>
+                <div class="popup-body">
+                    <dl>
+                        <dt>Planned departure</dt><dd>${formatTime(plannedDeparture)} ${formatDate(plannedDeparture)}</dd>
+                        <dt>Actual departure</dt><dd>${formatTime(actualDeparture)} ${formatDate(actualDeparture)}</dd>
+                        <dt>Departure delay</dt><dd>${formatDelay(departureDelay)}</dd>
+                        <dt>Planned arrival</dt><dd>${formatTime(plannedArrival)} ${formatDate(plannedArrival)}</dd>
+                        <dt>Actual arrival</dt><dd>${formatTime(actualArrival)} ${formatDate(actualArrival)}</dd>
+                        <dt>Arrival delay</dt><dd>${formatDelay(arrivalDelay)}</dd>
+                    </dl>
+                </div>
+            </details>
+        `;
+
+        const seatDetails = (seat || wagon || travelClass || coachPosition) ? `
+            <details>
+                <summary>Seat & coach info</summary>
+                <div class="popup-body">
+                    <dl>
+                        <dt>Seat</dt><dd>${seat || '—'}</dd>
+                        <dt>Coach / Wagon</dt><dd>${wagon || '—'}</dd>
+                        <dt>Class</dt><dd>${travelClass || '—'}</dd>
+                        <dt>Coach position</dt><dd>${coachPosition || '—'}</dd>
+                    </dl>
+                </div>
+            </details>
+        ` : '';
+
         const html = `<div class="popup-content">
-            <strong>${category} ${lineName}</strong>
-            <p><strong>${origin}</strong> → <strong>${dest}</strong></p>
-            <p>Distance: ${distance} km</p>
-            ${statusId !== 'unknown' ? `<p><a href="https://traewelling.de/status/${statusId}" target="_blank" class="popup-link">View on Träwelling →</a></p>` : ''}
+            <div class="popup-title">
+                <span class="popup-badge">${category}</span>
+                <span>${lineName}</span>
+            </div>
+            <div class="popup-route">
+                <div class="popup-stop">
+                    <label>Origin</label>
+                    <strong>${origin}</strong>
+                    <small>${formatTime(departureLabel)} ${formatDate(departureLabel)}</small>
+                </div>
+                <div class="popup-arrow">→</div>
+                <div class="popup-stop">
+                    <label>Destination</label>
+                    <strong>${dest}</strong>
+                    <small>${formatTime(arrivalLabel)} ${formatDate(arrivalLabel)}</small>
+                </div>
+            </div>
+            <div class="popup-meta">
+                <div>
+                    <label>Distance</label>
+                    <span>${distance} km</span>
+                </div>
+                <div>
+                    <label>Operator</label>
+                    <span>${operator || '—'}</span>
+                </div>
+                <div>
+                    <label>Duration</label>
+                    <span>${durationDisplay}</span>
+                </div>
+                <div>
+                    <label>Platform</label>
+                    <span>${platform || '—'}</span>
+                </div>
+            </div>
+            ${timingDetails}
+            ${seatDetails}
+            ${shareUrl ? `<div class="popup-actions"><a class="primary" href="${shareUrl}" target="_blank">View on Träwelling</a></div>` : ''}
         </div>`;
 
         state.currentPopup = new mapboxgl.Popup({ className: 'route-popup', closeButton: true, closeOnClick: true })
@@ -2398,6 +2536,15 @@
         RouteAnimation.invalidateCache();
         
         const segmentMap = new Map();
+        const roundCoord = (value) => Math.round(value * 1e5) / 1e5;
+        const getSegmentKey = (a, b) => {
+            const [ax, ay] = a;
+            const [bx, by] = b;
+            if (ax < bx || (ax === bx && ay <= by)) {
+                return `${ax},${ay}-${bx},${by}`;
+            }
+            return `${bx},${by}-${ax},${ay}`;
+        };
         state.layers.data.forEach((layer) => {
             if (!layer.visible) return;
             layer.data.features.forEach(f => {
@@ -2405,7 +2552,9 @@
                 if (!coords || coords.length < 2) return;
                 for (let j = 0; j < coords.length - 1; j++) {
                     const [x1,y1] = coords[j], [x2,y2] = coords[j+1];
-                    const key = `${Math.round(x1*1e5)/1e5},${Math.round(y1*1e5)/1e5}-${Math.round(x2*1e5)/1e5},${Math.round(y2*1e5)/1e5}`;
+                    const p1 = [roundCoord(x1), roundCoord(y1)];
+                    const p2 = [roundCoord(x2), roundCoord(y2)];
+                    const key = getSegmentKey(p1, p2);
                     segmentMap.set(key, (segmentMap.get(key) || 0) + 1);
                 }
             });
