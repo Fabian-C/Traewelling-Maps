@@ -186,10 +186,20 @@
         .btn-share:hover { background: var(--hover-bg); }
         .time-filter { padding: 16px; }
         .slider-label { font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary); }
-        .slider { width: 100%; height: 6px; border-radius: 3px; background: linear-gradient(to right, #333, #555);
-            outline: none; -webkit-appearance: none; appearance: none; cursor: pointer; }
+        .slider-label .slider-state { margin-left: 6px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
+        .slider { width: 100%; height: 6px; border-radius: 999px; outline: none; -webkit-appearance: none;
+            appearance: none; cursor: pointer; background: var(--bg-tertiary); transition: background 0.2s ease; }
         .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
             background: var(--accent-gradient); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+        .slider::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; border: none;
+            background: var(--accent-gradient); box-shadow: 0 2px 6px rgba(0,0,0,0.4); cursor: pointer; }
+        .slider-ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.6px; margin-top: 6px; gap: 4px; }
+        .slider-ticks span { flex: 1; text-align: center; position: relative; padding-top: 10px; font-weight: 600; }
+        .slider-ticks span::before { content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 2px; height: 8px; border-radius: 2px; background: var(--border-color); }
+        .slider-ticks span.active { color: var(--text-primary); }
+        .slider-ticks span.active::before { background: #ffffff; height: 10px; }
         .stats-panel { position: absolute; top: 10px; left: -320px; background: var(--menu-bg); padding: 8px;
             border: 1px solid var(--border-color); border-radius: 6px; z-index: 999; min-width: 160px; max-width: 180px;
             backdrop-filter: blur(10px); opacity: 0; transition: all 0.3s; pointer-events: none; }
@@ -419,26 +429,15 @@
                         </label>
                     </div>
                     <div class="slider-container">
-                        <div class="slider-label">Intensity: <span id="intensityValue">3</span></div>
-                        <input type="range" class="slider" id="intensitySlider" min="1" max="5" value="3">
-                    </div>
-                    <div style="padding: 10px 16px; font-size: 11px; border-top: 1px solid var(--border-color); margin-top: 10px;">
-                        <div style="margin-bottom: 5px; font-weight: 600;">Density Legend:</div>
-                        <div style="display: flex; align-items: center; margin-bottom: 3px;">
-                            <div style="width: 20px; height: 3px; background: rgb(59, 130, 246); margin-right: 8px;"></div>
-                            <span>Low</span>
+                        <div class="slider-label">
+                            Intensity: <span id="intensityValue">5</span>
+                            <span class="slider-state" id="intensityState">Medium</span>
                         </div>
-                        <div style="display: flex; align-items: center; margin-bottom: 3px;">
-                            <div style="width: 20px; height: 3px; background: rgb(6, 182, 212); margin-right: 8px;"></div>
-                            <span>Medium</span>
-                        </div>
-                        <div style="display: flex; align-items: center; margin-bottom: 3px;">
-                            <div style="width: 20px; height: 3px; background: rgb(245, 158, 11); margin-right: 8px;"></div>
-                            <span>High</span>
-                        </div>
-                        <div style="display: flex; align-items: center;">
-                            <div style="width: 20px; height: 3px; background: rgb(239, 68, 68); margin-right: 8px;"></div>
-                            <span>Very High</span>
+                        <input type="range" class="slider" id="intensitySlider" min="1" max="10" value="5">
+                        <div class="slider-ticks" id="intensityTicks">
+                            <span data-state="low" class="active">Low</span>
+                            <span data-state="medium">Medium</span>
+                            <span data-state="high">High</span>
                         </div>
                     </div>
                     <div class="slider-container">
@@ -1623,16 +1622,54 @@
         // Initialize hide inaccurate state from checkbox
         state.filters.hideInaccurate = document.getElementById('inaccurateDataToggle').checked;
         document.getElementById('heatmapToggle').onchange = (e) => toggleHeatmap(e.target.checked);
-        document.getElementById('intensitySlider').oninput = (e) => {
-            const newIntensity = parseInt(e.target.value);
-            state.heatmap.intensity = newIntensity;
-            document.getElementById('intensityValue').textContent = e.target.value;
 
-            // Instantly update colors if heatmap is enabled and has cached data
-            if (state.heatmap.enabled && state.heatmap.densityCache) {
-                updateHeatmapColors();
+        const intensitySlider = document.getElementById('intensitySlider');
+        const intensityValueEl = document.getElementById('intensityValue');
+        const intensityStateEl = document.getElementById('intensityState');
+        const intensityTickEls = document.querySelectorAll('#intensityTicks span');
+
+        const getIntensityState = (value) => {
+            if (value <= 3) return 'low';
+            if (value <= 7) return 'medium';
+            return 'high';
+        };
+
+        const updateIntensityUI = (value) => {
+            const stateKey = getIntensityState(value);
+            if (intensityStateEl) {
+                const label = stateKey.charAt(0).toUpperCase() + stateKey.slice(1);
+                intensityStateEl.textContent = label;
+            }
+            intensityTickEls.forEach(tick => {
+                tick.classList.toggle('active', tick.dataset.state === stateKey);
+            });
+            if (intensitySlider) {
+                const min = parseInt(intensitySlider.min || '0', 10);
+                const max = parseInt(intensitySlider.max || '1', 10);
+                const clamped = Math.min(max, Math.max(min, value));
+                const progress = ((clamped - min) / (max - min || 1)) * 100;
+                intensitySlider.style.setProperty('--slider-progress', `${progress}%`);
             }
         };
+
+        if (intensitySlider && intensityValueEl) {
+            const initialIntensity = parseInt(intensitySlider.value, 10) || 1;
+            state.heatmap.intensity = initialIntensity;
+            intensityValueEl.textContent = initialIntensity;
+            updateIntensityUI(initialIntensity);
+
+            intensitySlider.oninput = (e) => {
+                const newIntensity = parseInt(e.target.value, 10) || 1;
+                state.heatmap.intensity = newIntensity;
+                intensityValueEl.textContent = e.target.value;
+                updateIntensityUI(newIntensity);
+
+                // Instantly update colors if heatmap is enabled and has cached data
+                if (state.heatmap.enabled && state.heatmap.densityCache) {
+                    updateHeatmapColors();
+                }
+            };
+        }
         document.getElementById('inaccurateDataToggle').onchange = () => {
             state.filters.hideInaccurate = document.getElementById('inaccurateDataToggle').checked;
             reloadAllLayers();
