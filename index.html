@@ -44,9 +44,6 @@
         .setup-divider::before, .setup-divider::after { content: ''; flex: 1; height: 1px; background: var(--border-color); }
         .saved-sessions { background: var(--bg-tertiary); border-radius: 8px; padding: 15px; }
         .saved-sessions h3 { font-size: 14px; margin: 0 0 10px; color: var(--text-secondary); }
-        .session-item { display: flex; align-items: center; justify-content: space-between; padding: 10px;
-            background: var(--bg-secondary); border-radius: 6px; margin-bottom: 8px; cursor: pointer; }
-        .session-item:hover { background: var(--hover-bg); }
         .saved-account-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-secondary);
             border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; border: 2px solid transparent; }
         .saved-account-item:hover { background: var(--hover-bg); }
@@ -59,11 +56,6 @@
         .saved-account-delete { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px 8px;
             border-radius: 4px; font-size: 14px; opacity: 0.6; transition: all 0.2s; }
         .saved-account-delete:hover { opacity: 1; background: rgba(255,0,0,0.1); color: #ff4444; }
-        .session-info { display: flex; align-items: center; gap: 10px; }
-        .session-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-gradient);
-            display: flex; align-items: center; justify-content: center; font-weight: 600; }
-        .session-delete { color: var(--text-muted); padding: 5px; border: none; background: none; cursor: pointer; }
-        .session-delete:hover { color: #ff4444; }
         .fetch-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-primary);
             display: flex; align-items: center; justify-content: center; z-index: 9999; transition: opacity 0.5s ease; }
         .fetch-screen.hidden { opacity: 0; pointer-events: none; }
@@ -79,10 +71,10 @@
         .fetch-stat { display: flex; flex-direction: column; align-items: center; }
         .fetch-stat-value { font-size: 24px; font-weight: 600; color: var(--text-primary); }
         .fetch-stat-label { font-size: 12px; color: var(--text-muted); }
-        .rate-limit-card { margin-top: 24px; padding: 16px; border: 1px solid var(--border-color); border-radius: 12px;
-            background: var(--bg-tertiary); text-align: left; }
-        .rate-limit-header { display: flex; justify-content: space-between; align-items: flex-start; font-size: 13px;
-            font-weight: 600; color: var(--text-secondary); margin-bottom: 10px; gap: 8px; }
+        .rate-limit-card { margin-top: 16px; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px;
+            background: var(--bg-tertiary); text-align: left; box-shadow: 0 8px 20px rgba(0,0,0,0.12); }
+        .rate-limit-header { display: flex; justify-content: space-between; align-items: flex-start; font-size: 12px;
+            font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; gap: 6px; }
         .rate-limit-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
         .rate-limit-limit { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
         .rate-limit-label { font-size: 12px; color: var(--text-primary); }
@@ -98,19 +90,19 @@
         .fetch-error { color: #ff4444; background: rgba(255, 68, 68, 0.1); border: 1px solid rgba(255, 68, 68, 0.3);
             border-radius: 8px; padding: 15px; margin-top: 20px; font-size: 14px; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; background: var(--bg-primary); }
-        .menu { position: absolute; top: 10px; right: 10px; z-index: 1000; background: var(--menu-bg);
-            border: 1px solid var(--border-color); border-radius: 8px; min-width: 150px; font-size: 14px; backdrop-filter: blur(10px); }
-        .menu summary { padding: 12px 16px; cursor: pointer; font-weight: 700; color: var(--text-primary);
-            list-style: none; display: flex; align-items: center; justify-content: space-between; border-radius: 8px; min-height: 44px; }
+        .menu { position: absolute; top: 8px; right: 8px; z-index: 1000; background: var(--menu-bg);
+            border: 1px solid var(--border-color); border-radius: 8px; min-width: 140px; font-size: 13px; backdrop-filter: blur(10px); }
+        .menu summary { padding: 10px 14px; cursor: pointer; font-weight: 700; color: var(--text-primary);
+            list-style: none; display: flex; align-items: center; justify-content: space-between; border-radius: 8px; min-height: 40px; }
         .menu summary::-webkit-details-marker { display: none; }
         .menu-content { padding: 0 0; border-top: 1px solid var(--border-color); }
-        .menu-section { padding: 16px; border-bottom: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 12px; }
+        .menu-section { padding: 10px 12px; border-bottom: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px; }
         .menu-section:last-of-type { border-bottom: none; }
         .menu-section-header { display: flex; justify-content: space-between; align-items: center; }
         .section-label { margin: 0; font-size: 13px; font-weight: 700; color: var(--text-primary); }
-        .section-sub { margin: -6px 0 0; font-size: 11px; color: var(--text-secondary); }
-        .account-card { display: flex; align-items: center; gap: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 12px; }
-        .account-card.compact { padding: 8px 10px; }
+        .section-sub { margin: -4px 0 0; font-size: 11px; color: var(--text-secondary); line-height: 1.1; }
+        .account-card { display: flex; align-items: center; gap: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 10px; }
+        .account-card.compact { gap: 8px; padding: 6px 8px; }
         .account-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--accent-gradient); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; color: white; overflow: hidden; background-size: cover; background-position: center; }
         .account-meta { flex: 1; min-width: 0; }
         .account-name { font-weight: 600; font-size: 14px; }
@@ -132,20 +124,19 @@
         .token-status[data-state="error"] { color: #ff6b6b; }
         .token-expiry { font-size: 11px; color: var(--text-muted); }
         .menu-divider { height: 1px; background: var(--border-color); margin: 0px 0; }
-        .dataset-pill { font-size: 11px; font-weight: 600; color: var(--text-secondary); background: var(--bg-tertiary); padding: 4px 8px; border-radius: 12px; }
-        .menu-item { padding: 12px 16px; cursor: pointer; color: var(--text-primary); font-weight: 600;
-            display: flex; align-items: center; border-bottom: 1px solid var(--border-color); min-height: 44px; }
+        .menu-item { padding: 10px 12px; cursor: pointer; color: var(--text-primary); font-weight: 600;
+            display: flex; align-items: center; border-bottom: 1px solid var(--border-color); min-height: 40px; }
         .menu-item:last-child { border-bottom: none; }
         .menu-item:hover { background: var(--hover-bg); }
         .menu-item.active { background: var(--bg-tertiary); font-weight: 700; }
         .menu-submenu { border-top: 1px solid var(--border-color); }
-        .menu-submenu summary { padding: 10px 16px; font-weight: 600; cursor: pointer; list-style: none;
+        .menu-submenu summary { padding: 8px 12px; font-weight: 600; cursor: pointer; list-style: none;
             display: flex; align-items: center; justify-content: space-between; }
         .menu-submenu summary::-webkit-details-marker { display: none; }
         .menu-submenu[open] > summary { background: var(--bg-tertiary); }
         .menu-submenu-content { padding: 0; }
         .inner-submenu { border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
-        .inner-submenu summary { padding: 10px 12px; cursor: pointer; font-size: 13px; background: var(--bg-tertiary); list-style: none; }
+        .inner-submenu summary { padding: 8px 10px; cursor: pointer; font-size: 12px; background: var(--bg-tertiary); list-style: none; }
         .inner-submenu summary::-webkit-details-marker { display: none; }
         .inner-submenu[open] > summary { background: var(--accent-color); color: white; }
         .layer-list { max-height: 200px; overflow-y: auto; padding: 8px; }
@@ -201,6 +192,8 @@
             width: 2px; height: 8px; border-radius: 2px; background: var(--border-color); }
         .slider-ticks span.active { color: var(--text-primary); }
         .slider-ticks span.active::before { background: #ffffff; height: 10px; }
+        .delay-section { padding: 4px 0 8px; display: flex; flex-direction: column; gap: 2px; }
+        .delay-summary-line { display: block; margin: 0; font-size: 12px; line-height: 1.3; }
         .stats-panel { position: absolute; top: 10px; left: -320px; background: var(--menu-bg); padding: 8px;
             border: 1px solid var(--border-color); border-radius: 6px; z-index: 999; min-width: 160px; max-width: 180px;
             backdrop-filter: blur(10px); opacity: 0; transition: all 0.3s; pointer-events: none; }
@@ -225,38 +218,54 @@
         .btn-logout { margin-left: auto; padding: 4px 8px; font-size: 12px; background: transparent;
             border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer; border-radius: 4px; }
         .btn-logout:hover { background: #ff4444; border-color: #ff4444; color: white; }
-        .route-popup .mapboxgl-popup-content { padding: 12px; max-width: 260px; font-size: 12px; background: rgba(15, 15, 18, 0.48);
+        .route-popup .mapboxgl-popup-content { padding: 10px; max-width: 240px; font-size: 12px; background: rgba(15, 15, 18, 0.48);
             color: var(--text-primary); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; backdrop-filter: blur(6px);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.35); z-index: 9999; }
-        .route-popup .popup-title { font-size: 13px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: center; gap: 6px; }
+            box-shadow: 0 16px 30px rgba(0,0,0,0.35); z-index: 9999; }
+        .route-popup .popup-title { font-size: 12px; font-weight: 700; margin: 0 0 2px; display: flex; align-items: center; gap: 4px; }
         .route-popup .popup-badge { padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
             background: rgba(102, 126, 234, 0.15); border: 1px solid rgba(102, 126, 234, 0.3); text-transform: uppercase; }
-        .route-popup .popup-route { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0 4px; }
+        .route-popup .popup-route { display: flex; justify-content: space-between; gap: 4px; margin: 4px 0; }
         .route-popup .popup-stop { flex: 1; }
         .route-popup .popup-stop label { font-size: 10px; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase; display: block; margin-bottom: 3px; }
         .route-popup .popup-stop strong { display: block; font-size: 12px; }
-        .route-popup .popup-stop small { display: block; font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+        .route-popup .popup-stop-time { display: flex; flex-direction: column; font-size: 10px; color: var(--text-secondary); margin-top: 4px; gap: 2px; }
+        .route-popup .popup-time-value { font-weight: 600; color: var(--text-primary); }
         .route-popup .popup-arrow { align-self: center; font-size: 14px; color: var(--text-muted); font-weight: 700; }
-        .route-popup .popup-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0; }
-        .route-popup .popup-meta div { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 8px;
-            border-radius: 8px; }
+        .route-popup .popup-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin: 6px 0; }
+        .route-popup .popup-meta div { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 4px 6px;
+            border-radius: 6px; min-height: 48px; }
         .route-popup .popup-meta label { display: block; font-size: 10px; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 3px; }
         .route-popup .popup-meta span { font-size: 12px; font-weight: 600; color: var(--text-primary); }
-        .route-popup details { border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; margin-top: 8px; }
-        .route-popup details + details { margin-top: 8px; }
-        .route-popup details summary { list-style: none; cursor: pointer; padding: 8px 10px; font-weight: 600; display: flex;
-            align-items: center; justify-content: space-between; font-size: 12px; }
+        .route-popup details { border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; overflow: hidden; margin-top: 6px;
+            background: rgba(0,0,0,0.25); }
+        .route-popup details + details { margin-top: 6px; }
+        .route-popup details summary { list-style: none; cursor: pointer; padding: 6px 8px; font-weight: 600; display: flex;
+            align-items: center; justify-content: space-between; font-size: 11px; text-transform: none; letter-spacing: 0; }
         .route-popup details summary::-webkit-details-marker { display: none; }
         .route-popup details[open] summary { background: rgba(255,255,255,0.05); }
-        .route-popup .popup-body { padding: 8px 10px 10px; font-size: 11px; color: var(--text-secondary); }
+        .route-popup .popup-body { padding: 6px 8px 8px; font-size: 10px; color: var(--text-secondary); }
+        .route-popup .popup-expander-summary span:last-child { font-size: 10px; color: var(--text-muted); }
+        .route-popup .popup-scrollable { max-height: 150px; overflow-y: auto; padding-right: 4px; }
+        .route-popup .popup-detail-row { display: flex; flex-direction: column; gap: 2px; }
+        .route-popup .popup-detail-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+        .route-popup .popup-detail-value { font-weight: 600; color: var(--text-primary); }
+        .route-popup .popup-detail-value span { display: block; }
+        .route-popup .popup-scroll-container { display: flex; gap: 4px; align-items: stretch; }
+        .route-popup .popup-scroll-slider { appearance: none; width: 4px; margin: 0; border-radius: 999px; background: rgba(255,255,255,0.2);
+            cursor: pointer; writing-mode: bt-lr; }
+        .route-popup .popup-scroll-slider.vertical { height: 140px; }
+        .route-popup .popup-scroll-slider::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border-radius: 50%;
+            background: var(--accent-color); box-shadow: 0 0 0 2px rgba(0,0,0,0.2); margin-top: -5px; }
+        .route-popup .popup-scroll-slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(0,0,0,0.2); border: none; }
         .route-popup .popup-link { color: #4fc3f7; text-decoration: none; font-weight: 600; }
-        .route-popup .popup-actions { display: flex; gap: 6px; margin-top: 10px; }
+        .route-popup .popup-actions { display: flex; gap: 6px; margin-top: 6px; }
         .route-popup .popup-actions button,
         .route-popup .popup-actions a { flex: 1; border-radius: 7px; border: 1px solid var(--border-color); background: transparent;
             color: var(--text-secondary); padding: 7px 8px; font-weight: 600; cursor: pointer; font-size: 11px; text-align: center;
             text-decoration: none; display: inline-flex; justify-content: center; align-items: center; }
         .route-popup .popup-actions a.primary { background: var(--accent-gradient); border: none; color: white; }
-        .route-popup dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; }
+        .route-popup dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
         .route-popup dl dt { font-size: 9px; color: var(--text-muted); letter-spacing: 0.45px; text-transform: uppercase; }
         .route-popup dl dd { margin: 0; font-size: 11px; font-weight: 600; color: var(--text-primary); }
         @media (max-width: 768px) {
@@ -484,7 +493,7 @@
             </details>
             <details class="menu-submenu">
                 <summary>⏱️ Delay Tracker</summary>
-                <div class="menu-submenu-content">
+                <div class="menu-submenu-content delay-section">
                     <div class="menu-item" style="padding: 12px 16px;">
                         <span style="margin-right: 10px;">Highlight delays</span>
                         <label class="toggle">
@@ -497,7 +506,7 @@
                             Top delayed services: <span id="delayCountValue">15</span>
                         </div>
                         <input type="range" class="slider" id="delayCountSlider" min="5" max="50" step="5" value="15">
-                        <p class="slider-help">Shows the most delayed trips in the currently loaded dataset.</p>
+                        <p class="slider-help">Shows the most delayed trips</p>
                     </div>
                     <p class="section-sub" id="delayOverlaySummary" style="margin: 0 16px 16px;">Enable to visualize where the biggest delays are.</p>
                 </div>
@@ -539,11 +548,14 @@
             animate: false, 
             animationFrameId: null, 
             intensity: 3, 
-            densityCache: null,
             cacheKey: null,
             needsRebuild: true,
-            pendingColorFrame: null
+            pendingColorFrame: null,
+            overlayFeatureCollection: null,
+            overlayLookup: new Map(),
+            layerId: 'route-heatmap'
         },
+        baseLayerOpacity: 0.8,
         delays: {
             enabled: false,
             topCount: 15,
@@ -571,11 +583,56 @@
                 'nationalExpress'
             ]
         },
-        statistics: createEmptyStats(),
-        datasetVersion: 0,
-        cache: new Map(),
-        cacheTimestamps: new Map()
+        statistics: createEmptyStats()
     };
+
+    function getTapTolerancePx() {
+        const isCoarsePointer = window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth <= 768;
+        const base = isCoarsePointer ? 30 : 20;
+        const zoom = state.map?.getZoom?.() ?? 6;
+        const farZoomDelta = Math.max(0, 11 - zoom);
+        const farZoomBoost = Math.pow(farZoomDelta, 1.6) * (isCoarsePointer ? 4.2 : 3);
+        const closeZoomDelta = Math.max(0, zoom - 14);
+        const closeZoomDamp = closeZoomDelta * (isCoarsePointer ? 0.8 : 0.6);
+        const tolerance = Math.round(base + farZoomBoost - closeZoomDamp);
+        const minTolerance = isCoarsePointer ? 16 : 12;
+        const maxTolerance = isCoarsePointer ? 140 : 110;
+        return Math.max(minTolerance, Math.min(maxTolerance, tolerance));
+    }
+
+    function snapLngLatToLine(lngLat, featureOrGeometry) {
+        if (!lngLat || !featureOrGeometry || !window.turf) return null;
+        const geometry = featureOrGeometry.geometry || featureOrGeometry;
+        if (geometry?.type !== 'LineString' || !Array.isArray(geometry.coordinates)) return null;
+        try {
+            const coords = geometry.coordinates;
+            const nearest = turf.nearestPointOnLine(
+                turf.lineString(coords),
+                [lngLat.lng, lngLat.lat],
+                { units: 'kilometers' }
+            );
+            const nearestCoords = nearest?.geometry?.coordinates;
+            if (!nearestCoords) return null;
+            const snappedPoint = turf.point(nearestCoords);
+            let closestVertex = null;
+            let bestDistance = Infinity;
+            coords.forEach(coord => {
+                const vertexPoint = turf.point(coord);
+                const distance = turf.distance(snappedPoint, vertexPoint, { units: 'kilometers' });
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    closestVertex = coord;
+                }
+            });
+            if (closestVertex) {
+                return { lng: closestVertex[0], lat: closestVertex[1] };
+            }
+            return { lng: nearestCoords[0], lat: nearestCoords[1] };
+        } catch (error) {
+            console.warn('Failed to snap point to line:', error);
+        }
+        return null;
+    }
 
     const CONFIG = {
         MAPBOX_TOKEN: 'pk.eyJ1IjoiaGFzaGVyMTEiLCJhIjoiY2xhbzFubnJ2MHYyeDNvbGJ0N2E4ZGtmcCJ9.Y85sMCOsQLFIyxA7RTO7WA',
@@ -1146,9 +1203,7 @@
     }
 
     function cancelFetch() { state.cancelFetch = true; state.isFetching = false; }
-    function updateFetchStatus(msg) { document.getElementById('fetchStatus').textContent = msg; }
-
-    function showFetchError(msg) {
+        function showFetchError(msg) {
         const errorEl = document.getElementById('fetchError');
         errorEl.textContent = msg; errorEl.classList.remove('hidden');
         document.getElementById('cancelFetchBtn').textContent = 'Back to Setup';
@@ -1547,6 +1602,7 @@
                 return;
             }
             
+            const baseOpacity = getCurrentBaseOpacity();
             for (let i = 0; i < state.layers.order.length; i++) {
                 const layerId = state.layers.order[i];
                 const config = CONFIG.LAYER_CONFIG.find(([id]) => id === layerId);
@@ -1588,7 +1644,7 @@
                     state.map.addLayer({
                         id: layerId, type: 'line', source: layerId,
                         layout: { 'line-join': 'round', 'line-cap': 'round', visibility: state.heatmap.enabled ? 'none' : 'visible' },
-                        paint: { 'line-color': color, 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16], 'line-opacity': 0.8 }
+                        paint: { 'line-color': color, 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16], 'line-opacity': baseOpacity }
                     }, beforeLayer);
 
                     state.layers.data.set(layerId, { data, color, visible: true });
@@ -1755,6 +1811,16 @@
             }
         };
 
+        let heatmapDebounce = null;
+        const scheduleHeatmapUpdate = () => {
+            if (heatmapDebounce) clearTimeout(heatmapDebounce);
+            heatmapDebounce = setTimeout(() => {
+                if (state.heatmap.enabled) {
+                    updateHeatmapColors();
+                }
+            }, 150);
+        };
+
         if (intensitySlider && intensityValueEl) {
             const initialIntensity = parseInt(intensitySlider.value, 10) || 1;
             state.heatmap.intensity = initialIntensity;
@@ -1767,10 +1833,7 @@
                 intensityValueEl.textContent = e.target.value;
                 updateIntensityUI(newIntensity);
 
-                // Instantly update colors if heatmap is enabled and has cached data
-                if (state.heatmap.enabled && state.heatmap.densityCache) {
-                    updateHeatmapColors();
-                }
+                scheduleHeatmapUpdate();
             };
         }
         const delayToggle = document.getElementById('delayOverlayToggle');
@@ -1912,7 +1975,7 @@
         }
     }
 
-    function queryLayersNearPoint(point, layers, tolerance = 10) {
+    function queryLayersNearPoint(point, layers, tolerance = getTapTolerancePx()) {
         if (!state.map || !point || !layers?.length) return [];
         const clamped = Math.max(2, Math.min(50, tolerance));
         const bounds = [
@@ -1967,12 +2030,44 @@
         return winner || features[0];
     }
 
+    function findOverlayFeatureAtPoint(featureCollection, lngLat, options = {}) {
+        if (!featureCollection?.features?.length || !window.turf) return null;
+        const point = turf.point([lngLat.lng, lngLat.lat]);
+        const tapTolerancePx = options.maxDistancePx ?? getTapTolerancePx();
+        const distanceThreshold = getPixelRadiusKm(lngLat, tapTolerancePx);
+        let bestFeature = null;
+        let bestPriority = -Infinity;
+        let bestDistance = Infinity;
+        const getPriority = typeof options.priorityAccessor === 'function'
+            ? options.priorityAccessor
+            : () => 0;
+        featureCollection.features.forEach((feature) => {
+            try {
+                const distance = turf.pointToLineDistance(point, feature, { units: 'kilometers' });
+                if (distance <= distanceThreshold) {
+                    const priorityValue = Number(getPriority(feature)) || 0;
+                    if (
+                        priorityValue > bestPriority ||
+                        (priorityValue === bestPriority && distance < bestDistance)
+                    ) {
+                        bestPriority = priorityValue;
+                        bestDistance = distance;
+                        bestFeature = feature;
+                    }
+                }
+            } catch (error) {
+                console.warn('Failed to evaluate overlay feature distance:', error);
+            }
+        });
+        return bestFeature;
+    }
+
     function setupMapInteractions() {
         const getActiveLayers = () => CONFIG.LAYER_CONFIG
             .map(([id]) => id)
             .filter(id => state.map.getLayer(id));
         
-        state.map.on('click', (e) => {
+        const handleMapTap = (e) => {
             if (state.delays.enabled) {
                 const overlayFeature = getDelayOverlayFeatureAtLngLat(e.lngLat);
                 if (overlayFeature) {
@@ -1982,14 +2077,17 @@
                         return;
                     }
                 }
+                // In delay mode, ignore base layers even if no overlay feature was hit
+                return;
             }
 
             const layers = getActiveLayers();
             if (!layers.length) return;
             
+            const tolerance = getTapTolerancePx();
             let features = state.map.queryRenderedFeatures(e.point, { layers });
             if (!features.length) {
-                features = queryLayersNearPoint(e.point, layers, 16);
+                features = queryLayersNearPoint(e.point, layers, tolerance);
             }
             if (features.length) {
                 // Prioritize routes (line layers) over points/symbols
@@ -2000,26 +2098,16 @@
             }
             if (!features.length) return;
             const feature = pickClosestFeature(features, e.lngLat) || features[0];
-            let anchor = e.lngLat;
-            
-            // If this is a line feature, snap popup to the nearest point on the line
-            const geom = feature.geometry;
-            if (geom?.type === 'LineString' && Array.isArray(geom.coordinates)) {
-                try {
-                    const nearest = turf.nearestPointOnLine(
-                        turf.lineString(geom.coordinates),
-                        [e.lngLat.lng, e.lngLat.lat],
-                        { units: 'kilometers' }
-                    );
-                    if (nearest?.geometry?.coordinates) {
-                        anchor = { lng: nearest.geometry.coordinates[0], lat: nearest.geometry.coordinates[1] };
-                    }
-                } catch (error) {
-                    console.warn('Failed to find nearest point on line for popup:', error);
-                }
-            }
-            
+            const snapped = snapLngLatToLine(e.lngLat, feature);
+            const anchor = snapped || e.lngLat;
             showPopup(anchor, feature);
+        };
+
+        state.map.on('click', handleMapTap);
+        state.map.on('touchend', (e) => {
+            if (e.points && e.points[0]) {
+                handleMapTap({ point: e.points[0], lngLat: e.lngLat });
+            }
         });
         state.map.on('moveend', () => { if (state.heatmap.enabled) setTimeout(() => updateRouteDensity(), 200); });
     }
@@ -2087,17 +2175,50 @@
         // Highlight the selected route using full polyline data
         highlightRoute(feature, statusId);
 
+        const buildTimestampBlock = (primary, fallback) => {
+            const dateObj = primary || fallback;
+            if (!dateObj) return `<span>—</span>`;
+            return `<span>${formatTime(dateObj)}</span><span>${formatDate(dateObj)}</span>`;
+        };
+        const departureTimestamp = buildTimestampBlock(actualDeparture, plannedDeparture);
+        const arrivalTimestamp = buildTimestampBlock(actualArrival, plannedArrival);
+
         const timingDetails = `
             <details>
-                <summary>Timing & delays</summary>
-                <div class="popup-body">
+                <summary class="popup-expander-summary">
+                    <span>Timing & delays</span>
+                    <span>${formatDelay(departureDelay)} / ${formatDelay(arrivalDelay)}</span>
+                </summary>
+                <div class="popup-body popup-scrollable">
                     <dl>
-                        <dt>Planned departure</dt><dd>${formatTime(plannedDeparture)} ${formatDate(plannedDeparture)}</dd>
-                        <dt>Actual departure</dt><dd>${formatTime(actualDeparture)} ${formatDate(actualDeparture)}</dd>
-                        <dt>Departure delay</dt><dd>${formatDelay(departureDelay)}</dd>
-                        <dt>Planned arrival</dt><dd>${formatTime(plannedArrival)} ${formatDate(plannedArrival)}</dd>
-                        <dt>Actual arrival</dt><dd>${formatTime(actualArrival)} ${formatDate(actualArrival)}</dd>
-                        <dt>Arrival delay</dt><dd>${formatDelay(arrivalDelay)}</dd>
+                        <dt>Planned departure</dt>
+                        <dd class="popup-detail-value">
+                            <span>${formatTime(plannedDeparture)}</span>
+                            <span>${formatDate(plannedDeparture)}</span>
+                        </dd>
+                        <dt>Actual departure</dt>
+                        <dd class="popup-detail-value">
+                            <span>${formatTime(actualDeparture)}</span>
+                            <span>${formatDate(actualDeparture)}</span>
+                        </dd>
+                        <dt>Departure delay</dt>
+                        <dd class="popup-detail-value">
+                            <span>${formatDelay(departureDelay)}</span>
+                        </dd>
+                        <dt>Planned arrival</dt>
+                        <dd class="popup-detail-value">
+                            <span>${formatTime(plannedArrival)}</span>
+                            <span>${formatDate(plannedArrival)}</span>
+                        </dd>
+                        <dt>Actual arrival</dt>
+                        <dd class="popup-detail-value">
+                            <span>${formatTime(actualArrival)}</span>
+                            <span>${formatDate(actualArrival)}</span>
+                        </dd>
+                        <dt>Arrival delay</dt>
+                        <dd class="popup-detail-value">
+                            <span>${formatDelay(arrivalDelay)}</span>
+                        </dd>
                     </dl>
                 </div>
             </details>
@@ -2126,13 +2247,17 @@
                 <div class="popup-stop">
                     <label>Origin</label>
                     <strong>${origin}</strong>
-                    <small>${formatTime(departureLabel)} ${formatDate(departureLabel)}</small>
+                    <div class="popup-stop-time">
+                        ${departureTimestamp}
+                    </div>
                 </div>
                 <div class="popup-arrow">→</div>
                 <div class="popup-stop">
                     <label>Destination</label>
                     <strong>${dest}</strong>
-                    <small>${formatTime(arrivalLabel)} ${formatDate(arrivalLabel)}</small>
+                    <div class="popup-stop-time">
+                        ${arrivalTimestamp}
+                    </div>
                 </div>
             </div>
             <div class="popup-meta">
@@ -2424,11 +2549,88 @@
     // HIGH-PERFORMANCE ANIMATION MODULE
     // Pre-computes all positions once, uses index-based animation
     // =========================================================================
+    function hexToRgbArray(hex) {
+        if (!hex) return [255, 255, 255];
+        const normalized = hex.replace('#', '');
+        const value = normalized.length === 3
+            ? normalized.split('').map(ch => ch + ch).join('')
+            : normalized.padEnd(6, '0');
+        const intVal = parseInt(value, 16);
+        if (Number.isNaN(intVal)) return [255, 255, 255];
+        return [
+            (intVal >> 16) & 255,
+            (intVal >> 8) & 255,
+            intVal & 255
+        ];
+    }
+
+    function clamp(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+    }
+
+    function buildEndpointKey(coords) {
+        if (!coords || coords.length < 2) return null;
+        const start = coords[0];
+        const end = coords[coords.length - 1];
+        return `${start[0].toFixed(3)},${start[1].toFixed(3)}-${end[0].toFixed(3)},${end[1].toFixed(3)}`;
+    }
+
+    function computeRouteLengthKm(coords) {
+        if (!coords || coords.length < 2) return 0;
+        let total = 0;
+        for (let i = 0; i < coords.length - 1; i++) {
+            const dx = (coords[i + 1][0] - coords[i][0]) * 111.32;
+            const dy = (coords[i + 1][1] - coords[i][1]) * 110.54;
+            total += Math.sqrt(dx * dx + dy * dy);
+        }
+        return total;
+    }
+
+    function getRouteParticleCount(lengthKm) {
+        if (!Number.isFinite(lengthKm) || lengthKm <= 0) return 1;
+        if (lengthKm >= 360) return 4;
+        if (lengthKm >= 220) return 3;
+        if (lengthKm >= 120) return 2;
+        return 1;
+    }
+
+    function computeTripDurationMinutes(train = {}) {
+        if (!train) return null;
+        const origin = train.origin || {};
+        const dest = train.destination || {};
+        const departure = getDelayDate(origin.departureReal || origin.departure || train.departure || train.plannedDeparture);
+        const arrival = getDelayDate(dest.arrivalReal || dest.arrival || train.arrival || train.plannedArrival);
+        if (departure && arrival) {
+            return Math.max(1, Math.round((arrival - departure) / 60000));
+        }
+        if (typeof train.duration === 'number' && train.duration > 0) {
+            return Math.round(train.duration);
+        }
+        return null;
+    }
+
+    function getRouteLineId(feature, fallbackCategory) {
+        const props = feature?.properties || {};
+        const train = props.train || {};
+        const line = train.lineName || train.number || train.name;
+        const originName = train.origin?.name || train.origin?.station?.name;
+        const destName = train.destination?.name || train.destination?.station?.name;
+        if (line && (originName || destName)) return `${line}|${originName || 'start'}|${destName || 'end'}`;
+        if (line) return line.toString();
+        if (props.statusId) return `status-${props.statusId}`;
+        return fallbackCategory || 'unknown';
+    }
+
+    function isDensityActive() {
+        return !!(state.heatmap.enabled && state.heatmap.overlayFeatureCollection?.features?.length);
+    }
+
     const RouteAnimation = {
         // Configuration
         config: {
             maxRoutes: 80,
-            mobileMaxRoutes: 50,
+            mobileMaxRoutes: 60,
+            densityMaxRoutesCap: 260,
             pointsPerRoute: 300,        // Fixed points per route for consistent speed
             updateInterval: 16,         // ~60fps
             lastUpdate: 0,
@@ -2456,9 +2658,23 @@
         data: {
             routes: null,           // Array of pre-computed route positions
             key: null,              // Cache invalidation key
-            positions: null,        // Float32Array of all positions [x,y,x,y,...]
-            colors: null,           // Uint8Array of all colors [r,g,b,a,...]
             routeCount: 0
+        },
+        
+        getDensityRouteCap(isMobileOverride = null) {
+            const base = 80;
+            const maxCap = this.config.densityMaxRoutesCap || 200;
+            const tripCount = state.activeTrips?.length || state.fetchedTrips?.length || 0;
+            let scaled = base;
+            if (tripCount > 0) {
+                const growth = Math.log10(tripCount + 10);
+                scaled += Math.floor(growth * 35);
+            }
+            const isMobile = typeof isMobileOverride === 'boolean' ? isMobileOverride : this.isMobile();
+            if (isMobile) {
+                scaled = Math.floor(scaled * 0.6);
+            }
+            return clamp(scaled, base, maxCap);
         },
         
         isMobile() {
@@ -2511,81 +2727,157 @@
         
         // Build all animation data once
         buildAnimationData() {
-            const cacheKey = state.layers.order
-                .filter(id => state.layers.data.get(id)?.visible)
-                .join('-');
+            if (!isDensityActive()) {
+                this.data.routes = [];
+                this.data.routeCount = 0;
+                this.data.key = null;
+                return false;
+            }
+
+            const cacheKey = [
+                'density-routes',
+                state.datasetVersion,
+                state.filters.hideInaccurate ? 1 : 0,
+                state.filters.fromDate || 'null',
+                state.filters.toDate || 'null',
+                state.layers.order.filter(id => state.layers.data.get(id)?.visible).join('-'),
+                state.heatmap.intensity
+            ].join('|');
             
             if (this.data.routes && this.data.key === cacheKey) {
                 return true;
             }
             
-            const isMobile = this.isMobile();
-            const maxRoutes = isMobile ? this.config.mobileMaxRoutes : this.config.maxRoutes;
             const pointsPerRoute = this.config.pointsPerRoute;
-            
-            // Collect routes with usage count (one dot per unique route)
-            const routeMap = new Map();
+            const maxRoutes = this.getDensityRouteCap();
+            const routeMap = new Map();       // endpoint key -> aggregated route info
+            const routeGroupMap = new Map();  // endpoint key -> Map(lineId -> route)
+            const buildRouteKey = (feature, categoryId) => {
+                const props = feature.properties || {};
+                const train = props.train || {};
+                const originName = train.origin?.name || train.origin?.station?.name || '';
+                const destName = train.destination?.name || train.destination?.station?.name || '';
+                const lineName = (train.lineName || train.number || props.statusId || categoryId || 'unknown').toString();
+                if (lineName && (originName || destName)) {
+                    return `${lineName}|${originName}|${destName}`;
+                }
+                const coords = feature.geometry?.coordinates;
+                if (coords?.length >= 2) {
+                    const start = coords[0];
+                    const end = coords[coords.length - 1];
+                    return `${lineName}|${start[0].toFixed(2)},${start[1].toFixed(2)}-${end[0].toFixed(2)},${end[1].toFixed(2)}`;
+                }
+                return `${lineName}|${props.statusId || Math.random()}`;
+            };
             
             state.layers.data.forEach((layer, categoryId) => {
                 if (!layer.visible) return;
-                const color = this.getColor(categoryId);
-                const speed = this.config.speeds[categoryId] || 1.0;
-                
+                const layerColor = hexToRgbArray(layer.color || '#ffffff');
+                const categorySpeed = this.config.speeds[categoryId] || 0.9;
                 layer.data.features.forEach(feature => {
                     const coords = feature.geometry?.coordinates;
                     if (!coords || coords.length < 2) return;
                     
-                    // Deduplication key (start + end, without category to allow cross-layer dedup)
-                    const routeKey = `${coords[0][0].toFixed(3)},${coords[0][1].toFixed(3)}-${coords[coords.length-1][0].toFixed(3)},${coords[coords.length-1][1].toFixed(3)}`;
+                    const endpointKey = buildEndpointKey(coords);
+                    if (!endpointKey) return;
+                    const routeKey = buildRouteKey(feature, categoryId);
+                    const [lineId] = routeKey.split('|');
                     
-                    const existing = routeMap.get(routeKey);
-                    if (existing) {
-                        // Increment usage count for existing route
-                        existing.usageCount++;
-                    } else {
-                        // New route - interpolate and store
+                    const lengthKm = computeRouteLengthKm(coords);
+                    const train = feature.properties?.train || {};
+                    const durationMinutes = computeTripDurationMinutes(train);
+                    const baseCategorySpeed = this.config.speeds[categoryId] || 0.9;
+                    const lengthFactor = lengthKm ? clamp(250 / lengthKm, 0.4, 1.2) : 1;
+                    const adjustedSpeed = baseCategorySpeed * lengthFactor;
+                    
+                    let endpointGroup = routeGroupMap.get(endpointKey);
+                    if (!endpointGroup) {
+                        endpointGroup = new Map();
+                        routeGroupMap.set(endpointKey, endpointGroup);
+                    }
+                    
+                    let existing = endpointGroup.get(lineId);
+                    if (!existing) {
                         const positions = this.interpolateToFixedPoints(coords, pointsPerRoute);
-                        if (positions) {
-                            routeMap.set(routeKey, { 
-                                positions, 
-                                color, 
-                                speed, 
-                                category: categoryId,
-                                usageCount: 1
-                            });
-                        }
+                        if (!positions) return;
+                        existing = {
+                            positions,
+                            color: layerColor,
+                            speed: adjustedSpeed,
+                            category: categoryId,
+                            usageCount: 0,
+                            lineId: lineId || categoryId || 'unknown',
+                            endpointKey,
+                            lengthKm,
+                            particleCount: getRouteParticleCount(lengthKm),
+                            durationMinutes
+                        };
+                        endpointGroup.set(lineId, existing);
+                    }
+                    existing.usageCount++;
+                    if (durationMinutes) {
+                        existing.durationMinutes = durationMinutes;
+                    }
+                    existing.speed = ((existing.speed || adjustedSpeed) * (existing.usageCount - 1) + adjustedSpeed) / existing.usageCount;
+                    
+                    // Track the highest-usage route per endpoint to represent that corridor overall
+                    const current = routeMap.get(endpointKey);
+                    if (!current || existing.usageCount > current.usageCount) {
+                        routeMap.set(endpointKey, existing);
                     }
                 });
             });
             
-            // Convert to array and sort by usage count (most used first)
-            let routes = Array.from(routeMap.values());
-            routes.sort((a, b) => b.usageCount - a.usageCount);
+            let routes = Array.from(routeMap.values())
+                .filter(route => route.usageCount > 0);
             
-            // Take top N most used routes, ensuring mix of categories
-            const selectedRoutes = [];
-            const categoryCount = new Map();
-            const minPerCategory = Math.floor(maxRoutes / 6); // Ensure category diversity
-            
-            // First pass: ensure minimum routes per category
-            for (const route of routes) {
-                const cat = route.category;
-                const count = categoryCount.get(cat) || 0;
-                if (count < minPerCategory && selectedRoutes.length < maxRoutes) {
-                    selectedRoutes.push(route);
-                    categoryCount.set(cat, count + 1);
-                }
+            if (!routes.length) {
+                this.data.routes = [];
+                this.data.routeCount = 0;
+                this.data.key = cacheKey;
+                return false;
             }
             
-            // Second pass: fill remaining slots with most used routes
+            routes.sort((a, b) => b.usageCount - a.usageCount);
+            const selectedRoutes = [];
+            const perLineLimit = Math.max(2, Math.floor(maxRoutes * 0.2));
+            const categoryQuota = Math.max(1, Math.floor(maxRoutes / 6));
+            const lineSelections = new Map();
+            const categorySelections = new Map();
+            const usedRoutes = new Set();
+            
+            // First pass: enforce per-line limit for fairness
             for (const route of routes) {
                 if (selectedRoutes.length >= maxRoutes) break;
-                if (!selectedRoutes.includes(route)) {
+                const lineId = route.lineId || route.category || 'unknown';
+                const count = lineSelections.get(lineId) || 0;
+                if (count >= perLineLimit) continue;
+                selectedRoutes.push(route);
+                lineSelections.set(lineId, count + 1);
+                categorySelections.set(route.category, (categorySelections.get(route.category) || 0) + 1);
+                usedRoutes.add(route);
+            }
+            
+            // Second pass: ensure minimum per-category coverage
+            for (const route of routes) {
+                if (selectedRoutes.length >= maxRoutes) break;
+                if (usedRoutes.has(route)) continue;
+                const catCount = categorySelections.get(route.category) || 0;
+                if (catCount >= categoryQuota) continue;
+                selectedRoutes.push(route);
+                categorySelections.set(route.category, catCount + 1);
+                usedRoutes.add(route);
+            }
+            
+            // Second pass: fill remaining slots (if any) without the per-line cap
+            if (selectedRoutes.length < Math.min(maxRoutes, routes.length)) {
+                for (const route of routes) {
+                    if (selectedRoutes.length >= maxRoutes) break;
+                    if (usedRoutes.has(route)) continue;
                     selectedRoutes.push(route);
                 }
             }
             
-            // Store pre-computed data
             this.data.routes = selectedRoutes;
             this.data.key = cacheKey;
             this.data.routeCount = selectedRoutes.length;
@@ -2604,46 +2896,57 @@
             const isMobile = this.isMobile();
             
             // Size based on zoom
-            const baseSize = isMobile ? 18 : 24;
+            const baseSize = isMobile ? 20 : 28;
             const sizeMultiplier = Math.pow(1.12, zoom - 12);
             const dotSize = baseSize * Math.min(1.8, Math.max(0.4, sizeMultiplier));
             
             // Pre-allocate particle array (2 particles per route: glow + core)
-            const particles = new Array(routes.length * 2);
+            const totalParticles = routes.reduce((sum, route) => sum + (route.particleCount || 1), 0);
+            const particles = new Array(totalParticles * 2);
             
+            let particleIndex = 0;
             for (let i = 0; i < routes.length; i++) {
                 const route = routes[i];
                 const positions = route.positions;
-                const color = route.color;
+                const segments = Math.max(1, route.particleCount || 1);
+                let color = route.color;
+                if (!color) {
+                    const cacheKey = route.category || 'default';
+                    if (colorCache.has(cacheKey)) {
+                        color = colorCache.get(cacheKey);
+                    } else {
+                        color = hexToRgbArray(state.layers.data.get(route.category)?.color || '#ffffff');
+                        colorCache.set(cacheKey, color);
+                    }
+                }
                 
-                // Calculate current position index (back-and-forth animation)
-                const speed = route.speed * 0.3;
-                const phase = i * 0.1; // Offset each route
-                const rawT = ((time * speed + phase) % 2);
-                const t = rawT <= 1 ? rawT : 2 - rawT; // Ping-pong
-                
-                // Get position directly from pre-computed array
-                const idx = Math.min(Math.floor(t * (pointsPerRoute - 1)), pointsPerRoute - 2);
-                const frac = (t * (pointsPerRoute - 1)) - idx;
-                const idx2 = idx * 2;
-                
-                // Interpolate between two pre-computed points
-                const x = positions[idx2] + (positions[idx2 + 2] - positions[idx2]) * frac;
-                const y = positions[idx2 + 1] + (positions[idx2 + 3] - positions[idx2 + 1]) * frac;
-                
-                // Glow particle
-                particles[i * 2] = {
-                    position: [x, y],
-                    radius: dotSize * 1.8,
-                    color: [color[0], color[1], color[2], 50]
-                };
-                
-                // Core particle
-                particles[i * 2 + 1] = {
-                    position: [x, y],
-                    radius: dotSize,
-                    color: [color[0], color[1], color[2], 255]
-                };
+                for (let segment = 0; segment < segments; segment++) {
+                    const segmentPhase = (segment / segments) * 0.5;
+                    const speed = route.speed * 0.3;
+                    const phase = i * 0.1 + segmentPhase;
+                    const rawT = ((time * speed + phase) % 2);
+                    const t = rawT <= 1 ? rawT : 2 - rawT;
+                    
+                    const idx = Math.min(Math.floor(t * (pointsPerRoute - 1)), pointsPerRoute - 2);
+                    const frac = (t * (pointsPerRoute - 1)) - idx;
+                    const idx2 = idx * 2;
+                    const x = positions[idx2] + (positions[idx2 + 2] - positions[idx2]) * frac;
+                    const y = positions[idx2 + 1] + (positions[idx2 + 3] - positions[idx2 + 1]) * frac;
+                    
+                    particles[particleIndex * 2] = {
+                        position: [x, y],
+                        radius: dotSize * 1.8,
+                        color: [color[0], color[1], color[2], 50]
+                    };
+                    
+                    particles[particleIndex * 2 + 1] = {
+                        position: [x, y],
+                        radius: dotSize,
+                        color: [color[0], color[1], color[2], 255]
+                    };
+                    
+                    particleIndex++;
+                }
             }
             
             return [new deck.ScatterplotLayer({
@@ -2662,6 +2965,10 @@
         },
         
         start() {
+            if (!isDensityActive()) {
+                this.stop();
+                return;
+            }
             if (state.heatmap.animationFrameId) return;
             this.animate();
         },
@@ -2678,7 +2985,7 @@
         },
         
         animate() {
-            if (!state.heatmap.enabled || !state.heatmap.animate) {
+            if (!state.heatmap.enabled || !state.heatmap.animate || !isDensityActive()) {
                 this.stop();
                 return;
             }
@@ -2716,6 +3023,32 @@
     // =========================================================================
     // HEATMAP FUNCTIONS
     // =========================================================================
+    function getCurrentBaseOpacity() {
+        return state.baseLayerOpacity || 0.8;
+    }
+
+    function applyBaseLayerOpacity(opacity = getCurrentBaseOpacity()) {
+        state.baseLayerOpacity = opacity;
+        state.layers.data.forEach((layer, id) => {
+            if (state.map?.getLayer(id)) {
+                try {
+                    state.map.setPaintProperty(id, 'line-opacity', opacity);
+                } catch (error) {
+                    console.warn(`Failed to set opacity for ${id}:`, error);
+                }
+            }
+        });
+    }
+
+    function setBaseLayerVisibility(visible) {
+        if (!state.map) return;
+        state.layers.data.forEach((layer, id) => {
+            if (state.map.getLayer(id)) {
+                state.map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+            }
+        });
+    }
+
     function toggleHeatmap(enabled) {
         state.heatmap.enabled = enabled;
         if (enabled) {
@@ -2723,11 +3056,10 @@
             if (state.delays.enabled) {
                 document.getElementById('delayOverlayToggle').checked = false;
                 toggleDelayOverlay(false);
+                setBaseLayerVisibility(false);
             }
             // Completely hide Mapbox layers
-            state.layers.data.forEach((layer, id) => { 
-                state.map.setLayoutProperty(id, 'visibility', 'none'); 
-            });
+            setBaseLayerVisibility(false);
             updateRouteDensity(true);
             // Check if animation toggle is checked
             const animateToggle = document.getElementById('animateToggle');
@@ -2739,12 +3071,11 @@
             state.layers.data.forEach((layer, id) => { 
                 if (layer.visible) {
                     state.map.setLayoutProperty(id, 'visibility', 'visible');
-                    state.map.setPaintProperty(id, 'line-opacity', 0.8);
                 }
             });
+            applyBaseLayerOpacity(state.delays.enabled ? 0.25 : 0.8);
             RouteAnimation.stop();
-            state.deckLayers = state.deckLayers.filter(l => l.id !== 'route-heatmap');
-            if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
+            removeRouteDensityOverlay();
         }
     }
 
@@ -2753,7 +3084,60 @@
         
         // Invalidate animation cache when density updates
         RouteAnimation.invalidateCache();
+
+        const featureCollection = buildRouteDensityFeatureCollection(force);
+        if (!featureCollection?.features?.length) {
+            removeRouteDensityOverlay();
+            return;
+        }
+
+        const overlayLayer = new deck.GeoJsonLayer({
+            id: state.heatmap.layerId,
+            data: featureCollection,
+            stroked: true,
+            filled: false,
+            lineJointRounded: true,
+            lineCapRounded: true,
+            pickable: false,
+            parameters: { depthTest: false },
+            getLineColor: f => getDensityColor(f),
+            getLineWidth: () => getDensityWidth(),
+            lineWidthUnits: 'pixels',
+            lineWidthMinPixels: 1.5
+        });
         
+        // Update deck layers - ensure heatmap is below particles but above transport lines
+        state.deckLayers = state.deckLayers.filter(l => l.id !== state.heatmap.layerId);
+        
+        // Find the right position to insert heatmap layer (before animated routes)
+        const particleIndex = state.deckLayers.findIndex(l => l.id === 'animated-routes');
+        if (particleIndex !== -1) {
+            state.deckLayers.splice(particleIndex, 0, overlayLayer);
+        } else {
+            state.deckLayers.push(overlayLayer);
+        }
+        
+        if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
+    }
+
+    function removeRouteDensityOverlay() {
+        state.deckLayers = state.deckLayers.filter(l => l.id !== state.heatmap.layerId);
+        if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
+    }
+
+    function buildRouteDensityFeatureCollection(force = false) {
+        const cacheKey = [
+            state.datasetVersion,
+            state.filters.hideInaccurate ? 1 : 0,
+            state.filters.fromDate || 'null',
+            state.filters.toDate || 'null',
+            state.heatmap.intensity
+        ].join('|');
+
+        if (!force && state.heatmap.overlayFeatureCollection && state.heatmap.cacheKey === cacheKey) {
+            return state.heatmap.overlayFeatureCollection;
+        }
+
         const segmentMap = new Map();
         const roundCoord = (value) => Math.round(value * 1e5) / 1e5;
         const getSegmentKey = (a, b) => {
@@ -2785,41 +3169,38 @@
             lineData.push({ source: s.split(',').map(Number), target: t.split(',').map(Number), density: count });
         });
 
-        state.heatmap.densityCache = lineData;
         const intensity = (state.heatmap.intensity * 3) / 4;
-        
-        const heatmapLayer = new deck.LineLayer({
-            id: 'route-heatmap', 
-            data: lineData, 
-            opacity: 0.25,  // Match v4 opacity
-            getSourcePosition: d => d.source, 
-            getTargetPosition: d => d.target,
-            getColor: d => { 
-                // Use v4's color calculation
-                const normalizedDensity = (d.density * 6) / intensity;
-                return [
-                    Math.min(255, normalizedDensity * 25),
-                    Math.min(255, 128 * (1 - normalizedDensity * 0.15)),
-                    Math.min(255, 255 * (1 - normalizedDensity * 0.15)),
-                    150  // Alpha value
-                ];
-            },
-            getWidth: 3,  // Match v4 width
-            pickable: false
-        });
-        
-        // Update deck layers - ensure heatmap is below particles but above transport lines
-        state.deckLayers = state.deckLayers.filter(l => l.id !== 'route-heatmap');
-        
-        // Find the right position to insert heatmap layer (before animated routes)
-        const particleIndex = state.deckLayers.findIndex(l => l.id === 'animated-routes');
-        if (particleIndex !== -1) {
-            state.deckLayers.splice(particleIndex, 0, heatmapLayer);
-        } else {
-            state.deckLayers.push(heatmapLayer);
-        }
-        
-        if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
+        const ordered = lineData.slice().sort((a, b) => a.density - b.density); // draw lower densities first
+        const features = ordered.map((item, index) => ({
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: [item.source, item.target] },
+            properties: {
+                density: item.density,
+                intensity: intensity,
+                order: index
+            }
+        }));
+
+        state.heatmap.overlayFeatureCollection = { type: 'FeatureCollection', features };
+        state.heatmap.overlayLookup = new Map(features.map((feature, idx) => [idx, feature]));
+        state.heatmap.cacheKey = cacheKey;
+        return state.heatmap.overlayFeatureCollection;
+    }
+
+    function getDensityColor(feature) {
+        const density = feature?.properties?.density || 0;
+        const intensity = feature?.properties?.intensity || 1;
+        const normalizedDensity = (density * 6) / intensity;
+        return [
+            Math.min(255, normalizedDensity * 25),
+            Math.min(255, 128 * (1 - normalizedDensity * 0.15)),
+            Math.min(255, 255 * (1 - normalizedDensity * 0.15)),
+            150
+        ];
+    }
+
+    function getDensityWidth() {
+        return 3;
     }
 
     // =========================================================================
@@ -2833,21 +3214,14 @@
                 document.getElementById('heatmapToggle').checked = false;
                 toggleHeatmap(false);
             }
-            // Fade base layers to 25% opacity
-            state.layers.data.forEach((layer, id) => {
-                if (layer.visible) {
-                    state.map.setPaintProperty(id, 'line-opacity', 0.25);
-                }
-            });
+            applyBaseLayerOpacity(0.25);
             updateDelayOverlay(true);
         } else {
-            // Restore base layers opacity
-            state.layers.data.forEach((layer, id) => {
-                if (layer.visible) {
-                    state.map.setPaintProperty(id, 'line-opacity', 0.8);
-                }
-            });
+            applyBaseLayerOpacity(0.8);
             removeDelayOverlay();
+            if (!state.heatmap.enabled) {
+                setBaseLayerVisibility(true);
+            }
         }
         updateDelayOverlaySummary();
     }
@@ -2919,10 +3293,22 @@
     }
 
     function getDelayColor(delayMinutes, alpha = 255) {
-        if (delayMinutes >= 25) return [229, 57, 53, alpha]; // deep red
-        if (delayMinutes >= 15) return [255, 152, 0, alpha]; // amber
-        if (delayMinutes >= 8) return [255, 214, 0, alpha]; // yellow
-        return [76, 175, 80, alpha]; // green-ish for mild delays (should rarely show)
+        const gradients = [
+            { min: 45, color: [98, 0, 23] },     // near-massive disruptions
+            { min: 35, color: [150, 0, 31] },    // extreme delays
+            { min: 25, color: [229, 57, 53] },   // severe delays
+            { min: 18, color: [255, 111, 0] },   // heavy delays
+            { min: 12, color: [255, 179, 0] },   // noticeable delays
+            { min: 7,  color: [255, 214, 0] },   // moderate delays
+            { min: 3,  color: [129, 199, 132] }  // low delays
+        ];
+        for (const stop of gradients) {
+            if (delayMinutes >= stop.min) {
+                const [r, g, b] = stop.color;
+                return [r, g, b, alpha];
+            }
+        }
+        return [76, 175, 80, alpha]; // default for minimal/no delay
     }
 
     function getDelayWidth(delayMinutes) {
@@ -3021,31 +3407,11 @@
     }
 
     function getDelayOverlayFeatureAtLngLat(lngLat) {
-        if (!state.delays.overlayFeatureCollection?.features?.length || !window.turf) return null;
-        const point = turf.point([lngLat.lng, lngLat.lat]);
-        const distanceThreshold = getPixelRadiusKm(lngLat, 24);
-        let bestFeature = null;
-        let bestDelay = -Infinity;
-        let bestDistance = Infinity;
-        state.delays.overlayFeatureCollection.features.forEach((feature) => {
-            try {
-                const distance = turf.pointToLineDistance(point, feature, { units: 'kilometers' });
-                if (distance <= distanceThreshold) {
-                    const delay = feature.properties?.delaySeconds || 0;
-                    if (
-                        delay > bestDelay ||
-                        (delay === bestDelay && distance < bestDistance)
-                    ) {
-                        bestDelay = delay;
-                        bestDistance = distance;
-                        bestFeature = feature;
-                    }
-                }
-            } catch (error) {
-                console.warn('Failed to evaluate delay overlay distance:', error);
-            }
-        });
-        return bestFeature;
+        return findOverlayFeatureAtPoint(
+            state.delays.overlayFeatureCollection,
+            lngLat,
+            { priorityAccessor: feature => feature.properties?.delaySeconds || 0 }
+        );
     }
 
     function buildFeatureFromDelayOverlay(feature) {
@@ -3070,56 +3436,25 @@
         if (!summaryEl) return;
 
         if (!state.delays.enabled) {
-            summaryEl.textContent = 'Enable to visualize where the biggest delays are.';
+            summaryEl.textContent = 'Disabled';
             return;
         }
 
         const stats = state.delays.lastStats;
         if (!stats || !stats.count) {
-            summaryEl.textContent = `No trips exceed ${state.delays.minDelayMinutes} min delay in the current selection.`;
+            summaryEl.innerHTML = `<span class="delay-summary-line">No trips exceed ${state.delays.minDelayMinutes} min.</span>`;
             return;
         }
 
-        summaryEl.textContent = `${stats.count} services ≥ ${state.delays.minDelayMinutes} min delay highlighted. Worst: ${stats.worstDelayMinutes} min (${stats.worstLine}).`;
+        summaryEl.innerHTML = `
+            <span class="delay-summary-line">Worst: ${stats.worstDelayMinutes} min (${stats.worstLine}).</span>
+        `;
     }
     
     // Instant color update using cached density data (like v4)
     function updateHeatmapColors() {
-        if (!state.heatmap.densityCache || !state.useDeckGL) return;
-
-        // Find and update the existing heatmap layer instead of recreating it
-        const heatmapIndex = state.deckLayers.findIndex(l => l.id === 'route-heatmap');
-        if (heatmapIndex !== -1) {
-            // Create new layer with updated colors
-            const intensity = (state.heatmap.intensity * 3) / 4;
-            
-            const newHeatmapLayer = new deck.LineLayer({
-                id: 'route-heatmap', 
-                data: state.heatmap.densityCache, 
-                opacity: 0.25,
-                getSourcePosition: d => d.source, 
-                getTargetPosition: d => d.target,
-                getColor: d => { 
-                    const normalizedDensity = (d.density * 6) / intensity;
-                    return [
-                        Math.min(255, normalizedDensity * 25),
-                        Math.min(255, 128 * (1 - normalizedDensity * 0.15)),
-                        Math.min(255, 255 * (1 - normalizedDensity * 0.15)),
-                        150
-                    ];
-                },
-                getWidth: 3,
-                pickable: false
-            });
-
-            // Replace the old layer
-            state.deckLayers[heatmapIndex] = newHeatmapLayer;
-
-            // Update deck with minimal re-rendering
-            if (state.deck?.setProps) {
-                state.deck.setProps({ layers: [...state.deckLayers] });
-            }
-        }
+        if (!state.heatmap.overlayFeatureCollection || !state.useDeckGL) return;
+        updateRouteDensity(true);
     }
 
     function reloadAllLayers() {
@@ -3136,6 +3471,7 @@
         
         const sourceTrips = state.activeTrips?.length ? state.activeTrips : refreshActiveTrips();
         const categories = processTripsToGeoJSON(sourceTrips);
+        const baseOpacity = getCurrentBaseOpacity();
         state.layers.order.forEach((id, index) => {
             let data = categories[id] || { type: 'FeatureCollection', features: [] };
             if (state.filters.hideInaccurate) data = filterInaccurateData(data, id);
@@ -3154,7 +3490,7 @@
                 paint: {
                     'line-color': CONFIG.LAYER_CONFIG.find(c => c[0] === id)[1],
                     'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
-                    'line-opacity': 0.8
+                    'line-opacity': baseOpacity
                 }
             }, index > 0 ? state.layers.order[index - 1] : 'open-railway-map');
             
@@ -3170,6 +3506,7 @@
         
         // Update the layer menu
         loadLayers();
+        applyBaseLayerOpacity(baseOpacity);
     }
 
     function applyTimeFilter() {
