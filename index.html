@@ -193,6 +193,7 @@
             background: var(--accent-gradient); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
         .slider::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; border: none;
             background: var(--accent-gradient); box-shadow: 0 2px 6px rgba(0,0,0,0.4); cursor: pointer; }
+        .slider-help { font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.4; }
         .slider-ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted);
             text-transform: uppercase; letter-spacing: 0.6px; margin-top: 6px; gap: 4px; }
         .slider-ticks span { flex: 1; text-align: center; position: relative; padding-top: 10px; font-weight: 600; }
@@ -226,7 +227,7 @@
         .btn-logout:hover { background: #ff4444; border-color: #ff4444; color: white; }
         .route-popup .mapboxgl-popup-content { padding: 12px; max-width: 260px; font-size: 12px; background: rgba(15, 15, 18, 0.48);
             color: var(--text-primary); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; backdrop-filter: blur(6px);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.35); }
+            box-shadow: 0 20px 40px rgba(0,0,0,0.35); z-index: 9999; }
         .route-popup .popup-title { font-size: 13px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: center; gap: 6px; }
         .route-popup .popup-badge { padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
             background: rgba(102, 126, 234, 0.15); border: 1px solid rgba(102, 126, 234, 0.3); text-transform: uppercase; }
@@ -481,6 +482,26 @@
                     </div>
                 </div>
             </details>
+            <details class="menu-submenu">
+                <summary>⏱️ Delay Tracker</summary>
+                <div class="menu-submenu-content">
+                    <div class="menu-item" style="padding: 12px 16px;">
+                        <span style="margin-right: 10px;">Highlight delays</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="delayOverlayToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            Top delayed services: <span id="delayCountValue">15</span>
+                        </div>
+                        <input type="range" class="slider" id="delayCountSlider" min="5" max="50" step="5" value="15">
+                        <p class="slider-help">Shows the most delayed trips in the currently loaded dataset.</p>
+                    </div>
+                    <p class="section-sub" id="delayOverlaySummary" style="margin: 0 16px 16px;">Enable to visualize where the biggest delays are.</p>
+                </div>
+            </details>
             <div class="menu-item" id="railwayToggle"><span>🛤️ Railway Map</span></div>
             <button class="btn btn-share" id="shareBtn">🔗 Share View</button>
         </div>
@@ -522,6 +543,17 @@
             cacheKey: null,
             needsRebuild: true,
             pendingColorFrame: null
+        },
+        delays: {
+            enabled: false,
+            topCount: 15,
+            cache: null,
+            cacheKey: null,
+            layerId: 'delay-overlay',
+            minDelayMinutes: 3,
+            lastStats: null,
+            overlayFeatureCollection: null,
+            overlayLookup: new Map()
         },
         layers: { 
             data: new Map(), 
@@ -1151,29 +1183,30 @@
         return categories;
     }
 
+    function isAccuratePolyline(coords, category) {
+        if (!coords || coords.length < 2) return false;
+        if (category === 'plane' || category === 'ship') return true;
+
+        let totalDist = 0;
+        for (let i = 0; i < coords.length - 1; i++) {
+            const [x1,y1] = coords[i], [x2,y2] = coords[i+1];
+            totalDist += Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+        }
+
+        if (coords.length <= 10) {
+            let threshold = 0.1;
+            if (['bus','tram','subway'].includes(category)) threshold = 0.05;
+            else if (['regional','regionalExp'].includes(category)) threshold = 0.2;
+            else if (['national','nationalExpress'].includes(category)) threshold = 0.3;
+            if (totalDist > threshold) return false;
+        }
+        if (totalDist > 0.3 && totalDist / coords.length > 0.027) return false;
+        return true;
+    }
+
     function filterInaccurateData(data, category) {
         if (!state.filters.hideInaccurate) return data;
-        const filtered = data.features.filter(f => {
-            const coords = f.geometry?.coordinates;
-            if (!coords || coords.length < 2) return false;
-            if (category === 'plane' || category === 'ship') return true;
-
-            let totalDist = 0;
-            for (let i = 0; i < coords.length - 1; i++) {
-                const [x1,y1] = coords[i], [x2,y2] = coords[i+1];
-                totalDist += Math.sqrt((x2-x1)**2 + (y2-y1)**2);
-            }
-
-            if (coords.length <= 10) {
-                let threshold = 0.1;
-                if (['bus','tram','subway'].includes(category)) threshold = 0.05;
-                else if (['regional','regionalExp'].includes(category)) threshold = 0.2;
-                else if (['national','nationalExpress'].includes(category)) threshold = 0.3;
-                if (totalDist > threshold) return false;
-            }
-            if (totalDist > 0.3 && totalDist / coords.length > 0.027) return false;
-            return true;
-        });
+        const filtered = data.features.filter(f => isAccuratePolyline(f.geometry?.coordinates, category));
         return { type: 'FeatureCollection', features: filtered };
     }
 
@@ -1191,6 +1224,39 @@
             if (to && created > to) return false;
             return true;
         });
+    }
+
+    function getDelayDate(value) {
+        return value ? new Date(value) : null;
+    }
+
+    function deriveDelaySeconds(train = {}) {
+        if (!train) return { departure: null, arrival: null, worst: null };
+        const origin = train.origin || {};
+        const dest = train.destination || {};
+
+        const plannedDeparture = getDelayDate(origin.departurePlanned || train.plannedDeparture);
+        const actualDeparture = getDelayDate(origin.departureReal || origin.departure || train.departure);
+        const plannedArrival = getDelayDate(dest.arrivalPlanned || train.plannedArrival);
+        const actualArrival = getDelayDate(dest.arrivalReal || dest.arrival || train.arrival);
+
+        const derivedDepartureDelay = (plannedDeparture && actualDeparture) ? Math.round((actualDeparture - plannedDeparture) / 1000) : null;
+        const derivedArrivalDelay = (plannedArrival && actualArrival) ? Math.round((actualArrival - plannedArrival) / 1000) : null;
+
+        const departureDelay = typeof train.departureDelay === 'number' ? train.departureDelay : derivedDepartureDelay;
+        const arrivalDelay = typeof train.arrivalDelay === 'number' ? train.arrivalDelay : derivedArrivalDelay;
+
+        const delays = [departureDelay, arrivalDelay].filter(value => typeof value === 'number' && !Number.isNaN(value));
+        const worst = delays.length ? Math.max(...delays) : null;
+
+        return { departure: departureDelay ?? null, arrival: arrivalDelay ?? null, worst };
+    }
+
+    function invalidateDelayOverlayCache() {
+        state.delays.cache = null;
+        state.delays.cacheKey = null;
+        state.delays.overlayFeatureCollection = null;
+        state.delays.overlayLookup = new Map();
     }
 
     function refreshActiveTrips() {
@@ -1460,6 +1526,7 @@
         state.datasetVersion++;
         state.heatmap.needsRebuild = true;
         state.heatmap.cacheKey = null;
+        invalidateDelayOverlayCache();
 
         state.fetchedTrips = Array.isArray(trips) ? trips.slice() : [];
         const activeTrips = refreshActiveTrips();
@@ -1551,6 +1618,11 @@
         UI.refs.menu.style.display = 'block';
         
         fitMapToData();
+        if (state.delays.enabled) {
+            updateDelayOverlay(true);
+        } else {
+            updateDelayOverlaySummary();
+        }
     }
 
     function initMap() {
@@ -1701,9 +1773,52 @@
                 }
             };
         }
+        const delayToggle = document.getElementById('delayOverlayToggle');
+        const delayCountSlider = document.getElementById('delayCountSlider');
+        const delayCountValue = document.getElementById('delayCountValue');
+
+        const syncDelayCount = (value) => {
+            const sliderMin = delayCountSlider ? parseInt(delayCountSlider.min, 10) || 5 : 5;
+            const sliderMax = delayCountSlider ? parseInt(delayCountSlider.max, 10) || 50 : 50;
+            const clamped = Math.min(sliderMax, Math.max(sliderMin, value || sliderMin));
+            state.delays.topCount = clamped;
+            if (delayCountValue) delayCountValue.textContent = clamped;
+            if (delayCountSlider && parseInt(delayCountSlider.value, 10) !== clamped) {
+                delayCountSlider.value = clamped;
+            }
+        };
+
+        if (delayCountSlider) {
+            syncDelayCount(parseInt(delayCountSlider.value, 10) || state.delays.topCount);
+            delayCountSlider.oninput = (e) => {
+                const newValue = parseInt(e.target.value, 10) || state.delays.topCount;
+                syncDelayCount(newValue);
+                if (state.delays.enabled) {
+                    updateDelayOverlay();
+                }
+                updateDelayOverlaySummary();
+            };
+        } else {
+            // Ensure defaults if slider not found
+            syncDelayCount(state.delays.topCount);
+        }
+
+        if (delayToggle) {
+            delayToggle.checked = state.delays.enabled;
+            delayToggle.onchange = (e) => {
+                toggleDelayOverlay(e.target.checked);
+            };
+        }
+        updateDelayOverlaySummary();
         document.getElementById('inaccurateDataToggle').onchange = () => {
             state.filters.hideInaccurate = document.getElementById('inaccurateDataToggle').checked;
+            invalidateDelayOverlayCache();
             reloadAllLayers();
+            if (state.delays.enabled) {
+                updateDelayOverlay(true);
+            } else {
+                updateDelayOverlaySummary();
+            }
         };
         document.getElementById('dateFrom').onchange = applyTimeFilter;
         document.getElementById('dateTo').onchange = applyTimeFilter;
@@ -1797,43 +1912,114 @@
         }
     }
 
+    function queryLayersNearPoint(point, layers, tolerance = 10) {
+        if (!state.map || !point || !layers?.length) return [];
+        const clamped = Math.max(2, Math.min(50, tolerance));
+        const bounds = [
+            [point.x - clamped, point.y - clamped],
+            [point.x + clamped, point.y + clamped]
+        ];
+        try {
+            return state.map.queryRenderedFeatures(bounds, { layers }) || [];
+        } catch (error) {
+            console.warn('Failed to query features with tolerance:', error);
+            return [];
+        }
+    }
+
+    function measureFeatureDistance(feature, lngLat) {
+        if (!feature || !lngLat || !window.turf) return Infinity;
+        try {
+            const point = turf.point([lngLat.lng, lngLat.lat]);
+            const geom = feature.geometry;
+            if (geom?.type === 'LineString' && Array.isArray(geom.coordinates)) {
+                const line = turf.lineString(geom.coordinates);
+                return turf.pointToLineDistance(point, line, { units: 'kilometers' });
+            }
+            if (geom?.type === 'Point') {
+                const target = turf.point(geom.coordinates);
+                return turf.distance(point, target, { units: 'kilometers' });
+            }
+            if (geom) {
+                const centroid = turf.center(feature);
+                if (centroid?.geometry?.coordinates) {
+                    const target = turf.point(centroid.geometry.coordinates);
+                    return turf.distance(point, target, { units: 'kilometers' });
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to measure feature distance:', error);
+        }
+        return Infinity;
+    }
+
+    function pickClosestFeature(features, lngLat) {
+        if (!Array.isArray(features) || !features.length) return null;
+        let winner = null;
+        let bestDistance = Infinity;
+        features.forEach((feature) => {
+            const distance = measureFeatureDistance(feature, lngLat);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                winner = feature;
+            }
+        });
+        return winner || features[0];
+    }
+
     function setupMapInteractions() {
         const getActiveLayers = () => CONFIG.LAYER_CONFIG
             .map(([id]) => id)
             .filter(id => state.map.getLayer(id));
         
         state.map.on('click', (e) => {
+            if (state.delays.enabled) {
+                const overlayFeature = getDelayOverlayFeatureAtLngLat(e.lngLat);
+                if (overlayFeature) {
+                    const synthetic = buildFeatureFromDelayOverlay(overlayFeature);
+                    if (synthetic) {
+                        showPopup(e.lngLat, synthetic);
+                        return;
+                    }
+                }
+            }
+
             const layers = getActiveLayers();
             if (!layers.length) return;
             
             let features = state.map.queryRenderedFeatures(e.point, { layers });
             if (!features.length) {
-                const bbox = [[e.point.x-10, e.point.y-10], [e.point.x+10, e.point.y+10]];
-                features = state.map.queryRenderedFeatures(bbox, { layers });
+                features = queryLayersNearPoint(e.point, layers, 16);
             }
             if (features.length) {
-                const feature = features[0];
-                let anchor = e.lngLat;
-                
-                // If this is a line feature, snap popup to the nearest point on the line
-                const geom = feature.geometry;
-                if (geom?.type === 'LineString' && Array.isArray(geom.coordinates)) {
-                    try {
-                        const nearest = turf.nearestPointOnLine(
-                            turf.lineString(geom.coordinates),
-                            [e.lngLat.lng, e.lngLat.lat],
-                            { units: 'kilometers' }
-                        );
-                        if (nearest?.geometry?.coordinates) {
-                            anchor = { lng: nearest.geometry.coordinates[0], lat: nearest.geometry.coordinates[1] };
-                        }
-                    } catch (error) {
-                        console.warn('Failed to find nearest point on line for popup:', error);
-                    }
+                // Prioritize routes (line layers) over points/symbols
+                const lineFeatures = features.filter(f => f.layer?.type === 'line');
+                if (lineFeatures.length) {
+                    features = lineFeatures;
                 }
-                
-                showPopup(anchor, feature);
             }
+            if (!features.length) return;
+            const feature = pickClosestFeature(features, e.lngLat) || features[0];
+            let anchor = e.lngLat;
+            
+            // If this is a line feature, snap popup to the nearest point on the line
+            const geom = feature.geometry;
+            if (geom?.type === 'LineString' && Array.isArray(geom.coordinates)) {
+                try {
+                    const nearest = turf.nearestPointOnLine(
+                        turf.lineString(geom.coordinates),
+                        [e.lngLat.lng, e.lngLat.lat],
+                        { units: 'kilometers' }
+                    );
+                    if (nearest?.geometry?.coordinates) {
+                        anchor = { lng: nearest.geometry.coordinates[0], lat: nearest.geometry.coordinates[1] };
+                    }
+                } catch (error) {
+                    console.warn('Failed to find nearest point on line for popup:', error);
+                }
+            }
+            
+            showPopup(anchor, feature);
         });
         state.map.on('moveend', () => { if (state.heatmap.enabled) setTimeout(() => updateRouteDensity(), 200); });
     }
@@ -1975,6 +2161,12 @@
         state.currentPopup = new mapboxgl.Popup({ className: 'route-popup', closeButton: true, closeOnClick: true })
             .setLngLat(lngLat).setHTML(html).addTo(state.map);
         
+        // Ensure popup stays on top of all layers
+        const popupEl = state.currentPopup.getElement();
+        if (popupEl) {
+            popupEl.style.zIndex = '9999';
+        }
+        
         // Clear highlight when popup closes
         state.currentPopup.on('close', () => {
             clearRouteHighlight();
@@ -2020,7 +2212,23 @@
         // Add new highlight
         state.map.addSource('route-highlight', { type: 'geojson', data: highlightData });
         
-        // Glow layer (wider, semi-transparent)
+        // Insert highlight layers at the very top of the draw order
+        // Get all layers to find the topmost transport layer (ignore symbols/rasters)
+        const layers = state.map.getStyle().layers;
+        let topLayer = null;
+        for (let i = layers.length - 1; i >= 0; i--) {
+            if (layers[i].type === 'line' && layers[i].id !== 'route-highlight' && layers[i].id !== 'route-highlight-glow') {
+                topLayer = layers[i].id;
+                break;
+            }
+        }
+        
+        // If no line layer found, just add to top
+        if (!topLayer) {
+            topLayer = layers.length > 0 ? layers[layers.length - 1].id : null;
+        }
+        
+        // Add glow layer below top transport layer
         state.map.addLayer({
             id: 'route-highlight-glow',
             type: 'line',
@@ -2032,9 +2240,9 @@
                 'line-opacity': 0.4,
                 'line-blur': 3
             }
-        });
+        }, topLayer);
         
-        // Main highlight layer
+        // Add main highlight on top of glow
         state.map.addLayer({
             id: 'route-highlight',
             type: 'line',
@@ -2204,6 +2412,12 @@
         loadLayers();
         updateAllStatistics();
         if (state.heatmap.enabled) updateRouteDensity(true);
+        invalidateDelayOverlayCache();
+        if (state.delays.enabled) {
+            updateDelayOverlay(true);
+        } else {
+            updateDelayOverlaySummary();
+        }
     }
 
     // =========================================================================
@@ -2505,6 +2719,11 @@
     function toggleHeatmap(enabled) {
         state.heatmap.enabled = enabled;
         if (enabled) {
+            // Disable delay overlay if enabled (mutual exclusion)
+            if (state.delays.enabled) {
+                document.getElementById('delayOverlayToggle').checked = false;
+                toggleDelayOverlay(false);
+            }
             // Completely hide Mapbox layers
             state.layers.data.forEach((layer, id) => { 
                 state.map.setLayoutProperty(id, 'visibility', 'none'); 
@@ -2601,6 +2820,267 @@
         }
         
         if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
+    }
+
+    // =========================================================================
+    // DELAY TRACKER OVERLAY
+    // =========================================================================
+    function toggleDelayOverlay(enabled) {
+        state.delays.enabled = enabled;
+        if (enabled) {
+            // Disable heatmap if enabled (mutual exclusion)
+            if (state.heatmap.enabled) {
+                document.getElementById('heatmapToggle').checked = false;
+                toggleHeatmap(false);
+            }
+            // Fade base layers to 25% opacity
+            state.layers.data.forEach((layer, id) => {
+                if (layer.visible) {
+                    state.map.setPaintProperty(id, 'line-opacity', 0.25);
+                }
+            });
+            updateDelayOverlay(true);
+        } else {
+            // Restore base layers opacity
+            state.layers.data.forEach((layer, id) => {
+                if (layer.visible) {
+                    state.map.setPaintProperty(id, 'line-opacity', 0.8);
+                }
+            });
+            removeDelayOverlay();
+        }
+        updateDelayOverlaySummary();
+    }
+
+    function removeDelayOverlay() {
+        if (state.useDeckGL) {
+            state.deckLayers = state.deckLayers.filter(l => !l.id.startsWith(state.delays.layerId));
+            if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
+        }
+        state.delays.lastStats = null;
+        state.delays.overlayFeatureCollection = null;
+        state.delays.overlayLookup = new Map();
+    }
+
+    function buildDelayOverlayCache(force = false) {
+        const cacheKey = [
+            state.datasetVersion,
+            state.filters.hideInaccurate ? 1 : 0,
+            state.filters.fromDate || 'null',
+            state.filters.toDate || 'null'
+        ].join('|');
+
+        if (!force && state.delays.cache && state.delays.cacheKey === cacheKey) {
+            return state.delays.cache;
+        }
+
+        const trips = state.activeTrips?.length ? state.activeTrips : refreshActiveTrips();
+        if (!Array.isArray(trips) || !trips.length) {
+            state.delays.cache = [];
+            state.delays.cacheKey = cacheKey;
+            return state.delays.cache;
+        }
+
+        const results = [];
+        trips.forEach(trip => {
+            const train = trip.train || {};
+            const coords = train.polyline?.geometry?.coordinates;
+            if (!coords || coords.length < 2) return;
+            const category = train.category || 'unknown';
+            if (state.filters.hideInaccurate && !isAccuratePolyline(coords, category)) return;
+
+            const delays = deriveDelaySeconds(train);
+            if (delays.worst === null || delays.worst <= 0) return;
+
+            const layerInfo = state.layers.data.get(category);
+            if (layerInfo && layerInfo.visible === false) return;
+
+            results.push({
+                statusId: trip.id,
+                lineName: train.lineName || train.number || 'Unknown',
+                category,
+                delaySeconds: delays.worst,
+                coordinates: coords,
+                train,
+                body: trip.body || null,
+                createdAt: trip.createdAt || null
+            });
+        });
+
+        results.sort((a, b) => b.delaySeconds - a.delaySeconds);
+        state.delays.cache = results;
+        state.delays.cacheKey = cacheKey;
+        return state.delays.cache;
+    }
+
+    function formatDelayMinutes(seconds) {
+        if (!Number.isFinite(seconds)) return null;
+        return Math.max(0, Math.round(seconds / 60));
+    }
+
+    function getDelayColor(delayMinutes, alpha = 255) {
+        if (delayMinutes >= 25) return [229, 57, 53, alpha]; // deep red
+        if (delayMinutes >= 15) return [255, 152, 0, alpha]; // amber
+        if (delayMinutes >= 8) return [255, 214, 0, alpha]; // yellow
+        return [76, 175, 80, alpha]; // green-ish for mild delays (should rarely show)
+    }
+
+    function getDelayWidth(delayMinutes) {
+        const base = 2.5;
+        const extra = Math.min(6, Math.max(0, delayMinutes * 0.25));
+        return base + extra;
+    }
+
+    function updateDelayOverlay(force = false) {
+        if (!state.delays.enabled) {
+            removeDelayOverlay();
+            updateDelayOverlaySummary();
+            return;
+        }
+        if (!state.useDeckGL) {
+            console.warn('Delay overlay requires Deck.GL support.');
+            updateDelayOverlaySummary();
+            return;
+        }
+
+        const delayData = buildDelayOverlayCache(force);
+        const minDelaySeconds = (state.delays.minDelayMinutes || 0) * 60;
+        const filtered = delayData.filter(item => item.delaySeconds >= minDelaySeconds);
+        const selected = filtered.slice(0, state.delays.topCount || 10);
+
+        if (!selected.length) {
+            removeDelayOverlay();
+            state.delays.lastStats = { count: 0, minDelay: state.delays.minDelayMinutes };
+            updateDelayOverlaySummary();
+            return;
+        }
+
+        const featureCollection = buildDelayOverlayFeatureCollection(selected);
+
+        const overlayLayer = new deck.GeoJsonLayer({
+            id: state.delays.layerId,
+            data: featureCollection,
+            stroked: true,
+            filled: false,
+            lineJointRounded: true,
+            lineCapRounded: true,
+            pickable: false,
+            parameters: { depthTest: false },
+            getLineColor: f => getDelayColor(f.properties.delayMinutes, 200),
+            getLineWidth: f => Math.max(2, getDelayWidth(f.properties.delayMinutes) * 0.6),
+            lineWidthUnits: 'pixels',
+            lineWidthMinPixels: 1.5
+        });
+
+        state.deckLayers = state.deckLayers.filter(l => !l.id.startsWith(state.delays.layerId));
+        state.deckLayers.push(overlayLayer);
+        if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
+
+        state.delays.lastStats = {
+            count: featureCollection.features.length,
+            minDelay: state.delays.minDelayMinutes,
+            worstDelayMinutes: featureCollection.features.length
+                ? featureCollection.features[featureCollection.features.length - 1].properties.delayMinutes
+                : null,
+            worstLine: selected[0]?.lineName
+        };
+        updateDelayOverlaySummary();
+    }
+
+    function buildDelayOverlayFeatureCollection(selectedRoutes) {
+        const lookup = new Map();
+        const ordered = selectedRoutes.slice().reverse(); // draw lower delays first so highest stays on top
+        const features = ordered.map((item, index) => {
+            const properties = {
+                statusId: item.statusId,
+                lineName: item.lineName,
+                category: item.category,
+                delaySeconds: item.delaySeconds,
+                delayMinutes: formatDelayMinutes(item.delaySeconds),
+                order: index
+            };
+            const feature = {
+                type: 'Feature',
+                geometry: { type: 'LineString', coordinates: item.coordinates },
+                properties
+            };
+            lookup.set(item.statusId, { ...item, feature });
+            return feature;
+        });
+        state.delays.overlayFeatureCollection = { type: 'FeatureCollection', features };
+        state.delays.overlayLookup = lookup;
+        return state.delays.overlayFeatureCollection;
+    }
+
+    function getPixelRadiusKm(lngLat, pixelRadius = 20) {
+        const zoom = state.map?.getZoom?.() ?? 6;
+        const lat = Math.max(-89, Math.min(89, lngLat?.lat ?? 0));
+        const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
+        const km = (metersPerPixel * pixelRadius) / 1000;
+        return Math.max(0.03, Math.min(1.5, km));
+    }
+
+    function getDelayOverlayFeatureAtLngLat(lngLat) {
+        if (!state.delays.overlayFeatureCollection?.features?.length || !window.turf) return null;
+        const point = turf.point([lngLat.lng, lngLat.lat]);
+        const distanceThreshold = getPixelRadiusKm(lngLat, 24);
+        let bestFeature = null;
+        let bestDelay = -Infinity;
+        let bestDistance = Infinity;
+        state.delays.overlayFeatureCollection.features.forEach((feature) => {
+            try {
+                const distance = turf.pointToLineDistance(point, feature, { units: 'kilometers' });
+                if (distance <= distanceThreshold) {
+                    const delay = feature.properties?.delaySeconds || 0;
+                    if (
+                        delay > bestDelay ||
+                        (delay === bestDelay && distance < bestDistance)
+                    ) {
+                        bestDelay = delay;
+                        bestDistance = distance;
+                        bestFeature = feature;
+                    }
+                }
+            } catch (error) {
+                console.warn('Failed to evaluate delay overlay distance:', error);
+            }
+        });
+        return bestFeature;
+    }
+
+    function buildFeatureFromDelayOverlay(feature) {
+        if (!feature?.properties?.statusId) return null;
+        const metadata = state.delays.overlayLookup.get(feature.properties.statusId);
+        if (!metadata) return null;
+        return {
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: metadata.coordinates },
+            properties: {
+                statusId: metadata.statusId,
+                train: metadata.train,
+                body: metadata.body,
+                createdAt: metadata.createdAt
+            },
+            layer: { id: metadata.category }
+        };
+    }
+
+    function updateDelayOverlaySummary() {
+        const summaryEl = document.getElementById('delayOverlaySummary');
+        if (!summaryEl) return;
+
+        if (!state.delays.enabled) {
+            summaryEl.textContent = 'Enable to visualize where the biggest delays are.';
+            return;
+        }
+
+        const stats = state.delays.lastStats;
+        if (!stats || !stats.count) {
+            summaryEl.textContent = `No trips exceed ${state.delays.minDelayMinutes} min delay in the current selection.`;
+            return;
+        }
+
+        summaryEl.textContent = `${stats.count} services ≥ ${state.delays.minDelayMinutes} min delay highlighted. Worst: ${stats.worstDelayMinutes} min (${stats.worstLine}).`;
     }
     
     // Instant color update using cached density data (like v4)
