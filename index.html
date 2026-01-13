@@ -299,7 +299,7 @@
         <div class="setup-container">
             <div class="setup-header">
                 <h1>🚂 Träwelling Map Explorer</h1>
-                <p>Visualize your travel history on an interactive map</p>
+                <p>Trace your trips on a responsive map that feels a little more like a travel journal.</p>
             </div>
             <div class="setup-form">
                 <div class="form-group">
@@ -328,8 +328,8 @@
     <div class="fetch-screen hidden" id="fetchScreen">
         <div class="fetch-container">
             <div class="fetch-spinner"></div>
-            <h2 class="fetch-title">Fetching Travel Data</h2>
-            <p class="fetch-status" id="fetchStatus">Connecting to Träwelling API...</p>
+            <h2 class="fetch-title">Loading your rides</h2>
+            <p class="fetch-status" id="fetchStatus">Talking to the Träwelling API... hang tight.</p>
             <div class="fetch-progress-bar"><div class="fetch-progress-fill" id="fetchProgress"></div></div>
             <div class="fetch-stats">
                 <div class="fetch-stat"><span class="fetch-stat-value" id="fetchTrips">0</span><span class="fetch-stat-label">Trips</span></div>
@@ -518,7 +518,7 @@
 
     <script>
     // =========================================================================
-    // STATE & CONFIG
+    // STATE & CONFIG (kept simple for editing)
     // =========================================================================
     const createEmptyStats = () => ({
         trips: 0,
@@ -588,15 +588,15 @@
 
     function getTapTolerancePx() {
         const isCoarsePointer = window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth <= 768;
-        const base = isCoarsePointer ? 30 : 20;
+        const base = isCoarsePointer ? 16 : 12;
         const zoom = state.map?.getZoom?.() ?? 6;
-        const farZoomDelta = Math.max(0, 11 - zoom);
-        const farZoomBoost = Math.pow(farZoomDelta, 1.6) * (isCoarsePointer ? 4.2 : 3);
+        const farZoomDelta = Math.max(0, 13 - zoom);
+        const farZoomBoost = Math.pow(farZoomDelta, 1.4) * (isCoarsePointer ? 2.2 : 1.5);
         const closeZoomDelta = Math.max(0, zoom - 14);
-        const closeZoomDamp = closeZoomDelta * (isCoarsePointer ? 0.8 : 0.6);
+        const closeZoomDamp = closeZoomDelta * (isCoarsePointer ? 0.6 : 0.4);
         const tolerance = Math.round(base + farZoomBoost - closeZoomDamp);
-        const minTolerance = isCoarsePointer ? 16 : 12;
-        const maxTolerance = isCoarsePointer ? 140 : 110;
+        const minTolerance = isCoarsePointer ? 10 : 8;
+        const maxTolerance = isCoarsePointer ? 70 : 55;
         return Math.max(minTolerance, Math.min(maxTolerance, tolerance));
     }
 
