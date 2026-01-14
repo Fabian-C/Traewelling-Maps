@@ -1192,6 +1192,81 @@
         }
     }
 
+    function getPositionAtIndex(positions, index) {
+        if (!positions || positions.length < 4) return null;
+        const pointCount = positions.length / 2;
+        const clamped = Math.max(0, Math.min(pointCount - 1, index));
+        const low = Math.floor(clamped);
+        const high = Math.min(pointCount - 1, low + 1);
+        const frac = clamped - low;
+        const lowOffset = low * 2;
+        const highOffset = high * 2;
+        const x = positions[lowOffset] + (positions[highOffset] - positions[lowOffset]) * frac;
+        const y = positions[lowOffset + 1] + (positions[highOffset + 1] - positions[lowOffset + 1]) * frac;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+        return [x, y];
+    }
+
+    function buildTrainPath(positions, centerIndex, sizeScale = 1) {
+        if (!positions || positions.length < 4) return null;
+        const steps = Math.max(3, Math.round(6 * sizeScale));
+        const half = Math.floor(steps / 2);
+        const stepSize = 0.3 * Math.max(0.9, sizeScale);
+        const path = [];
+        for (let s = -half; s <= half; s++) {
+            const sample = getPositionAtIndex(positions, centerIndex + s * stepSize);
+            if (sample) path.push(sample);
+        }
+        return path.length >= 2 ? path : null;
+    }
+
+    function getTrainCarLayout(lengthPx = 16) {
+        const normalized = Math.max(12, lengthPx);
+        const carCount = clamp(Math.round(normalized / 10), 1, 6);
+        const carLength = clamp(normalized / carCount, 8, 24);
+        const gap = carCount > 1 ? clamp(carLength * 0.2, 1.5, 5) : 0;
+        return { carCount, carLength, gap };
+    }
+
+    function buildSegmentedTrainPaths(positions, centerIndex, totalLengthPx = 16) {
+        if (!positions || positions.length < 4) return { cars: [], couplers: [] };
+        const layout = getTrainCarLayout(totalLengthPx);
+        const pxToScale = px => clamp(px / 16, 0.35, 2.8);
+        const baseOffset = (layout.carCount - 1) / 2;
+        const carScale = pxToScale(layout.carLength);
+        const gapScale = layout.gap ? clamp(layout.gap / 24, 0.12, 0.7) : 0;
+        const offsetStep = layout.carCount > 1 ? (carScale * 2.4) + (gapScale * 1.4) : 0;
+
+        const cars = [];
+        const couplers = [];
+
+        for (let i = 0; i < layout.carCount; i++) {
+            const offset = (i - baseOffset) * offsetStep;
+            const carPath = buildTrainPath(positions, centerIndex + offset, carScale);
+            if (carPath && isValidPath(carPath)) {
+                cars.push({ path: carPath, index: i, total: layout.carCount });
+            }
+            if (layout.gap && i < layout.carCount - 1) {
+                const couplerPath = buildTrainPath(positions, centerIndex + offset + offsetStep / 2, gapScale * 0.9);
+                if (couplerPath && isValidPath(couplerPath)) {
+                    couplers.push(couplerPath);
+                }
+            }
+        }
+
+        return { cars, couplers };
+    }
+
+    function isValidPath(path) {
+        if (!Array.isArray(path) || path.length < 2) return false;
+        return path.every(point =>
+            Array.isArray(point) &&
+            point.length === 2 &&
+            Number.isFinite(point[0]) &&
+            Number.isFinite(point[1])
+        );
+    }
+
     function cancelFetch() { state.cancelFetch = true; state.isFetching = false; }
         function showFetchError(msg) {
         const errorEl = document.getElementById('fetchError');
@@ -2576,6 +2651,44 @@
         return total;
     }
 
+    function computeAverageLatitude(coords) {
+        if (!Array.isArray(coords) || coords.length === 0) return 0;
+        let sum = 0;
+        let count = 0;
+        for (const coord of coords) {
+            const lat = coord?.[1];
+            if (Number.isFinite(lat)) {
+                sum += lat;
+                count++;
+            }
+        }
+        return count ? sum / count : 0;
+    }
+
+    function getRouteLengthScale(category) {
+        switch (category) {
+            case 'nationalExpress':
+            case 'national':
+                return 2.8;
+            case 'regionalExp':
+            case 'regional':
+                return 2.2;
+            case 'suburban':
+            case 'tram':
+                return 1.8;
+            case 'subway':
+                return 1.6;
+            case 'bus':
+                return 1.3;
+            case 'plane':
+                return 3.2;
+            case 'ship':
+                return 2.0;
+            default:
+                return 2.0;
+        }
+    }
+
     function getRouteParticleCount(lengthKm) {
         if (!Number.isFinite(lengthKm) || lengthKm <= 0) return 1;
         if (lengthKm >= 360) return 4;
@@ -2615,6 +2728,133 @@
         return !!(state.heatmap.enabled && state.heatmap.overlayFeatureCollection?.features?.length);
     }
 
+    // Simple seeded PRNG for stable randomness
+    function seededRandom(seed) {
+        const x = Math.sin(seed) * 10000;
+        return x - Math.floor(x);
+    }
+
+    // Estimate on-screen length in pixels using a sample of points
+    function estimateScreenLength(positions, sampleStep = 30) {
+        if (!state.map || !positions || positions.length < 4) return 0;
+        let total = 0;
+        const n = positions.length;
+        for (let i = 0; i < n - sampleStep; i += sampleStep) {
+            const p1 = [positions[i * 2], positions[i * 2 + 1]];
+            const p2 = [positions[(i + sampleStep) * 2], positions[(i + sampleStep) * 2 + 1]];
+            if (!Number.isFinite(p1[0]) || !Number.isFinite(p1[1]) || !Number.isFinite(p2[0]) || !Number.isFinite(p2[1])) {
+                continue;
+            }
+            try {
+                const s1 = state.map.project(p1);
+                const s2 = state.map.project(p2);
+                if (!Number.isFinite(s1.x) || !Number.isFinite(s1.y) || !Number.isFinite(s2.x) || !Number.isFinite(s2.y)) {
+                    continue;
+                }
+                const dx = s2.x - s1.x;
+                const dy = s2.y - s1.y;
+                total += Math.sqrt(dx * dx + dy * dy);
+            } catch (e) {
+                // Skip invalid points
+                continue;
+            }
+        }
+        // Scale to full length
+        const factor = (n - 1) / (Math.floor((n - 1) / sampleStep) * sampleStep);
+        return total * factor;
+    }
+
+    // Compute zoom-aware speed in pixels/second
+    function computeZoomAwareSpeed(baseSpeed, screenLengthPx, zoom) {
+        const minPxSpeed = 30;   // minimum visible speed
+        const maxPxSpeed = 140;  // maximum visible speed
+        const minLifetimeSec = 2.5; // minimum time to cross screen portion
+
+        // Zoom factor: more zoom = slower on-screen speed
+        const zoomFactor = Math.pow(0.78, Math.max(0, zoom - 12));
+
+        // Desired speed based on zoom and base speed
+        let desiredSpeed = baseSpeed * zoomFactor;
+
+        // Enforce minimum on-screen lifetime for long lines
+        if (screenLengthPx > 0) {
+            const lifetimeAtDesired = screenLengthPx / desiredSpeed;
+            if (lifetimeAtDesired < minLifetimeSec) {
+                desiredSpeed = screenLengthPx / minLifetimeSec;
+            }
+        }
+
+        // Clamp to visible range
+        return Math.max(minPxSpeed, Math.min(maxPxSpeed, desiredSpeed));
+    }
+
+    function parseColorToRgb(color) {
+        if (!color) return null;
+        if (Array.isArray(color) && color.length >= 3) {
+            return color.slice(0, 3).map(v => Math.max(0, Math.min(255, Math.round(v))));
+        }
+        if (typeof color === 'string') {
+            const hex = color.trim();
+            if (hex.startsWith('#')) {
+                return hexToRgbArray(hex);
+            }
+        }
+        return null;
+    }
+
+    function getDynamicRouteColor(category, fallbackColor) {
+        const layerInfo = state.layers.data.get(category);
+        if (layerInfo?.color) {
+            return hexToRgbArray(layerInfo.color);
+        }
+        if (state.map?.getLayer?.(category)) {
+            try {
+                const paintColor = state.map.getPaintProperty(category, 'line-color');
+                const rgb = parseColorToRgb(paintColor);
+                if (rgb) return rgb;
+            } catch (e) {
+                // ignore
+            }
+        }
+        if (Array.isArray(fallbackColor)) return fallbackColor;
+        return RouteAnimation.config.colors[category] || RouteAnimation.config.colors.default || [255, 255, 255];
+    }
+
+    function scaleColor(color = [255, 255, 255], factor = 1, alpha = 255) {
+        return [
+            Math.max(0, Math.min(255, Math.round(color[0] * factor))),
+            Math.max(0, Math.min(255, Math.round(color[1] * factor))),
+            Math.max(0, Math.min(255, Math.round(color[2] * factor))),
+            alpha
+        ];
+    }
+
+    // Apply tiny perpendicular jitter in screen space to prevent stacking
+    function jitterPositionLngLat(lngLat, seedPx = 2, seedX = null, seedY = null) {
+        if (!state.map || !lngLat || lngLat.length !== 2 || !Number.isFinite(lngLat[0]) || !Number.isFinite(lngLat[1])) {
+            return lngLat;
+        }
+        try {
+            const screen = state.map.project(lngLat);
+            if (!Number.isFinite(screen.x) || !Number.isFinite(screen.y)) return lngLat;
+            const jitterX = ((seedX !== null ? seededRandom(seedX) : Math.random()) - 0.5) * seedPx;
+            const jitterY = ((seedY !== null ? seededRandom(seedY) : Math.random()) - 0.5) * seedPx;
+            screen.x += jitterX;
+            screen.y += jitterY;
+            const result = state.map.unproject(screen);
+            return result && Number.isFinite(result.lng) && Number.isFinite(result.lat) ? [result.lng, result.lat] : lngLat;
+        } catch (e) {
+            return lngLat;
+        }
+    }
+
+    function filterAnimationLayers(layers = []) {
+        return layers.filter(layer => {
+            const id = layer?.id || '';
+            return !(id.startsWith('animated-routes') || id.startsWith('animated-trains-'));
+        });
+    }
+
     const RouteAnimation = {
         // Configuration
         config: {
@@ -2639,9 +2879,50 @@
                 default: [255, 255, 255]
             },
             speeds: {
-                plane: 2.0, nationalExpress: 1.6, national: 1.4, regionalExp: 1.2,
-                regional: 1.0, suburban: 0.9, bus: 0.8, tram: 0.7, subway: 0.6, ship: 0.5, unknown: 1.0
-            }
+                // Min/max speeds per category (pixels per second at zoom 12)
+                plane: { min: 2.0, max: 3.0 },
+                nationalExpress: { min: 1.4, max: 2.2 },
+                national: { min: 1.2, max: 1.9 },
+                regionalExp: { min: 1.0, max: 1.6 },
+                regional: { min: 0.8, max: 1.3 },
+                suburban: { min: 0.7, max: 1.1 },
+                bus: { min: 0.6, max: 1.0 },
+                tram: { min: 0.5, max: 0.9 },
+                subway: { min: 0.4, max: 0.8 },
+                ship: { min: 0.3, max: 0.7 },
+                unknown: { min: 0.8, max: 1.2 }
+            },
+            // Spawn quotas per category (percentage of total budget)
+            spawnQuotas: {
+                plane: 0.02,
+                nationalExpress: 0.08,
+                national: 0.10,
+                regionalExp: 0.12,
+                regional: 0.15,
+                suburban: 0.08,
+                bus: 0.15,
+                tram: 0.10,
+                subway: 0.07,
+                ship: 0.02,
+                unknown: 0.01
+            },
+            // Fixed length templates (in screen pixels at zoom 12)
+            lengthTemplates: {
+                 plane: 40,
+                nationalExpress: 75,
+                national: 40,
+                regionalExp: 40,
+                regional: 58,
+                suburban: 52,
+                bus: 10,
+                tram: 20,
+                subway: 42,
+                ship: 20,
+                unknown: 15
+            },
+            // Particle budget to avoid clutter
+            maxParticlesDesktop: 220,
+            maxParticlesMobile: 150
         },
         
         // Pre-computed animation data (computed once when routes change)
@@ -2725,7 +3006,7 @@
             }
 
             const cacheKey = [
-                'density-routes',
+                'density-routes-v2',
                 state.datasetVersion,
                 state.filters.hideInaccurate ? 1 : 0,
                 state.filters.fromDate || 'null',
@@ -2740,8 +3021,33 @@
             
             const pointsPerRoute = this.config.pointsPerRoute;
             const maxRoutes = this.getDensityRouteCap();
-            const routeMap = new Map();       // endpoint key -> aggregated route info
             const routeGroupMap = new Map();  // endpoint key -> Map(lineId -> route)
+            const viewportBounds = state.map?.getBounds();
+            const viewportCenter = state.map?.getCenter();
+            
+            // Helper to check if route is in viewport
+            const isInViewport = (coords) => {
+                if (!viewportBounds) return true;
+                for (const coord of coords) {
+                    if (viewportBounds.contains([coord[0], coord[1]])) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+            
+            // Helper to calculate distance from viewport center
+            const distanceFromCenter = (coords) => {
+                if (!viewportCenter) return Infinity;
+                let minDist = Infinity;
+                for (const coord of coords) {
+                    const dx = coord[0] - viewportCenter.lng;
+                    const dy = coord[1] - viewportCenter.lat;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    minDist = Math.min(minDist, dist);
+                }
+                return minDist;
+            };
             const buildRouteKey = (feature, categoryId) => {
                 const props = feature.properties || {};
                 const train = props.train || {};
@@ -2763,7 +3069,6 @@
             state.layers.data.forEach((layer, categoryId) => {
                 if (!layer.visible) return;
                 const layerColor = hexToRgbArray(layer.color || '#ffffff');
-                const categorySpeed = this.config.speeds[categoryId] || 0.9;
                 layer.data.features.forEach(feature => {
                     const coords = feature.geometry?.coordinates;
                     if (!coords || coords.length < 2) return;
@@ -2776,9 +3081,8 @@
                     const lengthKm = computeRouteLengthKm(coords);
                     const train = feature.properties?.train || {};
                     const durationMinutes = computeTripDurationMinutes(train);
-                    const baseCategorySpeed = this.config.speeds[categoryId] || 0.9;
-                    const lengthFactor = lengthKm ? clamp(250 / lengthKm, 0.4, 1.2) : 1;
-                    const adjustedSpeed = baseCategorySpeed * lengthFactor;
+                    
+                    // Speed will be assigned later based on category ranges
                     
                     let endpointGroup = routeGroupMap.get(endpointKey);
                     if (!endpointGroup) {
@@ -2790,17 +3094,19 @@
                     if (!existing) {
                         const positions = this.interpolateToFixedPoints(coords, pointsPerRoute);
                         if (!positions) return;
+                        // Seed for stable randomness
+                        const seed = Math.abs(routeKey.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0));
                         existing = {
                             positions,
                             color: layerColor,
-                            speed: adjustedSpeed,
                             category: categoryId,
                             usageCount: 0,
                             lineId: lineId || categoryId || 'unknown',
                             endpointKey,
                             lengthKm,
                             particleCount: getRouteParticleCount(lengthKm),
-                            durationMinutes
+                            durationMinutes,
+                            seed
                         };
                         endpointGroup.set(lineId, existing);
                     }
@@ -2808,65 +3114,61 @@
                     if (durationMinutes) {
                         existing.durationMinutes = durationMinutes;
                     }
-                    existing.speed = ((existing.speed || adjustedSpeed) * (existing.usageCount - 1) + adjustedSpeed) / existing.usageCount;
                     
-                    // Track the highest-usage route per endpoint to represent that corridor overall
-                    const current = routeMap.get(endpointKey);
-                    if (!current || existing.usageCount > current.usageCount) {
-                        routeMap.set(endpointKey, existing);
+                });
+            });
+            
+            // Collect routes by category without viewport bias
+            const routesByCategory = new Map();
+            routeGroupMap.forEach((group, endpointKey) => {
+                group.forEach(route => {
+                    if (route.usageCount > 0) {
+                        route.endpointKey = endpointKey;
+                        route.avgLatitude = computeAverageLatitude(route.positions ? Array.from({length: route.positions.length / 2}, (_, idx) => [
+                            route.positions[idx * 2],
+                            route.positions[idx * 2 + 1]
+                        ]) : null);
+                        if (!routesByCategory.has(route.category)) {
+                            routesByCategory.set(route.category, []);
+                        }
+                        routesByCategory.get(route.category).push(route);
                     }
                 });
             });
             
-            let routes = Array.from(routeMap.values())
-                .filter(route => route.usageCount > 0);
-            
-            if (!routes.length) {
+            if (!routesByCategory.size) {
                 this.data.routes = [];
                 this.data.routeCount = 0;
                 this.data.key = cacheKey;
                 return false;
             }
             
-            routes.sort((a, b) => b.usageCount - a.usageCount);
+            // Sort each category by usage
+            routesByCategory.forEach((routes, category) => {
+                routes.sort((a, b) => b.usageCount - a.usageCount);
+            });
+            
+            // Select routes based on quotas
             const selectedRoutes = [];
-            const perLineLimit = Math.max(2, Math.floor(maxRoutes * 0.2));
-            const categoryQuota = Math.max(1, Math.floor(maxRoutes / 6));
-            const lineSelections = new Map();
-            const categorySelections = new Map();
-            const usedRoutes = new Set();
+            const maxParticles = this.isMobile() ? this.config.maxParticlesMobile : this.config.maxParticlesDesktop;
             
-            // First pass: enforce per-line limit for fairness
-            for (const route of routes) {
-                if (selectedRoutes.length >= maxRoutes) break;
-                const lineId = route.lineId || route.category || 'unknown';
-                const count = lineSelections.get(lineId) || 0;
-                if (count >= perLineLimit) continue;
-                selectedRoutes.push(route);
-                lineSelections.set(lineId, count + 1);
-                categorySelections.set(route.category, (categorySelections.get(route.category) || 0) + 1);
-                usedRoutes.add(route);
-            }
-            
-            // Second pass: ensure minimum per-category coverage
-            for (const route of routes) {
-                if (selectedRoutes.length >= maxRoutes) break;
-                if (usedRoutes.has(route)) continue;
-                const catCount = categorySelections.get(route.category) || 0;
-                if (catCount >= categoryQuota) continue;
-                selectedRoutes.push(route);
-                categorySelections.set(route.category, catCount + 1);
-                usedRoutes.add(route);
-            }
-            
-            // Second pass: fill remaining slots (if any) without the per-line cap
-            if (selectedRoutes.length < Math.min(maxRoutes, routes.length)) {
-                for (const route of routes) {
-                    if (selectedRoutes.length >= maxRoutes) break;
-                    if (usedRoutes.has(route)) continue;
-                    selectedRoutes.push(route);
-                }
-            }
+            routesByCategory.forEach((routes, category) => {
+                const quota = Math.max(1, Math.floor(maxRoutes * (this.config.spawnQuotas[category] || 0.1)));
+                const categoryRoutes = routes.slice(0, quota);
+                
+                // Assign speed range and length template
+                categoryRoutes.forEach(route => {
+                    const speedRange = this.config.speeds[category] || { min: 0.8, max: 1.2 };
+                    route.speedMin = speedRange.min;
+                    route.speedMax = speedRange.max;
+                    route.lengthTemplate = this.config.lengthTemplates[category] || 16;
+                    
+                    // Calculate particle count based on length template
+                    route.particleCount = Math.max(1, Math.floor(route.lengthTemplate / 8));
+                });
+                
+                selectedRoutes.push(...categoryRoutes);
+            });
             
             this.data.routes = selectedRoutes;
             this.data.key = cacheKey;
@@ -2890,68 +3192,165 @@
             const sizeMultiplier = Math.pow(1.12, zoom - 12);
             const dotSize = baseSize * Math.min(1.8, Math.max(0.4, sizeMultiplier));
             
-            // Pre-allocate particle array (2 particles per route: glow + core)
-            const totalParticles = routes.reduce((sum, route) => sum + (route.particleCount || 1), 0);
-            const particles = new Array(totalParticles * 2);
+            // Particle budget to avoid clutter
+            const maxParticles = isMobile ? this.config.maxParticlesMobile : this.config.maxParticlesDesktop;
             
-            let particleIndex = 0;
-            for (let i = 0; i < routes.length; i++) {
-                const route = routes[i];
-                const positions = route.positions;
-                const segments = Math.max(1, route.particleCount || 1);
-                let color = route.color;
-                if (!color) {
-                    const cacheKey = route.category || 'default';
-                    if (colorCache.has(cacheKey)) {
-                        color = colorCache.get(cacheKey);
-                    } else {
-                        color = hexToRgbArray(state.layers.data.get(route.category)?.color || '#ffffff');
-                        colorCache.set(cacheKey, color);
-                    }
-                }
+            // Estimate per-route screen lengths and zoom-aware speeds
+            const routesWithMetrics = routes.map(route => {
+                const screenLengthPx = estimateScreenLength(route.positions);
+                let particleCount = route.particleCount || 1;
+                if (screenLengthPx < 200) particleCount = 1; // avoid multiple particles on tiny segments
                 
-                for (let segment = 0; segment < segments; segment++) {
-                    const segmentPhase = (segment / segments) * 0.5;
-                    const speed = route.speed * 0.3;
-                    const phase = i * 0.1 + segmentPhase;
-                    const rawT = ((time * speed + phase) % 2);
-                    const t = rawT <= 1 ? rawT : 2 - rawT;
-                    
-                    const idx = Math.min(Math.floor(t * (pointsPerRoute - 1)), pointsPerRoute - 2);
-                    const frac = (t * (pointsPerRoute - 1)) - idx;
-                    const idx2 = idx * 2;
-                    const x = positions[idx2] + (positions[idx2 + 2] - positions[idx2]) * frac;
-                    const y = positions[idx2 + 1] + (positions[idx2 + 3] - positions[idx2 + 1]) * frac;
-                    
-                    particles[particleIndex * 2] = {
-                        position: [x, y],
-                        radius: dotSize * 1.8,
-                        color: [color[0], color[1], color[2], 50]
-                    };
-                    
-                    particles[particleIndex * 2 + 1] = {
-                        position: [x, y],
-                        radius: dotSize,
-                        color: [color[0], color[1], color[2], 255]
-                    };
-                    
-                    particleIndex++;
-                }
+                // Use fixed length template instead of size scale
+                const lengthScale = (route.lengthTemplate || 16) / 16;
+                
+                // Calculate speed within the category range
+                const speedRange = this.config.speeds[route.category];
+                const speedMin = speedRange?.min || 0.8;
+                const speedMax = speedRange?.max || 1.2;
+                const speedVariation = (seededRandom(route.seed) - 0.5) * (speedMax - speedMin);
+                const adjustedSpeed = speedMin + speedVariation;
+                
+                return { ...route, screenLengthPx, particleCount, sizeScale: lengthScale, speed: adjustedSpeed };
+            });
+            
+            // Allocate particles within budget, prioritize high-usage
+            let totalParticles = 0;
+            const allocatedRoutes = [];
+            for (const r of routesWithMetrics) {
+                if (totalParticles + r.particleCount > maxParticles) break;
+                allocatedRoutes.push(r);
+                totalParticles += r.particleCount;
             }
             
-            return [new deck.ScatterplotLayer({
-                id: 'animated-routes',
-                data: particles,
-                getPosition: d => d.position,
-                getRadius: d => d.radius,
-                getFillColor: d => d.color,
-                opacity: 1,
-                radiusMinPixels: 2,
-                radiusMaxPixels: 25,
-                pickable: false,
-                updateTriggers: { getPosition: time },
-                parameters: { depthTest: false }
-            })];
+            const bodyTrains = [];
+            const windowTrains = [];
+            const couplerSegments = [];
+
+            for (let i = 0; i < allocatedRoutes.length; i++) {
+                const route = allocatedRoutes[i];
+                const positions = route.positions;
+                const segments = Math.max(1, route.particleCount || 1);
+                const baseColor = getDynamicRouteColor(route.category, route.color);
+                const bodyColor = scaleColor(baseColor, 1, 235);
+                const windowColor = scaleColor(baseColor, 0.6, 190);
+                const routeWidth = dotSize * 0.6; // narrower trains
+
+                for (let segment = 0; segment < segments; segment++) {
+                    const seed = route.seed + segment;
+                    const rand = seededRandom(seed);
+                    const initOffset = (rand - 0.5) * 0.12;
+                    
+                    // Use the assigned speed with zoom scaling
+                    const baseSpeed = route.speed || 1.0;
+                    const zoomEasing = zoom < 14 ? 1.0 : Math.pow(0.85, zoom - 14);
+                    const progressSpeed = baseSpeed * 0.15 * zoomEasing;
+                    
+                    const phase = i * 0.1 + (segment / segments) * 0.5 + initOffset;
+                    const rawT = ((time * progressSpeed + phase) % 2);
+                    const t = rawT <= 1 ? rawT : 2 - rawT;
+                    const centerIndex = t * (pointsPerRoute - 1);
+                    
+                    // Use length template for train size
+                    const trainLength = route.lengthTemplate || 16;
+                    const path = buildTrainPath(positions, centerIndex, trainLength / 16);
+                    if (!path || !isValidPath(path)) continue;
+                    
+                    bodyTrains.push({
+                        path,
+                        color: bodyColor,
+                        width: routeWidth * 0.9
+                    });
+                    windowTrains.push({
+                        path,
+                        color: windowColor,
+                        width: routeWidth * 0.55
+                    });
+                }
+            }
+
+            if (!bodyTrains.length) {
+                return [
+                    new deck.PathLayer({
+                        id: 'animated-trains-body',
+                        data: [],
+                        getPath: d => d.path,
+                        getColor: d => d.color,
+                        getWidth: d => 1,
+                        widthUnits: 'pixels',
+                        parameters: { depthTest: false },
+                        pickable: false
+                    }),
+                    new deck.PathLayer({
+                        id: 'animated-trains-windows',
+                        data: [],
+                        getPath: d => d.path,
+                        getColor: d => d.color,
+                        getWidth: d => 1,
+                        widthUnits: 'pixels',
+                        parameters: { depthTest: false },
+                        pickable: false
+                    }),
+                    new deck.PathLayer({
+                        id: 'animated-trains-couplers',
+                        data: [],
+                        getPath: d => d.path,
+                        getColor: d => d.color,
+                        getWidth: d => 1,
+                        widthUnits: 'pixels',
+                        parameters: { depthTest: false },
+                        pickable: false
+                    })
+                ];
+            }
+
+            return [
+                new deck.PathLayer({
+                    id: 'animated-trains-body',
+                    data: bodyTrains,
+                    getPath: d => d.path,
+                    getColor: d => d.color,
+                    getWidth: d => Math.max(0.5, d.width || 1),
+                    widthUnits: 'pixels',
+                    parameters: { depthTest: false },
+                    opacity: 1,
+                    rounded: true,
+                    jointRounded: true,
+                    capRounded: true,
+                    pickable: false,
+                    updateTriggers: { getPath: time }
+                }),
+                new deck.PathLayer({
+                    id: 'animated-trains-windows',
+                    data: windowTrains,
+                    getPath: d => d.path,
+                    getColor: d => d.color,
+                    getWidth: d => Math.max(0.3, d.width || 0.6),
+                    widthUnits: 'pixels',
+                    parameters: { depthTest: false },
+                    opacity: 1,
+                    rounded: true,
+                    jointRounded: true,
+                    capRounded: true,
+                    pickable: false,
+                    updateTriggers: { getPath: time }
+                }),
+                new deck.PathLayer({
+                    id: 'animated-trains-couplers',
+                    data: couplerSegments,
+                    getPath: d => d.path,
+                    getColor: d => d.color,
+                    getWidth: d => Math.max(0.2, d.width || 0.3),
+                    widthUnits: 'pixels',
+                    parameters: { depthTest: false },
+                    opacity: 1,
+                    rounded: true,
+                    jointRounded: true,
+                    capRounded: true,
+                    pickable: false,
+                    updateTriggers: { getPath: time }
+                })
+            ];
         },
         
         start() {
@@ -2968,7 +3367,7 @@
                 cancelAnimationFrame(state.heatmap.animationFrameId);
                 state.heatmap.animationFrameId = null;
             }
-            state.deckLayers = state.deckLayers.filter(l => !l.id.startsWith('animated-routes'));
+            state.deckLayers = filterAnimationLayers(state.deckLayers);
             if (state.deck?.setProps) {
                 state.deck.setProps({ layers: state.deckLayers });
             }
@@ -2993,8 +3392,8 @@
             this.config.lastUpdate = now;
             
             const layers = this.createLayer();
-            if (layers) {
-                state.deckLayers = state.deckLayers.filter(l => !l.id.startsWith('animated-routes'));
+            if (layers?.length) {
+                state.deckLayers = filterAnimationLayers(state.deckLayers);
                 state.deckLayers.push(...layers);
                 if (state.deck?.setProps) {
                     state.deck.setProps({ layers: state.deckLayers });
@@ -3108,6 +3507,20 @@
         }
         
         if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
+        
+        // Lightweight recompute on zoom/move (no full rebuild)
+        let animationViewportTimeout = null;
+        const debouncedAnimationRefresh = () => {
+            if (animationViewportTimeout) clearTimeout(animationViewportTimeout);
+            animationViewportTimeout = setTimeout(() => {
+                if (state.heatmap.enabled && state.heatmap.animate && RouteAnimation.data.routes?.length) {
+                    // No need to rebuild full data; just refresh layer to recompute screen metrics
+                    RouteAnimation.start();
+                }
+            }, RouteAnimation.isMobile() ? 300 : 150);
+        };
+        state.map.on('zoomend', debouncedAnimationRefresh);
+        state.map.on('moveend', debouncedAnimationRefresh);
     }
 
     function removeRouteDensityOverlay() {
