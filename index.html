@@ -473,6 +473,34 @@
                 </div>
             </details>
             <details class="menu-submenu">
+                <summary>💼 Trip Type</summary>
+                <div class="menu-submenu-content">
+                    <div class="business-filter">
+                        <div class="menu-item" style="padding: 12px 16px;">
+                            <span style="margin-right: 10px;">Personal</span>
+                            <label class="toggle">
+                                <input type="checkbox" id="businessPersonal" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="menu-item" style="padding: 12px 16px;">
+                            <span style="margin-right: 10px;">Work</span>
+                            <label class="toggle">
+                                <input type="checkbox" id="businessWork" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="menu-item" style="padding: 12px 16px;">
+                            <span style="margin-right: 10px;">Commute</span>
+                            <label class="toggle">
+                                <input type="checkbox" id="businessCommute" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </details>
+            <details class="menu-submenu">
                 <summary>🚦 Transport Layers</summary>
                 <div class="menu-submenu-content">
                     <div class="menu-item" style="padding: 12px 16px;">
@@ -569,7 +597,7 @@
         datasetVersion: 0,
         fetchedTrips: [],
         activeTrips: [],
-        filters: { fromDate: null, toDate: null, hideInaccurate: false },
+        filters: { fromDate: null, toDate: null, hideInaccurate: false, business: { personal: true, work: true, commute: true } },
         railway: { enabled: false },
         heatmap: { 
             enabled: false, 
@@ -1306,6 +1334,22 @@
         });
     }
 
+    function filterTripsByBusiness(trips = [], businessFilters) {
+        if (!trips.length) return [];
+        if (!businessFilters) return trips.slice();
+        
+        return trips.filter(trip => {
+            const businessValue = trip?.business;
+            
+            // business: 0 = personal, 1 = work, 2 = commute (based on Träwelling API)
+            if (businessValue === 0 && !businessFilters.personal) return false;
+            if (businessValue === 1 && !businessFilters.work) return false;
+            if (businessValue === 2 && !businessFilters.commute) return false;
+            
+            return true;
+        });
+    }
+
     function getDelayDate(value) {
         return value ? new Date(value) : null;
     }
@@ -1341,7 +1385,9 @@
 
     function refreshActiveTrips() {
         const sourceTrips = state.fetchedTrips || [];
-        state.activeTrips = filterTripsByDateRange(sourceTrips, state.filters.fromDate, state.filters.toDate);
+        let filteredTrips = filterTripsByDateRange(sourceTrips, state.filters.fromDate, state.filters.toDate);
+        filteredTrips = filterTripsByBusiness(filteredTrips, state.filters.business);
+        state.activeTrips = filteredTrips;
         return state.activeTrips;
     }
 
@@ -1910,6 +1956,16 @@
         };
         document.getElementById('dateFrom').onchange = applyTimeFilter;
         document.getElementById('dateTo').onchange = applyTimeFilter;
+        
+        // Initialize business filter state from checkboxes
+        state.filters.business.personal = document.getElementById('businessPersonal').checked;
+        state.filters.business.work = document.getElementById('businessWork').checked;
+        state.filters.business.commute = document.getElementById('businessCommute').checked;
+        
+        // Add business filter event listeners
+        document.getElementById('businessPersonal').onchange = applyBusinessFilter;
+        document.getElementById('businessWork').onchange = applyBusinessFilter;
+        document.getElementById('businessCommute').onchange = applyBusinessFilter;
         document.getElementById('shareBtn').onclick = shareView;
         document.getElementById('logoutBtn').onclick = logout;
         const animateToggle = document.getElementById('animateToggle');
@@ -3538,6 +3594,30 @@
         const from = document.getElementById('dateFrom').value || null;
         const to = document.getElementById('dateTo').value || null;
         state.filters.fromDate = from; state.filters.toDate = to;
+
+        const filteredTrips = refreshActiveTrips();
+
+        state.datasetVersion++;
+        state.heatmap.needsRebuild = true;
+        state.heatmap.cacheKey = null;
+        const categories = processTripsToGeoJSON(filteredTrips);
+        state.layers.order.forEach(layerId => {
+            let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
+            if (state.filters.hideInaccurate) data = filterInaccurateData(data, layerId);
+            const source = state.map.getSource(layerId);
+            if (source) source.setData(data);
+            const layer = state.layers.data.get(layerId);
+            if (layer) layer.data = data;
+        });
+        updateAllStatistics();
+        if (state.heatmap.enabled) updateRouteDensity(true);
+    }
+
+    function applyBusinessFilter() {
+        // Update business filter state from checkboxes
+        state.filters.business.personal = document.getElementById('businessPersonal').checked;
+        state.filters.business.work = document.getElementById('businessWork').checked;
+        state.filters.business.commute = document.getElementById('businessCommute').checked;
 
         const filteredTrips = refreshActiveTrips();
 
