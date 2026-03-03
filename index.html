@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -61,9 +60,82 @@
             display: flex; align-items: center; justify-content: center; z-index: 9999; transition: opacity 0.5s ease; }
         .fetch-screen.hidden { opacity: 0; pointer-events: none; }
         .fetch-container { text-align: center; max-width: 500px; width: 90%; padding: 40px; }
-        .fetch-spinner { width: 80px; height: 80px; border: 4px solid var(--bg-tertiary); border-top-color: var(--accent-color);
-            border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 30px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        .cargo-scene { width: 100%; max-width: 500px; height: 200px; margin: 0 auto 20px; position: relative; overflow: hidden; user-select: none; contain: layout paint style; }
+        .cargo-stage { position: absolute; top: 2px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--accent-color);
+            font-weight: 600; letter-spacing: 0.4px; opacity: 0; transition: opacity 0.3s; white-space: nowrap; z-index: 20; }
+        .cargo-stage.visible { opacity: 1; }
+        .cargo-ground { position: absolute; bottom: 0; left: 0; right: 0; height: 22px;
+            background: linear-gradient(180deg, #3a3530 0%, #2e2a25 100%); border-top: 1px solid rgba(255,255,255,0.06); }
+        .cargo-rails { position: absolute; bottom: 20px; left: 140px; right: 0; height: 14px; }
+        .cargo-rails::before { content: ''; position: absolute; top: 2px; left: 0; right: 0; height: 2px;
+            background: #888; box-shadow: 0 8px 0 #888; border-radius: 1px; }
+        .cargo-sleepers { position: absolute; top: 0; left: 0; right: 0; height: 14px;
+            background: repeating-linear-gradient(90deg, rgba(90,74,58,0.6) 0px, rgba(90,74,58,0.6) 4px, transparent 4px, transparent 16px); }
+        .depot-platform { position: absolute; left: 0; bottom: 22px; width: 140px; height: 4px;
+            background: linear-gradient(180deg, #505050 0%, #404040 100%); }
+        .depot-zone { position: absolute; left: 4px; bottom: 26px; width: 132px; height: 100px; overflow: hidden; display: flex; align-items: flex-end; justify-content: flex-end; }
+        .depot-label { position: absolute; top: 64px; left: 6px; font-size: 8px; color: var(--text-muted);
+            letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.6; }
+        .depot-stack { display: flex; gap: 3px; align-items: flex-end; transition: transform 0.3s ease; }
+        .depot-col { display: flex; flex-direction: column-reverse; gap: 2px; }
+        .crate { width: 28px; height: 18px; border-radius: 1px; position: relative; flex-shrink: 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08); opacity: 0; }
+        .crate.arrive { animation: crate-drop 0.28s cubic-bezier(0.34, 1.4, 0.64, 1) forwards; }
+        @keyframes crate-drop { 0% { opacity: 0; transform: translateY(-24px) scale(0.85); }
+            65% { opacity: 1; transform: translateY(1px) scale(1.03); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+        .crate.pickup { animation: crate-lift 0.16s ease-in forwards; }
+        @keyframes crate-lift { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-30px) scale(0.9); } }
+        .crate-ribs { position: absolute; top: 2px; bottom: 2px; left: 1px; right: 1px; pointer-events: none; border-radius: 1px;
+            background: repeating-linear-gradient(90deg, rgba(0,0,0,0.08) 0px, rgba(0,0,0,0.08) 1px, transparent 1px, transparent 3px); }
+        .crate-lbl { position: absolute; bottom: 1px; right: 2px; font-size: 5px; font-weight: 700;
+            color: rgba(255,255,255,0.55); line-height: 1; pointer-events: none; }
+        .gantry { position: absolute; left: 160px; bottom: 22px; width: 120px; height: 140px; z-index: 10;
+            transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1); will-change: left; }
+        .gantry.at-depot { left: 50px; }
+        .gantry.at-train { left: 200px; }
+        .gantry-leg { position: absolute; bottom: 0; width: 5px; height: 95px;
+            background: repeating-linear-gradient(180deg, #ffc107 0px, #ffc107 6px, #c89900 6px, #c89900 8px); }
+        .gantry-leg.l { left: 15px; } .gantry-leg.r { right: 15px; }
+        .gantry-beam { position: absolute; bottom: 95px; left: 10px; right: 10px; height: 7px;
+            background: linear-gradient(180deg, #ffc107 0%, #d4a000 100%); border-radius: 1px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .gantry-trolley { position: absolute; top: -3px; width: 14px; height: 6px; background: #555; border-radius: 1px;
+            left: 50%; transform: translateX(-50%); }
+        .gantry-hoist { position: absolute; top: 6px; left: 6px; width: 2px; background: #aaa;
+            transition: height 0.16s ease-in-out; height: 12px; will-change: height; }
+        .gantry-spreader { position: absolute; bottom: -5px; left: -5px; width: 14px; height: 3px; background: #777; border-radius: 1px; }
+        .gantry-payload { position: absolute; bottom: -23px; left: -3px; width: 28px; height: 18px; border-radius: 1px;
+            opacity: 0; transition: opacity 0.12s; will-change: opacity;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08); }
+        .gantry-payload.visible { opacity: 1; }
+        .gantry-payload .crate-ribs { position: absolute; top: 2px; bottom: 2px; left: 1px; right: 1px; border-radius: 1px;
+            background: repeating-linear-gradient(90deg, rgba(0,0,0,0.08) 0px, rgba(0,0,0,0.08) 1px, transparent 1px, transparent 3px); }
+        .train-zone { position: absolute; right: 0; bottom: 28px; display: flex; gap: 2px;
+            flex-direction: row-reverse; align-items: flex-end; transition: transform 0.32s ease; will-change: transform; }
+        .locomotive { width: 38px; flex-shrink: 0; position: relative; }
+        .loco-body { width: 100%; height: 20px; background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%);
+            border-radius: 2px 6px 2px 2px; border: 1px solid #3d566e; position: relative; }
+        .loco-cab { position: absolute; top: -10px; right: 2px; width: 16px; height: 12px;
+            background: linear-gradient(180deg, #34495e 0%, #2c3e50 100%); border-radius: 2px 2px 0 0; border: 1px solid #3d566e; border-bottom: none; }
+        .loco-window { position: absolute; top: 2px; left: 2px; right: 2px; height: 5px;
+            background: rgba(100,180,255,0.3); border-radius: 1px; }
+        .loco-stripe { position: absolute; top: 7px; left: 3px; right: 12px; height: 2px; background: #f39c12; border-radius: 1px; }
+        .loco-bogie { position: absolute; bottom: -6px; display: flex; gap: 2px; }
+        .loco-bogie.bl { left: 3px; } .loco-bogie.br { right: 3px; }
+        .flatcar { width: 42px; flex-shrink: 0; position: relative; opacity: 0; animation: car-roll 0.24s ease-out forwards; will-change: transform, opacity; }
+        @keyframes car-roll { 0% { opacity: 0; transform: translateX(20px); } 100% { opacity: 1; transform: translateX(0); } }
+        .flatcar-deck { width: 100%; height: 5px; background: linear-gradient(180deg, #505050 0%, #3a3a3a 100%);
+            border: 1px solid #5a5a5a; border-radius: 1px; }
+        .flatcar-bogie { position: absolute; bottom: -6px; display: flex; gap: 2px; }
+        .flatcar-bogie.bl { left: 3px; } .flatcar-bogie.br { right: 3px; }
+        .flatcar-axle { width: 5px; height: 5px; background: radial-gradient(circle at 35% 35%, #666, #222);
+            border-radius: 50%; border: 1px solid #333; }
+        .train-crate { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 28px; height: 18px;
+            border-radius: 1px; opacity: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08); }
+        .train-crate.placed { opacity: 1; animation: crate-set 0.2s ease-out; }
+        @keyframes crate-set { 0% { transform: translateX(-50%) translateY(-6px); } 100% { transform: translateX(-50%) translateY(0); } }
+        .train-crate .crate-ribs { position: absolute; top: 2px; bottom: 2px; left: 1px; right: 1px; border-radius: 1px;
+            background: repeating-linear-gradient(90deg, rgba(0,0,0,0.08) 0px, rgba(0,0,0,0.08) 1px, transparent 1px, transparent 3px); }
         .fetch-title { font-size: 24px; margin: 0 0 10px; }
         .fetch-status { color: var(--text-secondary); margin: 0 0 30px; font-size: 14px; }
         .fetch-progress-bar { height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
@@ -350,7 +422,28 @@
     <!-- Fetch Progress Screen -->
     <div class="fetch-screen hidden" id="fetchScreen">
         <div class="fetch-container">
-            <div class="fetch-spinner"></div>
+            <div class="cargo-scene" id="cargoScene">
+                <div class="cargo-stage" id="cargoStage"></div>
+                <div class="depot-label">Depot</div>
+                <div class="depot-zone"><div class="depot-stack" id="depotStack"></div></div>
+                <div class="depot-platform"></div>
+                <div class="gantry">
+                    <div class="gantry-leg l"></div>
+                    <div class="gantry-leg r"></div>
+                    <div class="gantry-beam">
+                        <div class="gantry-trolley" id="gantryTrolley">
+                            <div class="gantry-hoist" id="gantryHoist">
+                                <div class="gantry-spreader">
+                                    <div class="gantry-payload" id="gantryPayload"><div class="crate-ribs"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="train-zone" id="trainZone"></div>
+                <div class="cargo-rails"><div class="cargo-sleepers"></div></div>
+                <div class="cargo-ground"></div>
+            </div>
             <h2 class="fetch-title">Loading your rides</h2>
             <p class="fetch-status" id="fetchStatus">Talking to the Träwelling API... hang tight.</p>
             <div class="fetch-progress-bar"><div class="fetch-progress-fill" id="fetchProgress"></div></div>
@@ -738,8 +831,35 @@
                 menuCopyTokenBtn: document.getElementById('menuCopyTokenBtn'),
                 menuFetchBtn: document.getElementById('menuFetchBtn'),
                 setupTokenInput: document.getElementById('apiToken'),
-                setupUsernameInput: document.getElementById('username')
+                setupUsernameInput: document.getElementById('username'),
+                cargoScene: document.getElementById('cargoScene'),
+                depotStack: document.getElementById('depotStack'),
+                gantry: document.querySelector('.gantry'),
+                gantryTrolley: document.getElementById('gantryTrolley'),
+                gantryHoist: document.getElementById('gantryHoist'),
+                gantryPayload: document.getElementById('gantryPayload'),
+                trainZone: document.getElementById('trainZone'),
+                cargoStage: document.getElementById('cargoStage')
             };
+            this.depotCrates = [];
+            this.depotColumns = [];
+            this.trainCarsCount = 0;
+            this.craneAnimating = false;
+            this.loadQueue = [];
+            this.totalDepotReceived = 0;
+            this.totalBatches = 0;
+            this.batchesCompleted = 0;
+            this._animSpeed = 0.8;
+            this._cargoSceneWidth = this.refs.cargoScene ? this.refs.cargoScene.clientWidth : 500;
+            if (this.refs.cargoScene && typeof ResizeObserver !== 'undefined') {
+                if (this._cargoSceneResizeObserver) this._cargoSceneResizeObserver.disconnect();
+                this._cargoSceneResizeObserver = new ResizeObserver(entries => {
+                    const entry = entries[0];
+                    if (!entry) return;
+                    this._cargoSceneWidth = entry.contentRect.width || this._cargoSceneWidth;
+                });
+                this._cargoSceneResizeObserver.observe(this.refs.cargoScene);
+            }
         },
         toggleSetup(show) {
             if (!this.refs) return;
@@ -762,8 +882,211 @@
             if (typeof trips === 'number') this.refs.fetchTrips.textContent = trips;
             if (typeof pages === 'number') this.refs.fetchPages.textContent = pages;
             if (typeof routes === 'number') this.refs.fetchRoutes.textContent = routes;
-            if (typeof progress === 'number') this.refs.fetchProgress.style.width = `${Math.min(100, progress)}%`;
+            if (typeof progress === 'number') {
+                this.refs.fetchProgress.style.width = `${Math.min(100, progress)}%`;
+            }
             if (status) this.refs.fetchStatus.textContent = status;
+        },
+        _crateColors: [
+            { bg: 'linear-gradient(135deg, #e74c3c 0%, #b71c1c 100%)' },
+            { bg: 'linear-gradient(135deg, #2ecc71 0%, #1b7a3d 100%)' },
+            { bg: 'linear-gradient(135deg, #3498db 0%, #15578a 100%)' },
+            { bg: 'linear-gradient(135deg, #f39c12 0%, #c77d0a 100%)' },
+            { bg: 'linear-gradient(135deg, #9b59b6 0%, #6c3483 100%)' },
+            { bg: 'linear-gradient(135deg, #1abc9c 0%, #0e6f5c 100%)' },
+            { bg: 'linear-gradient(135deg, #e67e22 0%, #a85c17 100%)' },
+            { bg: 'linear-gradient(135deg, #e84393 0%, #a52d6b 100%)' },
+            { bg: 'linear-gradient(135deg, #00b894 0%, #007a5e 100%)' },
+            { bg: 'linear-gradient(135deg, #6c5ce7 0%, #4834a8 100%)' }
+        ],
+        _maxStack: 4,
+        _maxVisibleCols: 4,
+        addPacketToDepot(pageNumber) {
+            if (!this.refs.depotStack) return;
+            const idx = this.totalDepotReceived;
+            this.totalDepotReceived++;
+            const color = this._crateColors[idx % this._crateColors.length];
+            const crate = document.createElement('div');
+            crate.className = 'crate';
+            crate.style.background = color.bg;
+            crate.innerHTML = `<div class="crate-ribs"></div><div class="crate-lbl">${pageNumber}</div>`;
+            let col = this.depotColumns[this.depotColumns.length - 1];
+            if (!col || col.count >= this._maxStack) {
+                const colEl = document.createElement('div');
+                colEl.className = 'depot-col';
+                this.refs.depotStack.appendChild(colEl);
+                col = { el: colEl, count: 0 };
+                this.depotColumns.push(col);
+            }
+            col.el.appendChild(crate);
+            col.count++;
+            const stackHeight = col.count;
+            requestAnimationFrame(() => crate.classList.add('arrive'));
+            this.depotCrates.push({ el: crate, color: color, page: pageNumber, stackHeight: stackHeight });
+            this._updateDepotScroll();
+            if (this.refs.cargoStage) {
+                // this.refs.cargoStage.textContent = `Fetching data packets\u2026 ${this.totalDepotReceived} received`;
+                this.refs.cargoStage.classList.add('visible');
+            }
+        },
+        startLoadingToTrain(totalBatches) {
+            this.totalBatches = totalBatches;
+            this.batchesCompleted = 0;
+            if (this.refs.cargoStage) {
+                // this.refs.cargoStage.textContent = 'Processing route data\u2026';
+            }
+        },
+        onPolylineBatchComplete() {
+            this.batchesCompleted++;
+            if (this.totalDepotReceived === 0 || this.totalBatches === 0) return;
+            const allDone = this.batchesCompleted >= this.totalBatches;
+            const targetLoaded = allDone ? this.totalDepotReceived
+                : Math.round((this.batchesCompleted / this.totalBatches) * this.totalDepotReceived);
+            const alreadyQueued = this.trainCarsCount + this.loadQueue.length;
+            const toQueue = Math.max(0, targetLoaded - alreadyQueued);
+            for (let i = 0; i < toQueue; i++) {
+                if (this.depotCrates.length === 0) break;
+                this.loadQueue.push(this.depotCrates.pop());
+            }
+            if (this.refs.cargoStage) {
+                // this.refs.cargoStage.textContent = `Loading routes\u2026 ${this.trainCarsCount + this.loadQueue.length}/${this.totalDepotReceived}`;
+            }
+            this._processQueue();
+        },
+        _processQueue() {
+            if (this.craneAnimating || this.loadQueue.length === 0) return;
+            this.craneAnimating = true;
+            const t = (ms) => Math.round(ms * this._animSpeed);
+            const item = this.loadQueue.shift();
+            const gantry = this.refs.gantry;
+            const hoist = this.refs.gantryHoist;
+            const payload = this.refs.gantryPayload;
+            const trainZone = this.refs.trainZone;
+            if (!gantry || !hoist || !payload || !trainZone) { this.craneAnimating = false; return; }
+
+            const crateHeight = 18;
+            const crateGap = 2;
+            const baseHeight = 12;
+            const gantryBeamHeight = 95;
+            const depotBottom = 26;
+            const stackLevel = item.stackHeight || 1;
+            const containerTop = depotBottom + (stackLevel - 1) * (crateHeight + crateGap) + crateHeight;
+            const hoistDepot = Math.max(baseHeight, gantryBeamHeight - containerTop + baseHeight);
+            const trainDeck = 28 + 5;
+            const hoistTrain = gantryBeamHeight - trainDeck + baseHeight;
+            let targetCar = null;
+
+            gantry.classList.remove('at-train');
+            gantry.classList.add('at-depot');
+            setTimeout(() => { hoist.style.height = hoistDepot + 'px'; }, t(360));
+            setTimeout(() => {
+                item.el.classList.add('pickup');
+                setTimeout(() => {
+                    if (item.el.parentElement) {
+                        const colEl = item.el.parentElement;
+                        item.el.remove();
+                        if (colEl.children.length === 0) {
+                            colEl.remove();
+                            this.depotColumns = this.depotColumns.filter(c => c.el.parentElement);
+                        } else {
+                            const col = this.depotColumns.find(c => c.el === colEl);
+                            if (col) col.count = colEl.children.length;
+                        }
+                        this._updateDepotScroll();
+                    }
+                }, t(200));
+                payload.style.background = item.color.bg;
+                payload.innerHTML = `<div class="crate-ribs"></div><div class="crate-lbl">${item.page}</div>`;
+                payload.classList.add('visible');
+                hoist.style.height = baseHeight + 'px';
+            }, t(570));
+            setTimeout(() => {
+                gantry.classList.remove('at-depot');
+                gantry.classList.add('at-train');
+            }, t(780));
+            setTimeout(() => {
+                if (this.trainCarsCount === 0 && !trainZone.querySelector('.locomotive')) {
+                    const loco = document.createElement('div');
+                    loco.className = 'locomotive';
+                    loco.innerHTML = `<div class="loco-body"><div class="loco-cab"><div class="loco-window"></div></div><div class="loco-stripe"></div></div>
+                        <div class="loco-bogie bl"><div class="flatcar-axle"></div><div class="flatcar-axle"></div></div>
+                        <div class="loco-bogie br"><div class="flatcar-axle"></div><div class="flatcar-axle"></div></div>`;
+                    trainZone.insertBefore(loco, trainZone.firstChild);
+                }
+                const car = document.createElement('div');
+                car.className = 'flatcar';
+                car.innerHTML = `<div class="flatcar-deck"></div>
+                    <div class="flatcar-bogie bl"><div class="flatcar-axle"></div><div class="flatcar-axle"></div></div>
+                    <div class="flatcar-bogie br"><div class="flatcar-axle"></div><div class="flatcar-axle"></div></div>`;
+                trainZone.appendChild(car);
+                targetCar = car;
+                this.trainCarsCount++;
+                this._updateTrainScroll();
+            }, t(980));
+            setTimeout(() => { hoist.style.height = hoistTrain + 'px'; }, t(1130));
+            setTimeout(() => {
+                payload.classList.remove('visible');
+                if (targetCar) {
+                    const crate = document.createElement('div');
+                    crate.className = 'train-crate';
+                    crate.style.background = item.color.bg;
+                    crate.innerHTML = `<div class="crate-ribs"></div><div class="crate-lbl">${item.page}</div>`;
+                    targetCar.appendChild(crate);
+                    requestAnimationFrame(() => {
+                        const tc = targetCar.querySelector('.train-crate');
+                        if (tc) tc.classList.add('placed');
+                    });
+                }
+                if (!targetCar) {
+                    this.trainCarsCount++;
+                    this._updateTrainScroll();
+                }
+                hoist.style.height = baseHeight + 'px';
+                if (this.refs.cargoStage) {
+                    if (this.trainCarsCount >= this.totalDepotReceived && this.loadQueue.length === 0) {
+                        // this.refs.cargoStage.textContent = 'All routes loaded!';
+                        setTimeout(() => { if (this.refs.cargoStage) this.refs.cargoStage.classList.remove('visible'); }, 2500);
+                    } else {
+                        // this.refs.cargoStage.textContent = `Loading routes… ${this.trainCarsCount}/${this.totalDepotReceived}`;
+                    }
+                }
+                this.craneAnimating = false;
+                if (this.loadQueue.length > 0) setTimeout(() => this._processQueue(), t(50));
+            }, t(1330));
+        },
+        _updateDepotScroll() {
+        },
+        _updateTrainScroll() {
+            if (!this.refs.trainZone || this.trainCarsCount === 0) return;
+            const trainZone = this.refs.trainZone;
+            const sceneWidth = this._cargoSceneWidth || (this.refs.cargoScene ? this.refs.cargoScene.clientWidth : 500);
+
+            // gantry.at-train is left:200px, width:120px, payload offset ~+4px => target ~264px
+            const targetCenter = 264;
+
+            // row-reverse + right:0 -> newest flatcar is the leftmost flatcar in visual order.
+            const locoWidth = 40;
+            const carWidth = 44;
+            const newestCarCenterNoShift = sceneWidth - (locoWidth + this.trainCarsCount * carWidth) + (carWidth / 2);
+            const shift = targetCenter - newestCarCenterNoShift;
+
+            trainZone.style.transform = `translateX(${shift}px)`;
+        },
+        resetCargoAnimation() {
+            this.depotCrates = [];
+            this.depotColumns = [];
+            this.trainCarsCount = 0;
+            this.craneAnimating = false;
+            this.loadQueue = [];
+            this.totalDepotReceived = 0;
+            this.totalBatches = 0;
+            this.batchesCompleted = 0;
+            if (this.refs.depotStack) { this.refs.depotStack.innerHTML = ''; this.refs.depotStack.style.transform = ''; }
+            if (this.refs.trainZone) { this.refs.trainZone.innerHTML = ''; this.refs.trainZone.style.transform = ''; }
+            if (this.refs.gantry) this.refs.gantry.classList.remove('at-depot', 'at-train');
+            if (this.refs.gantryHoist) this.refs.gantryHoist.style.height = '12px';
+            if (this.refs.gantryPayload) this.refs.gantryPayload.classList.remove('visible');
+            if (this.refs.cargoStage) { this.refs.cargoStage.textContent = ''; this.refs.cargoStage.classList.remove('visible'); }
         },
         setTokenOwner(owner) {
             if (!this.refs) return;
@@ -1160,6 +1483,7 @@
             state.activeTrips = [];
             state.queriedUserProfile = null;
             state.fetchProgress = { page: 1, pagesFetchComplete: false, allStatuses: [], polylineCount: 0, processedPolylines: 0 };
+            UI.resetCargoAnimation();
         } else {
             // Log resume info for debugging
             console.log('Resuming fetch from progress:', {
@@ -1237,6 +1561,7 @@
                     if (!response?.data?.length) { hasMore = false; break; }
                     allStatuses.push(...response.data);
                     UI.updateFetchStats({ trips: allStatuses.length, pages: page });
+                    UI.addPacketToDepot(page);
                     hasMore = !!response.links?.next;
                     
                     // Save progress after each page for resumability
@@ -1268,6 +1593,8 @@
             const tripsWithTrain = allStatuses.filter(s => s.train);
             const batchSize = 15; // Match API page size
             const startIndex = resumeFromState && state.fetchProgress ? state.fetchProgress.processedPolylines : 0;
+            const totalBatches = Math.ceil((tripsWithTrain.length - startIndex) / batchSize);
+            UI.startLoadingToTrain(totalBatches);
             
             // Process polylines in batches
             for (let i = startIndex; i < tripsWithTrain.length && !state.cancelFetch; i += batchSize) {
@@ -1292,6 +1619,7 @@
                 }
                 
                 UI.updateFetchStats({ routes: polylineCount, progress: ((i + batch.length) / tripsWithTrain.length) * 100 });
+                UI.onPolylineBatchComplete();
                 
                 // Save progress for potential resume
                 state.fetchProgress = {
@@ -1301,6 +1629,11 @@
                     polylineCount: polylineCount,
                     processedPolylines: i + batch.length
                 };
+            }
+
+            if (UI.refs.cargoStage && (totalBatches === 0 || tripsWithTrain.length === 0)) {
+                UI.refs.cargoStage.textContent = 'Processing\u2026';
+                setTimeout(() => { if (UI.refs.cargoStage) UI.refs.cargoStage.classList.remove('visible'); }, 1500);
             }
 
             state.fetchedTrips = allStatuses;
