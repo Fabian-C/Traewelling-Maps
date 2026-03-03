@@ -88,6 +88,9 @@
         .rate-limit-card.waiting .rate-limit-status { color: #ffb74d; }
         .fetch-cancel { margin-top: 30px; padding: 10px 20px; background: transparent; border: 1px solid var(--border-color);
             border-radius: 6px; color: var(--text-secondary); cursor: pointer; font-size: 14px; }
+        .fetch-retry { margin-top: 15px; padding: 10px 20px; background: var(--accent-gradient); border: none;
+            border-radius: 6px; color: white; cursor: pointer; font-size: 14px; font-weight: 600; }
+        .fetch-retry:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4); }
         .fetch-error { color: #ff4444; background: rgba(255, 68, 68, 0.1); border: 1px solid rgba(255, 68, 68, 0.3);
             border-radius: 8px; padding: 15px; margin-top: 20px; font-size: 14px; }
         .status-banner { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1200;
@@ -371,6 +374,7 @@
                 <div class="rate-limit-status" id="rateLimitStatus">Ready</div>
             </div>
             <div class="fetch-error hidden" id="fetchError"></div>
+            <button class="fetch-retry hidden" id="retryFetchBtn">🔄 Retry Connection</button>
             <button class="fetch-cancel" id="cancelFetchBtn">Cancel</button>
         </div>
     </div>
@@ -1141,19 +1145,38 @@
     // =========================================================================
     // DATA FETCHING
     // =========================================================================
-    async function startDataFetch() {
+    async function startDataFetch(resumeFromState = false) {
         const token = state.token || document.getElementById('apiToken').value.trim();
         const username = state.username || document.getElementById('username').value.trim();
         if (!username) return alert('Please enter a username');
 
         state.token = token; state.username = username; state.isFetching = true;
         if (token) rememberToken(token, { autoValidate: false });
-        state.cancelFetch = false; state.fetchedTrips = [];
-        state.activeTrips = [];
-        state.queriedUserProfile = null; // Reset queried user profile
+        state.cancelFetch = false;
+        
+        // Only reset if not resuming
+        if (!resumeFromState) {
+            state.fetchedTrips = [];
+            state.activeTrips = [];
+            state.queriedUserProfile = null;
+            state.fetchProgress = { page: 1, pagesFetchComplete: false, allStatuses: [], polylineCount: 0, processedPolylines: 0 };
+        } else {
+            // Log resume info for debugging
+            console.log('Resuming fetch from progress:', {
+                page: state.fetchProgress?.page,
+                trips: state.fetchProgress?.allStatuses?.length,
+                polylines: state.fetchProgress?.polylineCount,
+                processed: state.fetchProgress?.processedPolylines
+            });
+        }
+        
         RateLimitUI.reset();
         UI.toggleSetup(false);
         UI.toggleFetch(true);
+        
+        // Hide error and retry button when starting/resuming
+        document.getElementById('fetchError').classList.add('hidden');
+        document.getElementById('retryFetchBtn').classList.add('hidden');
 
         const handleRateLimit = (payload = {}) => {
             RateLimitUI.updateUsage(payload.used || 0);
@@ -1184,43 +1207,70 @@
                 UI.setTokenStatus('No token (public access)', 'idle');
             }
             
-            // Always fetch the QUERIED user's profile (not token owner)
-            UI.updateFetchStats({ status: 'Fetching user profile...' });
-            state.queriedUserProfile = await fetchUserProfile(username, token);
+            // Always fetch the QUERIED user's profile (not token owner) - skip if resuming
+            if (!resumeFromState || !state.queriedUserProfile) {
+                UI.updateFetchStats({ status: 'Fetching user profile...' });
+                state.queriedUserProfile = await fetchUserProfile(username, token);
+                
+                // Update dataset info with queried user's profile
+                if (state.queriedUserProfile) {
+                    UI.updateDatasetSummary(
+                        state.queriedUserProfile.displayName,
+                        state.queriedUserProfile.username,
+                        0, // Will be updated after fetching trips
+                        state.queriedUserProfile.avatar
+                    );
+                }
+            }
+
+            let page = resumeFromState && state.fetchProgress ? state.fetchProgress.page : 1;
+            let hasMore = true;
+            const allStatuses = resumeFromState && state.fetchProgress ? [...state.fetchProgress.allStatuses] : [];
+
+            // Skip page fetching if we're resuming and already have all pages
+            const skipPageFetching = resumeFromState && state.fetchProgress && state.fetchProgress.pagesFetchComplete;
             
-            // Update dataset info with queried user's profile
-            if (state.queriedUserProfile) {
-                UI.updateDatasetSummary(
-                    state.queriedUserProfile.displayName,
-                    state.queriedUserProfile.username,
-                    0, // Will be updated after fetching trips
-                    state.queriedUserProfile.avatar
-                );
+            if (!skipPageFetching) {
+                while (hasMore && !state.cancelFetch) {
+                    UI.updateFetchStats({ status: `Fetching page ${page}...` });
+                    const response = await api.getUserStatuses(username, page);
+                    if (!response?.data?.length) { hasMore = false; break; }
+                    allStatuses.push(...response.data);
+                    UI.updateFetchStats({ trips: allStatuses.length, pages: page });
+                    hasMore = !!response.links?.next;
+                    
+                    // Save progress after each page for resumability
+                    state.fetchProgress = {
+                        page: page + 1, // Next page to fetch
+                        pagesFetchComplete: !hasMore, // Mark complete if no more pages
+                        allStatuses: allStatuses,
+                        polylineCount: 0,
+                        processedPolylines: 0
+                    };
+                    
+                    page++;
+                    if (page > 500) break;
+                }
+                
+                // Mark pages as complete after loop
+                if (state.fetchProgress) {
+                    state.fetchProgress.pagesFetchComplete = true;
+                }
+            } else {
+                // Resuming - display current progress
+                UI.updateFetchStats({ trips: allStatuses.length, pages: page - 1 });
             }
 
-            let page = 1, hasMore = true;
-            const allStatuses = [];
-
-            while (hasMore && !state.cancelFetch) {
-                UI.updateFetchStats({ status: `Fetching page ${page}...` });
-                const response = await api.getUserStatuses(username, page);
-                if (!response?.data?.length) { hasMore = false; break; }
-                allStatuses.push(...response.data);
-                UI.updateFetchStats({ trips: allStatuses.length, pages: page });
-                hasMore = !!response.links?.next;
-                page++;
-                if (page > 500) break;
-            }
-
-            if (state.cancelFetch) return showFetchError('Cancelled');
+            if (state.cancelFetch) return showFetchError('Cancelled', false);
 
             UI.updateFetchStats({ status: 'Fetching route polylines...' });
-            let polylineCount = 0;
+            let polylineCount = resumeFromState && state.fetchProgress ? state.fetchProgress.polylineCount : 0;
             const tripsWithTrain = allStatuses.filter(s => s.train);
             const batchSize = 15; // Match API page size
+            const startIndex = resumeFromState && state.fetchProgress ? state.fetchProgress.processedPolylines : 0;
             
             // Process polylines in batches
-            for (let i = 0; i < tripsWithTrain.length && !state.cancelFetch; i += batchSize) {
+            for (let i = startIndex; i < tripsWithTrain.length && !state.cancelFetch; i += batchSize) {
                 const batch = tripsWithTrain.slice(i, i + Math.min(batchSize, tripsWithTrain.length - i));
                 const statusIds = batch.map(s => s.id);
                 
@@ -1242,6 +1292,15 @@
                 }
                 
                 UI.updateFetchStats({ routes: polylineCount, progress: ((i + batch.length) / tripsWithTrain.length) * 100 });
+                
+                // Save progress for potential resume
+                state.fetchProgress = {
+                    page: page,
+                    pagesFetchComplete: true,
+                    allStatuses: allStatuses,
+                    polylineCount: polylineCount,
+                    processedPolylines: i + batch.length
+                };
             }
 
             state.fetchedTrips = allStatuses;
@@ -1251,21 +1310,50 @@
             await processAndDisplayData(allStatuses);
         } catch (error) {
             console.error('Fetch error:', error);
-            showFetchError(error.message);
+            const isNetworkError = error.message.includes('fetch') || 
+                                   error.message.includes('network') || 
+                                   error.message.includes('timeout') ||
+                                   error.message.includes('Failed to fetch') ||
+                                   error.name === 'TypeError' ||
+                                   error.message.includes('NetworkError');
+            // Only show retry if we have progress saved
+            const canRetry = isNetworkError && state.fetchProgress && 
+                           (state.fetchProgress.allStatuses.length > 0 || state.fetchProgress.processedPolylines > 0);
+            showFetchError(error.message, canRetry);
         }
     }
 
     function cancelFetch() { state.cancelFetch = true; state.isFetching = false; }
-        function showFetchError(msg) {
+    
+    function showFetchError(msg, showRetry = false) {
         const errorEl = document.getElementById('fetchError');
-        errorEl.textContent = msg; errorEl.classList.remove('hidden');
-        document.getElementById('cancelFetchBtn').textContent = 'Back to Setup';
-        document.getElementById('cancelFetchBtn').onclick = () => {
+        const retryBtn = document.getElementById('retryFetchBtn');
+        const cancelBtn = document.getElementById('cancelFetchBtn');
+        
+        errorEl.textContent = msg;
+        errorEl.classList.remove('hidden');
+        
+        // Show retry button for network errors
+        if (showRetry && state.fetchProgress) {
+            retryBtn.classList.remove('hidden');
+            retryBtn.onclick = () => {
+                console.log('Retrying fetch from saved progress...');
+                startDataFetch(true); // Resume from saved state
+            };
+        } else {
+            retryBtn.classList.add('hidden');
+        }
+        
+        cancelBtn.textContent = 'Back to Setup';
+        cancelBtn.onclick = () => {
             UI.toggleFetch(false);
             UI.toggleSetup(true);
             errorEl.classList.add('hidden');
-            document.getElementById('cancelFetchBtn').textContent = 'Cancel';
-            document.getElementById('cancelFetchBtn').onclick = cancelFetch;
+            retryBtn.classList.add('hidden');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.onclick = cancelFetch;
+            // Clear progress on manual cancel
+            state.fetchProgress = null;
         };
     }
 
@@ -3770,7 +3858,7 @@
         UI.bindGlobalActions();
         RateLimitUI.init();
         updateMenuAccountList();
-        document.getElementById('startFetchBtn').onclick = startDataFetch;
+        document.getElementById('startFetchBtn').onclick = () => startDataFetch(false);
         document.getElementById('cancelFetchBtn').onclick = cancelFetch;
 
         // Auto-validate stored token
