@@ -899,13 +899,16 @@
             { bg: 'linear-gradient(135deg, #00b894 0%, #007a5e 100%)' },
             { bg: 'linear-gradient(135deg, #6c5ce7 0%, #4834a8 100%)' }
         ],
+        _prideChance: 0.13,
+        _prideBg: 'center / cover no-repeat url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 28 18%27%3E%3Crect width=%2728%27 height=%273%27 y=%270%27 fill=%27%23E40303%27/%3E%3Crect width=%2728%27 height=%273%27 y=%273%27 fill=%27%23FF8C00%27/%3E%3Crect width=%2728%27 height=%273%27 y=%276%27 fill=%27%23FFED00%27/%3E%3Crect width=%2728%27 height=%273%27 y=%279%27 fill=%27%23008026%27/%3E%3Crect width=%2728%27 height=%273%27 y=%2712%27 fill=%27%23004DFF%27/%3E%3Crect width=%2728%27 height=%273%27 y=%2715%27 fill=%27%23750787%27/%3E%3Cpolygon points=%270,0 15,9 0,18%27 fill=%27%23FFD800%27/%3E%3Cpolygon points=%270,0 11,9 0,18%27 fill=%27%23FFFFFF%27/%3E%3Cpolygon points=%270,0 9,9 0,18%27 fill=%27%23FFAEC8%27/%3E%3Cpolygon points=%270,0 7,9 0,18%27 fill=%27%2374D7EE%27/%3E%3Cpolygon points=%270,0 5.5,9 0,18%27 fill=%27%23613915%27/%3E%3Cpolygon points=%270,0 4,9 0,18%27 fill=%27%23000000%27/%3E%3Ccircle cx=%2713%27 cy=%279%27 r=%271.8%27 fill=%27none%27 stroke=%27%237A1FA2%27 stroke-width=%270.85%27/%3E%3C/svg%3E")',
         _maxStack: 4,
         _maxVisibleCols: 4,
         addPacketToDepot(pageNumber) {
             if (!this.refs.depotStack) return;
             const idx = this.totalDepotReceived;
             this.totalDepotReceived++;
-            const color = this._crateColors[idx % this._crateColors.length];
+            const baseColor = this._crateColors[idx % this._crateColors.length];
+            const color = Math.random() < this._prideChance ? { bg: this._prideBg } : baseColor;
             const crate = document.createElement('div');
             crate.className = 'crate';
             crate.style.background = color.bg;
