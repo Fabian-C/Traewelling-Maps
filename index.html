@@ -64,9 +64,9 @@
         .cargo-stage { position: absolute; top: 2px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--accent-color);
             font-weight: 600; letter-spacing: 0.4px; opacity: 0; transition: opacity 0.3s; white-space: nowrap; z-index: 20; }
         .cargo-stage.visible { opacity: 1; }
-        .cargo-ground { position: absolute; bottom: 0; left: 0; right: 0; height: 22px;
+        .cargo-ground { position: absolute; bottom: 0; left: 0; right: 0; height: 22px; z-index: 0;
             background: linear-gradient(180deg, #3a3530 0%, #2e2a25 100%); border-top: 1px solid rgba(255,255,255,0.06); }
-        .cargo-rails { position: absolute; bottom: 20px; left: 140px; right: 0; height: 14px; }
+        .cargo-rails { position: absolute; bottom: 20px; left: 140px; right: 0; height: 14px; z-index: 1; }
         .cargo-rails::before { content: ''; position: absolute; top: 2px; left: 0; right: 0; height: 2px;
             background: #888; box-shadow: 0 8px 0 #888; border-radius: 1px; }
         .cargo-sleepers { position: absolute; top: 0; left: 0; right: 0; height: 14px;
@@ -110,7 +110,7 @@
         .gantry-payload.visible { opacity: 1; }
         .gantry-payload .crate-ribs { position: absolute; top: 2px; bottom: 2px; left: 1px; right: 1px; border-radius: 1px;
             background: repeating-linear-gradient(90deg, rgba(0,0,0,0.08) 0px, rgba(0,0,0,0.08) 1px, transparent 1px, transparent 3px); }
-        .train-zone { position: absolute; right: 0; bottom: 28px; display: flex; gap: 2px;
+        .train-zone { position: absolute; right: 0; bottom: 28px; display: flex; gap: 2px; z-index: 3;
             flex-direction: row-reverse; align-items: flex-end; transition: transform 0.32s ease; will-change: transform; }
         .locomotive { width: 38px; flex-shrink: 0; position: relative; }
         .loco-body { width: 100%; height: 20px; background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%);
@@ -953,6 +953,26 @@
             }
             this._processQueue();
         },
+        waitForTrainCatchUp(shouldCancel) {
+            if (this.totalDepotReceived === 0 || this.totalBatches === 0) return Promise.resolve();
+
+            const allDone = this.batchesCompleted >= this.totalBatches;
+            const targetLoaded = allDone ? this.totalDepotReceived
+                : Math.round((this.batchesCompleted / this.totalBatches) * this.totalDepotReceived);
+
+            if (this.trainCarsCount >= targetLoaded) return Promise.resolve();
+
+            return new Promise(resolve => {
+                const poll = () => {
+                    if ((typeof shouldCancel === 'function' && shouldCancel()) || this.trainCarsCount >= targetLoaded) {
+                        resolve();
+                        return;
+                    }
+                    setTimeout(poll, 40);
+                };
+                poll();
+            });
+        },
         _processQueue() {
             if (this.craneAnimating || this.loadQueue.length === 0) return;
             this.craneAnimating = true;
@@ -1620,6 +1640,8 @@
                 
                 UI.updateFetchStats({ routes: polylineCount, progress: ((i + batch.length) / tripsWithTrain.length) * 100 });
                 UI.onPolylineBatchComplete();
+                await UI.waitForTrainCatchUp(() => state.cancelFetch);
+                if (state.cancelFetch) break;
                 
                 // Save progress for potential resume
                 state.fetchProgress = {
