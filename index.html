@@ -868,6 +868,9 @@
             this.batchesCompleted = 0;
             this._animSpeed = 0.8;
             this._cargoSceneWidth = this.refs.cargoScene ? this.refs.cargoScene.clientWidth : 500;
+            this._containerDesignPool = [];
+            this._containerDesignPoolWeight = 0;
+            this._rebuildContainerDesignPool();
             if (this.refs.cargoScene && typeof ResizeObserver !== 'undefined') {
                 if (this._cargoSceneResizeObserver) this._cargoSceneResizeObserver.disconnect();
                 this._cargoSceneResizeObserver = new ResizeObserver(entries => {
@@ -916,27 +919,80 @@
             { id: 'classic-emerald', weight: 10, bg: 'linear-gradient(135deg, #00b894 0%, #007a5e 100%)' },
             { id: 'classic-indigo', weight: 10, bg: 'linear-gradient(135deg, #6c5ce7 0%, #4834a8 100%)' }
         ],
-        _prideWeight: 12,
-        _dbCargoWeight: 10,
+        _specialContainerTargetChances: {
+            dbCargo: 0.10,
+            pride: 0.12
+        },
         _dbCargoBg: 'center / 100% 100% no-repeat url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 560 360%27%3E%3Cdefs%3E%3Cpattern id=%27v%27 width=%2710%27 height=%2710%27 patternUnits=%27userSpaceOnUse%27%3E%3Cpath d=%27M5 0v10%27 stroke=%27rgba(255,255,255,0.22)%27 stroke-width=%271.4%27/%3E%3C/pattern%3E%3C/defs%3E%3Crect width=%27560%27 height=%27360%27 fill=%27%235a8d45%27/%3E%3Crect width=%27560%27 height=%27360%27 fill=%27url(%23v)%27/%3E%3Ctext x=%2750%25%27 y=%2748%25%27 fill=%27%23ffffff%27 font-size=%2788%27 font-family=%27Arial%20Black,Arial,sans-serif%27 font-weight=%27900%27 text-anchor=%27middle%27 lengthAdjust=%27spacingAndGlyphs%27 textLength=%27496%27%3EG%C3%BCter geh%C3%B6ren%3C/text%3E%3Ctext x=%2750%25%27 y=%2769%25%27 fill=%27%23ffffff%27 font-size=%2788%27 font-family=%27Arial%20Black,Arial,sans-serif%27 font-weight=%27900%27 text-anchor=%27middle%27 lengthAdjust=%27spacingAndGlyphs%27 textLength=%27496%27%3Eauf die Schiene%3C/text%3E%3C/svg%3E")',
         _prideBg: 'center / cover no-repeat url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 6000 3810%27%3E%3Cpath fill=%27%236d2380%27 d=%27M0 0h6000v3810H0z%27/%3E%3Cpath fill=%27%232c58a4%27 d=%27M0 0h6000v3175H0z%27/%3E%3Cpath fill=%27%2378b82a%27 d=%27M0 0h6000v2540H0z%27/%3E%3Cpath fill=%27%23efe524%27 d=%27M0 0h6000v1905H0z%27/%3E%3Cpath fill=%27%23f28917%27 d=%27M0 0h6000v1270H0z%27/%3E%3Cpath fill=%27%23e22016%27 d=%27M0 0h6000v635H0z%27/%3E%3Cpath d=%27M0 0h1577l1764 1905-1764 1905H0z%27/%3E%3Cpath fill=%27%23945516%27 d=%27M0 0h1209l1764 1905-1764 1905H0z%27/%3E%3Cpath fill=%27%237bcce5%27 d=%27M0 0h844l1764 1905L844 3810H0z%27/%3E%3Cpath fill=%27%23f4aec8%27 d=%27M0 0h477l1764 1905L477 3810H0z%27/%3E%3Cpath fill=%27%23fff%27 d=%27M0 0h111l1763 1905L111 3810H0z%27/%3E%3Cpath fill=%27%23fdd817%27 d=%27m0 278 1507 1627L0 3532z%27/%3E%3Ccircle cx=%27556%27 cy=%271905%27 r=%27404%27 fill=%27none%27 stroke=%27%2366338b%27 stroke-width=%2795%27/%3E%3C/svg%3E")',
         _maxStack: 4,
         _maxVisibleCols: 4,
+        _buildContainerDesignPool() {
+            const classicDesigns = this._containerDesigns
+                .filter((design) => design && typeof design.bg === 'string' && Number(design.weight) > 0)
+                .map((design) => ({
+                    id: design.id,
+                    bg: design.bg,
+                    weight: Number(design.weight)
+                }));
+
+            const classicWeightTotal = classicDesigns.reduce((sum, design) => sum + design.weight, 0);
+
+            const specialCandidates = [
+                {
+                    id: 'db-cargo-special',
+                    bg: this._dbCargoBg,
+                    chance: Number(this._specialContainerTargetChances?.dbCargo)
+                },
+                {
+                    id: 'pride-special',
+                    bg: this._prideBg,
+                    chance: Number(this._specialContainerTargetChances?.pride)
+                }
+            ].filter((design) => design && typeof design.bg === 'string' && Number.isFinite(design.chance) && design.chance > 0);
+
+            const totalSpecialChance = specialCandidates.reduce((sum, design) => sum + design.chance, 0);
+            const specialWeightFactor = totalSpecialChance > 0 && totalSpecialChance < 1
+                ? classicWeightTotal / (1 - totalSpecialChance)
+                : 0;
+
+            const specialDesigns = specialCandidates.map((design) => ({
+                id: design.id,
+                bg: design.bg,
+                weight: design.chance * specialWeightFactor
+            })).filter((design) => Number.isFinite(design.weight) && design.weight > 0);
+
+            return [...classicDesigns, ...specialDesigns];
+        },
+        _rebuildContainerDesignPool() {
+            this._containerDesignPool = this._buildContainerDesignPool();
+            this._containerDesignPoolWeight = this._containerDesignPool.reduce((sum, design) => sum + design.weight, 0);
+        },
+        _getDefaultContainerBackground() {
+            return this._containerDesigns[0]?.bg || '';
+        },
+        _resolveContainerBackground(designBg) {
+            return designBg || this._getDefaultContainerBackground();
+        },
+        _crateMarkup(pageNumber) {
+            return `<div class="crate-ribs"></div><div class="crate-lbl">${pageNumber}</div>`;
+        },
+        _createCrateElement(className, pageNumber, designBg) {
+            const crate = document.createElement('div');
+            crate.className = className;
+            crate.style.background = this._resolveContainerBackground(designBg);
+            crate.innerHTML = this._crateMarkup(pageNumber);
+            return crate;
+        },
         pickContainerDesign() {
-            const designs = [
-                ...this._containerDesigns,
-                { id: 'db-cargo-special', weight: this._dbCargoWeight, bg: this._dbCargoBg },
-                { id: 'pride-special', weight: this._prideWeight, bg: this._prideBg }
-            ].filter((design) => design && typeof design.bg === 'string' && Number(design.weight) > 0);
-
-            if (designs.length === 0) return null;
-
-            const totalWeight = designs.reduce((sum, design) => sum + Number(design.weight), 0);
+            const designs = this._containerDesignPool;
+            const totalWeight = this._containerDesignPoolWeight;
+            if (!Array.isArray(designs) || designs.length === 0) return null;
             if (!Number.isFinite(totalWeight) || totalWeight <= 0) return designs[0];
 
             let roll = Math.random() * totalWeight;
             for (const design of designs) {
-                roll -= Number(design.weight);
+                roll -= design.weight;
                 if (roll <= 0) return design;
             }
             return designs[designs.length - 1];
@@ -945,11 +1001,8 @@
             if (!this.refs.depotStack) return;
             this.totalDepotReceived++;
             const design = this.pickContainerDesign();
-            const designBg = design?.bg || this._containerDesigns[0]?.bg || '';
-            const crate = document.createElement('div');
-            crate.className = 'crate';
-            crate.style.background = designBg;
-            crate.innerHTML = `<div class="crate-ribs"></div><div class="crate-lbl">${pageNumber}</div>`;
+            const designBg = this._resolveContainerBackground(design?.bg);
+            const crate = this._createCrateElement('crate', pageNumber, designBg);
             let col = this.depotColumns[this.depotColumns.length - 1];
             if (!col || col.count >= this._maxStack) {
                 const colEl = document.createElement('div');
@@ -1055,9 +1108,9 @@
                         this._updateDepotScroll();
                     }
                 }, t(200));
-                const itemBg = item.designBg || item.color?.bg || this._containerDesigns[0]?.bg || '';
+                const itemBg = this._resolveContainerBackground(item.designBg);
                 payload.style.background = itemBg;
-                payload.innerHTML = `<div class="crate-ribs"></div><div class="crate-lbl">${item.page}</div>`;
+                payload.innerHTML = this._crateMarkup(item.page);
                 payload.classList.add('visible');
                 hoist.style.height = baseHeight + 'px';
             }, t(570));
@@ -1088,11 +1141,7 @@
             setTimeout(() => {
                 payload.classList.remove('visible');
                 if (targetCar) {
-                    const crate = document.createElement('div');
-                    crate.className = 'train-crate';
-                    const itemBg = item.designBg || item.color?.bg || this._containerDesigns[0]?.bg || '';
-                    crate.style.background = itemBg;
-                    crate.innerHTML = `<div class="crate-ribs"></div><div class="crate-lbl">${item.page}</div>`;
+                    const crate = this._createCrateElement('train-crate', item.page, item.designBg);
                     targetCar.appendChild(crate);
                     requestAnimationFrame(() => {
                         const tc = targetCar.querySelector('.train-crate');
@@ -1117,6 +1166,21 @@
             }, t(1330));
         },
         _updateDepotScroll() {
+            if (!this.refs?.depotStack) return;
+            const stack = this.refs.depotStack;
+            const colCount = this.depotColumns.length;
+            if (colCount <= this._maxVisibleCols) {
+                stack.style.transform = 'translateX(0px)';
+                return;
+            }
+
+            const colEl = stack.querySelector('.depot-col');
+            const computedStyle = window.getComputedStyle(stack);
+            const gap = parseFloat(computedStyle.gap || '3') || 3;
+            const colWidth = colEl ? colEl.getBoundingClientRect().width : 28;
+            const overflowCols = colCount - this._maxVisibleCols;
+            const shift = overflowCols * (colWidth + gap);
+            stack.style.transform = `translateX(${-shift}px)`;
         },
         _updateTrainScroll() {
             if (!this.refs.trainZone || this.trainCarsCount === 0) return;
