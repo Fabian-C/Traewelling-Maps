@@ -706,7 +706,6 @@
         deck: null,
         deckLayers: [],
         currentPopup: null,
-        preserveHighlightOnPopupClose: false,
         token: null,
         username: null,
         datasetVersion: 0,
@@ -757,16 +756,8 @@
         statistics: createEmptyStats()
     };
 
-    function getTapTolerancePx(zoomLevel = state.map?.getZoom?.()) {
-        const coarsePointer = window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth <= 768;
-        if (!Number.isFinite(zoomLevel)) return coarsePointer ? 10 : 8;
-
-        if (zoomLevel <= 5) return coarsePointer ? 4 : 3;
-        if (zoomLevel <= 7) return coarsePointer ? 5 : 4;
-        if (zoomLevel <= 9) return coarsePointer ? 6 : 5;
-        if (zoomLevel <= 11) return coarsePointer ? 8 : 6;
-        if (zoomLevel <= 13) return coarsePointer ? 10 : 8;
-        return coarsePointer ? 12 : 10;
+    function getTapTolerancePx() {
+        return window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth <= 768 ? 12 : 10;
     }
 
     function snapLngLatToLine(lngLat, featureOrGeometry) {
@@ -2709,16 +2700,8 @@
         const getActiveLayers = () => CONFIG.LAYER_CONFIG
             .map(([id]) => id)
             .filter(id => state.map.getLayer(id));
-        const touchGesture = {
-            active: false,
-            moved: false,
-            startPoint: null,
-            startZoom: null
-        };
-        let suppressClickUntilTs = 0;
         
         const handleMapTap = (e) => {
-            if (Date.now() < suppressClickUntilTs) return;
             if (state.delays.enabled) {
                 const overlayFeature = getDelayOverlayFeatureAtLngLat(e.lngLat);
                 if (overlayFeature) {
@@ -2735,7 +2718,7 @@
             const layers = getActiveLayers();
             if (!layers.length) return;
             
-            const tolerance = getTapTolerancePx(state.map?.getZoom?.());
+            const tolerance = getTapTolerancePx();
             let features = state.map.queryRenderedFeatures(e.point, { layers });
             if (!features.length) {
                 features = queryLayersNearPoint(e.point, layers, tolerance);
@@ -2754,54 +2737,11 @@
             showPopup(anchor, feature);
         };
 
-        state.map.on('touchstart', (e) => {
-            const point = e.points?.[0];
-            touchGesture.active = true;
-            touchGesture.moved = (e.points?.length || 0) > 1;
-            touchGesture.startPoint = point ? { x: point.x, y: point.y } : null;
-            touchGesture.startZoom = state.map?.getZoom?.() ?? null;
-        });
-
-        state.map.on('touchmove', (e) => {
-            if (!touchGesture.active) return;
-            if ((e.points?.length || 0) > 1) {
-                touchGesture.moved = true;
-                return;
-            }
-
-            const currentPoint = e.points?.[0];
-            if (touchGesture.startPoint && currentPoint) {
-                const dx = currentPoint.x - touchGesture.startPoint.x;
-                const dy = currentPoint.y - touchGesture.startPoint.y;
-                const movedDistanceSq = dx * dx + dy * dy;
-                if (movedDistanceSq > 36) touchGesture.moved = true;
-            }
-
-            const currentZoom = state.map?.getZoom?.();
-            if (Number.isFinite(currentZoom) && Number.isFinite(touchGesture.startZoom)) {
-                if (Math.abs(currentZoom - touchGesture.startZoom) > 0.02) touchGesture.moved = true;
-            }
-        });
-
         state.map.on('click', handleMapTap);
         state.map.on('touchend', (e) => {
-            const currentZoom = state.map?.getZoom?.();
-            if (Number.isFinite(currentZoom) && Number.isFinite(touchGesture.startZoom)) {
-                if (Math.abs(currentZoom - touchGesture.startZoom) > 0.02) touchGesture.moved = true;
+            if (e.points && e.points[0]) {
+                handleMapTap({ point: e.points[0], lngLat: e.lngLat });
             }
-
-            const touchPoint = e.points?.[0] || e.point;
-            const shouldSelect = !touchGesture.moved && !!touchPoint && !!e.lngLat;
-            suppressClickUntilTs = Date.now() + 350;
-
-            if (shouldSelect) {
-                handleMapTap({ point: touchPoint, lngLat: e.lngLat });
-            }
-
-            touchGesture.active = false;
-            touchGesture.moved = false;
-            touchGesture.startPoint = null;
-            touchGesture.startZoom = null;
         });
         state.map.on('moveend', () => { if (state.heatmap.enabled) setTimeout(() => updateRouteDensity(), 200); });
     }
@@ -2984,21 +2924,11 @@
         const popupEl = state.currentPopup.getElement();
         if (popupEl) {
             popupEl.style.zIndex = '9999';
-            const closeBtn = popupEl.querySelector('.mapboxgl-popup-close-button');
-            if (closeBtn) {
-                closeBtn.addEventListener('click', () => {
-                    state.preserveHighlightOnPopupClose = true;
-                }, { capture: true });
-            }
         }
         
-        // Keep highlight when popup is closed explicitly via the popup close button
+        // Clear highlight when popup closes
         state.currentPopup.on('close', () => {
-            const preserveHighlight = state.preserveHighlightOnPopupClose;
-            state.preserveHighlightOnPopupClose = false;
-            if (!preserveHighlight) {
-                clearRouteHighlight();
-            }
+            clearRouteHighlight();
         });
     }
     
