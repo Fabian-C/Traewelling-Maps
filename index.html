@@ -623,12 +623,14 @@
             <details class="menu-submenu">
                 <summary>🚦 Transport Layers</summary>
                 <div class="menu-submenu-content">
-                    <div class="menu-item" style="padding: 12px 16px;">
-                        <span style="margin-right: 10px;">Hide Inaccurate</span>
-                        <label class="toggle">
-                            <input type="checkbox" id="inaccurateDataToggle">
-                            <span class="toggle-slider"></span>
-                        </label>
+                    <div class="time-filter">
+                        <div class="slider-label">Filter <span class="slider-state" id="filterState">Normal</span></div>
+                        <input type="range" id="filterSlider" class="slider" min="0" max="2" step="1" value="1">
+                        <div class="slider-ticks" id="filterTicks">
+                            <span class="active">Off</span>
+                            <span class="active">Normal</span>
+                            <span>Strict</span>
+                        </div>
                     </div>
                     <div class="layer-list" id="layerList">
                         <!-- Layers will be added dynamically -->
@@ -720,7 +722,7 @@
         datasetVersion: 0,
         fetchedTrips: [],
         activeTrips: [],
-        filters: { fromDate: null, toDate: null, hideInaccurate: false, business: { personal: true, work: true, commute: true } },
+        filters: { fromDate: null, toDate: null, filterLevel: 1, business: { personal: true, work: true, commute: true } },
         railway: { enabled: false },
         heatmap: { 
             enabled: false, 
@@ -1898,12 +1900,35 @@
         if (!coords || coords.length < 2) return false;
         if (category === 'plane' || category === 'ship') return true;
 
+        const level = state.filters.filterLevel;
+        if (level === 0) return true;
+
         let totalDist = 0;
+        let maxSegmentDist = 0;
+        const segments = [];
+        
         for (let i = 0; i < coords.length - 1; i++) {
             const [x1,y1] = coords[i], [x2,y2] = coords[i+1];
-            totalDist += Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+            const dist = Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+            totalDist += dist;
+            if (dist > maxSegmentDist) maxSegmentDist = dist;
+            segments.push(dist);
         }
 
+        // Level 2 (Strict): Detect "teleportation" and median outliers
+        if (level === 2 && coords.length > 2) {
+            // Loosened from 0.5 to 0.7 (max segment can be 70% of trip)
+            if (totalDist > 0.1 && maxSegmentDist / totalDist > 0.7) return false;
+            if (segments.length >= 8) {
+                const sorted = [...segments].sort((a,b) => b-a);
+                const avgTop3 = (sorted[0] + sorted[1] + sorted[2]) / 3;
+                const median = sorted[Math.floor(sorted.length / 2)];
+                // Loosened from 25x to 40x median
+                if (avgTop3 > median * 40 && avgTop3 > 0.1) return false;
+            }
+        }
+
+        // Level 1 (Normal)
         if (coords.length <= 10) {
             let threshold = 0.1;
             if (['bus','tram','subway'].includes(category)) threshold = 0.05;
@@ -1912,11 +1937,12 @@
             if (totalDist > threshold) return false;
         }
         if (totalDist > 0.3 && totalDist / coords.length > 0.027) return false;
+
         return true;
     }
 
     function filterInaccurateData(data, category) {
-        if (!state.filters.hideInaccurate) return data;
+        if (state.filters.filterLevel === 0) return data;
         const filtered = data.features.filter(f => isAccuratePolyline(f.geometry?.coordinates, category));
         return { type: 'FeatureCollection', features: filtered };
     }
@@ -2283,7 +2309,7 @@
                 if (!config) continue;
                 const color = config[1];
                 let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
-                if (state.filters.hideInaccurate) data = filterInaccurateData(data, layerId);
+                if (state.filters.filterLevel > 0) data = filterInaccurateData(data, layerId);
 
                 // Remove existing layer and source if they exist
                 if (state.map.getLayer(layerId)) {
@@ -2452,8 +2478,33 @@
             }
         };
         
-        // Initialize hide inaccurate state from checkbox
-        state.filters.hideInaccurate = document.getElementById('inaccurateDataToggle').checked;
+        // Initialize filter level from slider
+        const filterSlider = document.getElementById('filterSlider');
+        const filterState = document.getElementById('filterState');
+        const filterTicks = document.getElementById('filterTicks').querySelectorAll('span');
+        
+        state.filters.filterLevel = parseInt(filterSlider.value);
+        
+        filterSlider.oninput = (e) => {
+            const val = parseInt(e.target.value);
+            state.filters.filterLevel = val;
+            
+            const labels = ['Off', 'Normal', 'Strict'];
+            filterState.textContent = labels[val];
+            
+            filterTicks.forEach((span, i) => {
+                span.classList.toggle('active', i <= val);
+            });
+            
+            invalidateDelayOverlayCache();
+            reloadAllLayers();
+            if (state.delays.enabled) {
+                updateDelayOverlay();
+            } else {
+                updateDelayOverlaySummary();
+            }
+        };
+
         document.getElementById('heatmapToggle').onchange = (e) => toggleHeatmap(e.target.checked);
 
         const intensitySlider = document.getElementById('intensitySlider');
@@ -2547,16 +2598,6 @@
             };
         }
         updateDelayOverlaySummary();
-        document.getElementById('inaccurateDataToggle').onchange = () => {
-            state.filters.hideInaccurate = document.getElementById('inaccurateDataToggle').checked;
-            invalidateDelayOverlayCache();
-            reloadAllLayers();
-            if (state.delays.enabled) {
-                updateDelayOverlay(true);
-            } else {
-                updateDelayOverlaySummary();
-            }
-        };
         document.getElementById('dateFrom').onchange = applyTimeFilter;
         document.getElementById('dateTo').onchange = applyTimeFilter;
         
@@ -3443,7 +3484,7 @@
             const cacheKey = [
                 'density-routes',
                 state.datasetVersion,
-                state.filters.hideInaccurate ? 1 : 0,
+                state.filters.filterLevel,
                 state.filters.fromDate || 'null',
                 state.filters.toDate || 'null',
                 state.layers.order.filter(id => state.layers.data.get(id)?.visible).join('-'),
@@ -3834,7 +3875,7 @@
     function buildRouteDensityFeatureCollection(force = false) {
         const cacheKey = [
             state.datasetVersion,
-            state.filters.hideInaccurate ? 1 : 0,
+            state.filters.filterLevel,
             state.filters.fromDate || 'null',
             state.filters.toDate || 'null',
             state.heatmap.intensity
@@ -3945,7 +3986,7 @@
     function buildDelayOverlayCache(force = false) {
         const cacheKey = [
             state.datasetVersion,
-            state.filters.hideInaccurate ? 1 : 0,
+            state.filters.filterLevel,
             state.filters.fromDate || 'null',
             state.filters.toDate || 'null'
         ].join('|');
@@ -3967,7 +4008,7 @@
             const coords = train.polyline?.geometry?.coordinates;
             if (!coords || coords.length < 2) return;
             const category = train.category || 'unknown';
-            if (state.filters.hideInaccurate && !isAccuratePolyline(coords, category)) return;
+            if (state.filters.filterLevel > 0 && !isAccuratePolyline(coords, category)) return;
 
             const delays = deriveDelaySeconds(train);
             if (delays.worst === null || delays.worst <= 0) return;
@@ -4180,7 +4221,7 @@
         const baseOpacity = getCurrentBaseOpacity();
         state.layers.order.forEach((id, index) => {
             let data = categories[id] || { type: 'FeatureCollection', features: [] };
-            if (state.filters.hideInaccurate) data = filterInaccurateData(data, id);
+            if (state.filters.filterLevel > 0) data = filterInaccurateData(data, id);
             
             // Add layer to map
             state.map.addSource(id, { type: 'geojson', data: data });
