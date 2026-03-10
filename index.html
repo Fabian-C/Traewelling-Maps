@@ -1168,6 +1168,17 @@
         _updateDepotScroll() {
             if (!this.refs?.depotStack) return;
             const stack = this.refs.depotStack;
+            const zone = stack.parentElement;
+            const zoneStyle = zone ? window.getComputedStyle(zone) : null;
+            const rightAligned = zoneStyle?.justifyContent === 'flex-end';
+
+            // When the depot zone is right-aligned, overflow naturally clips older
+            // columns on the left. Extra translateX would double-shift the stack.
+            if (rightAligned) {
+                stack.style.transform = 'translateX(0px)';
+                return;
+            }
+
             const colCount = this.depotColumns.length;
             if (colCount <= this._maxVisibleCols) {
                 stack.style.transform = 'translateX(0px)';
