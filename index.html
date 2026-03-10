@@ -2752,9 +2752,9 @@
             .filter(id => state.map.getLayer(id));
         
         const handleMapTap = (e) => {
-            // Suppress selection if map is moving or just finished moving (within 100ms)
+            // Suppress selection if map is moving or just finished moving (within 300ms)
             const now = Date.now();
-            if (state.isMapMoving || (now - state.lastMoveEndTime < 100)) {
+            if (state.isMapMoving || (now - state.lastMoveEndTime < 300)) {
                 return;
             }
 
