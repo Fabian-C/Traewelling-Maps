@@ -136,7 +136,8 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 allStatuses.push(...response.data);
                 UI.updateFetchStats({ trips: allStatuses.length, pages: page });
                 UI.addPacketToDepot(page);
-                FunFacts.showFactsFromTrips(response.data, 1); // Show 1 fun fact per page (was 2)
+                const randomFactCount = Math.floor(Math.random() * 3) + 1; // Random 1-3 facts per page
+                FunFacts.showFactsFromTrips(response.data, randomFactCount);
                 hasMore = !!response.links?.next;
                 
                 state.fetchProgress = {

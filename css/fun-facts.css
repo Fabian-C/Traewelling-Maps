@@ -29,19 +29,19 @@
 @keyframes slideFromRight {
     0% {
         opacity: 0;
-        transform: translateX(100%);
+        transform: translateX(0);
     }
     10% {
         opacity: 0.5;
-        transform: translateX(0);
+        transform: translateX(-100%);
     }
     85% {
         opacity: 0.5;
-        transform: translateX(-10%);
+        transform: translateX(-110%);
     }
     100% {
         opacity: 0;
-        transform: translateX(-15%);
+        transform: translateX(-115%);
     }
 }
 

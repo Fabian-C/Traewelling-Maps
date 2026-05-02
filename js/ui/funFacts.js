@@ -101,8 +101,9 @@ export const FunFacts = {
         
         const yPos = zone.yMin + Math.random() * (zone.yMax - zone.yMin);
         
-        // Slide from right to left
+        // Start from right edge
         element.style.top = `${yPos}%`;
+        element.style.left = '100%';
         element.style.animationDuration = `${FACT_DURATION}ms`;
         
         this.container.appendChild(element);
