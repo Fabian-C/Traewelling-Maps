@@ -1,22 +1,19 @@
-// Fun facts flying text module for data fetching
-// Displays interesting trip information as flying text during data fetch
+// Fun facts train carriage cards module for data fetching
+// Displays interesting trip information as stacked cards in right margin
 
-const MAX_VISIBLE_FACTS = 3;
-const FACT_DURATION = 5000; // 5 seconds per fact
-const FACT_COOLDOWN = 2000; // Minimum ms between facts
+const FACT_DISPLAY_DURATION = 4000; // 4 seconds before fade out
+const FACT_COOLDOWN = 500; // Minimum ms between facts
+const MAX_VISIBLE_FACTS = 4; // Maximum cards visible at once
 
-// Safe zones: top and bottom strips, avoiding the central UI
-const SAFE_ZONES = [
-    { yMin: 2, yMax: 12 },   // Top strip
-    { yMin: 88, yMax: 96 },  // Bottom strip
-];
+const ICONS = {
+    route: '🚂'
+};
 
 export const FunFacts = {
     container: null,
-    activeFacts: [],
     isRunning: false,
     lastFactTime: 0,
-    nextZoneIndex: 0,
+    activeFacts: [],
     
     init() {
         this.container = document.getElementById('funFactsContainer');
@@ -31,8 +28,9 @@ export const FunFacts = {
     start() {
         this.isRunning = true;
         this.lastFactTime = 0;
-        this.nextZoneIndex = 0;
+        this.activeFacts = [];
         this.init();
+        this.container.innerHTML = '';
     },
     
     stop() {
@@ -45,79 +43,64 @@ export const FunFacts = {
         this.activeFacts = [];
     },
     
-    // Generate interesting fact from trip data
+    // Generate interesting fact from trip data with type
     generateFact(trips) {
         if (!trips || !trips.length) return null;
         
         const randomTrip = trips[Math.floor(Math.random() * trips.length)];
         if (!randomTrip) return null;
         
-        const factTypes = [
-            () => {
-                const destination = randomTrip.train?.destination?.station?.name || randomTrip.train?.destination?.name;
-                const date = randomTrip.createdAt ? new Date(randomTrip.createdAt).toLocaleDateString('de-DE') : '';
-                if (!destination || destination === 'unknown') return null;
-                return date ? `${date} — travelled to ${destination}` : null;
-            },
-            () => {
-                const origin = randomTrip.train?.origin?.station?.name || randomTrip.train?.origin?.name;
-                const destination = randomTrip.train?.destination?.station?.name || randomTrip.train?.destination?.name;
-                if (!origin || !destination || origin === 'unknown' || destination === 'unknown') return null;
-                return `${origin}  →  ${destination}`;
-            },
-            () => {
-                const line = randomTrip.train?.lineName || randomTrip.train?.number;
-                const category = randomTrip.train?.category;
-                if (!line || !category) return null;
-                return `${category} ${line}`;
-            },
-        ];
+        const origin = randomTrip.train?.origin?.station?.name || randomTrip.train?.origin?.name;
+        const destination = randomTrip.train?.destination?.station?.name || randomTrip.train?.destination?.name;
+        const date = randomTrip.createdAt ? new Date(randomTrip.createdAt).toLocaleDateString('de-DE') : '';
         
-        // Try up to 5 times to get a non-null fact
-        for (let attempt = 0; attempt < 5; attempt++) {
-            const factType = factTypes[Math.floor(Math.random() * factTypes.length)];
-            const result = factType();
-            if (result) return result;
-        }
-        return null;
+        if (!origin || !destination || origin === 'unknown' || destination === 'unknown') return null;
+        
+        return { 
+            text: date ? `${date}: ${origin} → ${destination}` : `${origin} → ${destination}`, 
+            type: 'route'
+        };
     },
     
-    // Display a flying fact
-    showFact(fact) {
+    // Add a fact card to the stack
+    addFact(fact) {
         if (!this.isRunning || !fact || !this.container) return;
-        if (this.activeFacts.length >= MAX_VISIBLE_FACTS) return;
         
         const now = Date.now();
         if (now - this.lastFactTime < FACT_COOLDOWN) return;
+        
+        // Limit to max 3 visible cards
+        if (this.activeFacts.length >= MAX_VISIBLE_FACTS) return;
+        
         this.lastFactTime = now;
         
         const element = document.createElement('div');
-        element.className = 'fun-fact';
-        element.textContent = fact;
+        element.className = `fun-fact ${fact.type}`;
         
-        // Pick a safe zone (alternate between top and bottom)
-        const zone = SAFE_ZONES[this.nextZoneIndex % SAFE_ZONES.length];
-        this.nextZoneIndex++;
+        const icon = document.createElement('span');
+        icon.className = 'fun-fact-icon';
+        icon.textContent = ICONS[fact.type] || '📝';
         
-        const yPos = zone.yMin + Math.random() * (zone.yMax - zone.yMin);
+        const text = document.createElement('span');
+        text.className = 'fun-fact-text';
+        text.textContent = fact.text;
         
-        // Start from right edge
-        element.style.top = `${yPos}%`;
-        element.style.left = '100%';
-        element.style.animationDuration = `${FACT_DURATION}ms`;
+        element.appendChild(icon);
+        element.appendChild(text);
         
-        this.container.appendChild(element);
+        // Prepend to stack at top (newest on top)
+        this.container.insertBefore(element, this.container.firstChild);
         
-        const factObj = { element };
+        const factObj = { element, addedAt: now };
         this.activeFacts.push(factObj);
         
-        // Remove after animation
+        // Clean up after animation completes (6 seconds)
         setTimeout(() => {
             if (element.parentNode) {
                 element.parentNode.removeChild(element);
             }
             this.activeFacts = this.activeFacts.filter(f => f !== factObj);
-        }, FACT_DURATION);
+        }, FACT_DISPLAY_DURATION);
     },
     
     // Show facts from a batch of trips
@@ -127,7 +110,7 @@ export const FunFacts = {
         for (let i = 0; i < count; i++) {
             const fact = this.generateFact(trips);
             if (fact) {
-                setTimeout(() => this.showFact(fact), i * FACT_COOLDOWN);
+                setTimeout(() => this.addFact(fact), i * FACT_COOLDOWN);
             }
         }
     }

@@ -1,55 +1,106 @@
-/* Fun Facts Flying Text - Background animations during data fetch */
+/* Fun Facts Train Carriage Cards - Stacked cards in right margin during data fetch */
 
 .fun-facts-container {
     position: fixed;
     top: 0;
-    left: 0;
-    width: 100%;
+    right: 0;
+    width: 80%;
     height: 100%;
     pointer-events: none;
-    z-index: 10000; /* Above fetch screen (z-index: 9999) */
+    z-index: 10000;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-end;
+    padding: 20px 20px 20px 0;
+    gap: 8px;
 }
 
 .fun-fact {
-    position: absolute;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 200px;
+    padding: 12px 16px;
+    font-size: 14px;
     font-weight: 400;
-    font-style: italic;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
-    animation: slideFromRight linear forwards;
-    white-space: nowrap;
-    user-select: none;
-    max-width: 90vw;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    color: rgba(255, 255, 255, 0.95);
+    background: linear-gradient(135deg, rgba(40, 40, 45, 0.95) 0%, rgba(30, 30, 35, 0.95) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-left: 3px solid #10b981;
+    border-radius: 6px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+    animation: slideInFromRight 0.3s ease-out, fadeOut 0.5s ease-in 5.5s forwards;
+    white-space: normal;
+    overflow: visible;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-@keyframes slideFromRight {
+.fun-fact-icon {
+    font-size: 14px;
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+
+.fun-fact-text {
+    flex: 1;
+    overflow: visible;
+}
+
+@keyframes slideInFromRight {
     0% {
         opacity: 0;
+        transform: translateX(100%);
+    }
+    100% {
+        opacity: 1;
         transform: translateX(0);
     }
-    10% {
-        opacity: 0.5;
-        transform: translateX(-100%);
-    }
-    85% {
-        opacity: 0.5;
-        transform: translateX(-110%);
+}
+
+@keyframes fadeOut {
+    0% {
+        opacity: 1;
+        transform: translateX(0);
     }
     100% {
         opacity: 0;
-        transform: translateX(-115%);
+        transform: translateX(-15px);
     }
 }
 
-/* Mobile adjustments for fun facts */
+/* Mobile adjustments for train carriages */
 @media (max-width: 768px) {
+    .fun-facts-container {
+        width: 90%;
+        padding: 15px 15px 15px 0;
+        gap: 5px;
+    }
+    .fun-fact {
+        font-size: 11px;
+        padding: 8px 10px;
+        min-width: 120px;
+    }
+    .fun-fact-icon {
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .fun-facts-container {
+        width: 95%;
+        padding: 10px 10px 10px 0;
+        gap: 4px;
+    }
     .fun-fact {
         font-size: 10px;
+        padding: 6px 8px;
+        min-width: 100px;
+    }
+    .fun-fact-icon {
+        font-size: 11px;
     }
 }
-
-
