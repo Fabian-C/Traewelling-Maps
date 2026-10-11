@@ -481,7 +481,7 @@ export const UI = {
             if (oauthSection) oauthSection.style.display = 'block';
             if (setupDivider) setupDivider.style.display = 'none';
             if (usernameLabel) usernameLabel.textContent = 'Username';
-            if (usernameHint) usernameHint.textContent = 'Public profiles load immediately without needing a token or login.';
+            if (usernameHint) usernameHint.textContent = '';
         }
     },
     setTokenStatus(message, state = 'idle', expiryText = '') {

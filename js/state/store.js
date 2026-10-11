@@ -27,7 +27,7 @@ class StateStore {
                 searchQuery: '', 
                 filterLevel: 1, 
                 buddy: null, 
-                includeNoteMentions: typeof localStorage !== 'undefined' && localStorage.getItem('tw_include_notes') === 'true',
+                includeNoteMentions: typeof localStorage !== 'undefined' ? localStorage.getItem('tw_include_notes') !== 'false' : true,
                 business: { personal: true, work: true, commute: true } 
             },
             railway: { enabled: false },
