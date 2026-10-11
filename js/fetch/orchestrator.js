@@ -354,16 +354,18 @@ export async function processAndDisplayData(trips) {
                 console.error(`Failed to add layer ${layerId}:`, e);
             }
         }
+        loadLayers();
     };
     
+    // Populate layers UI immediately
+    loadLayers();
+
     if (RouteAnimation.isMobile()) {
         setTimeout(() => {
             addRouteLayers();
-            setTimeout(loadLayers, 50);
         }, 200);
     } else {
         addRouteLayers();
-        setTimeout(loadLayers, 50);
     }
     
     setTimeout(() => analytics.refreshStatsDisplay(state.statistics), 100);
