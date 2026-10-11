@@ -4,9 +4,12 @@ import { store } from '../state/store.js';
 import { SessionDB } from '../cache/session.js';
 import { TraewellingAPI } from '../api/traewelling.js';
 import { UI } from '../ui/ui.js';
+import { OAuth } from './oauth.js';
 import { processAndDisplayData } from '../fetch/orchestrator.js';
 import * as analytics from '../analytics/statistics.js';
 import { startDataFetch } from '../fetch/orchestrator.js';
+
+export { OAuth };
 
 export async function fetchUserProfile(username, token = null) {
     try {
@@ -253,3 +256,40 @@ export function logout() {
     UI.setTokenStatus('Token not validated', 'idle');
     UI.updateDatasetSummary(null, 0);
 }
+
+export async function handleOAuthCallbackProcess() {
+    try {
+        const result = await OAuth.checkForCallback();
+        if (!result) return false;
+
+        rememberToken(result.accessToken, { autoValidate: false });
+
+        const state = store.get();
+        const api = new TraewellingAPI(result.accessToken);
+        const user = await api.getAuthenticatedUser();
+
+        state.tokenOwner = {
+            username: user.data.username,
+            displayName: user.data.displayName,
+            avatar: user.data.profilePicture,
+            profileUrl: `https://traewelling.de/@${user.data.username}`,
+            validated: true
+        };
+        state.token = result.accessToken;
+        state.username = user.data.username;
+
+        UI.setTokenOwner(state.tokenOwner);
+        UI.setTokenStatus('Connected via OAuth', 'success');
+        UI.syncTokenInputs(result.accessToken);
+        UI.syncUsernameInput(user.data.username);
+
+        // Auto-start fetch or let user click Start Fetch
+        startDataFetch(false, false);
+        return true;
+    } catch (e) {
+        console.error('OAuth callback failed:', e);
+        UI.setTokenStatus(`OAuth Login Failed: ${e.message}`, 'error');
+        return false;
+    }
+}
+

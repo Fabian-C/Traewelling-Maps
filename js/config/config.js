@@ -6,6 +6,15 @@ export const CONFIG = {
     RATE_LIMIT: 55,
     RATE_WINDOW: 60000,
     SESSION_MAX_AGE_MS: 1000 * 60 * 60 * 24 * 90, // 90 days
+    OAUTH: {
+        CLIENT_ID: '416',
+        AUTHORIZE_URL: 'https://traewelling.de/oauth/authorize',
+        TOKEN_URL: 'https://traewelling.de/oauth/token',
+        SCOPES: 'read-statuses read-statistics',
+        getRedirectUri: () => {
+            return `${window.location.origin}${window.location.pathname}`;
+        }
+    },
     LAYER_CONFIG: [
         ['nationalExpress', '#0073ff'],
         ['national', '#00eeff'],

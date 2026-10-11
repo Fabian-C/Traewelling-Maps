@@ -40,7 +40,7 @@
         // Fetch module
         import { startDataFetch, cancelFetch, showFetchError, refreshActiveTrips, processAndDisplayData } from './js/fetch/orchestrator.js';
         // Session module
-        import { fetchUserProfile, saveCurrentSession, loadSessionByUsername, deleteSession, clearAllSessions, updateMenuAccountList, rememberToken, validateStoredToken, logout } from './js/session/manager.js';
+        import { fetchUserProfile, saveCurrentSession, loadSessionByUsername, deleteSession, clearAllSessions, updateMenuAccountList, rememberToken, validateStoredToken, logout, handleOAuthCallbackProcess, OAuth } from './js/session/manager.js';
         // Events module
         import { setupEventListeners } from './js/events/listeners.js';
         // Export module
@@ -71,6 +71,8 @@
         window.validateStoredToken = validateStoredToken;
         window.initializeState = initializeState;
         window.exportTripsGeoJSON = exportTripsGeoJSON;
+        window.OAuth = OAuth;
+        window.handleOAuthCallbackProcess = handleOAuthCallbackProcess;
 
         // =========================================================================
         // BANNER CLOSE HANDLERS
@@ -86,7 +88,7 @@
         initializeState(dataUtils.createEmptyStats);
 
         // Initialize UI after module is loaded
-        window.addEventListener('load', () => {
+        window.addEventListener('load', async () => {
             window.UI.init();
             window.UI.bindGlobalActions();
             window.RateLimitUI.init();
@@ -94,6 +96,26 @@
             window.loadLayers();
             document.getElementById('startFetchBtn').onclick = () => window.startDataFetch(false);
             document.getElementById('cancelFetchBtn').onclick = window.cancelFetch;
+            
+            const oauthBtn = document.getElementById('oauthLoginBtn');
+            if (oauthBtn) {
+                oauthBtn.onclick = () => window.OAuth.startLogin();
+            }
+
+            // Check if returning from OAuth redirect callback (?code=...)
+            const hasOAuthCode = new URLSearchParams(window.location.search).has('code');
+            if (hasOAuthCode) {
+                if (oauthBtn) {
+                    oauthBtn.disabled = true;
+                    oauthBtn.innerHTML = '<span class="oauth-spinner"></span> Connecting with Träwelling...';
+                }
+                const handled = await window.handleOAuthCallbackProcess();
+                if (handled) return;
+                if (oauthBtn) {
+                    oauthBtn.disabled = false;
+                    oauthBtn.innerHTML = '<span class="oauth-icon">🚆</span><span>Connect with Träwelling</span>';
+                }
+            }
 
             // Auto-validate stored token
             const storedToken = localStorage.getItem('tw_token');
@@ -135,18 +157,27 @@
                 <p>Trace your trips on a responsive map that feels a little more like a travel journal.</p>
             </div>
             <div class="setup-form">
-                <div class="form-group">
-                    <label for="apiToken">API Token (optional)</label>
-                    <input type="password" id="apiToken" placeholder="Optional - for private profiles or higher rate limits">
-                    <p class="form-hint">Required for private profiles only. Get your token from <a href="https://traewelling.de/settings/security" target="_blank">Träwelling Settings → Security</a></p>
+                <div class="oauth-section">
+                    <button class="btn-oauth" id="oauthLoginBtn" type="button">
+                        <span class="oauth-icon">🚆</span>
+                        <span>Connect with Träwelling</span>
+                    </button>
+                    <p class="form-hint" style="text-align: center; margin-top: 6px;">Recommended: 1-click login without copying API tokens</p>
                 </div>
+
+                <div class="setup-divider">or explore any profile manually</div>
+
                 <div class="form-group">
                     <label for="username">Username</label>
                     <input type="text" id="username" placeholder="Enter username to explore">
                     <p class="form-hint">The Träwelling username whose trips you want to view</p>
                 </div>
+                <div class="form-group">
+                    <label for="apiToken">API Token (Fallback / Optional)</label>
+                    <input type="password" id="apiToken" placeholder="Optional - for private profiles or manual token entry">
+                    <p class="form-hint">Manual fallback: Get your personal token from <a href="https://traewelling.de/settings/security" target="_blank">Träwelling Settings → Security</a></p>
+                </div>
                 <button class="btn-primary" id="startFetchBtn">🚀 Load Travel Data</button>
-                <div class="setup-divider">or</div>
                 <div class="saved-sessions" id="savedSessions" style="display: none;">
                     <h3>📁 Recent Sessions</h3>
                     <div id="sessionsList"></div>
