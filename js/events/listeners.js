@@ -41,12 +41,6 @@ export function setupEventListeners() {
         }
         if (isActive) {
             analytics.refreshStatsDisplay(state.statistics);
-            // Close main menu so they don't overlap, especially on mobile
-            const mainMenu = document.getElementById('mainMenu');
-            if (mainMenu) {
-                mainMenu.open = false;
-                mainMenu.removeAttribute('open');
-            }
         }
     };
 
@@ -55,12 +49,6 @@ export function setupEventListeners() {
         statsToggleBtn.onclick = (e) => {
             e.stopPropagation();
             toggleStatsPanel();
-            // Ensure main menu is closed when opening statistics on mobile
-            const mainMenu = document.getElementById('mainMenu');
-            if (mainMenu && document.getElementById('statsPanel')?.classList.contains('active')) {
-                mainMenu.open = false;
-                mainMenu.removeAttribute('open');
-            }
         };
     }
     const statsCloseBtn = document.getElementById('statsCloseBtn');
@@ -68,14 +56,7 @@ export function setupEventListeners() {
         statsCloseBtn.onclick = () => toggleStatsPanel(false);
     }
 
-    const mainMenu = document.getElementById('mainMenu');
-    if (mainMenu) {
-        mainMenu.addEventListener('toggle', () => {
-            if (mainMenu.open && (window.innerWidth <= 768 || RouteAnimation.isMobile())) {
-                toggleStatsPanel(false);
-            }
-        });
-    }
+
 
     const railwayToggle = document.getElementById('railwayToggle');
     const railwayCheckbox = document.getElementById('railwayCheckbox');

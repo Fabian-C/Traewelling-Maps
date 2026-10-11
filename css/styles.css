@@ -864,16 +864,18 @@ body.stats-open .active-filter-badges {
     .setup-header p { font-size: 13px; }
     .setup-form { gap: 12px; }
     .token-input-row input { font-size: 16px; }
-    .menu { top: 8px; right: 8px; width: max-content; min-width: 200px; max-width: calc(100vw - 16px); font-size: 12px; }
+    .menu { top: 8px; right: 8px; width: max-content; min-width: 180px; max-width: calc(100vw - 16px); font-size: 12px; }
     .menu:not([open]) { width: auto; min-width: 90px; }
+    .menu summary { padding: 8px 12px; }
     .menu-content { max-height: 75vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-    .menu-item { padding: 10px 14px; min-height: 44px; }
-    .menu-submenu summary { padding: 10px 14px; min-height: 44px; }
-    .layer-item { padding: 10px; min-height: 44px; touch-action: manipulation; }
-    .layer-list { max-height: 150px; -webkit-overflow-scrolling: touch; }
-    .toggle { width: 44px; height: 24px; }
-    .toggle-slider:before { height: 18px; width: 18px; }
-    input:checked+.toggle-slider:before { transform: translateX(20px); }
+    .menu-item { padding: 7px 12px; min-height: 36px; }
+    .menu-submenu summary { padding: 7px 12px; min-height: 36px; }
+    .menu-section { padding: 8px 10px; gap: 7px; }
+    .layer-item { padding: 7px 8px; min-height: 36px; touch-action: manipulation; }
+    .layer-list { max-height: 140px; -webkit-overflow-scrolling: touch; }
+    .toggle { width: 40px; height: 22px; }
+    .toggle-slider:before { height: 16px; width: 16px; }
+    input:checked+.toggle-slider:before { transform: translateX(18px); }
     .stats-panel { top: 8px; left: -240px; width: 175px; max-width: 58vw; padding: 8px 10px; font-size: 9.5px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
     .stats-panel.active { transform: translateX(248px); }
     .stats-panel .stats-title { font-size: 11px; margin: 0 0 6px; padding-bottom: 4px; }

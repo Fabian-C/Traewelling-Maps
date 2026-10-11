@@ -1,10 +1,11 @@
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8">
     <title>Träwelling Map Explorer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.11.0/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.11.0/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
@@ -98,7 +99,7 @@
             window.loadLayers();
             document.getElementById('startFetchBtn').onclick = () => window.startDataFetch(false);
             document.getElementById('cancelFetchBtn').onclick = window.cancelFetch;
-            
+
             const oauthBtn = document.getElementById('oauthLoginBtn');
             if (oauthBtn) {
                 oauthBtn.onclick = () => window.OAuth.startLogin();
@@ -274,6 +275,7 @@
         });
     </script>
 </head>
+
 <body>
     <!-- Setup Screen -->
     <div class="setup-screen" id="setupScreen">
@@ -282,7 +284,9 @@
                 <div>
                     <strong>Heads-up:</strong>
                     Träwelling's GeoJSON export is degraded due to an upstream issue.
-                    Expect missing or simplified lines until <a href="https://github.com/Traewelling/traewelling/issues/4312" target="_blank" rel="noopener">issue #4312</a> is resolved.
+                    Expect missing or simplified lines until <a
+                        href="https://github.com/Traewelling/traewelling/issues/4312" target="_blank"
+                        rel="noopener">issue #4312</a> is resolved.
                 </div>
                 <button type="button" class="banner-close" data-banner-close aria-label="Dismiss notice">✕</button>
             </div>
@@ -298,7 +302,8 @@
                         <div class="auth-card-name" id="authCardName">Username</div>
                         <div class="auth-card-sub" id="authCardSub">✓ Connected to Träwelling</div>
                     </div>
-                    <button type="button" class="btn-auth-logout" id="authLogoutBtn" title="Log out and switch account">Log out</button>
+                    <button type="button" class="btn-auth-logout" id="authLogoutBtn"
+                        title="Log out and switch account">Log out</button>
                 </div>
 
                 <!-- 1-Click Login section at the top (when unauthenticated) -->
@@ -311,7 +316,8 @@
 
                 <div class="form-group" id="queryGroup">
                     <label for="username" id="usernameLabel">Username</label>
-                    <input type="text" id="username" placeholder="Enter username to explore" autocomplete="username" autocapitalize="none" autocorrect="off">
+                    <input type="text" id="username" placeholder="Enter username to explore" autocomplete="username"
+                        autocapitalize="none" autocorrect="off">
                 </div>
 
 
@@ -323,13 +329,17 @@
                     </summary>
                     <div class="token-dropdown-content">
                         <p class="token-dropdown-help">
-                            If you prefer using a Personal Access Token instead of logging in, generate one in <a href="https://traewelling.de/settings/security" target="_blank" rel="noopener">Träwelling Settings → Security</a>.
+                            If you prefer using a Personal Access Token instead of logging in, generate one in <a
+                                href="https://traewelling.de/settings/security" target="_blank"
+                                rel="noopener">Träwelling Settings → Security</a>.
                         </p>
                         <div class="form-group">
                             <label for="apiToken">Personal API Token</label>
                             <div class="token-input-row">
-                                <input type="password" id="apiToken" placeholder="Paste your Bearer token here" autocomplete="current-password">
-                                <button type="button" class="btn-paste" id="pasteTokenBtn" title="Paste token from clipboard">📋 Paste</button>
+                                <input type="password" id="apiToken" placeholder="Paste your Bearer token here"
+                                    autocomplete="current-password">
+                                <button type="button" class="btn-paste" id="pasteTokenBtn"
+                                    title="Paste token from clipboard">📋 Paste</button>
                             </div>
                         </div>
                     </div>
@@ -338,8 +348,10 @@
                 <div class="saved-sessions" id="savedSessions" style="display: none;">
                     <h3>📁 Recent Sessions</h3>
                     <div id="sessionsList"></div>
-                    <button class="btn-outline" data-action="clear-cache" style="margin-top: 12px; width: 100%;">🧹 Clear cached data</button>
-                    <p class="form-hint" style="margin-top: 6px;">Removes stored accounts, cached trips, and tokens from this device.</p>
+                    <button class="btn-outline" data-action="clear-cache" style="margin-top: 12px; width: 100%;">🧹
+                        Clear cached data</button>
+                    <p class="form-hint" style="margin-top: 6px;">Removes stored accounts, cached trips, and tokens from
+                        this device.</p>
                 </div>
             </div>
         </div>
@@ -351,7 +363,9 @@
             <div class="cargo-scene" id="cargoScene">
                 <div class="cargo-stage" id="cargoStage"></div>
                 <div class="depot-label">Depot</div>
-                <div class="depot-zone"><div class="depot-stack" id="depotStack"></div></div>
+                <div class="depot-zone">
+                    <div class="depot-stack" id="depotStack"></div>
+                </div>
                 <div class="depot-platform"></div>
                 <div class="gantry">
                     <div class="gantry-leg l"></div>
@@ -360,7 +374,9 @@
                         <div class="gantry-trolley" id="gantryTrolley">
                             <div class="gantry-hoist" id="gantryHoist">
                                 <div class="gantry-spreader">
-                                    <div class="gantry-payload" id="gantryPayload"><div class="crate-ribs"></div></div>
+                                    <div class="gantry-payload" id="gantryPayload">
+                                        <div class="crate-ribs"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -375,11 +391,16 @@
             </div>
             <h2 class="fetch-title">Loading your rides</h2>
             <p class="fetch-status" id="fetchStatus">Talking to the Träwelling API... hang tight.</p>
-            <div class="fetch-progress-bar"><div class="fetch-progress-fill" id="fetchProgress"></div></div>
+            <div class="fetch-progress-bar">
+                <div class="fetch-progress-fill" id="fetchProgress"></div>
+            </div>
             <div class="fetch-stats">
-                <div class="fetch-stat"><span class="fetch-stat-value" id="fetchTrips">0</span><span class="fetch-stat-label">Trips</span></div>
-                <div class="fetch-stat"><span class="fetch-stat-value" id="fetchPages">0</span><span class="fetch-stat-label">Pages</span></div>
-                <div class="fetch-stat"><span class="fetch-stat-value" id="fetchPolylines">0</span><span class="fetch-stat-label">Routes</span></div>
+                <div class="fetch-stat"><span class="fetch-stat-value" id="fetchTrips">0</span><span
+                        class="fetch-stat-label">Trips</span></div>
+                <div class="fetch-stat"><span class="fetch-stat-value" id="fetchPages">0</span><span
+                        class="fetch-stat-label">Pages</span></div>
+                <div class="fetch-stat"><span class="fetch-stat-value" id="fetchPolylines">0</span><span
+                        class="fetch-stat-label">Routes</span></div>
             </div>
             <div class="rate-limit-card" id="rateLimitCard" aria-live="polite">
                 <div class="rate-limit-header">
@@ -407,28 +428,37 @@
         <div>
             <strong>Heads-up:</strong>
             Träwelling's GeoJSON export is degraded due to an upstream issue.
-            Expect missing or simplified lines until <a href="https://github.com/Traewelling/traewelling/issues/4312" target="_blank" rel="noopener">issue #4312</a> is resolved.
+            Expect missing or simplified lines until <a href="https://github.com/Traewelling/traewelling/issues/4312"
+                target="_blank" rel="noopener">issue #4312</a> is resolved.
         </div>
         <button type="button" class="banner-close" data-banner-close aria-label="Dismiss notice">✕</button>
     </div>
 
-        <!-- Stats Panel -->
+    <!-- Stats Panel -->
     <div class="stats-panel" id="statsPanel">
         <h3 class="stats-title">
             <span>📊 Statistics</span>
-            <button type="button" class="stats-close-btn" id="statsCloseBtn" aria-label="Close statistics" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;">✕</button>
+            <button type="button" class="stats-close-btn" id="statsCloseBtn" aria-label="Close statistics"
+                style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;">✕</button>
         </h3>
-        <div class="stat-item"><span class="stat-label">Total Trips:</span><span class="stat-value" id="statTrips">0</span></div>
-        <div class="stat-item"><span class="stat-label">Total Distance:</span><span class="stat-value" id="statDistance">0 km</span></div>
-        <div class="stat-item"><span class="stat-label">Most Used Line:</span><span class="stat-value" id="statLine">-</span></div>
-        <div class="stat-item"><span class="stat-label">Most Used Type:</span><span class="stat-value" id="statType">-</span></div>
-        <div class="stat-item"><span class="stat-label">Oldest Check-in:</span><span class="stat-value" id="statOldestDate">-</span></div>
-        <div class="stat-item"><span class="stat-label">Newest Check-in:</span><span class="stat-value" id="statNewestDate">-</span></div>
+        <div class="stat-item"><span class="stat-label">Total Trips:</span><span class="stat-value"
+                id="statTrips">0</span></div>
+        <div class="stat-item"><span class="stat-label">Total Distance:</span><span class="stat-value"
+                id="statDistance">0 km</span></div>
+        <div class="stat-item"><span class="stat-label">Most Used Line:</span><span class="stat-value"
+                id="statLine">-</span></div>
+        <div class="stat-item"><span class="stat-label">Most Used Type:</span><span class="stat-value"
+                id="statType">-</span></div>
+        <div class="stat-item"><span class="stat-label">Oldest Check-in:</span><span class="stat-value"
+                id="statOldestDate">-</span></div>
+        <div class="stat-item"><span class="stat-label">Newest Check-in:</span><span class="stat-value"
+                id="statNewestDate">-</span></div>
         <div class="stat-item" id="statBuddiesItem" style="display: none;">
             <span class="stat-label">Top Buddy:</span>
             <span class="stat-value" id="statBuddies">-</span>
         </div>
-        <button class="btn-outline" id="statsExportBtn" style="margin-top: 12px; width: 100%; font-size: 13px;">📤 Export GeoJSON</button>
+        <button class="btn-outline" id="statsExportBtn" style="margin-top: 12px; width: 100%; font-size: 13px;">📤
+            Export GeoJSON</button>
     </div>
 
     <!-- Active Filter Badges Bar -->
@@ -448,18 +478,20 @@
                             <div class="account-name" id="tokenOwnerName">Not authenticated</div>
                             <div class="account-username" id="tokenOwnerUsername">@unknown</div>
                         </div>
-                        <a class="btn-link" id="tokenOwnerProfileLink" href="#" target="_blank" rel="noopener">Profile</a>
+                        <a class="btn-link" id="tokenOwnerProfileLink" href="#" target="_blank"
+                            rel="noopener">Profile</a>
                     </div>
                     <div class="token-status" id="tokenStatusText">Token not validated</div>
                     <div class="token-expiry" id="tokenExpiryText">—</div>
-                    
+
                     <!-- API Token (only shown when authenticated via personal API token) -->
                     <details class="inner-submenu" id="menuApiTokenDetails" style="display: none;">
                         <summary>🔑 API Token</summary>
                         <div style="padding: 12px 0; display: flex; flex-direction: column; gap: 12px;">
                             <div class="menu-form-group">
                                 <label for="menuApiToken">API Token (optional)</label>
-                                <textarea id="menuApiToken" rows="3" placeholder="Optional - for private profiles"></textarea>
+                                <textarea id="menuApiToken" rows="3"
+                                    placeholder="Optional - for private profiles"></textarea>
                             </div>
                             <div class="menu-actions">
                                 <button class="btn-secondary" id="menuValidateBtn">Validate Token</button>
@@ -467,7 +499,7 @@
                             </div>
                         </div>
                     </details>
-                    
+
                     <!-- Target User -->
                     <details class="inner-submenu">
                         <summary>🎯 Target User</summary>
@@ -480,19 +512,21 @@
                             <button class="btn-primary" id="menuFetchBtn">Fetch Latest Data</button>
                         </div>
                     </details>
-                    
+
                     <!-- Saved Accounts -->
                     <details class="inner-submenu">
                         <summary>👥 Saved Accounts</summary>
                         <div style="padding: 12px 0; display: flex; flex-direction: column; gap: 8px;">
-                            <p class="section-sub" style="margin: 0;">Switch between cached accounts (highlighted = active)</p>
+                            <p class="section-sub" style="margin: 0;">Switch between cached accounts (highlighted =
+                                active)</p>
                             <div id="savedAccountsList">
                                 <p class="section-sub" style="margin: 0; text-align: center;">No saved accounts</p>
                             </div>
-                            <button class="btn-secondary" data-action="clear-cache" style="margin-top: 8px; font-size: 12px;">🧹 Clear Cached Data</button>
+                            <button class="btn-secondary" data-action="clear-cache"
+                                style="margin-top: 8px; font-size: 12px;">🧹 Clear Cached Data</button>
                         </div>
                     </details>
-                    
+
                     <button class="btn-logout" id="logoutBtn" style="width: 100%; margin-top: 8px;">Logout</button>
                 </div>
             </details>
@@ -504,9 +538,12 @@
                 <summary>📅 Time Filter</summary>
                 <div class="menu-submenu-content">
                     <div class="time-filter">
-                        <div class="time-input-group"><label for="dateFrom">From</label><input type="date" id="dateFrom"></div>
-                        <div class="time-input-group"><label for="dateTo">To</label><input type="date" id="dateTo"></div>
-                        <button type="button" class="btn-clear-buddy" id="resetDateFilterBtn" style="margin-top: 6px; width: 100%;">Reset Date Range</button>
+                        <div class="time-input-group"><label for="dateFrom">From</label><input type="date"
+                                id="dateFrom"></div>
+                        <div class="time-input-group"><label for="dateTo">To</label><input type="date" id="dateTo">
+                        </div>
+                        <button type="button" class="btn-clear-buddy" id="resetDateFilterBtn"
+                            style="margin-top: 6px; width: 100%;">Reset Date Range</button>
                     </div>
                 </div>
             </details>
@@ -539,12 +576,13 @@
                 </div>
             </details>
             <details class="menu-submenu" id="travelBuddiesSubmenu">
-                <summary>👥 Travel Buddies <span id="travelBuddiesCountBadge" class="menu-count" style="opacity: 0.65; font-size: 11px; margin-left: 4px;">(0)</span></summary>
+                <summary>👥 Travel Buddies</summary>
                 <div class="menu-submenu-content">
                     <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span class="section-sub" style="margin: 0; font-size: 11px;">Select companions to include:</span>
-                            <span id="travelBuddiesMetCount" style="margin: 0; font-size: 11px; font-weight: 600; color: var(--accent-color);">0 met</span>
+                            <!-- <span class="section-sub" style="margin: 0; font-size: 11px;">Select companions to filter:</span> -->
+                            <span id="travelBuddiesMetCount"
+                                style="margin: 0; font-size: 11px; font-weight: 600; color: var(--accent-color);"></span>
                         </div>
                         <div style="padding: 2px 0;">
                             <label class="checkbox-label" for="menuIncludeNoteMentions" style="font-size: 11px;">
@@ -553,7 +591,8 @@
                             </label>
                         </div>
                         <div class="buddy-list" id="menuBuddyList">
-                            <p class="section-sub" style="margin: 0; text-align: center; font-size: 11px;">No travel buddies recorded in loaded trips</p>
+                            <p class="section-sub" style="margin: 0; text-align: center; font-size: 11px;">No travel
+                                buddies recorded in loaded trips</p>
                         </div>
                     </div>
                 </div>
@@ -563,10 +602,13 @@
                 <div class="menu-submenu-content">
                     <div style="padding: 10px 16px; display: flex; flex-direction: column; gap: 8px;">
                         <div style="position: relative; display: flex; align-items: center;">
-                            <input type="text" id="tripSearchInput" placeholder="Search comments, line, buddy..." style="padding: 10px 32px 10px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 13px; width: 100%; box-sizing: border-box;">
-                            <button type="button" id="tripSearchClearBtn" style="display: none; position: absolute; right: 8px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 4px;">✕</button>
+                            <input type="text" id="tripSearchInput" placeholder="Search comments, line, buddy..."
+                                style="padding: 10px 32px 10px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 13px; width: 100%; box-sizing: border-box;">
+                            <button type="button" id="tripSearchClearBtn"
+                                style="display: none; position: absolute; right: 8px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 4px;">✕</button>
                         </div>
-                        <div class="section-sub" style="margin: 0; font-size: 11px; line-height: 1.4; display: flex; flex-direction: column; gap: 2px;">
+                        <div class="section-sub"
+                            style="margin: 0; font-size: 11px; line-height: 1.4; display: flex; flex-direction: column; gap: 2px;">
                             <span>• Filter by comments &amp; @buddies</span>
                             <span>• Search train lines &amp; stations</span>
                         </div>
@@ -639,10 +681,12 @@
                         <input type="range" class="slider" id="delayCountSlider" min="5" max="50" step="5" value="15">
                         <p class="slider-help">Shows the most delayed trips</p>
                     </div>
-                    <p class="section-sub" id="delayOverlaySummary" style="margin: 0 16px 16px;">Enable to visualize where the biggest delays are.</p>
+                    <p class="section-sub" id="delayOverlaySummary" style="margin: 0 16px 16px;">Enable to visualize
+                        where the biggest delays are.</p>
                 </div>
             </details>
-            <div class="menu-item" id="railwayToggle" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="menu-item" id="railwayToggle"
+                style="display: flex; justify-content: space-between; align-items: center;">
                 <span>🛤️ Railway Map</span>
                 <label class="toggle" style="pointer-events: none;">
                     <input type="checkbox" id="railwayCheckbox">
@@ -652,18 +696,23 @@
             <details class="menu-submenu" id="exportSubmenu">
                 <summary>📤 Export GeoJSON</summary>
                 <div class="menu-submenu-content export-section">
-                    <p class="section-sub" style="margin: 0 16px 10px;">Export your travel routes and polylines as a standardized GeoJSON FeatureCollection.</p>
+                    <p class="section-sub" style="margin: 0 16px 10px;">Export your travel routes and polylines as a
+                        standardized GeoJSON FeatureCollection.</p>
                     <div style="padding: 0 16px 14px; display: flex; flex-direction: column; gap: 8px;">
-                        <button class="btn-primary" id="exportActiveGeoJsonBtn" style="font-size: 13px; padding: 10px 14px;">💾 Download Filtered Trips</button>
-                        <button class="btn-secondary" id="exportAllGeoJsonBtn" style="font-size: 13px; padding: 10px 14px;">📦 Download All Loaded Trips</button>
-                        <button class="btn-outline" id="copyGeoJsonBtn" style="font-size: 13px; padding: 10px 14px;">📋 Copy GeoJSON to Clipboard</button>
+                        <button class="btn-primary" id="exportActiveGeoJsonBtn"
+                            style="font-size: 13px; padding: 10px 14px;">💾 Download Filtered Trips</button>
+                        <button class="btn-secondary" id="exportAllGeoJsonBtn"
+                            style="font-size: 13px; padding: 10px 14px;">📦 Download All Loaded Trips</button>
+                        <button class="btn-outline" id="copyGeoJsonBtn" style="font-size: 13px; padding: 10px 14px;">📋
+                            Copy GeoJSON to Clipboard</button>
                     </div>
                 </div>
-            <!-- Share functionality temporarily disabled for future reimplementation
+                <!-- Share functionality temporarily disabled for future reimplementation
             <button class="btn btn-share" id="shareBtn">🔗 Share View</button>
             -->
         </div>
     </details>
 
 </body>
+
 </html>
