@@ -289,6 +289,10 @@ export async function handleOAuthCallbackProcess() {
     } catch (e) {
         console.error('OAuth callback failed:', e);
         UI.setTokenStatus(`OAuth Login Failed: ${e.message}`, 'error');
+        const setupScreen = document.getElementById('setupScreen');
+        if (setupScreen && !setupScreen.classList.contains('hidden')) {
+            alert(`Träwelling OAuth notice: ${e.message}`);
+        }
         return false;
     }
 }

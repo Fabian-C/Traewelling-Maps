@@ -32,6 +32,21 @@ export const OAuth = {
      * Redirects the user to Träwelling OAuth authorize endpoint
      */
     async startLogin() {
+        const origin = window.location.origin;
+        const isKnownOrigin = origin.includes('localhost') || 
+                              origin.includes('127.0.0.1') || 
+                              origin.includes('192.168.1.26') || 
+                              origin.includes('fabian-c.github.io');
+
+        if (!isKnownOrigin) {
+            const proceed = confirm(
+                `Note: Träwelling OAuth requires a pre-registered redirect domain. Your current host (${origin}) is not registered on Träwelling's OAuth client.\n\n` +
+                `For local testing or unlisted hosts, please enter your Personal API Token in the dropdown instead.\n\n` +
+                `Would you still like to try connecting with OAuth?`
+            );
+            if (!proceed) return;
+        }
+
         const verifier = generateRandomString(64);
         const challenge = await generateCodeChallenge(verifier);
         const state = generateRandomString(32);
@@ -62,12 +77,16 @@ export const OAuth = {
         const code = params.get('code');
         const state = params.get('state');
         const error = params.get('error');
+        const errorDesc = params.get('error_description');
 
         if (error) {
-            console.error('OAuth authorization error:', error, params.get('error_description'));
+            console.error('OAuth authorization error:', error, errorDesc);
             // Clean URL
             window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
-            throw new Error(`OAuth error: ${error}`);
+            const userMsg = error === 'invalid_client'
+                ? 'Client authentication failed: This URL is not registered on Träwelling OAuth. Please use your Personal API Token from Träwelling Settings → Security instead.'
+                : (errorDesc || error);
+            throw new Error(userMsg);
         }
 
         if (!code) {

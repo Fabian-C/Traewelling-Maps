@@ -102,6 +102,27 @@
                 oauthBtn.onclick = () => window.OAuth.startLogin();
             }
 
+            const pasteBtn = document.getElementById('pasteTokenBtn');
+            if (pasteBtn) {
+                pasteBtn.onclick = async () => {
+                    try {
+                        if (!navigator.clipboard?.readText) {
+                            alert('Clipboard access not supported by your browser. Please tap and paste into the field.');
+                            return;
+                        }
+                        const clipText = await navigator.clipboard.readText();
+                        if (clipText) {
+                            const tokenField = document.getElementById('apiToken');
+                            tokenField.value = clipText.trim();
+                            pasteBtn.textContent = '✅ Pasted';
+                            setTimeout(() => { pasteBtn.textContent = '📋 Paste'; }, 2000);
+                        }
+                    } catch (err) {
+                        alert('Could not access clipboard automatically. Please tap and paste into the field.');
+                    }
+                };
+            }
+
             // Check if returning from OAuth redirect callback (?code=...)
             const hasOAuthCode = new URLSearchParams(window.location.search).has('code');
             if (hasOAuthCode) {
@@ -113,7 +134,7 @@
                 if (handled) return;
                 if (oauthBtn) {
                     oauthBtn.disabled = false;
-                    oauthBtn.innerHTML = '<span class="oauth-icon">🚆</span><span>Connect with Träwelling</span>';
+                    oauthBtn.innerHTML = '<span class="oauth-icon">🚆</span><span>Log in with Träwelling Account</span>';
                 }
             }
 
@@ -157,32 +178,41 @@
                 <p>Trace your trips on a responsive map that feels a little more like a travel journal.</p>
             </div>
             <div class="setup-form">
-                <div class="oauth-section">
-                    <button class="btn-oauth" id="oauthLoginBtn" type="button">
-                        <span class="oauth-icon">🚆</span>
-                        <span>Connect with Träwelling</span>
-                    </button>
-                    <p class="form-hint" style="text-align: center; margin-top: 6px;">Recommended: 1-click login without copying API tokens</p>
-                </div>
-
-                <div class="setup-divider">or explore any profile manually</div>
-
                 <div class="form-group">
                     <label for="username">Username</label>
-                    <input type="text" id="username" placeholder="Enter username to explore">
-                    <p class="form-hint">The Träwelling username whose trips you want to view</p>
+                    <input type="text" id="username" placeholder="Enter username to explore" autocomplete="username" autocapitalize="none" autocorrect="off">
+                    <p class="form-hint">Public profiles load immediately without needing a token or login.</p>
                 </div>
-                <div class="form-group">
-                    <label for="apiToken">API Token (Fallback / Optional)</label>
-                    <input type="password" id="apiToken" placeholder="Optional - for private profiles or manual token entry">
-                    <p class="form-hint">Manual fallback: Get your personal token from <a href="https://traewelling.de/settings/security" target="_blank">Träwelling Settings → Security</a></p>
-                </div>
-                <div class="form-group">
-                    <label for="fetchUntilDate">Fetch trips back until (optional / dev limit)</label>
-                    <input type="date" id="fetchUntilDate">
-                    <p class="form-hint">Only fetch trips backwards until this date (inclusive). Saves time & rate limits during development.</p>
-                </div>
+
                 <button class="btn-primary" id="startFetchBtn">🚀 Load Travel Data</button>
+
+                <details class="token-dropdown" id="tokenDropdown">
+                    <summary class="token-dropdown-summary">
+                        <span>🔑 Private Profile or API Token (Optional)</span>
+                    </summary>
+                    <div class="token-dropdown-content">
+                        <p class="token-dropdown-help">
+                            Public profiles work without credentials. If your profile is private or you want higher rate limits, enter your personal token from <a href="https://traewelling.de/settings/security" target="_blank" rel="noopener">Träwelling Settings → Security</a>.
+                        </p>
+                        <div class="form-group">
+                            <label for="apiToken">Personal API Token</label>
+                            <div class="token-input-row">
+                                <input type="password" id="apiToken" placeholder="Paste your Bearer token here" autocomplete="current-password">
+                                <button type="button" class="btn-paste" id="pasteTokenBtn" title="Paste token from clipboard">📋 Paste</button>
+                            </div>
+                        </div>
+
+                        <div class="oauth-subtle-container">
+                            <div class="setup-divider-subtle"><span>or</span></div>
+                            <button class="btn-oauth-subtle" id="oauthLoginBtn" type="button">
+                                <span class="oauth-icon">🚆</span>
+                                <span>Log in with Träwelling Account</span>
+                            </button>
+                            <p class="form-hint" style="text-align: center; margin-top: 4px;">Direct OAuth login (requires registered redirect domain)</p>
+                        </div>
+                    </div>
+                </details>
+
                 <div class="saved-sessions" id="savedSessions" style="display: none;">
                     <h3>📁 Recent Sessions</h3>
                     <div id="sessionsList"></div>

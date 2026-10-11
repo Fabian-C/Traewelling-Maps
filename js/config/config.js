@@ -12,7 +12,15 @@ export const CONFIG = {
         TOKEN_URL: 'https://traewelling.de/oauth/token',
         SCOPES: 'read-statuses read-statistics',
         getRedirectUri: () => {
-            return `${window.location.origin}${window.location.pathname}`;
+            const loc = window.location;
+            let path = loc.pathname;
+            if (path.endsWith('index.html')) {
+                path = path.slice(0, -10);
+            }
+            if (!path.endsWith('/')) {
+                path += '/';
+            }
+            return `${loc.origin}${path}`;
         }
     },
     LAYER_CONFIG: [

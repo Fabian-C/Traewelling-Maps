@@ -8,16 +8,16 @@ A modular, production-ready web application for visualizing Träwelling travel d
 
 ## Features
 
-- **OAuth 2.0 PKCE 1-Click Login**: Secure authorization with Träwelling without copying API tokens (Personal API Token still available as fallback)
+- **Streamlined Setup & Zero-Auth Public Exploration**: Explore any public Träwelling user immediately with just their username — no credentials needed
+- **Flexible Token & Auth Options**: Collapsible dropdown for private profiles and personal API tokens with 1-tap mobile clipboard pasting, plus optional OAuth 2.0 PKCE support
 - **Interactive Map**: Powered by Mapbox GL JS and Deck.gl
 - **Transport Layers**: Color-coded transit categories with custom ordering (ICE, RE, IC/EC, RB, S-Bahn, etc.)
 - **Trip Notes & Comment Search**: User notes and status text displayed safely in route popups, plus real-time trip & comment search
 - **Travel Buddies**: Automatic companion recognition from mentions (`@username`) with a top travel buddies ranking
-- **Dev / Partial Fetch Cutoff**: Select a cutoff date to only fetch recent trips for faster testing and development
 - **Data Visualization & Export**: Route polylines, heatmap overlays, delay indicators, and full GeoJSON export
 - **Session Management**: Cached sessions via IndexedDB with multi-account support
 - **Rate Limiting**: Built-in API rate limiting with visual feedback
-- **Responsive Design**: Mobile-friendly interface with tap-first interactions
+- **Responsive Design**: Mobile-friendly interface with tap-first interactions and mobile-optimized dropdowns
 
 ## Architecture
 
