@@ -13,6 +13,7 @@ import * as dataProcessing from '../data/processing.js';
 import * as analytics from '../analytics/statistics.js';
 import { reloadAllLayers } from '../map/layers.js';
 import { updateAllStatistics as updateAllStats } from '../analytics/statistics.js';
+import { exportTripsGeoJSON } from '../export/geojson.js';
 
 export function setupEventListeners() {
     const state = store.get();
@@ -279,6 +280,24 @@ export function setupEventListeners() {
             // Use incremental fetch if there's cached data
             startDataFetch(false, hasCachedData);
         };
+    }
+
+    // GeoJSON Export listeners
+    const exportActiveBtn = document.getElementById('exportActiveGeoJsonBtn');
+    if (exportActiveBtn) {
+        exportActiveBtn.onclick = () => exportTripsGeoJSON('active', 'download');
+    }
+    const exportAllBtn = document.getElementById('exportAllGeoJsonBtn');
+    if (exportAllBtn) {
+        exportAllBtn.onclick = () => exportTripsGeoJSON('all', 'download');
+    }
+    const copyGeoJsonBtn = document.getElementById('copyGeoJsonBtn');
+    if (copyGeoJsonBtn) {
+        copyGeoJsonBtn.onclick = () => exportTripsGeoJSON('active', 'copy');
+    }
+    const statsExportBtn = document.getElementById('statsExportBtn');
+    if (statsExportBtn) {
+        statsExportBtn.onclick = () => exportTripsGeoJSON('active', 'download');
     }
 }
 

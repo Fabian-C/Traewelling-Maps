@@ -25,7 +25,7 @@ export function updateStatistics(data, category, statisticsObj) {
         let train = f.properties?.train;
         if (typeof train === 'string') try { train = JSON.parse(train); } catch (e) { train = {}; }
         train = train || {};
-        const distance = train.distance || 0;
+        const distance = (typeof train.totalDistance === 'number' ? train.totalDistance : train.distance) || 0;
         const createdAt = f.properties?.createdAt;
         const statusId = f.properties?.statusId;
 

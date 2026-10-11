@@ -121,8 +121,8 @@ export function waitForMapReady(timeoutMs = 4000) {
 }
 
 function queryLayersNearPoint(point, layers, tolerance = 10) {
-    const state = window.state;
-    if (!state.map || !point || !layers?.length) return [];
+    const state = store.get();
+    if (!state?.map || !point || !layers?.length) return [];
     const clamped = Math.max(2, Math.min(50, tolerance));
     const bounds = [
         [point.x - clamped, point.y - clamped],
@@ -284,7 +284,8 @@ export function showPopup(lngLat, feature) {
     const destData = train.destination || {};
     const origin = originData.name || 'Unknown';
     const dest = destData.name || 'Unknown';
-    const distance = Math.round((train.distance || 0) / 10) / 100;
+    const rawDistance = typeof train.totalDistance === 'number' ? train.totalDistance : (train.distance || 0);
+    const distance = Math.round(rawDistance / 10) / 100;
 
     const getDate = (value) => value ? new Date(value) : null;
     const plannedDeparture = getDate(originData.departurePlanned || train.plannedDeparture);
@@ -319,7 +320,7 @@ export function showPopup(lngLat, feature) {
         if (mins === 0) return `${hrs} h`;
         return `${hrs} h ${mins} min`;
     };
-    const durationProvided = typeof train.duration === 'number' ? train.duration : null;
+    const durationProvided = typeof train.totalDuration === 'number' ? train.totalDuration : (typeof train.duration === 'number' ? train.duration : null);
     const durationPlanned = (plannedDeparture && plannedArrival) ? Math.round((plannedArrival - plannedDeparture) / 60000) : null;
     const durationActual = (actualDeparture && actualArrival) ? Math.round((actualArrival - actualDeparture) / 60000) : durationProvided;
     const departureLabel = actualDeparture || plannedDeparture;

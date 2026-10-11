@@ -43,6 +43,8 @@
         import { fetchUserProfile, saveCurrentSession, loadSessionByUsername, deleteSession, clearAllSessions, updateMenuAccountList, rememberToken, validateStoredToken, logout } from './js/session/manager.js';
         // Events module
         import { setupEventListeners } from './js/events/listeners.js';
+        // Export module
+        import { exportTripsGeoJSON } from './js/export/geojson.js';
 
         // =====================================================================
         // Export to window for inline script and cross-module access
@@ -59,6 +61,7 @@
         window.cancelFetch = cancelFetch;
         window.saveCurrentSession = saveCurrentSession;
         window.loadSessionByUsername = loadSessionByUsername;
+        window.deleteSession = deleteSession;
         window.logout = logout;
         window.rememberToken = rememberToken;
         window.updateMenuAccountList = updateMenuAccountList;
@@ -66,6 +69,7 @@
         window.CONFIG = CONFIG;
         window.validateStoredToken = validateStoredToken;
         window.initializeState = initializeState;
+        window.exportTripsGeoJSON = exportTripsGeoJSON;
 
         // =========================================================================
         // BANNER CLOSE HANDLERS
@@ -99,7 +103,7 @@
                 const parts = window.location.hash.substring(5).split('/');
                 if (parts.length === 3) {
                     const [zoom, lat, lng] = parts.map(parseFloat);
-                    setTimeout(() => { if (window.state.map) window.state.map.jumpTo({ center: [lng, lat], zoom }); }, 1000);
+                    setTimeout(() => { if (window.state?.map) window.state.map.jumpTo({ center: [lng, lat], zoom }); }, 1000);
                 }
             }
 
@@ -132,7 +136,7 @@
                 <div class="form-group">
                     <label for="apiToken">API Token (optional)</label>
                     <input type="password" id="apiToken" placeholder="Optional - for private profiles or higher rate limits">
-                    <p class="form-hint">Required for private profiles only. Get your token from <a href="https://traewelling.de/settings/security/api-tokens" target="_blank">Träwelling Settings → API-Tokens</a></p>
+                    <p class="form-hint">Required for private profiles only. Get your token from <a href="https://traewelling.de/settings/security" target="_blank">Träwelling Settings → Security</a></p>
                 </div>
                 <div class="form-group">
                     <label for="username">Username</label>
@@ -227,6 +231,7 @@
         <div class="stat-item"><span class="stat-label">Most Used Type:</span><span class="stat-value" id="statType">-</span></div>
         <div class="stat-item"><span class="stat-label">Oldest Check-in:</span><span class="stat-value" id="statOldestDate">-</span></div>
         <div class="stat-item"><span class="stat-label">Newest Check-in:</span><span class="stat-value" id="statNewestDate">-</span></div>
+        <button class="btn-outline" id="statsExportBtn" style="margin-top: 12px; width: 100%; font-size: 13px;">📤 Export GeoJSON</button>
     </div>
 
     <!-- Menu -->
@@ -402,6 +407,17 @@
                 </div>
             </details>
             <div class="menu-item" id="railwayToggle"><span>🛤️ Railway Map</span></div>
+            <details class="menu-submenu" id="exportSubmenu">
+                <summary>📤 Export GeoJSON</summary>
+                <div class="menu-submenu-content export-section">
+                    <p class="section-sub" style="margin: 0 16px 10px;">Export your travel routes and polylines as a standardized GeoJSON FeatureCollection.</p>
+                    <div style="padding: 0 16px 14px; display: flex; flex-direction: column; gap: 8px;">
+                        <button class="btn-primary" id="exportActiveGeoJsonBtn" style="font-size: 13px; padding: 10px 14px;">💾 Download Filtered Trips</button>
+                        <button class="btn-secondary" id="exportAllGeoJsonBtn" style="font-size: 13px; padding: 10px 14px;">📦 Download All Loaded Trips</button>
+                        <button class="btn-outline" id="copyGeoJsonBtn" style="font-size: 13px; padding: 10px 14px;">📋 Copy GeoJSON to Clipboard</button>
+                    </div>
+                </div>
+            </details>
             <button class="btn btn-share" id="shareBtn">🔗 Share View</button>
         </div>
     </details>

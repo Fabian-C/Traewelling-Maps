@@ -1,10 +1,5 @@
 // Rate-limited API client for Träwelling
-
-const CONFIG = {
-    API_BASE_URL: 'https://traewelling.de/api/v1',
-    RATE_LIMIT: 55,
-    RATE_WINDOW: 60000,
-};
+import { CONFIG } from '../config/config.js';
 
 export class TraewellingAPI {
     constructor(token = null, options = {}) {

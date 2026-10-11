@@ -1,8 +1,5 @@
 // IndexedDB for session storage
-
-const CONFIG = {
-    SESSION_MAX_AGE_MS: 1000 * 60 * 60 * 24 * 90, // 90 days
-};
+import { CONFIG } from '../config/config.js';
 
 export const SessionDB = {
     DB_NAME: 'TraewellingMap',

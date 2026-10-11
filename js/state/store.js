@@ -63,8 +63,12 @@ class StateStore {
                     'nationalExpress'
                 ]
             },
-            statistics: createEmptyStats()
+            statistics: createEmptyStats ? createEmptyStats() : {}
         };
+        if (typeof window !== 'undefined') {
+            window.state = this.state;
+            window.store = this;
+        }
         this.notify('initialize', this.state);
     }
 

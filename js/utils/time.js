@@ -19,8 +19,9 @@ export function computeTripDurationMinutes(train = {}) {
     if (departure && arrival) {
         return Math.max(1, Math.round((arrival - departure) / 60000));
     }
-    if (typeof train.duration === 'number' && train.duration > 0) {
-        return Math.round(train.duration);
+    const duration = typeof train.totalDuration === 'number' ? train.totalDuration : train.duration;
+    if (typeof duration === 'number' && duration > 0) {
+        return Math.round(duration);
     }
     return null;
 }

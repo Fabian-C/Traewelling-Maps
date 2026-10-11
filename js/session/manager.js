@@ -130,14 +130,13 @@ export async function clearAllSessions() {
 }
 
 export async function updateMenuAccountList() {
-    const state = window.state;
+    const state = store.get();
     const menuContainer = document.getElementById('savedAccountsList');
     const setupContainer = document.getElementById('sessionsList');
     const setupSection = document.getElementById('savedSessions');
     
     try {
         const sessions = await SessionDB.getAll();
-        const state = window.state;
         
         if (menuContainer) {
             if (!sessions.length) {

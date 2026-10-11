@@ -1,20 +1,5 @@
 // Data processing functions
-
-const CONFIG = {
-    LAYER_CONFIG: [
-        ['nationalExpress', '#0073ff'],
-        ['national', '#00eeff'],
-        ['regionalExp', '#d1024e'],
-        ['regional', '#a6026c'],
-        ['suburban', '#fc0000'],
-        ['bus', '#238443'],
-        ['tram', '#2FC5CC'],
-        ['subway', '#F69A00'],
-        ['plane', '#111111'],
-        ['ship', '#0055aa'],
-        ['unknown', '#888888']
-    ]
-};
+import { CONFIG } from '../config/config.js';
 
 /**
  * Process trips to GeoJSON by category

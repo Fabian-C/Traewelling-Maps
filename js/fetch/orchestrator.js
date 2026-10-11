@@ -28,15 +28,15 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
     
     // Check for cached data for incremental fetch
     let cachedTrips = null;
-    let oldestCachedTripId = null;
+    let newestCachedTripId = null;
     if (incremental) {
         try {
             const session = await SessionDB.get(username);
             if (session?.trips && session.trips.length > 0) {
                 cachedTrips = session.trips;
-                // Get the oldest trip ID (trips are in reverse chronological order, so last one is oldest)
-                oldestCachedTripId = cachedTrips[cachedTrips.length - 1]?.id;
-                console.log(`Found ${cachedTrips.length} cached trips, oldest ID: ${oldestCachedTripId}`);
+                // Get the newest cached trip ID (page 1 is newest in API)
+                newestCachedTripId = cachedTrips[0]?.id;
+                console.log(`Found ${cachedTrips.length} cached trips, newest ID: ${newestCachedTripId}`);
             }
         } catch (e) {
             console.warn('Failed to check cached data:', e);
@@ -121,13 +121,15 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 const response = await api.getUserStatuses(username, page);
                 if (!response?.data?.length) { hasMore = false; break; }
                 
-                // For incremental fetch, check if we've hit the oldest cached trip
-                if (incremental && oldestCachedTripId) {
-                    const foundOldestIndex = response.data.findIndex(s => s.id === oldestCachedTripId);
-                    if (foundOldestIndex !== -1) {
-                        // Found the oldest cached trip, only add trips before it (newer trips)
-                        allStatuses.push(...response.data.slice(0, foundOldestIndex));
-                        console.log(`Found oldest cached trip at index ${foundOldestIndex} on page ${page}, stopping incremental fetch`);
+                // For incremental fetch, check if we've hit the newest cached trip
+                if (incremental && newestCachedTripId) {
+                    const foundNewestIndex = response.data.findIndex(s => s.id === newestCachedTripId);
+                    if (foundNewestIndex !== -1) {
+                        // Found newest cached trip, only add trips before it (strictly newer trips)
+                        if (foundNewestIndex > 0) {
+                            allStatuses.push(...response.data.slice(0, foundNewestIndex));
+                        }
+                        console.log(`Found newest cached trip at index ${foundNewestIndex} on page ${page}, stopping incremental fetch`);
                         hasMore = false;
                         break;
                     }
