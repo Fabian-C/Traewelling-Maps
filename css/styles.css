@@ -852,10 +852,14 @@ body.stats-open .active-filter-badges {
     .toggle { width: 44px; height: 24px; }
     .toggle-slider:before { height: 18px; width: 18px; }
     input:checked+.toggle-slider:before { transform: translateX(20px); }
-    .stats-panel { top: 8px; left: -260px; width: 220px; max-width: 80vw; font-size: 11px; }
-    .stats-panel.active { transform: translateX(268px); }
+    .stats-panel { top: 8px; left: -240px; width: 195px; max-width: 75vw; padding: 10px 12px; font-size: 10.5px; border-radius: 10px; }
+    .stats-panel.active { transform: translateX(248px); }
+    .stats-panel .stats-title { font-size: 11.5px; margin: 0 0 8px; padding-bottom: 4px; }
+    .stats-panel .stat-item { margin-bottom: 5px; font-size: 10.5px; }
+    .stats-panel .stat-label { font-size: 10px; }
+    .stats-panel .btn-outline { margin-top: 8px !important; padding: 6px 8px !important; font-size: 11px !important; }
     .active-filter-badges { top: 8px; left: 8px; max-width: calc(100vw - 120px); gap: 4px; }
-    body.stats-open .active-filter-badges { left: 240px; max-width: calc(100vw - 340px); }
+    body.stats-open .active-filter-badges { left: 215px; max-width: calc(100vw - 315px); }
     .filter-badge { padding: 4px 8px; font-size: 10px; }
     .btn-share { padding: 12px; min-height: 44px; }
     .account-card { padding: 10px; }
@@ -864,7 +868,9 @@ body.stats-open .active-filter-badges {
 @media (max-width: 375px) {
     :root { --depot-width: 98px; --gantry-width: 100px; --gantry-depot-left: 18px; --gantry-train-left: 128px; }
     .menu { max-width: 85vw; }
-    .stats-panel { width: 200px; max-width: 85vw; font-size: 10px; }
+    .stats-panel { width: 180px; max-width: 72vw; padding: 8px 10px; font-size: 10px; }
+    .stats-panel.active { transform: translateX(238px); }
+    body.stats-open .active-filter-badges { left: 198px; max-width: calc(100vw - 280px); }
 }
 .hidden { display: none !important; }
 

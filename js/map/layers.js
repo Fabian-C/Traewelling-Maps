@@ -85,9 +85,17 @@ export function loadLayers() {
 
         const config = CONFIG.LAYER_CONFIG.find(([id]) => id === layerId);
         const color = layer.color || config?.[1] || '#888888';
-        const routeCount = layer.data?.features?.length || 0;
+        // Count from active trips in category (fallback to GeoJSON features length)
+        let routeCount = 0;
+        if (state.activeTrips && state.activeTrips.length) {
+            routeCount = state.activeTrips.filter(t => (t.train?.category || 'unknown') === layerId).length;
+        } else if (state.statistics?.typeCounts?.[layerId] !== undefined) {
+            routeCount = state.statistics.typeCounts[layerId];
+        } else {
+            routeCount = layer.data?.features?.length || 0;
+        }
         const displayName = CATEGORY_NAMES[layerId] || layerId;
-        const countBadge = routeCount > 0 ? ` <span class="layer-count" style="opacity: 0.6; font-size: 11px;">(${routeCount})</span>` : '';
+        const countBadge = ` <span class="layer-count" style="opacity: 0.65; font-size: 11px; margin-left: 4px;">(${routeCount})</span>`;
 
         // Create layer item element
         const layerItem = document.createElement('div');
