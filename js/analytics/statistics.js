@@ -77,7 +77,7 @@ export function refreshStatsDisplay(statisticsObj) {
     document.getElementById('statNewestDate').innerHTML = newest && statisticsObj.newestStatusId
         ? `<a href="https://traewelling.de/status/${statisticsObj.newestStatusId}" target="_blank" class="popup-link">${newest.toLocaleDateString('de-DE')}</a>` : '-';
 
-    // Travel buddies ranking in Stats panel
+    // Favorite travel buddy in Stats panel
     const buddiesItem = document.getElementById('statBuddiesItem');
     const buddiesEl = document.getElementById('statBuddies');
     if (buddiesItem && buddiesEl) {
@@ -85,9 +85,8 @@ export function refreshStatsDisplay(statisticsObj) {
             .sort((a,b) => b[1] - a[1]);
         if (sortedBuddies.length > 0) {
             buddiesItem.style.display = 'flex';
-            buddiesEl.innerHTML = sortedBuddies.slice(0, 5).map(([user, count]) => {
-                return `<a href="https://traewelling.de/@${user}" target="_blank" class="mention-link">@${user}</a> (${count} ${count === 1 ? 'trip' : 'trips'})`;
-            }).join(', ');
+            const [topUser, count] = sortedBuddies[0];
+            buddiesEl.innerHTML = `<a href="https://traewelling.de/@${escapeHtml(topUser)}" target="_blank" class="mention-link stat-top-buddy">@${escapeHtml(topUser)}</a> <span class="stat-buddy-badge">${count} ${count === 1 ? 'trip' : 'trips'}</span>`;
         } else {
             buddiesItem.style.display = 'none';
             buddiesEl.textContent = '-';
@@ -263,7 +262,45 @@ export function updateMenuBuddyList(onSelectBuddy = null) {
     const clearBtn = document.getElementById('clearBuddyFilterBtn');
     if (!listEl) return;
 
-    const buddies = getBuddyStats(state.fetchedTrips);
+    // Calculate buddy stats dynamically from current filter context (ignoring buddy filter so all companions in the active subset are visible)
+    let contextTrips = state.fetchedTrips || [];
+    if (state.filters.fromDate || state.filters.toDate) {
+        const from = state.filters.fromDate ? new Date(state.filters.fromDate + 'T00:00:00Z').getTime() : null;
+        const to = state.filters.toDate ? new Date(state.filters.toDate + 'T23:59:59.999Z').getTime() : null;
+        contextTrips = contextTrips.filter(t => {
+            const raw = t?.createdAt || t?.train?.origin?.departure || t?.train?.origin?.plannedDeparture;
+            if (!raw) return true;
+            const time = new Date(raw).getTime();
+            if (isNaN(time)) return true;
+            if (from !== null && time < from) return false;
+            if (to !== null && time > to) return false;
+            return true;
+        });
+    }
+
+    if (state.filters.business && (!state.filters.business.personal || !state.filters.business.work || !state.filters.business.commute)) {
+        contextTrips = contextTrips.filter(t => {
+            const b = t?.business;
+            if (b === 0 && !state.filters.business.personal) return false;
+            if (b === 1 && !state.filters.business.work) return false;
+            if (b === 2 && !state.filters.business.commute) return false;
+            return true;
+        });
+    }
+
+    if (state.filters.searchQuery) {
+        const q = state.filters.searchQuery.toLowerCase();
+        contextTrips = contextTrips.filter(t => {
+            if (t.body && String(t.body).toLowerCase().includes(q)) return true;
+            const train = t.train || {};
+            const line = (train.lineName || train.number || '').toLowerCase();
+            const origin = (train.origin?.name || '').toLowerCase();
+            const dest = (train.destination?.name || '').toLowerCase();
+            return line.includes(q) || origin.includes(q) || dest.includes(q);
+        });
+    }
+
+    const buddies = getBuddyStats(contextTrips);
     const sorted = Object.entries(buddies).sort((a, b) => b[1] - a[1]);
 
     if (clearBtn) {

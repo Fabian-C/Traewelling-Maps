@@ -302,7 +302,7 @@
         <button type="button" class="banner-close" data-banner-close aria-label="Dismiss notice">✕</button>
     </div>
 
-    <!-- Stats Panel -->
+        <!-- Stats Panel -->
     <div class="stats-panel" id="statsPanel">
         <h3 class="stats-title">📊 Statistics</h3>
         <div class="stat-item"><span class="stat-label">Total Trips:</span><span class="stat-value" id="statTrips">0</span></div>
@@ -311,12 +311,15 @@
         <div class="stat-item"><span class="stat-label">Most Used Type:</span><span class="stat-value" id="statType">-</span></div>
         <div class="stat-item"><span class="stat-label">Oldest Check-in:</span><span class="stat-value" id="statOldestDate">-</span></div>
         <div class="stat-item"><span class="stat-label">Newest Check-in:</span><span class="stat-value" id="statNewestDate">-</span></div>
-        <div class="stat-item" id="statBuddiesItem" style="display: none; flex-direction: column; align-items: flex-start; gap: 4px;">
-            <span class="stat-label">👥 Travel Buddies:</span>
-            <div class="stat-value" id="statBuddies" style="font-size: 12px; font-weight: normal; line-height: 1.4;">-</div>
+        <div class="stat-item" id="statBuddiesItem" style="display: none;">
+            <span class="stat-label">Top Buddy:</span>
+            <span class="stat-value" id="statBuddies">-</span>
         </div>
         <button class="btn-outline" id="statsExportBtn" style="margin-top: 12px; width: 100%; font-size: 13px;">📤 Export GeoJSON</button>
     </div>
+
+    <!-- Active Filter Badges Bar -->
+    <div class="active-filter-badges" id="activeFilterBadges" style="display: none;"></div>
 
     <!-- Menu -->
     <details class="menu" id="mainMenu" style="display: none;">
@@ -384,6 +387,9 @@
             <div class="menu-divider"></div>
 
             <div class="menu-item" id="statsToggle"><span>📊 Statistics</span></div>
+            <div style="padding: 6px 12px; display: none;" id="resetAllFiltersContainer">
+                <button type="button" class="btn-reset-all" id="resetAllFiltersBtn">🔄 Reset All Active Filters</button>
+            </div>
             <details class="menu-submenu">
                 <summary>📅 Time Filter</summary>
                 <div class="menu-submenu-content">

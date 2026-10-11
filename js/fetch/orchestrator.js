@@ -15,6 +15,7 @@ import { initMap, fitMapToData, waitForMapReady, setupMapInteractions } from '..
 import { toggleDelayOverlay, updateDelayOverlay, updateDelayOverlaySummary, invalidateDelayOverlayCache } from '../map/delayOverlay.js';
 import { fetchUserProfile, saveCurrentSession, rememberToken, logout } from '../session/manager.js';
 import { FunFacts } from '../ui/funFacts.js';
+import { updateFilterBadges } from '../events/listeners.js';
 
 export async function startDataFetch(resumeFromState = false, incremental = false) {
     const state = store.get();
@@ -380,6 +381,7 @@ export async function processAndDisplayData(trips) {
 
     setupMapInteractions();
     analytics.updateMenuBuddyList();
+    updateFilterBadges();
     UI.toggleFetch(false);
     UI.refs.menu.style.display = 'block';
     

@@ -33,6 +33,11 @@ export function setupEventListeners() {
         panel.classList.toggle('active');
         if (panel.classList.contains('active')) {
             analytics.refreshStatsDisplay(state.statistics);
+            // On mobile devices, close main menu so they don't overlap
+            if (window.innerWidth <= 768) {
+                const mainMenu = document.getElementById('mainMenu');
+                if (mainMenu) mainMenu.open = false;
+            }
         }
     };
     document.getElementById('railwayToggle').onclick = () => {
@@ -192,6 +197,10 @@ export function setupEventListeners() {
     const resetDateBtn = document.getElementById('resetDateFilterBtn');
     if (resetDateBtn) {
         resetDateBtn.onclick = resetDateFilter;
+    }
+    const resetAllFiltersBtn = document.getElementById('resetAllFiltersBtn');
+    if (resetAllFiltersBtn) {
+        resetAllFiltersBtn.onclick = resetAllActiveFilters;
     }
     
     // Travel Buddies submenu & companion filtering
@@ -381,6 +390,8 @@ function applyTimeFilter() {
     });
     updateAllStats();
     if (state.heatmap.enabled) updateRouteDensity(true);
+    analytics.updateMenuBuddyList(applyBuddyFilter);
+    updateFilterBadges();
 }
 
 function applyBusinessFilter() {
@@ -404,6 +415,8 @@ function applyBusinessFilter() {
     });
     updateAllStats();
     if (state.heatmap.enabled) updateRouteDensity(true);
+    analytics.updateMenuBuddyList(applyBuddyFilter);
+    updateFilterBadges();
 }
 
 function applySearchFilter() {
@@ -426,6 +439,8 @@ function applySearchFilter() {
     });
     updateAllStats();
     if (state.heatmap.enabled) updateRouteDensity(true);
+    analytics.updateMenuBuddyList(applyBuddyFilter);
+    updateFilterBadges();
 }
 
 function shareView() {
@@ -465,6 +480,7 @@ export function applyBuddyFilter(buddy) {
     updateAllStats();
     if (state.heatmap.enabled) updateRouteDensity(true);
     analytics.updateMenuBuddyList(applyBuddyFilter);
+    updateFilterBadges();
 }
 
 function resetDateFilter() {
@@ -473,6 +489,154 @@ function resetDateFilter() {
     state.filters.toDate = null;
     analytics.initializeDateInputs(state.fetchedTrips);
     applyTimeFilter();
+}
+
+/**
+ * Reset all active filters (date, business, buddy, search) back to defaults
+ */
+export function resetAllActiveFilters() {
+    const state = store.get();
+    state.filters.fromDate = null;
+    state.filters.toDate = null;
+    state.filters.buddy = null;
+    state.filters.searchQuery = '';
+    state.filters.business = { personal: true, work: true, commute: true };
+
+    // Reset UI inputs
+    analytics.initializeDateInputs(state.fetchedTrips);
+    const p = document.getElementById('businessPersonal');
+    const w = document.getElementById('businessWork');
+    const c = document.getElementById('businessCommute');
+    if (p) p.checked = true;
+    if (w) w.checked = true;
+    if (c) c.checked = true;
+
+    const s = document.getElementById('tripSearchInput');
+    if (s) s.value = '';
+
+    const filteredTrips = refreshActiveTrips();
+    state.datasetVersion++;
+    state.heatmap.needsRebuild = true;
+    state.heatmap.cacheKey = null;
+    const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
+    state.layers.order.forEach(layerId => {
+        let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
+        const source = state.map?.getSource(layerId);
+        if (source) source.setData(data);
+        const layer = state.layers.data.get(layerId);
+        if (layer) layer.data = data;
+    });
+    updateAllStats();
+    if (state.heatmap.enabled) updateRouteDensity(true);
+    analytics.updateMenuBuddyList(applyBuddyFilter);
+    updateFilterBadges();
+}
+
+/**
+ * Updates floating active filter badges on the map
+ */
+export function updateFilterBadges() {
+    const state = store.get();
+    const badgesContainer = document.getElementById('activeFilterBadges');
+    const resetContainer = document.getElementById('resetAllFiltersContainer');
+    if (!badgesContainer) return;
+
+    const badges = [];
+
+    // Date range badge
+    if (state.filters.fromDate || state.filters.toDate) {
+        const label = state.filters.fromDate && state.filters.toDate
+            ? `${state.filters.fromDate} → ${state.filters.toDate}`
+            : (state.filters.fromDate ? `From ${state.filters.fromDate}` : `Until ${state.filters.toDate}`);
+        badges.push({
+            id: 'date',
+            icon: '📅',
+            text: label,
+            onClear: () => resetDateFilter()
+        });
+    }
+
+    // Buddy badge
+    if (state.filters.buddy) {
+        badges.push({
+            id: 'buddy',
+            icon: '👤',
+            text: `@${state.filters.buddy}`,
+            onClear: () => applyBuddyFilter(null)
+        });
+    }
+
+    // Search query badge
+    if (state.filters.searchQuery) {
+        badges.push({
+            id: 'search',
+            icon: '🔍',
+            text: `"${state.filters.searchQuery}"`,
+            onClear: () => {
+                const s = document.getElementById('tripSearchInput');
+                if (s) s.value = '';
+                applySearchFilter();
+            }
+        });
+    }
+
+    // Business type filter badge (if not all checked)
+    const b = state.filters.business;
+    if (b && (!b.personal || !b.work || !b.commute)) {
+        const types = [];
+        if (b.personal) types.push('Personal');
+        if (b.work) types.push('Work');
+        if (b.commute) types.push('Commute');
+        badges.push({
+            id: 'business',
+            icon: '💼',
+            text: types.length ? types.join(', ') : 'None',
+            onClear: () => {
+                const bp = document.getElementById('businessPersonal');
+                const bw = document.getElementById('businessWork');
+                const bc = document.getElementById('businessCommute');
+                if (bp) bp.checked = true;
+                if (bw) bw.checked = true;
+                if (bc) bc.checked = true;
+                applyBusinessFilter();
+            }
+        });
+    }
+
+    if (resetContainer) {
+        resetContainer.style.display = badges.length > 0 ? 'block' : 'none';
+    }
+
+    if (badges.length === 0) {
+        badgesContainer.style.display = 'none';
+        badgesContainer.innerHTML = '';
+        return;
+    }
+
+    badgesContainer.style.display = 'flex';
+    badgesContainer.innerHTML = badges.map(b => `
+        <div class="filter-badge" data-badge="${b.id}">
+            <span>${b.icon} ${escapeHtml(b.text)}</span>
+            <button type="button" class="filter-badge-clear" data-badge-id="${b.id}" aria-label="Clear filter">✕</button>
+        </div>
+    `).join('') + `
+        <button type="button" class="filter-badge-reset-all" id="badgeResetAllBtn">Clear All</button>
+    `;
+
+    badges.forEach(b => {
+        const btn = badgesContainer.querySelector(`[data-badge-id="${b.id}"]`);
+        if (btn) btn.onclick = b.onClear;
+    });
+
+    const resetAllBtn = badgesContainer.querySelector('#badgeResetAllBtn');
+    if (resetAllBtn) resetAllBtn.onclick = resetAllActiveFilters;
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[m]);
 }
 
 
