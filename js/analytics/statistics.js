@@ -1,5 +1,6 @@
 // Statistics and analytics functions
 import { store } from '../state/store.js';
+import { escapeHtml } from '../utils/format.js';
 
 export function resetStatistics(statisticsObj) {
     if (!statisticsObj) {
@@ -39,6 +40,7 @@ export function updateStatistics(data, category, statisticsObj) {
         statisticsObj.typeCounts[category] = (statisticsObj.typeCounts[category] || 0) + 1;
 
         // Track travel buddies directly from API data structures (no notes parsing)
+        const currentUsername = (store.get().username || '').toLowerCase();
         let mentions = f.properties?.bodyMentions;
         if (typeof mentions === 'string') {
             try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
@@ -46,13 +48,13 @@ export function updateStatistics(data, category, statisticsObj) {
         if (Array.isArray(mentions)) {
             mentions.forEach(m => {
                 const u = m.user?.username || m.username;
-                if (u) {
+                if (u && u.toLowerCase() !== currentUsername) {
                     statisticsObj.travelBuddies[u] = (statisticsObj.travelBuddies[u] || 0) + 1;
                 }
             });
         }
         const createdBy = f.properties?.createdBy?.username;
-        if (createdBy) {
+        if (createdBy && createdBy.toLowerCase() !== currentUsername) {
             statisticsObj.travelBuddies[createdBy] = (statisticsObj.travelBuddies[createdBy] || 0) + 1;
         }
 
@@ -88,7 +90,7 @@ export function refreshStatsDisplay(statisticsObj) {
     document.getElementById('statNewestDate').innerHTML = newest && statisticsObj.newestStatusId
         ? `<a href="https://traewelling.de/status/${statisticsObj.newestStatusId}" target="_blank" class="popup-link">${newest.toLocaleDateString('de-DE')}</a>` : '-';
 
-    // Travel buddies ranking
+    // Travel buddies ranking in Stats panel
     const buddiesItem = document.getElementById('statBuddiesItem');
     const buddiesEl = document.getElementById('statBuddies');
     if (buddiesItem && buddiesEl) {
@@ -104,17 +106,154 @@ export function refreshStatsDisplay(statisticsObj) {
             buddiesEl.textContent = '-';
         }
     }
+
+    // Prefill date selectors if not already populated
+    initializeDateInputs(statisticsObj, null, false);
+    updateMenuBuddyList();
 }
 
-export function initializeDateInputs(statisticsObj) {
+/**
+ * Extracts travel companions and trip counts across all fetched trips
+ */
+export function getBuddyStats(trips = null) {
+    const state = store.get();
+    const tripList = trips || state.fetchedTrips || [];
+    const currentUsername = (state.username || '').toLowerCase().trim();
+    const buddies = {};
+
+    tripList.forEach(t => {
+        let mentions = t.bodyMentions || t.properties?.bodyMentions;
+        if (typeof mentions === 'string') {
+            try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
+        }
+        if (Array.isArray(mentions)) {
+            mentions.forEach(m => {
+                const u = m.user?.username || m.username;
+                if (u && u.toLowerCase() !== currentUsername) {
+                    buddies[u] = (buddies[u] || 0) + 1;
+                }
+            });
+        }
+        const createdBy = t.createdBy?.username || t.properties?.createdBy?.username;
+        if (createdBy && createdBy.toLowerCase() !== currentUsername) {
+            buddies[createdBy] = (buddies[createdBy] || 0) + 1;
+        }
+    });
+
+    return buddies;
+}
+
+/**
+ * Prefills the time filter inputs with the first and last dates from the user's travel data
+ */
+export function initializeDateInputs(statisticsObj, trips = null, force = false) {
     const dateFrom = document.getElementById('dateFrom');
     const dateTo = document.getElementById('dateTo');
-    if (dateFrom && statisticsObj?.oldestDate) {
-        dateFrom.value = statisticsObj.oldestDate.toISOString().split('T')[0];
+    if (!dateFrom && !dateTo) return;
+
+    let oldest = statisticsObj?.oldestDate;
+    let newest = statisticsObj?.newestDate;
+
+    // If statistics dates aren't computed yet, compute directly from trips
+    if (!oldest || !newest) {
+        const state = store.get();
+        const tripList = trips || state.fetchedTrips || [];
+        tripList.forEach(t => {
+            const raw = t.createdAt || t.train?.origin?.departure || t.train?.origin?.plannedDeparture;
+            if (raw) {
+                const d = new Date(raw);
+                if (!isNaN(d.getTime())) {
+                    if (!oldest || d < oldest) oldest = d;
+                    if (!newest || d > newest) newest = d;
+                }
+            }
+        });
     }
-    if (dateTo && statisticsObj?.newestDate) {
-        dateTo.value = statisticsObj.newestDate.toISOString().split('T')[0];
+
+    if (oldest) {
+        const oldestD = oldest instanceof Date ? oldest : new Date(oldest);
+        if (!isNaN(oldestD.getTime())) {
+            const str = oldestD.toISOString().slice(0, 10);
+            if (force || !dateFrom.value) {
+                dateFrom.value = str;
+            }
+            dateFrom.min = str;
+            if (dateTo) dateTo.min = str;
+        }
     }
+    if (newest) {
+        const newestD = newest instanceof Date ? newest : new Date(newest);
+        if (!isNaN(newestD.getTime())) {
+            const str = newestD.toISOString().slice(0, 10);
+            if (force || !dateTo.value) {
+                dateTo.value = str;
+            }
+            dateTo.max = str;
+            if (dateFrom) dateFrom.max = str;
+        }
+    }
+}
+
+let activeBuddySelectHandler = null;
+
+export function registerBuddySelectHandler(handler) {
+    activeBuddySelectHandler = handler;
+}
+
+/**
+ * Updates the dedicated Travel Buddies list in the menu and binds filter interactions
+ */
+export function updateMenuBuddyList(onSelectBuddy = null) {
+    if (onSelectBuddy) {
+        activeBuddySelectHandler = onSelectBuddy;
+    }
+    const state = store.get();
+    const listEl = document.getElementById('menuBuddyList');
+    const clearBtn = document.getElementById('clearBuddyFilterBtn');
+    if (!listEl) return;
+
+    const buddies = getBuddyStats(state.fetchedTrips);
+    const sorted = Object.entries(buddies).sort((a, b) => b[1] - a[1]);
+
+    if (clearBtn) {
+        clearBtn.style.display = state.filters.buddy ? 'inline-block' : 'none';
+        if (state.filters.buddy) {
+            clearBtn.textContent = `Clear Filter (@${state.filters.buddy})`;
+        } else {
+            clearBtn.textContent = 'Show All';
+        }
+    }
+
+    if (sorted.length === 0) {
+        listEl.innerHTML = '<p class="section-sub" style="margin: 0; text-align: center; font-size: 11px;">No travel buddies recorded in loaded trips</p>';
+        return;
+    }
+
+    listEl.innerHTML = sorted.map(([user, count]) => {
+        const isActive = state.filters.buddy && state.filters.buddy.toLowerCase() === user.toLowerCase();
+        return `
+            <div class="buddy-item ${isActive ? 'active' : ''}" data-buddy="${escapeHtml(user)}" role="button" tabindex="0">
+                <div class="buddy-item-left">
+                    <span class="buddy-item-icon">${isActive ? '✓' : '👤'}</span>
+                    <span class="buddy-item-name">@${escapeHtml(user)}</span>
+                </div>
+                <span class="buddy-item-count">${count} ${count === 1 ? 'trip' : 'trips'}</span>
+            </div>
+        `;
+    }).join('');
+
+    listEl.querySelectorAll('.buddy-item').forEach(item => {
+        item.onclick = () => {
+            const buddy = item.dataset.buddy;
+            if (typeof activeBuddySelectHandler === 'function') {
+                if (state.filters.buddy && state.filters.buddy.toLowerCase() === buddy.toLowerCase()) {
+                    activeBuddySelectHandler(null);
+                } else {
+                    activeBuddySelectHandler(buddy);
+                }
+            }
+        };
+    });
 }
 
 export function updateAllStatistics() {

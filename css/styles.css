@@ -618,6 +618,89 @@ input:checked+.toggle-slider:before { transform: translateX(22px); }
 .mention-link:hover {
     text-decoration: underline;
 }
+
+/* Travel Buddies list and items */
+.buddy-list {
+    max-height: 220px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 2px 0;
+}
+.buddy-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-primary);
+    transition: all 0.15s ease;
+    user-select: none;
+}
+.buddy-item:hover {
+    background: var(--hover-bg);
+}
+.buddy-item.active {
+    background: rgba(102, 126, 234, 0.18);
+    border-color: var(--accent-color);
+    font-weight: 600;
+}
+.buddy-item-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.buddy-item-icon {
+    font-size: 12px;
+    flex-shrink: 0;
+}
+.buddy-item.active .buddy-item-icon {
+    color: var(--accent-color);
+    font-weight: 700;
+}
+.buddy-item-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.buddy-item-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-primary);
+    padding: 2px 6px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    margin-left: 6px;
+}
+.buddy-item.active .buddy-item-count {
+    background: var(--accent-color);
+    color: white;
+    font-weight: 600;
+}
+.btn-clear-buddy {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--accent-color);
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.btn-clear-buddy:hover {
+    background: var(--accent-color);
+    color: white;
+}
+
 @media (max-width: 768px) {
     :root { --depot-width: 106px; --gantry-width: 106px; --gantry-depot-left: 30px; --gantry-train-left: 142px; }
     .setup-screen { padding: 16px; overflow-y: auto; align-items: flex-start; }

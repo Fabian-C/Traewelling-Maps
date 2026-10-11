@@ -189,7 +189,26 @@ export function setupEventListeners() {
     updateDelayOverlaySummary();
     document.getElementById('dateFrom').onchange = applyTimeFilter;
     document.getElementById('dateTo').onchange = applyTimeFilter;
+    const resetDateBtn = document.getElementById('resetDateFilterBtn');
+    if (resetDateBtn) {
+        resetDateBtn.onclick = resetDateFilter;
+    }
     
+    // Travel Buddies submenu & companion filtering
+    analytics.registerBuddySelectHandler(applyBuddyFilter);
+    const clearBuddyBtn = document.getElementById('clearBuddyFilterBtn');
+    if (clearBuddyBtn) {
+        clearBuddyBtn.onclick = () => applyBuddyFilter(null);
+    }
+    const buddiesSubmenu = document.getElementById('travelBuddiesSubmenu');
+    if (buddiesSubmenu) {
+        buddiesSubmenu.addEventListener('toggle', () => {
+            if (buddiesSubmenu.open) {
+                analytics.updateMenuBuddyList(applyBuddyFilter);
+            }
+        });
+    }
+
     // Initialize business filter state from checkboxes
     state.filters.business.personal = document.getElementById('businessPersonal').checked;
     state.filters.business.work = document.getElementById('businessWork').checked;
@@ -404,4 +423,35 @@ function shareView() {
         prompt('Share this link:', url);
     }
 }
+
+export function applyBuddyFilter(buddy) {
+    const state = store.get();
+    state.filters.buddy = buddy;
+
+    const filteredTrips = refreshActiveTrips();
+
+    state.datasetVersion++;
+    state.heatmap.needsRebuild = true;
+    state.heatmap.cacheKey = null;
+    const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
+    state.layers.order.forEach(layerId => {
+        let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
+        const source = state.map?.getSource(layerId);
+        if (source) source.setData(data);
+        const layer = state.layers.data.get(layerId);
+        if (layer) layer.data = data;
+    });
+    updateAllStats();
+    if (state.heatmap.enabled) updateRouteDensity(true);
+    analytics.updateMenuBuddyList(applyBuddyFilter);
+}
+
+function resetDateFilter() {
+    const state = store.get();
+    state.filters.fromDate = null;
+    state.filters.toDate = null;
+    analytics.initializeDateInputs(state.statistics, state.fetchedTrips, true);
+    applyTimeFilter();
+}
+
 
