@@ -36,11 +36,9 @@ export function setupEventListeners() {
         document.body.classList.toggle('stats-open', isActive);
         if (isActive) {
             analytics.refreshStatsDisplay(state.statistics);
-            // On mobile devices, close main menu so they don't overlap
-            if (window.innerWidth <= 768) {
-                const mainMenu = document.getElementById('mainMenu');
-                if (mainMenu) mainMenu.open = false;
-            }
+            // Close main menu so they don't overlap
+            const mainMenu = document.getElementById('mainMenu');
+            if (mainMenu) mainMenu.open = false;
         }
     };
 

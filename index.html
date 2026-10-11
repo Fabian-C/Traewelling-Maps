@@ -31,7 +31,7 @@
         import { UI } from './js/ui/ui.js';
         import { RateLimitUI } from './js/ui/rateLimit.js';
         // State module
-        import { initializeState } from './js/state/store.js';
+        import { store, initializeState } from './js/state/store.js';
         // Map modules
         import { RouteAnimation, isDensityActive } from './js/map/routeAnimation.js';
         import { loadLayers, toggleLayer, reloadAllLayers } from './js/map/layers.js';
@@ -60,6 +60,7 @@
         window.startDataFetch = startDataFetch;
         window.stopAndShowData = stopAndShowData;
         window.cancelFetch = cancelFetch;
+        window.processAndDisplayData = processAndDisplayData;
         window.saveCurrentSession = saveCurrentSession;
         window.loadSessionByUsername = loadSessionByUsername;
         window.deleteSession = deleteSession;
@@ -71,6 +72,7 @@
         window.CONFIG = CONFIG;
         window.validateStoredToken = validateStoredToken;
         window.initializeState = initializeState;
+        window.store = store;
         window.exportTripsGeoJSON = exportTripsGeoJSON;
         window.OAuth = OAuth;
         window.handleOAuthCallbackProcess = handleOAuthCallbackProcess;
@@ -156,6 +158,99 @@
                 if (parts.length === 3) {
                     const [zoom, lat, lng] = parts.map(parseFloat);
                     setTimeout(() => { if (window.state?.map) window.state.map.jumpTo({ center: [lng, lat], zoom }); }, 1000);
+                }
+            }
+
+            // Preview query param handler for testing and automated screenshots
+            const previewMode = new URLSearchParams(window.location.search).get('preview');
+            if (previewMode) {
+                const sampleTrips = [
+                    {
+                        id: 325374,
+                        body: "Ferry cruise on the Elbe with @Fabi",
+                        bodyMentions: [{ id: 1, username: "Fabi" }],
+                        createdAt: "2022-04-16T16:49:46+00:00",
+                        train: {
+                            category: "ferry",
+                            lineName: "Fäh 62",
+                            totalDistance: 22590,
+                            departureDelay: 120,
+                            origin: { name: "Hamburg Landungsbrücken" },
+                            destination: { name: "Dockland" },
+                            polyline: {
+                                type: "Feature",
+                                geometry: { type: "LineString", coordinates: [[9.970619, 53.546314], [9.952236, 53.54395], [9.935498, 53.543024]] },
+                                properties: { statusId: 325374 }
+                            }
+                        }
+                    },
+                    {
+                        id: 9309802,
+                        body: "Evening ride home with @Fabi",
+                        bodyMentions: [{ id: 1, username: "Fabi" }],
+                        createdAt: "2026-10-11T18:46:00+00:00",
+                        train: {
+                            category: "suburban",
+                            lineName: "S9",
+                            totalDistance: 14030,
+                            departureDelay: 300,
+                            origin: { name: "Friedrichstraße" },
+                            destination: { name: "Alexanderplatz" },
+                            polyline: {
+                                type: "Feature",
+                                geometry: { type: "LineString", coordinates: [[13.38635, 52.520424], [13.400, 52.521], [13.411, 52.522]] },
+                                properties: { statusId: 9309802 }
+                            }
+                        }
+                    }
+                ];
+
+                if (previewMode === 'fetch') {
+                    window.UI.toggleSetup(false);
+                    window.UI.toggleFetch(true);
+                    window.UI.updateFetchStats({ status: 'Fetching page 2...', trips: 30, pages: 2, routes: 15, progress: 50 });
+                } else {
+                    document.getElementById('setupScreen').classList.add('hidden');
+                    document.getElementById('mainMenu').style.display = '';
+                    const state = window.store.get();
+                    state.username = 'hash';
+                    state.fetchedTrips = sampleTrips;
+                    state.activeTrips = sampleTrips;
+
+                    const categories = dataProcessing.processTripsToGeoJSON(sampleTrips);
+                    state.layers.order.forEach(layerId => {
+                        const cfg = CONFIG.LAYER_CONFIG.find(([id]) => id === layerId);
+                        const colorVal = cfg ? cfg[1] : '#888888';
+                        const data = categories[layerId] || { type: 'FeatureCollection', features: [] };
+                        state.layers.data.set(layerId, {
+                            data,
+                            color: colorVal,
+                            visible: true
+                        });
+                    });
+                    loadLayers();
+                    analytics.updateAllStatistics(sampleTrips);
+
+                    if (previewMode === 'layers') {
+                        const m = document.getElementById('mainMenu');
+                        if (m) { m.setAttribute('open', ''); m.open = true; }
+                        const l = document.getElementById('transportLayersSubmenu');
+                        if (l) { l.setAttribute('open', ''); l.open = true; }
+                    } else if (previewMode === 'search') {
+                        const m = document.getElementById('mainMenu');
+                        if (m) { m.setAttribute('open', ''); m.open = true; }
+                        const s = document.querySelectorAll('.menu-submenu');
+                        s.forEach(el => { if (el.textContent.includes('Search Trips')) { el.setAttribute('open', ''); el.open = true; } });
+                    } else if (previewMode === 'stats') {
+                        const panel = document.getElementById('statsPanel');
+                        if (panel) {
+                            panel.classList.add('active');
+                            panel.style.transition = 'none';
+                            panel.style.opacity = '1';
+                            document.body.classList.add('stats-open');
+                        }
+                        const m = document.getElementById('mainMenu');
+                    }
                 }
             }
 
@@ -475,7 +570,10 @@
                             <input type="text" id="tripSearchInput" placeholder="Search comments, line, buddy..." style="padding: 10px 32px 10px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 13px; width: 100%; box-sizing: border-box;">
                             <button type="button" id="tripSearchClearBtn" style="display: none; position: absolute; right: 8px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 4px;">✕</button>
                         </div>
-                        <p class="section-sub" style="margin: 0; font-size: 11px;">Filter trips by comment text, @buddy mention, line, or station</p>
+                        <div class="section-sub" style="margin: 0; font-size: 11px; line-height: 1.4; display: flex; flex-direction: column; gap: 2px;">
+                            <span>• Filter by comments &amp; @buddies</span>
+                            <span>• Search train lines &amp; stations</span>
+                        </div>
                     </div>
                 </div>
             </details>

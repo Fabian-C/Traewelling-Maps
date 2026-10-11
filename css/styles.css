@@ -860,6 +860,7 @@ body.stats-open .active-filter-badges {
     .stats-panel .btn-outline { margin-top: 8px !important; padding: 6px 8px !important; font-size: 11px !important; }
     .active-filter-badges { top: 8px; left: 8px; max-width: calc(100vw - 120px); gap: 4px; }
     body.stats-open .active-filter-badges { left: 215px; max-width: calc(100vw - 315px); }
+    body.stats-open .status-banner { top: auto; bottom: 12px; }
     .filter-badge { padding: 4px 8px; font-size: 10px; }
     .btn-share { padding: 12px; min-height: 44px; }
     .account-card { padding: 10px; }
