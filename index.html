@@ -65,7 +65,8 @@
         window.logout = logout;
         window.rememberToken = rememberToken;
         window.updateMenuAccountList = updateMenuAccountList;
-        window.reloadAllLayers = loadLayers;
+        window.reloadAllLayers = reloadAllLayers;
+        window.loadLayers = loadLayers;
         window.CONFIG = CONFIG;
         window.validateStoredToken = validateStoredToken;
         window.initializeState = initializeState;
@@ -90,6 +91,7 @@
             window.UI.bindGlobalActions();
             window.RateLimitUI.init();
             window.updateMenuAccountList();
+            window.loadLayers();
             document.getElementById('startFetchBtn').onclick = () => window.startDataFetch(false);
             document.getElementById('cancelFetchBtn').onclick = window.cancelFetch;
 
@@ -337,7 +339,7 @@
                     </div>
                 </div>
             </details>
-            <details class="menu-submenu">
+            <details class="menu-submenu" id="transportLayersSubmenu">
                 <summary>🚦 Transport Layers</summary>
                 <div class="menu-submenu-content">
                     <div class="time-filter">

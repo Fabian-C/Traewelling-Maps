@@ -239,8 +239,10 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600;
     color: var(--text-primary); transition: all 0.2s ease; user-select: none; position: relative; min-height: 44px; }
 .layer-item:last-child { border-bottom: none; }
-.layer-item:hover { background: var(--hover-bg); transform: translateX(2px); }
 .layer-item.active { background: var(--bg-tertiary); color: var(--text-primary); font-weight: 700; }
+.layer-status { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); color: var(--text-muted); letter-spacing: 0.5px; transition: all 0.2s ease; }
+.layer-item.active .layer-status { background: rgba(104, 211, 145, 0.2); color: #68d391; }
+.layer-item:not(.active) .layer-status { background: rgba(255, 107, 107, 0.15); color: #ff6b6b; }
 .layer-item.dragging { opacity: 0.5; transform: rotate(2deg) scale(1.05); }
 .layer-item.drag-over { background: rgba(102, 126, 234, 0.15); }
 .layer-item.drag-over::before,

@@ -11,12 +11,23 @@ import { logout, rememberToken } from '../session/manager.js';
 import { startDataFetch, refreshActiveTrips, processAndDisplayData } from '../fetch/orchestrator.js';
 import * as dataProcessing from '../data/processing.js';
 import * as analytics from '../analytics/statistics.js';
-import { reloadAllLayers } from '../map/layers.js';
+import { reloadAllLayers, loadLayers } from '../map/layers.js';
 import { updateAllStatistics as updateAllStats } from '../analytics/statistics.js';
 import { exportTripsGeoJSON } from '../export/geojson.js';
 
 export function setupEventListeners() {
     const state = store.get();
+
+    // Ensure layers are populated when opening Transport Layers submenu
+    const transportLayersSubmenu = document.getElementById('transportLayersSubmenu');
+    if (transportLayersSubmenu) {
+        transportLayersSubmenu.addEventListener('toggle', () => {
+            if (transportLayersSubmenu.open) {
+                loadLayers();
+            }
+        });
+    }
+
     document.getElementById('statsToggle').onclick = () => {
         const panel = document.getElementById('statsPanel');
         panel.classList.toggle('active');
