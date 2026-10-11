@@ -17,7 +17,13 @@ export function processTripsToGeoJSON(trips) {
         categories[targetCat].features.push({
             type: 'Feature',
             geometry: polyline.geometry,
-            properties: { statusId: trip.id, createdAt: trip.createdAt, train: trip.train, body: trip.body }
+            properties: { 
+                statusId: trip.id, 
+                createdAt: trip.createdAt, 
+                train: trip.train, 
+                body: typeof trip.body === 'string' ? trip.body : '',
+                bodyMentions: Array.isArray(trip.bodyMentions) ? trip.bodyMentions : []
+            }
         });
     });
     return categories;

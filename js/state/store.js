@@ -21,7 +21,7 @@ class StateStore {
             datasetVersion: 0,
             fetchedTrips: [],
             activeTrips: [],
-            filters: { fromDate: null, toDate: null, filterLevel: 1, business: { personal: true, work: true, commute: true } },
+            filters: { fromDate: null, toDate: null, searchQuery: '', filterLevel: 1, business: { personal: true, work: true, commute: true } },
             railway: { enabled: false },
             heatmap: { 
                 enabled: false, 
@@ -58,8 +58,8 @@ class StateStore {
                     'subway',
                     'suburban',
                     'regional',
-                    'national',
                     'regionalExp',
+                    'national',
                     'nationalExpress'
                 ]
             },

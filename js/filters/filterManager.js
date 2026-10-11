@@ -13,6 +13,10 @@ const filters = {
         name: 'Business Type',
         apply: (trips, config) => filterTripsByBusiness(trips, config.business)
     },
+    search: {
+        name: 'Search Query',
+        apply: (trips, config) => filterTripsBySearch(trips, config.searchQuery)
+    },
     accuracy: {
         name: 'Accuracy',
         apply: (trips, config) => filterTripsByAccuracy(trips, config.filterLevel)
@@ -28,10 +32,10 @@ export function applyAllFilters(trips, filterConfig) {
     
     let filtered = trips;
     
-    // Apply filters in order: date -> business -> accuracy
-    // This order is important for performance and correctness
+    // Apply filters in order: date -> business -> search -> accuracy
     filtered = filters.dateRange.apply(filtered, filterConfig);
     filtered = filters.business.apply(filtered, filterConfig);
+    filtered = filters.search.apply(filtered, filterConfig);
     filtered = filters.accuracy.apply(filtered, filterConfig);
     
     return filtered;
@@ -108,13 +112,28 @@ export function getRegisteredFilters() {
 }
 
 /**
- * Apply a specific filter by key
+ * Filter trips by free-text search (comments, mentions, buddies, line names, stations)
  */
-export function applyFilter(trips, filterKey, config) {
-    const filter = filters[filterKey];
-    if (!filter) {
-        console.warn(`Filter ${filterKey} not found`);
-        return trips;
-    }
-    return filter.apply(trips, config);
+function filterTripsBySearch(trips, query) {
+    if (!query || !query.trim()) return trips;
+    const q = query.trim().toLowerCase();
+    return trips.filter(trip => {
+        // Search in status body / comment
+        if (trip.body && String(trip.body).toLowerCase().includes(q)) return true;
+        // Search in bodyMentions usernames
+        if (Array.isArray(trip.bodyMentions)) {
+            if (trip.bodyMentions.some(m => {
+                const u = m.user?.username || m.username || '';
+                const d = m.user?.displayName || '';
+                return u.toLowerCase().includes(q) || d.toLowerCase().includes(q);
+            })) return true;
+        }
+        // Search lineName or origin / destination
+        const train = trip.train || {};
+        const line = (train.lineName || train.number || '').toLowerCase();
+        const origin = (train.origin?.name || '').toLowerCase();
+        const dest = (train.destination?.name || '').toLowerCase();
+        return line.includes(q) || origin.includes(q) || dest.includes(q);
+    });
 }
+

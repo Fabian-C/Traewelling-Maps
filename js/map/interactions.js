@@ -9,6 +9,7 @@ import { getPixelRadiusKm } from './delayOverlay.js';
 import { getDelayOverlayFeatureAtLngLat, buildFeatureFromDelayOverlay } from './delayOverlay.js';
 import { setupEventListeners } from '../events/listeners.js';
 import { updateRouteDensity } from './heatmap.js';
+import { escapeHtml } from '../utils/format.js';
 
 export function initMap() {
     const state = store.get();
@@ -394,6 +395,33 @@ export function showPopup(lngLat, feature) {
         </details>
     ` : '';
 
+    const body = props.body ? escapeHtml(props.body.trim()) : '';
+    let bodyMentions = props.bodyMentions;
+    if (typeof bodyMentions === 'string') {
+        try { bodyMentions = JSON.parse(bodyMentions); } catch (e) { bodyMentions = []; }
+    }
+    bodyMentions = Array.isArray(bodyMentions) ? bodyMentions : [];
+
+    let mentionsHtml = '';
+    if (bodyMentions.length > 0) {
+        mentionsHtml = `
+            <div class="popup-mentions">
+                <label>Travel Buddies:</label>
+                <span>${bodyMentions.map(m => {
+                    const u = m.user?.username || m.username || 'user';
+                    return `<a href="https://traewelling.de/@${escapeHtml(u)}" target="_blank" class="mention-link">@${escapeHtml(u)}</a>`;
+                }).join(' ')}</span>
+            </div>
+        `;
+    }
+
+    const commentHtml = body || mentionsHtml ? `
+        <div class="popup-comment">
+            ${body ? `<label>Note / Comment:</label><p>${body}</p>` : ''}
+            ${mentionsHtml}
+        </div>
+    ` : '';
+
     const html = `<div class="popup-content">
         <div class="popup-title">
             <span class="popup-badge">${category}</span>
@@ -434,6 +462,7 @@ export function showPopup(lngLat, feature) {
                 <span>${platform || '—'}</span>
             </div>
         </div>
+        ${commentHtml}
         ${timingDetails}
         ${seatDetails}
         ${shareUrl ? `<div class="popup-actions"><a class="primary" href="${shareUrl}" target="_blank">View on Träwelling</a></div>` : ''}

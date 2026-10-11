@@ -22,6 +22,9 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
     const username = state.username || document.getElementById('username').value.trim();
     if (!username) return alert('Please enter a username');
 
+    const fetchUntilDateInput = document.getElementById('fetchUntilDate');
+    const fetchUntilDate = fetchUntilDateInput?.value ? fetchUntilDateInput.value.trim() : null;
+
     state.token = token; state.username = username; state.isFetching = true;
     if (token) rememberToken(token, { autoValidate: false });
     state.cancelFetch = false;
@@ -135,11 +138,41 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                     }
                 }
                 
-                allStatuses.push(...response.data);
+                // Check if user specified a cutoff date (fetchUntilDate)
+                let reachedCutoff = false;
+                let statusesToAdd = response.data;
+
+                if (fetchUntilDate) {
+                    const cutoff = new Date(fetchUntilDate + 'T00:00:00');
+                    statusesToAdd = [];
+                    for (const s of response.data) {
+                        if (!s.createdAt) {
+                            statusesToAdd.push(s);
+                            continue;
+                        }
+                        const sDate = new Date(s.createdAt);
+                        const sDateString = sDate.toISOString().slice(0, 10);
+                        if (sDate >= cutoff || sDateString === fetchUntilDate) {
+                            statusesToAdd.push(s);
+                        } else {
+                            reachedCutoff = true;
+                            break;
+                        }
+                    }
+                }
+
+                allStatuses.push(...statusesToAdd);
                 UI.updateFetchStats({ trips: allStatuses.length, pages: page });
                 UI.addPacketToDepot(page);
                 const randomFactCount = Math.floor(Math.random() * 3) + 1; // Random 1-3 facts per page
                 FunFacts.showFactsFromTrips(response.data, randomFactCount);
+
+                if (reachedCutoff) {
+                    console.log(`Reached fetchUntilDate cutoff (${fetchUntilDate}), stopping pagination with ${allStatuses.length} trips.`);
+                    hasMore = false;
+                    break;
+                }
+
                 hasMore = !!response.links?.next;
                 
                 state.fetchProgress = {

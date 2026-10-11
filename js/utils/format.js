@@ -32,3 +32,17 @@ export function formatDelayMinutes(seconds) {
     if (!Number.isFinite(seconds)) return null;
     return Math.max(0, Math.round(seconds / 60));
 }
+
+/**
+ * Safely escape HTML characters to prevent XSS
+ */
+export function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+

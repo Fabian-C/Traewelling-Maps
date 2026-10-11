@@ -3,12 +3,13 @@ import { store } from '../state/store.js';
 
 export function resetStatistics(statisticsObj) {
     if (!statisticsObj) {
-        statisticsObj = { trips: 0, distance: 0, lineCounts: {}, typeCounts: {}, oldestDate: null, newestDate: null, oldestStatusId: null, newestStatusId: null };
+        statisticsObj = { trips: 0, distance: 0, lineCounts: {}, typeCounts: {}, travelBuddies: {}, oldestDate: null, newestDate: null, oldestStatusId: null, newestStatusId: null };
     } else {
         statisticsObj.trips = 0;
         statisticsObj.distance = 0;
         statisticsObj.lineCounts = {};
         statisticsObj.typeCounts = {};
+        statisticsObj.travelBuddies = {};
         statisticsObj.oldestDate = null;
         statisticsObj.newestDate = null;
         statisticsObj.oldestStatusId = null;
@@ -19,8 +20,9 @@ export function resetStatistics(statisticsObj) {
 
 export function updateStatistics(data, category, statisticsObj) {
     if (!statisticsObj) {
-        statisticsObj = { trips: 0, distance: 0, lineCounts: {}, typeCounts: {}, oldestDate: null, newestDate: null, oldestStatusId: null, newestStatusId: null };
+        statisticsObj = { trips: 0, distance: 0, lineCounts: {}, typeCounts: {}, travelBuddies: {}, oldestDate: null, newestDate: null, oldestStatusId: null, newestStatusId: null };
     }
+    if (!statisticsObj.travelBuddies) statisticsObj.travelBuddies = {};
     data.features.forEach(f => {
         let train = f.properties?.train;
         if (typeof train === 'string') try { train = JSON.parse(train); } catch (e) { train = {}; }
@@ -35,6 +37,32 @@ export function updateStatistics(data, category, statisticsObj) {
         const lineName = train.lineName || train.number || 'Unknown';
         statisticsObj.lineCounts[lineName] = (statisticsObj.lineCounts[lineName] || 0) + 1;
         statisticsObj.typeCounts[category] = (statisticsObj.typeCounts[category] || 0) + 1;
+
+        // Track travel buddies from mentions and comments
+        let mentions = f.properties?.bodyMentions;
+        if (typeof mentions === 'string') {
+            try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
+        }
+        if (Array.isArray(mentions)) {
+            mentions.forEach(m => {
+                const u = m.user?.username || m.username;
+                if (u) {
+                    statisticsObj.travelBuddies[u] = (statisticsObj.travelBuddies[u] || 0) + 1;
+                }
+            });
+        }
+        const bodyText = f.properties?.body;
+        if (bodyText && typeof bodyText === 'string') {
+            const matches = bodyText.match(/@([a-zA-Z0-9_-]+)/g);
+            if (matches) {
+                matches.forEach(tag => {
+                    const u = tag.slice(1);
+                    if (u && !mentions?.some?.(m => (m.user?.username || m.username) === u)) {
+                        statisticsObj.travelBuddies[u] = (statisticsObj.travelBuddies[u] || 0) + 1;
+                    }
+                });
+            }
+        }
 
         if (createdAt) {
             const d = new Date(createdAt);
@@ -67,6 +95,23 @@ export function refreshStatsDisplay(statisticsObj) {
         ? `<a href="https://traewelling.de/status/${statisticsObj.oldestStatusId}" target="_blank" class="popup-link">${oldest.toLocaleDateString('de-DE')}</a>` : '-';
     document.getElementById('statNewestDate').innerHTML = newest && statisticsObj.newestStatusId
         ? `<a href="https://traewelling.de/status/${statisticsObj.newestStatusId}" target="_blank" class="popup-link">${newest.toLocaleDateString('de-DE')}</a>` : '-';
+
+    // Travel buddies ranking
+    const buddiesItem = document.getElementById('statBuddiesItem');
+    const buddiesEl = document.getElementById('statBuddies');
+    if (buddiesItem && buddiesEl) {
+        const sortedBuddies = Object.entries(statisticsObj.travelBuddies || {})
+            .sort((a,b) => b[1] - a[1]);
+        if (sortedBuddies.length > 0) {
+            buddiesItem.style.display = 'flex';
+            buddiesEl.innerHTML = sortedBuddies.slice(0, 5).map(([user, count]) => {
+                return `<a href="https://traewelling.de/@${user}" target="_blank" class="mention-link">@${user}</a> (${count} ${count === 1 ? 'trip' : 'trips'})`;
+            }).join(', ');
+        } else {
+            buddiesItem.style.display = 'none';
+            buddiesEl.textContent = '-';
+        }
+    }
 }
 
 export function initializeDateInputs(statisticsObj) {

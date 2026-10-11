@@ -407,6 +407,50 @@ input:checked+.toggle-slider:before { transform: translateX(22px); }
 .route-popup dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
 .route-popup dl dt { font-size: 9px; color: var(--text-muted); letter-spacing: 0.45px; text-transform: uppercase; }
 .route-popup dl dd { margin: 0; font-size: 11px; font-weight: 600; color: var(--text-primary); }
+.route-popup .popup-comment {
+    margin: 6px 0;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    border-left: 3px solid var(--accent-color);
+}
+.route-popup .popup-comment label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: block;
+    margin-bottom: 2px;
+}
+.route-popup .popup-comment p {
+    margin: 0;
+    font-size: 11px;
+    color: var(--text-primary);
+    line-height: 1.35;
+    word-break: break-word;
+}
+.route-popup .popup-mentions {
+    margin-top: 4px;
+    font-size: 10px;
+}
+.route-popup .popup-mentions label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-block;
+    margin-right: 4px;
+}
+.mention-link {
+    color: #4fc3f7;
+    text-decoration: none;
+    font-weight: 600;
+}
+.mention-link:hover {
+    text-decoration: underline;
+}
 @media (max-width: 768px) {
     :root { --depot-width: 106px; --gantry-width: 106px; --gantry-depot-left: 30px; --gantry-train-left: 142px; }
     .setup-container { padding: 30px 20px; }

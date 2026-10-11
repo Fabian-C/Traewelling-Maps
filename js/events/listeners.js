@@ -198,8 +198,16 @@ export function setupEventListeners() {
     // Add business filter event listeners
     document.getElementById('businessPersonal').onchange = applyBusinessFilter;
     document.getElementById('businessWork').onchange = applyBusinessFilter;
-    document.getElementById('businessCommute').onchange = applyBusinessFilter;
-    document.getElementById('shareBtn').onclick = shareView;
+    
+    // Add search filter event listener
+    const searchInput = document.getElementById('tripSearchInput');
+    if (searchInput) {
+        searchInput.oninput = applySearchFilter;
+    }
+
+    // Share functionality temporarily disabled for future reimplementation
+    const shareBtn = document.getElementById('shareBtn');
+    if (shareBtn) shareBtn.onclick = shareView;
     document.getElementById('logoutBtn').onclick = logout;
     const animateToggle = document.getElementById('animateToggle');
     if (animateToggle) {
@@ -350,6 +358,28 @@ function applyBusinessFilter() {
     state.layers.order.forEach(layerId => {
         let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
         const source = state.map.getSource(layerId);
+        if (source) source.setData(data);
+        const layer = state.layers.data.get(layerId);
+        if (layer) layer.data = data;
+    });
+    updateAllStats();
+    if (state.heatmap.enabled) updateRouteDensity(true);
+}
+
+function applySearchFilter() {
+    const state = store.get();
+    const searchInput = document.getElementById('tripSearchInput');
+    state.filters.searchQuery = searchInput ? searchInput.value.trim() : '';
+
+    const filteredTrips = refreshActiveTrips();
+
+    state.datasetVersion++;
+    state.heatmap.needsRebuild = true;
+    state.heatmap.cacheKey = null;
+    const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
+    state.layers.order.forEach(layerId => {
+        let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
+        const source = state.map?.getSource(layerId);
         if (source) source.setData(data);
         const layer = state.layers.data.get(layerId);
         if (layer) layer.data = data;

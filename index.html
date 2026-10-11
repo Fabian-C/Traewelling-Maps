@@ -177,6 +177,11 @@
                     <input type="password" id="apiToken" placeholder="Optional - for private profiles or manual token entry">
                     <p class="form-hint">Manual fallback: Get your personal token from <a href="https://traewelling.de/settings/security" target="_blank">Träwelling Settings → Security</a></p>
                 </div>
+                <div class="form-group">
+                    <label for="fetchUntilDate">Fetch trips back until (optional / dev limit)</label>
+                    <input type="date" id="fetchUntilDate">
+                    <p class="form-hint">Only fetch trips backwards until this date (inclusive). Saves time & rate limits during development.</p>
+                </div>
                 <button class="btn-primary" id="startFetchBtn">🚀 Load Travel Data</button>
                 <div class="saved-sessions" id="savedSessions" style="display: none;">
                     <h3>📁 Recent Sessions</h3>
@@ -264,6 +269,10 @@
         <div class="stat-item"><span class="stat-label">Most Used Type:</span><span class="stat-value" id="statType">-</span></div>
         <div class="stat-item"><span class="stat-label">Oldest Check-in:</span><span class="stat-value" id="statOldestDate">-</span></div>
         <div class="stat-item"><span class="stat-label">Newest Check-in:</span><span class="stat-value" id="statNewestDate">-</span></div>
+        <div class="stat-item" id="statBuddiesItem" style="display: none; flex-direction: column; align-items: flex-start; gap: 4px;">
+            <span class="stat-label">👥 Travel Buddies:</span>
+            <div class="stat-value" id="statBuddies" style="font-size: 12px; font-weight: normal; line-height: 1.4;">-</div>
+        </div>
         <button class="btn-outline" id="statsExportBtn" style="margin-top: 12px; width: 100%; font-size: 13px;">📤 Export GeoJSON</button>
     </div>
 
@@ -370,6 +379,15 @@
                     </div>
                 </div>
             </details>
+            <details class="menu-submenu">
+                <summary>🔍 Search Trips & Notes</summary>
+                <div class="menu-submenu-content">
+                    <div style="padding: 10px 16px; display: flex; flex-direction: column; gap: 8px;">
+                        <input type="text" id="tripSearchInput" placeholder="Search comments, line, buddy..." style="padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 13px; width: 100%; box-sizing: border-box;">
+                        <p class="section-sub" style="margin: 0; font-size: 11px;">Filter trips by comment text, @buddy mention, line, or station</p>
+                    </div>
+                </div>
+            </details>
             <details class="menu-submenu" id="transportLayersSubmenu">
                 <summary>🚦 Transport Layers</summary>
                 <div class="menu-submenu-content">
@@ -450,8 +468,9 @@
                         <button class="btn-outline" id="copyGeoJsonBtn" style="font-size: 13px; padding: 10px 14px;">📋 Copy GeoJSON to Clipboard</button>
                     </div>
                 </div>
-            </details>
+            <!-- Share functionality temporarily disabled for future reimplementation
             <button class="btn btn-share" id="shareBtn">🔗 Share View</button>
+            -->
         </div>
     </details>
 

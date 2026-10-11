@@ -17,8 +17,8 @@ export const CONFIG = {
     },
     LAYER_CONFIG: [
         ['nationalExpress', '#0073ff'],
-        ['national', '#00eeff'],
         ['regionalExp', '#d1024e'],
+        ['national', '#00eeff'],
         ['regional', '#a6026c'],
         ['suburban', '#fc0000'],
         ['bus', '#238443'],
