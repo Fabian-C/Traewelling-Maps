@@ -34,31 +34,71 @@ export function setupEventListeners() {
         const isActive = show !== undefined ? show : !panel.classList.contains('active');
         panel.classList.toggle('active', isActive);
         document.body.classList.toggle('stats-open', isActive);
+        const statsToggle = document.getElementById('statsToggle');
+        if (statsToggle) {
+            statsToggle.classList.toggle('active', isActive);
+            statsToggle.blur();
+        }
         if (isActive) {
             analytics.refreshStatsDisplay(state.statistics);
-            // Close main menu so they don't overlap
+            // Close main menu so they don't overlap, especially on mobile
             const mainMenu = document.getElementById('mainMenu');
-            if (mainMenu) mainMenu.open = false;
+            if (mainMenu) {
+                mainMenu.open = false;
+                mainMenu.removeAttribute('open');
+            }
         }
     };
 
-    document.getElementById('statsToggle').onclick = () => toggleStatsPanel();
+    const statsToggleBtn = document.getElementById('statsToggle');
+    if (statsToggleBtn) {
+        statsToggleBtn.onclick = (e) => {
+            e.stopPropagation();
+            toggleStatsPanel();
+            // Ensure main menu is closed when opening statistics on mobile
+            const mainMenu = document.getElementById('mainMenu');
+            if (mainMenu && document.getElementById('statsPanel')?.classList.contains('active')) {
+                mainMenu.open = false;
+                mainMenu.removeAttribute('open');
+            }
+        };
+    }
     const statsCloseBtn = document.getElementById('statsCloseBtn');
     if (statsCloseBtn) {
         statsCloseBtn.onclick = () => toggleStatsPanel(false);
     }
-    document.getElementById('railwayToggle').onclick = () => {
-        state.railway.enabled = !state.railway.enabled;
-        if (state.map && state.map.getLayer('open-railway-map')) {
-            state.map.setLayoutProperty('open-railway-map', 'visibility', state.railway.enabled ? 'visible' : 'none');
-        } else {
-            setTimeout(() => {
-                if (state.map && state.map.getLayer('open-railway-map')) {
-                    state.map.setLayoutProperty('open-railway-map', 'visibility', state.railway.enabled ? 'visible' : 'none');
-                }
-            }, RouteAnimation.isMobile() ? 300 : 100);
-        }
-    };
+
+    const mainMenu = document.getElementById('mainMenu');
+    if (mainMenu) {
+        mainMenu.addEventListener('toggle', () => {
+            if (mainMenu.open && (window.innerWidth <= 768 || RouteAnimation.isMobile())) {
+                toggleStatsPanel(false);
+            }
+        });
+    }
+
+    const railwayToggle = document.getElementById('railwayToggle');
+    const railwayCheckbox = document.getElementById('railwayCheckbox');
+    if (railwayToggle) {
+        railwayToggle.onclick = (e) => {
+            e.stopPropagation();
+            state.railway.enabled = !state.railway.enabled;
+            if (railwayCheckbox) {
+                railwayCheckbox.checked = state.railway.enabled;
+            }
+            railwayToggle.classList.toggle('active', state.railway.enabled);
+            railwayToggle.blur();
+            if (state.map && state.map.getLayer('open-railway-map')) {
+                state.map.setLayoutProperty('open-railway-map', 'visibility', state.railway.enabled ? 'visible' : 'none');
+            } else {
+                setTimeout(() => {
+                    if (state.map && state.map.getLayer('open-railway-map')) {
+                        state.map.setLayoutProperty('open-railway-map', 'visibility', state.railway.enabled ? 'visible' : 'none');
+                    }
+                }, RouteAnimation.isMobile() ? 300 : 100);
+            }
+        };
+    }
     
     // Initialize filter level from slider
     const filterSlider = document.getElementById('filterSlider');

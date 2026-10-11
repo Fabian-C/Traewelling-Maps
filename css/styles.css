@@ -457,7 +457,10 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 .menu-item { padding: 10px 12px; cursor: pointer; color: var(--text-primary); font-weight: 600;
     display: flex; align-items: center; border-bottom: 1px solid var(--border-color); min-height: 40px; }
 .menu-item:last-child { border-bottom: none; }
-.menu-item:hover { background: var(--hover-bg); }
+@media (hover: hover) {
+    .menu-item:hover { background: var(--hover-bg); }
+}
+.menu-item:active { background: var(--hover-bg); }
 .menu-item.active { background: var(--bg-tertiary); font-weight: 700; }
 .menu-submenu { border-top: 1px solid var(--border-color); }
 .menu-submenu summary { padding: 8px 12px; font-weight: 600; cursor: pointer; list-style: none;
@@ -871,14 +874,16 @@ body.stats-open .active-filter-badges {
     .toggle { width: 44px; height: 24px; }
     .toggle-slider:before { height: 18px; width: 18px; }
     input:checked+.toggle-slider:before { transform: translateX(20px); }
-    .stats-panel { top: 8px; left: -240px; width: 195px; max-width: 75vw; padding: 10px 12px; font-size: 10.5px; border-radius: 10px; }
+    .stats-panel { top: 8px; left: -240px; width: 175px; max-width: 58vw; padding: 8px 10px; font-size: 9.5px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
     .stats-panel.active { transform: translateX(248px); }
-    .stats-panel .stats-title { font-size: 11.5px; margin: 0 0 8px; padding-bottom: 4px; }
-    .stats-panel .stat-item { margin-bottom: 5px; font-size: 10.5px; }
-    .stats-panel .stat-label { font-size: 10px; }
-    .stats-panel .btn-outline { margin-top: 8px !important; padding: 6px 8px !important; font-size: 11px !important; }
+    .stats-panel .stats-title { font-size: 11px; margin: 0 0 6px; padding-bottom: 4px; }
+    .stats-panel .stat-item { margin-bottom: 3.5px; font-size: 9.5px; line-height: 1.25; }
+    .stats-panel .stat-label { font-size: 9px; }
+    .stats-panel .stat-value { font-size: 9.5px; }
+    .stats-panel .stat-buddy-badge { font-size: 8.5px; padding: 1px 4px; margin-left: 2px; }
+    .stats-panel .btn-outline { margin-top: 6px !important; padding: 4px 6px !important; font-size: 9.5px !important; border-radius: 6px; }
     .active-filter-badges { top: 8px; left: 8px; max-width: calc(100vw - 120px); gap: 4px; }
-    body.stats-open .active-filter-badges { left: 215px; max-width: calc(100vw - 315px); }
+    body.stats-open .active-filter-badges { left: 190px; max-width: calc(100vw - 280px); }
     body.stats-open .status-banner { top: auto; bottom: 12px; }
     .filter-badge { padding: 4px 8px; font-size: 10px; }
     .btn-share { padding: 12px; min-height: 44px; }
@@ -888,9 +893,9 @@ body.stats-open .active-filter-badges {
 @media (max-width: 375px) {
     :root { --depot-width: 98px; --gantry-width: 100px; --gantry-depot-left: 18px; --gantry-train-left: 128px; }
     .menu { max-width: 85vw; }
-    .stats-panel { width: 180px; max-width: 72vw; padding: 8px 10px; font-size: 10px; }
-    .stats-panel.active { transform: translateX(238px); }
-    body.stats-open .active-filter-badges { left: 198px; max-width: calc(100vw - 280px); }
+    .stats-panel { width: 165px; max-width: 54vw; padding: 6px 8px; font-size: 9px; }
+    .stats-panel.active { transform: translateX(248px); }
+    body.stats-open .active-filter-badges { left: 180px; max-width: calc(100vw - 260px); }
 }
 .hidden { display: none !important; }
 

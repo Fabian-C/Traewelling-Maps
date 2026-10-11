@@ -257,6 +257,10 @@
                             document.body.classList.add('stats-open');
                         }
                         const m = document.getElementById('mainMenu');
+                        if (m) {
+                            m.open = false;
+                            m.removeAttribute('open');
+                        }
                     }
                 }
             }
@@ -637,7 +641,13 @@
                     <p class="section-sub" id="delayOverlaySummary" style="margin: 0 16px 16px;">Enable to visualize where the biggest delays are.</p>
                 </div>
             </details>
-            <div class="menu-item" id="railwayToggle"><span>🛤️ Railway Map</span></div>
+            <div class="menu-item" id="railwayToggle" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>🛤️ Railway Map</span>
+                <label class="toggle" style="pointer-events: none;">
+                    <input type="checkbox" id="railwayCheckbox">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
             <details class="menu-submenu" id="exportSubmenu">
                 <summary>📤 Export GeoJSON</summary>
                 <div class="menu-submenu-content export-section">
