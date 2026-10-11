@@ -41,11 +41,6 @@ export function updateStatisticsWithTrip(trip, statisticsObj) {
     statisticsObj.lineCounts[lineName] = (statisticsObj.lineCounts[lineName] || 0) + 1;
     statisticsObj.typeCounts[category] = (statisticsObj.typeCounts[category] || 0) + 1;
 
-    // Track travel buddies using deduplicated, case-insensitive helper
-    const tripBuddies = extractUniqueBuddiesFromTrip(trip, null, null);
-    tripBuddies.forEach((displayName) => {
-        statisticsObj.travelBuddies[displayName] = (statisticsObj.travelBuddies[displayName] || 0) + 1;
-    });
 
     if (createdAt) {
         const d = new Date(createdAt);
@@ -101,12 +96,37 @@ export function refreshStatsDisplay(statisticsObj) {
     const buddiesItem = document.getElementById('statBuddiesItem');
     const buddiesEl = document.getElementById('statBuddies');
     if (buddiesItem && buddiesEl) {
-        const sortedBuddies = Object.entries(statisticsObj.travelBuddies || {})
-            .sort((a,b) => b[1] - a[1]);
-        if (sortedBuddies.length > 0) {
+        const state = store.get();
+        const selectedBuddies = state.filters?.buddies || (state.filters?.buddy ? [state.filters.buddy] : []);
+        const activeBuddyFilter = selectedBuddies.length > 0 ? selectedBuddies[0] : null;
+
+        let displayBuddy = null;
+        let displayCount = 0;
+
+        if (activeBuddyFilter && statisticsObj.travelBuddies) {
+            const lowerFilter = String(activeBuddyFilter).toLowerCase().trim();
+            for (const [name, count] of Object.entries(statisticsObj.travelBuddies)) {
+                if (name.toLowerCase() === lowerFilter) {
+                    displayBuddy = name;
+                    displayCount = count;
+                    break;
+                }
+            }
+            if (!displayBuddy) {
+                displayBuddy = activeBuddyFilter;
+                displayCount = statisticsObj.travelBuddies[activeBuddyFilter] || 0;
+            }
+        } else {
+            const sortedBuddies = Object.entries(statisticsObj.travelBuddies || {})
+                .sort((a,b) => b[1] - a[1]);
+            if (sortedBuddies.length > 0) {
+                [displayBuddy, displayCount] = sortedBuddies[0];
+            }
+        }
+
+        if (displayBuddy && displayCount > 0) {
             buddiesItem.style.display = 'flex';
-            const [topUser, count] = sortedBuddies[0];
-            buddiesEl.innerHTML = `<a href="https://traewelling.de/@${escapeHtml(topUser)}" target="_blank" class="mention-link stat-top-buddy">@${escapeHtml(topUser)}</a> <span class="stat-buddy-badge">${count} ${count === 1 ? 'trip' : 'trips'}</span>`;
+            buddiesEl.innerHTML = `<a href="https://traewelling.de/@${escapeHtml(displayBuddy)}" target="_blank" class="mention-link stat-top-buddy">@${escapeHtml(displayBuddy)}</a> <span class="stat-buddy-badge">${displayCount} ${displayCount === 1 ? 'trip' : 'trips'}</span>`;
         } else {
             buddiesItem.style.display = 'none';
             buddiesEl.textContent = '-';
@@ -271,18 +291,11 @@ export function registerBuddySelectHandler(handler) {
 }
 
 /**
- * Updates the dedicated Travel Buddies list in the menu and binds filter interactions
+ * Gets trips for buddy calculations matching active filters (date, business, search)
+ * without requiring geodata/polylines so all buddies with or without geodata are counted.
  */
-export function updateMenuBuddyList(onSelectBuddy = null) {
-    if (onSelectBuddy) {
-        activeBuddySelectHandler = onSelectBuddy;
-    }
+export function getFilteredContextTrips() {
     const state = store.get();
-    const listEl = document.getElementById('menuBuddyList');
-    const clearBtn = document.getElementById('clearBuddyFilterBtn');
-    if (!listEl) return;
-
-    // Calculate buddy stats dynamically from current filter context (ignoring buddy filter so all companions in the active subset are visible)
     let contextTrips = state.fetchedTrips || [];
     if (state.filters.fromDate || state.filters.toDate) {
         const from = state.filters.fromDate ? new Date(state.filters.fromDate + 'T00:00:00Z').getTime() : null;
@@ -320,6 +333,23 @@ export function updateMenuBuddyList(onSelectBuddy = null) {
         });
     }
 
+    return contextTrips;
+}
+
+/**
+ * Updates the dedicated Travel Buddies list in the menu and binds filter interactions
+ */
+export function updateMenuBuddyList(onSelectBuddy = null) {
+    if (onSelectBuddy) {
+        activeBuddySelectHandler = onSelectBuddy;
+    }
+    const state = store.get();
+    const listEl = document.getElementById('menuBuddyList');
+    const clearBtn = document.getElementById('clearBuddyFilterBtn');
+    if (!listEl) return;
+
+    // Calculate buddy stats dynamically from current filter context (ignoring buddy filter so all companions in the active subset are visible)
+    const contextTrips = getFilteredContextTrips();
     const buddies = getBuddyStats(contextTrips);
     const sorted = Object.entries(buddies).sort((a, b) => b[1] - a[1]);
 
@@ -378,6 +408,10 @@ export function updateAllStatistics() {
             state.statistics = updateStatisticsWithTrip(trip, state.statistics);
         }
     });
+
+    // Ensure travel buddy counts in statistics align with menu buddy counts across all trips (including those without geodata)
+    const contextTrips = getFilteredContextTrips();
+    state.statistics.travelBuddies = getBuddyStats(contextTrips);
 
     refreshStatsDisplay(state.statistics);
 }
