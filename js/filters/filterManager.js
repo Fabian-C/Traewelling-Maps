@@ -16,7 +16,7 @@ const filters = {
     },
     buddy: {
         name: 'Travel Buddy',
-        apply: (trips, config) => filterTripsByBuddy(trips, config.buddy)
+        apply: (trips, config) => filterTripsByBuddy(trips, config.buddies || config.buddy)
     },
     search: {
         name: 'Search Query',
@@ -148,14 +148,21 @@ function filterTripsBySearch(trips, query) {
 }
 
 /**
- * Filter trips by specific travel buddy (from deduplicated sources: bodyMentions, createdBy, fellowPassengers, and optional notes)
+ * Filter trips by specific travel buddy or buddies (from deduplicated sources: bodyMentions, createdBy, fellowPassengers, and optional notes)
  */
-function filterTripsByBuddy(trips, targetBuddy) {
-    if (!trips.length || !targetBuddy) return trips.slice();
-    const target = targetBuddy.toLowerCase().trim();
+function filterTripsByBuddy(trips, targetBuddies) {
+    if (!trips.length || !targetBuddies) return trips.slice();
+    const buddyList = Array.isArray(targetBuddies) ? targetBuddies : [targetBuddies];
+    const targets = buddyList.map(b => String(b).toLowerCase().trim()).filter(Boolean);
+    if (!targets.length) return trips.slice();
+
+    const targetSet = new Set(targets);
     return trips.filter(trip => {
         const tripBuddies = extractUniqueBuddiesFromTrip(trip);
-        return tripBuddies.has(target);
+        for (const b of targetSet) {
+            if (tripBuddies.has(b)) return true;
+        }
+        return false;
     });
 }
 

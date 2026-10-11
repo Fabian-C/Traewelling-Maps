@@ -238,8 +238,23 @@ export function setupEventListeners() {
             // If trips are loaded, refresh buddy list and active filters
             if (state.fetchedTrips?.length) {
                 analytics.updateMenuBuddyList(applyBuddyFilter);
-                if (state.filters.buddy) {
-                    applyBuddyFilter(state.filters.buddy);
+                if (state.filters.buddies?.length) {
+                    const filteredTrips = refreshActiveTrips();
+                    state.datasetVersion++;
+                    state.heatmap.needsRebuild = true;
+                    state.heatmap.cacheKey = null;
+                    const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
+                    state.layers.order.forEach(layerId => {
+                        let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
+                        const source = state.map?.getSource(layerId);
+                        if (source) source.setData(data);
+                        const layer = state.layers.data.get(layerId);
+                        if (layer) layer.data = data;
+                    });
+                    loadLayers();
+                    updateAllStats();
+                    if (state.heatmap.enabled) updateRouteDensity(true);
+                    updateFilterBadges();
                 }
             }
         };
@@ -499,7 +514,19 @@ function shareView() {
 
 export function applyBuddyFilter(buddy) {
     const state = store.get();
-    state.filters.buddy = buddy;
+    if (!state.filters.buddies) state.filters.buddies = [];
+
+    if (!buddy) {
+        state.filters.buddies = [];
+    } else {
+        const lower = buddy.toLowerCase().trim();
+        const existingIndex = state.filters.buddies.findIndex(b => b.toLowerCase().trim() === lower);
+        if (existingIndex >= 0) {
+            state.filters.buddies.splice(existingIndex, 1);
+        } else {
+            state.filters.buddies.push(buddy);
+        }
+    }
 
     const filteredTrips = refreshActiveTrips();
 
@@ -536,6 +563,7 @@ export function resetAllActiveFilters() {
     const state = store.get();
     state.filters.fromDate = null;
     state.filters.toDate = null;
+    state.filters.buddies = [];
     state.filters.buddy = null;
     state.filters.searchQuery = '';
     state.filters.business = { personal: true, work: true, commute: true };
@@ -596,15 +624,16 @@ export function updateFilterBadges() {
         });
     }
 
-    // Buddy badge
-    if (state.filters.buddy) {
+    // Buddy badges (individual badges for each selected companion)
+    const selectedBuddies = state.filters.buddies || (state.filters.buddy ? [state.filters.buddy] : []);
+    selectedBuddies.forEach((buddyUser, idx) => {
         badges.push({
-            id: 'buddy',
+            id: `buddy-${idx}`,
             icon: '👤',
-            text: `@${state.filters.buddy}`,
-            onClear: () => applyBuddyFilter(null)
+            text: `@${buddyUser}`,
+            onClear: () => applyBuddyFilter(buddyUser)
         });
-    }
+    });
 
     // Search query badge
     if (state.filters.searchQuery) {

@@ -27,7 +27,9 @@ class StateStore {
                 toDate: null, 
                 searchQuery: '', 
                 filterLevel: 1, 
-                buddy: null, 
+                buddies: [],
+                get buddy() { return this.buddies?.[0] || null; },
+                set buddy(val) { this.buddies = val ? (Array.isArray(val) ? val : [val]) : []; },
                 includeNoteMentions: typeof localStorage !== 'undefined' ? localStorage.getItem('tw_include_notes') !== 'false' : true,
                 business: { personal: true, work: true, commute: true } 
             },

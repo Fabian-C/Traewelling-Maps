@@ -323,12 +323,7 @@ export function updateMenuBuddyList(onSelectBuddy = null) {
     const sorted = Object.entries(buddies).sort((a, b) => b[1] - a[1]);
 
     if (clearBtn) {
-        clearBtn.style.display = state.filters.buddy ? 'inline-block' : 'none';
-        if (state.filters.buddy) {
-            clearBtn.textContent = `Clear Filter (@${state.filters.buddy})`;
-        } else {
-            clearBtn.textContent = 'Show All';
-        }
+        clearBtn.style.display = 'none';
     }
 
     if (sorted.length === 0) {
@@ -336,8 +331,12 @@ export function updateMenuBuddyList(onSelectBuddy = null) {
         return;
     }
 
+    const selectedBuddies = (state.filters.buddies || (state.filters.buddy ? [state.filters.buddy] : []))
+        .map(b => String(b).toLowerCase().trim());
+    const selectedSet = new Set(selectedBuddies);
+
     listEl.innerHTML = sorted.map(([user, count]) => {
-        const isActive = state.filters.buddy && state.filters.buddy.toLowerCase() === user.toLowerCase();
+        const isActive = selectedSet.has(user.toLowerCase());
         return `
             <div class="buddy-item ${isActive ? 'active' : ''}" data-buddy="${escapeHtml(user)}" role="button" tabindex="0">
                 <div class="buddy-item-left">
@@ -353,11 +352,7 @@ export function updateMenuBuddyList(onSelectBuddy = null) {
         item.onclick = () => {
             const buddy = item.dataset.buddy;
             if (typeof activeBuddySelectHandler === 'function') {
-                if (state.filters.buddy && state.filters.buddy.toLowerCase() === buddy.toLowerCase()) {
-                    activeBuddySelectHandler(null);
-                } else {
-                    activeBuddySelectHandler(buddy);
-                }
+                activeBuddySelectHandler(buddy);
             }
         };
     });

@@ -295,6 +295,7 @@ export async function processAndDisplayData(trips) {
 
     state.fetchedTrips = Array.isArray(trips) ? trips.slice() : [];
     // Reset buddy and time filters for fresh dataset, and prefill dates from travel data
+    state.filters.buddies = [];
     state.filters.buddy = null;
     state.filters.fromDate = null;
     state.filters.toDate = null;
