@@ -210,32 +210,24 @@ export function setupEventListeners() {
     }
 
     // Toggle for including check-in note mentions in buddies
-    const includeNoteMentions = document.getElementById('includeNoteMentions');
     const menuIncludeNoteMentions = document.getElementById('menuIncludeNoteMentions');
-    const syncNoteMentionsSetting = (checked) => {
-        state.filters.includeNoteMentions = checked;
-        try {
-            localStorage.setItem('tw_include_notes', checked ? 'true' : 'false');
-        } catch (e) {}
-        if (includeNoteMentions) includeNoteMentions.checked = checked;
-        if (menuIncludeNoteMentions) menuIncludeNoteMentions.checked = checked;
-
-        // If trips are loaded, refresh buddy list and active filters
-        if (state.fetchedTrips?.length) {
-            analytics.updateMenuBuddyList(applyBuddyFilter);
-            if (state.filters.buddy) {
-                applyBuddyFilter(state.filters.buddy);
-            }
-        }
-    };
-
-    if (includeNoteMentions) {
-        includeNoteMentions.checked = !!state.filters.includeNoteMentions;
-        includeNoteMentions.onchange = (e) => syncNoteMentionsSetting(e.target.checked);
-    }
     if (menuIncludeNoteMentions) {
         menuIncludeNoteMentions.checked = !!state.filters.includeNoteMentions;
-        menuIncludeNoteMentions.onchange = (e) => syncNoteMentionsSetting(e.target.checked);
+        menuIncludeNoteMentions.onchange = (e) => {
+            const checked = e.target.checked;
+            state.filters.includeNoteMentions = checked;
+            try {
+                localStorage.setItem('tw_include_notes', checked ? 'true' : 'false');
+            } catch (err) {}
+
+            // If trips are loaded, refresh buddy list and active filters
+            if (state.fetchedTrips?.length) {
+                analytics.updateMenuBuddyList(applyBuddyFilter);
+                if (state.filters.buddy) {
+                    applyBuddyFilter(state.filters.buddy);
+                }
+            }
+        };
     }
 
     // Initialize business filter state from checkboxes
