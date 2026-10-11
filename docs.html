@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Träwelling Map Explorer · Feature Guide</title>
+  <title>Träwelling Map Explorer · Complete Documentation</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #06070a;
@@ -16,7 +16,9 @@
       --text-muted: #a1a4ba;
       --accent: #66e0ff;
       --accent-strong: #4cc0ff;
+      --accent-red: #c72730;
       --gradient: linear-gradient(135deg, #66e0ff 0%, #7c5dff 50%, #ff6b9c 100%);
+      --gradient-red: linear-gradient(135deg, #c72730 0%, #9e1a22 100%);
       --panel-radius: 18px;
       --border: rgba(255, 255, 255, 0.08);
       --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
@@ -34,9 +36,9 @@
       line-height: 1.6;
     }
     header {
-      max-width: 960px;
+      max-width: 980px;
       margin: 0 auto 60px;
-      padding: 40px;
+      padding: 44px;
       background: var(--bg-panel);
       border: 1px solid var(--border);
       border-radius: var(--panel-radius);
@@ -56,25 +58,32 @@
     }
     .hero-actions {
       display: flex;
-      gap: 16px;
+      gap: 14px;
       flex-wrap: wrap;
     }
     .btn {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 14px 22px;
+      padding: 13px 22px;
       border-radius: 999px;
       font-weight: 600;
       border: 1px solid transparent;
       cursor: pointer;
       text-decoration: none;
+      font-size: 0.95rem;
       transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
     .btn-primary {
       background: var(--gradient);
       color: #05070d;
       box-shadow: 0 12px 30px rgba(255, 107, 156, 0.3);
+    }
+    .btn-oauth {
+      background: var(--gradient-red);
+      color: #ffffff;
+      box-shadow: 0 12px 30px rgba(199, 39, 48, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
     .btn-secondary {
       background: transparent;
@@ -84,17 +93,17 @@
     .btn:hover { transform: translateY(-2px); }
     section {
       max-width: 1100px;
-      margin: 0 auto 50px;
+      margin: 0 auto 60px;
     }
     h2 {
       font-family: "Space Grotesk", sans-serif;
       font-size: clamp(1.8rem, 3vw, 2.4rem);
-      margin-bottom: 20px;
+      margin-bottom: 24px;
       letter-spacing: -0.02em;
     }
     .card-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 24px;
     }
     .card {
@@ -110,7 +119,7 @@
       content: "";
       position: absolute;
       inset: 0;
-      background: radial-gradient(circle at top right, rgba(102, 224, 255, 0.18), transparent 50%);
+      background: radial-gradient(circle at top right, rgba(102, 224, 255, 0.15), transparent 55%);
       opacity: 0.8;
       pointer-events: none;
     }
@@ -118,45 +127,58 @@
       font-family: "Space Grotesk", sans-serif;
       margin: 0 0 12px;
       font-size: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    .card p { margin: 0; color: var(--text-muted); }
+    .card p { margin: 0; color: var(--text-muted); font-size: 0.95rem; line-height: 1.55; }
+    .card code {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.85em;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent);
+    }
     .steps {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 18px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
       counter-reset: step;
     }
     .step {
-      padding: 20px 22px 20px 26px;
+      padding: 24px 22px 22px 26px;
       background: rgba(8, 10, 18, 0.85);
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 16px;
       position: relative;
-      min-height: 140px;
+      min-height: 150px;
     }
     .step::before {
       counter-increment: step;
       content: counter(step);
       position: absolute;
-      top: 20px;
+      top: 18px;
       left: 20px;
       font-family: "Space Grotesk", sans-serif;
       font-weight: 700;
-      font-size: 2rem;
+      font-size: 2.2rem;
       color: var(--accent);
-      opacity: 0.3;
+      opacity: 0.25;
     }
-    .step h4 { margin: 0 0 10px; font-size: 1.05rem; }
+    .step h4 { margin: 0 0 10px; font-size: 1.1rem; }
+    .step p { margin: 0; color: var(--text-muted); font-size: 0.92rem; }
     .split {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 24px;
     }
     .list {
       margin: 0;
-      padding-left: 1.1rem;
+      padding-left: 1.2rem;
       color: var(--text-muted);
     }
+    .list li { margin-bottom: 8px; }
     .chip {
       display: inline-flex;
       align-items: center;
@@ -166,21 +188,22 @@
       background: rgba(255, 255, 255, 0.08);
       color: var(--text);
       font-size: 0.85rem;
-      margin: 6px 10px 0 0;
+      margin: 6px 8px 0 0;
     }
     .faq {
       display: grid;
       gap: 18px;
     }
     .faq-item {
-      padding: 20px;
+      padding: 22px 26px;
       border-radius: 16px;
       background: rgba(5, 7, 12, 0.8);
       border: 1px solid var(--border);
     }
-    .faq-item h4 { margin: 0 0 8px; font-size: 1.05rem; }
+    .faq-item h4 { margin: 0 0 8px; font-size: 1.1rem; color: var(--text); }
+    .faq-item p { margin: 0; color: var(--text-muted); font-size: 0.95rem; }
     .notice {
-      max-width: 960px;
+      max-width: 980px;
       margin: -20px auto 40px;
     }
     .notice-card {
@@ -188,7 +211,7 @@
       border: 1px solid rgba(255, 255, 255, 0.15);
       background: rgba(255, 165, 0, 0.07);
       color: var(--text);
-      padding: 20px 26px;
+      padding: 22px 28px;
       font-size: 0.98rem;
       line-height: 1.5;
       box-shadow: var(--shadow);
@@ -198,11 +221,11 @@
       text-align: center;
       color: var(--text-muted);
       font-size: 0.9rem;
-      margin-top: 60px;
+      margin-top: 80px;
     }
     @media (max-width: 640px) {
-      body { padding: 40px 6vw 60px; }
-      header { padding: 30px; }
+      body { padding: 30px 5vw 50px; }
+      header { padding: 26px; }
       .hero-actions { flex-direction: column; }
       .btn { width: 100%; justify-content: center; }
     }
@@ -210,158 +233,166 @@
 </head>
 <body>
   <header>
-    <p class="chip">Made for phones • Works great on desktop too</p>
-    <h1>Träwelling Map Explorer Feature Guide</h1>
-    <p>Pop in a username, zoom through your check-ins, and share the coolest routes with your Friends.</p>
+    <p class="chip">Mobile-Optimized • Desktop Ready • Local-First Privacy</p>
+    <h1>Träwelling Map Explorer</h1>
+    <p>Trace your train check-ins on a responsive map, rank travel companions, filter by date and transit mode, and export your routes to GeoJSON.</p>
     <div class="hero-actions">
       <a class="btn btn-primary" href="./index.html">🚀 Launch Map Explorer</a>
-      <a class="btn btn-secondary" href="https://traewelling.de/settings/security" target="_blank" rel="noopener">🔑 Grab an API Token (Settings → Security)</a>
+      <a class="btn btn-oauth" href="./index.html">🚆 1-Click Träwelling Login</a>
+      <a class="btn btn-secondary" href="https://traewelling.de/settings/security" target="_blank" rel="noopener">🔑 Personal API Token</a>
     </div>
   </header>
 
   <section class="notice">
     <div class="notice-card">
-      <p><strong>Preview mode:</strong> This build is an early test access release crafted by @Hash for the Träwelling community. Expect some rough edges while feedback rolls in.</p>
-      <p><strong>Heads up on loading:</strong> Querying lots of check-ins can take a bit—Träwelling’s rate limits intentionally slow requests, so larger histories may need patience.</p>
+      <p><strong>Heads up on upstream lines:</strong> Träwelling’s GeoJSON export endpoint is currently undergoing upstream maintenance (<a href="https://github.com/Traewelling/traewelling/issues/4312" target="_blank" rel="noopener" style="color: #ffb347;">issue #4312</a>). When polylines are missing from upstream check-ins, direct station connections are rendered.</p>
+      <p><strong>Rate Limits & Large Datasets:</strong> Map Explorer automatically throttles requests to adhere to Träwelling's 55 req/60s rate limit and uses local 90-day IndexedDB caching for near-instant reloads.</p>
     </div>
   </section>
 
   <section>
-    <h2>Quick Start</h2>
+    <h2>Getting Started</h2>
     <div class="steps">
       <div class="step">
-        <h4>Enter Username</h4>
-        <p>Type any Träwelling username you can view. Hit 🚀 Load Travel Data and the trips start rolling in.</p>
+        <h4>1. Connect or Enter User</h4>
+        <p>Click <strong>Log in with Träwelling</strong> for instant 1-click OAuth authentication, or type any public username to start exploring without login.</p>
       </div>
       <div class="step">
-        <h4>Optional: API Token</h4>
-        <p>Paste your Traewelling API token if you want to see private check-ins you already have access to.</p>
+        <h4>2. Fetch & Cache Data</h4>
+        <p>Trips are fetched safely with live headroom meters. Once fetched, trips are stored locally in your browser's IndexedDB for 90 days.</p>
       </div>
       <div class="step">
-        <h4>Fetch & Explore</h4>
-        <p>Intuitive menues and controls guide you while you Explore and filter your data. Longer histories can take time because we respect Träwelling’s rate limits.</p>
+        <h4>3. Filter & Explore</h4>
+        <p>Slice your travel by companions, prefilled date ranges, train categories, or comments, and toggle the route density heatmap.</p>
+      </div>
+      <div class="step">
+        <h4>4. Export & Share</h4>
+        <p>Export your full or filtered map routes as GeoJSON files or copy directly to your clipboard for use in QGIS, uMap, or GIS tools.</p>
       </div>
     </div>
   </section>
 
   <section>
-    <h2>Feature Highlights</h2>
+    <h2>Core Features</h2>
     <div class="card-grid">
       <article class="card">
-        <h3>Transport Layers</h3>
-        <p>Toggle each category (ICE, RE, S-Bahn, bus, tram, subway, plane, ship) and drag to reorder visibility.</p>
+        <h3>🚆 1-Click Träwelling OAuth</h3>
+        <p>Authenticate securely using modern OAuth 2.0 with PKCE directly from your browser. Access your private check-ins and select any user profile to query.</p>
       </article>
       <article class="card">
-        <h3>Route Density & Animation</h3>
-        <p>Heatmaps highlight frequently travelled corridors.</p>
+        <h3>👥 Travel Buddies Ranking</h3>
+        <p>View your top travel companions ranked by shared trips, extracted directly from official Träwelling API data (<code>bodyMentions</code> & <code>createdBy</code>). Tap any buddy to filter your map.</p>
       </article>
       <article class="card">
-        <h3>Date Window</h3>
-        <p>Use the from/to pickers to focus on a semester, a challenge month, or the latest vacation without re-fetching.</p>
+        <h3>📅 Smart Date Boundary Filter</h3>
+        <p>The time filter automatically detects the exact first and last dates in your travel dataset upon load, with a single-click <strong>Reset Date Range</strong> button to restore full view.</p>
       </article>
       <article class="card">
-        <h3>Account Switcher</h3>
-        <p>Hop between friends or alt accounts from a tidy list. Everything stays on your device.</p>
+        <h3>📤 GeoJSON Route Export</h3>
+        <p>Export your travels as standardized GeoJSON. Export active filtered layers or your full trip database, with options to download <code>.geojson</code> or copy directly to clipboard.</p>
       </article>
       <article class="card">
-        <h3>Stats & Moments</h3>
-        <p>See total trips, total distance, and the oldest/newest check-ins at a glance—perfect for reminiscing.</p>
+        <h3>🚦 Transport Layers</h3>
+        <p>Toggle individual categories (ICE, IC/EC, Regional Express, Regional, S-Bahn, Bus, Tram, Subway, Plane, Ship) and drag-and-drop to reorder visual stacking.</p>
       </article>
       <article class="card">
-        <h3>Railway Basemap Overlay</h3>
-        <p>Load high-resolution railway lines for spatial reference when exploring trips.</p>
+        <h3>🔥 Route Density Heatmap</h3>
+        <p>Visualise corridors of frequent travel with an interactive route density overlay and optional travel animation mode.</p>
       </article>
       <article class="card">
-        <h3>Hide Inaccurate Toggle</h3>
-        <p>Filter out likely inacurate check-ins with a single switch so your map stays clean and story-ready.</p>
+        <h3>💼 Trip Purpose Filter</h3>
+        <p>Filter check-ins by purpose tags recorded in Träwelling: <strong>Personal</strong>, <strong>Work</strong>, and <strong>Commute</strong>.</p>
       </article>
       <article class="card">
-        <h3>Delay Tracker</h3>
-        <p>A fresh Delay mode now highlights your most impacted services and trips and helps you remember your worst trips more easily.</p>
+        <h3>🔍 Search Notes & Comments</h3>
+        <p>Full-text search across your trip check-ins to find specific notes, companions, station stops, or train line names.</p>
       </article>
       <article class="card">
-        <h3>Saved Sessions</h3>
-        <p>Recent usernames and trips stay cached locally for faster reloads (up to 30 days) or can be cleared manually.</p>
+        <h3>⚠️ Delay Highlights Overlay</h3>
+        <p>Identify your most delayed connections and examine punctuality metrics across your travel history.</p>
       </article>
       <article class="card">
-        <h3>Touch-Friendly Menus</h3>
-        <p>Large tap targets, swipeable lists, and haptic-safe toggles keep everything comfy on smaller screens.</p>
+        <h3>🛤️ High-Res Railway Basemap</h3>
+        <p>Overlay detailed OpenRailwayMap tracks on top of Mapbox vector tiles for railway enthusiasts and spatial orientation.</p>
+      </article>
+      <article class="card">
+        <h3>⚡ 90-Day IndexedDB Cache</h3>
+        <p>Recent trips and session credentials are stored locally in your browser. Incremental updates fetch only new check-ins, dramatically reducing load times.</p>
+      </article>
+      <article class="card">
+        <h3>📱 Mobile & Desktop First</h3>
+        <p>Designed with tap-friendly controls, dark mode aesthetics, and responsive panels that adapt seamlessly from smartphones to 4K displays.</p>
       </article>
     </div>
   </section>
 
   <section>
-    <h2>Data & Privacy Notes</h2>
+    <h2>Data & Privacy Architecture</h2>
     <div class="split">
       <div class="card">
-        <h3>Where data lives</h3>
-        <p class="chip">No data is uploaded anywhere else.</p>
+        <h3>Zero Cloud Intermediaries</h3>
+        <p class="chip">Local-First Execution</p>
         <ul class="list">
-          <li>Trips are fetched directly from <code>https://traewelling.de/api/v1</code> when you ask for them.</li>
-          <li>Your browser keeps the temporary bits it needs locally—no cloud sync, no surprise uploads.</li>
+          <li><strong>Direct API Calls:</strong> All data requests travel directly between your browser and <code>https://traewelling.de/api/v1</code>.</li>
+          <li><strong>No Backend Server:</strong> Träwelling Map Explorer runs 100% on static client-side JavaScript. No analytics, tracking, or proxy servers exist.</li>
+          <li><strong>PKCE Security:</strong> OAuth tokens are exchanged directly in the browser using PKCE without exposing client secrets.</li>
         </ul>
       </div>
       <div class="card">
-        <h3>Good housekeeping</h3>
+        <h3>Local Storage Management</h3>
         <ul class="list">
-          <li><strong>Keep API tokens secret.</strong> Never paste them into shared screens or streams.</li>
-          <li><strong>Private profiles stay private.</strong> You’ll only see them if you supply the API token tied to an account that already has access through Träwelling.</li>
-          <li>Use the 🧹 “Clear cached data” action whenever you want a clean slate.</li>
+          <li><strong>Encrypted IndexedDB:</strong> Cached trips and tokens remain in your browser's private origin storage.</li>
+          <li><strong>Clear Cache:</strong> Tap 🧹 <strong>Clear Cached Data</strong> at any time to purge all stored accounts, tokens, and check-in records.</li>
+          <li><strong>Token Safety:</strong> Personal Access Tokens are stored only if you choose "Remember Token" and never leave your machine.</li>
         </ul>
-        <p class="chip" style="margin-top: 16px;">No data is uploaded anywhere else.</p>
+        <p class="chip" style="margin-top: 14px;">Total Control Over Your Data</p>
       </div>
     </div>
   </section>
 
   <section>
-    <h2>Built by a fellow traveller</h2>
+    <h2>Quick Tips</h2>
     <div class="card">
-      <p>This whole experience was crafted by a Träwelling user who wanted a friendlier, tap-first way to reminisce about trips. It’s community-driven and totally unofficial—built by someone who also loves comparing ICE routes at 2 AM.</p>
-      <p style="margin-top: 18px; font-family: 'Space Grotesk', sans-serif; font-size: 1rem; color: var(--text-muted);">
-        — <a href="https://traewelling.de/Hash" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none;">@Hash</a>
-      </p>
-    </div>
-  </section>
-
-  <section>
-    <h2>Tips & Tricks</h2>
-    <div class="card">
-      <h3>Combine these controls for the best experience</h3>
+      <h3>Power User Shortcuts</h3>
       <div>
-        <span class="chip">Public profiles load immediately without any login or token</span>
-        <span class="chip">Tap "📋 Paste" on mobile to quickly insert personal API tokens from clipboard</span>
-        <span class="chip">Toggle “Hide inaccurate” to remove potentially inaccurate trips</span>
-        <span class="chip">Stats → “📊” button to dock insights & travel buddy ranking</span>
-        <span class="chip">Saved accounts list doubles as a quick switcher</span>
-        <span class="chip">Use "Search Trips & Notes" to filter routes by comment text or @buddy</span>
+        <span class="chip">Public profiles load immediately without login or token</span>
+        <span class="chip">Click any Travel Buddy in the sidebar to isolate joint journeys</span>
+        <span class="chip">Tap "Reset Date Range" to quickly snap back to your full history</span>
+        <span class="chip">Use "Export GeoJSON" to import your routes into uMap or QGIS</span>
+        <span class="chip">Tap "📋 Paste" on mobile to quickly insert Personal API Tokens</span>
+        <span class="chip">Filter slider toggles accuracy thresholds to clean up messy track geometry</span>
       </div>
     </div>
   </section>
 
   <section>
-    <h2>FAQ</h2>
+    <h2>Frequently Asked Questions</h2>
     <div class="faq">
       <div class="faq-item">
-        <h4>Do I need an API token?</h4>
-        <p>No! Public profiles can be explored immediately by typing the username and clicking <strong>Load Travel Data</strong>. If your profile is private or you want full account access, open the dropdown to enter your personal API token or log in with your Träwelling account.</p>
+        <h4>How does 1-Click Login work?</h4>
+        <p>It uses standard OAuth 2.0 Authorization Code Flow with PKCE. Clicking <strong>Log in with Träwelling</strong> opens Träwelling’s official authorization screen where you grant read-only permissions for check-ins and statistics. Träwelling redirects back with an authorization code that your browser exchanges directly for an access token.</p>
       </div>
       <div class="faq-item">
-        <h4>Can I export the trips?</h4>
-        <p>Map Explorer focuses on visual exploration. For CSV exports, use Träwelling’s native export or the official API directly. Advanced users can poke around their browser’s IndexedDB to grab cached data, but that path isn’t documented or supported.</p>
+        <h4>Can I explore someone else’s map while logged in?</h4>
+        <p>Yes! Once authenticated, your username is selected by default, but you can enter any public Träwelling username into the "User to explore" input to map their public journeys.</p>
       </div>
       <div class="faq-item">
-        <h4>Does caching sync between browsers?</h4>
-        <p>Caching is local-only for privacy reasons. Use the same browser profile if you want persistent sessions.</p>
+        <h4>How does Travel Buddy filtering work?</h4>
+        <p>Träwelling records companion data in official <code>bodyMentions</code> and <code>createdBy</code> API fields. The app tallies all journeys taken together and displays them in the 👥 Travel Buddies menu. Clicking a companion filters the map routes, heatmap, and trip statistics to only your journeys with that buddy.</p>
       </div>
       <div class="faq-item">
-        <h4>Is there a mobile mode?</h4>
-        <p>Yes. The UI switches to a compact menu, gestures are touch-friendly, and stats can be accessed through the floating “📊” toggle.</p>
+        <h4>Can I export my trips to GIS or Google Earth?</h4>
+        <p>Yes! Click <strong>📤 Export GeoJSON</strong> in the Statistics panel or menu to download your active routes as standard GeoJSON or copy the GeoJSON string directly to your clipboard. You can import this into QGIS, uMap, Google Earth, or GeoJSON.io.</p>
+      </div>
+      <div class="faq-item">
+        <h4>Does caching sync between different devices?</h4>
+        <p>No. For privacy, caching is restricted to your current browser's local IndexedDB. If you switch devices or browsers, simply log in again or re-enter the username to fetch your data.</p>
       </div>
     </div>
   </section>
 
   <footer>
-    Built by @Hash for the Träwelling community · Preview build · Last updated January 2026.
+    Träwelling Map Explorer · Community Open Source Tool · Built for Träwelling travellers everywhere.
   </footer>
 </body>
 </html>

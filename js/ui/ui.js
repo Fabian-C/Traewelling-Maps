@@ -473,7 +473,7 @@ export const UI = {
             if (setupDivider) setupDivider.style.display = 'none';
             if (usernameLabel) usernameLabel.textContent = 'User to explore';
             if (usernameHint) usernameHint.textContent = 'Defaults to your account. Enter any username to explore their travel map.';
-            if (usernameInput && (!usernameInput.value || usernameInput.value === 'Traewelling_Maps_SRVUSR')) {
+            if (usernameInput && !usernameInput.value) {
                 usernameInput.value = owner.username;
             }
         } else {
