@@ -353,6 +353,22 @@ export function updateMenuBuddyList(onSelectBuddy = null) {
     const contextTrips = getFilteredContextTrips();
     const buddies = getBuddyStats(contextTrips);
     const sorted = Object.entries(buddies).sort((a, b) => b[1] - a[1]);
+    const metCount = sorted.length;
+
+    // Update count in travel buddy menu summary and section header
+    const totalMet = Object.keys(getBuddyStats(state.fetchedTrips || [])).length;
+    const badgeEl = document.getElementById('travelBuddiesCountBadge');
+    if (badgeEl) {
+        badgeEl.textContent = `(${metCount})`;
+    }
+    const metCountEl = document.getElementById('travelBuddiesMetCount');
+    if (metCountEl) {
+        if (totalMet > metCount) {
+            metCountEl.textContent = `${metCount} of ${totalMet} met`;
+        } else {
+            metCountEl.textContent = `${metCount} ${metCount === 1 ? 'buddy met' : 'buddies met'}`;
+        }
+    }
 
     if (clearBtn) {
         clearBtn.style.display = 'none';
