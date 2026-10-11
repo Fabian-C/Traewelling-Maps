@@ -198,10 +198,6 @@ export function setupEventListeners() {
     if (resetDateBtn) {
         resetDateBtn.onclick = resetDateFilter;
     }
-    const resetAllFiltersBtn = document.getElementById('resetAllFiltersBtn');
-    if (resetAllFiltersBtn) {
-        resetAllFiltersBtn.onclick = resetAllActiveFilters;
-    }
     
     // Travel Buddies submenu & companion filtering
     analytics.registerBuddySelectHandler(applyBuddyFilter);
@@ -567,7 +563,6 @@ export function resetAllActiveFilters() {
 export function updateFilterBadges() {
     const state = store.get();
     const badgesContainer = document.getElementById('activeFilterBadges');
-    const resetContainer = document.getElementById('resetAllFiltersContainer');
     if (!badgesContainer) return;
 
     const badges = [];
@@ -632,10 +627,6 @@ export function updateFilterBadges() {
                 applyBusinessFilter();
             }
         });
-    }
-
-    if (resetContainer) {
-        resetContainer.style.display = badges.length > 0 ? 'block' : 'none';
     }
 
     if (badges.length === 0) {

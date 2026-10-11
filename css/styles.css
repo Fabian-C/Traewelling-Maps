@@ -581,22 +581,6 @@ input:checked+.toggle-slider:before { transform: translateX(22px); }
     background: #ff4444;
     color: #fff;
 }
-.btn-reset-all {
-    width: 100%;
-    padding: 8px 10px;
-    background: rgba(255, 107, 107, 0.1);
-    border: 1px solid rgba(255, 107, 107, 0.35);
-    border-radius: 6px;
-    color: #ff8585;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-.btn-reset-all:hover {
-    background: rgba(255, 107, 107, 0.25);
-    color: #fff;
-}
 .time-filter { padding: 16px; }
 .time-input-group { margin-bottom: 16px; }
 .time-input-group label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--text-secondary); }
