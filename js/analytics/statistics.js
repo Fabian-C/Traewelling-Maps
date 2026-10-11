@@ -19,34 +19,36 @@ export function resetStatistics(statisticsObj) {
     return statisticsObj;
 }
 
-export function updateStatistics(data, category, statisticsObj) {
+export function updateStatisticsWithTrip(trip, statisticsObj) {
     if (!statisticsObj) {
         statisticsObj = { trips: 0, distance: 0, lineCounts: {}, typeCounts: {}, travelBuddies: {}, oldestDate: null, newestDate: null, oldestStatusId: null, newestStatusId: null };
     }
     if (!statisticsObj.travelBuddies) statisticsObj.travelBuddies = {};
-    data.features.forEach(f => {
-        let train = f.properties?.train;
-        if (typeof train === 'string') try { train = JSON.parse(train); } catch (e) { train = {}; }
-        train = train || {};
-        const distance = (typeof train.totalDistance === 'number' ? train.totalDistance : train.distance) || 0;
-        const createdAt = f.properties?.createdAt;
-        const statusId = f.properties?.statusId;
 
-        statisticsObj.trips++;
-        statisticsObj.distance += distance;
+    let train = trip.train || trip.properties?.train;
+    if (typeof train === 'string') try { train = JSON.parse(train); } catch (e) { train = {}; }
+    train = train || {};
+    const distance = (typeof train.totalDistance === 'number' ? train.totalDistance : train.distance) || 0;
+    const createdAt = trip.createdAt || trip.properties?.createdAt;
+    const statusId = trip.id || trip.properties?.statusId;
+    const category = train.category || 'unknown';
 
-        const lineName = train.lineName || train.number || 'Unknown';
-        statisticsObj.lineCounts[lineName] = (statisticsObj.lineCounts[lineName] || 0) + 1;
-        statisticsObj.typeCounts[category] = (statisticsObj.typeCounts[category] || 0) + 1;
+    statisticsObj.trips++;
+    statisticsObj.distance += distance;
 
-        // Track travel buddies using deduplicated, case-insensitive helper
-        const tripBuddies = extractUniqueBuddiesFromTrip(f, null, null);
-        tripBuddies.forEach((displayName) => {
-            statisticsObj.travelBuddies[displayName] = (statisticsObj.travelBuddies[displayName] || 0) + 1;
-        });
+    const lineName = train.lineName || train.number || 'Unknown';
+    statisticsObj.lineCounts[lineName] = (statisticsObj.lineCounts[lineName] || 0) + 1;
+    statisticsObj.typeCounts[category] = (statisticsObj.typeCounts[category] || 0) + 1;
 
-        if (createdAt) {
-            const d = new Date(createdAt);
+    // Track travel buddies using deduplicated, case-insensitive helper
+    const tripBuddies = extractUniqueBuddiesFromTrip(trip, null, null);
+    tripBuddies.forEach((displayName) => {
+        statisticsObj.travelBuddies[displayName] = (statisticsObj.travelBuddies[displayName] || 0) + 1;
+    });
+
+    if (createdAt) {
+        const d = new Date(createdAt);
+        if (!isNaN(d.getTime())) {
             if (!statisticsObj.oldestDate || d < statisticsObj.oldestDate) { 
                 statisticsObj.oldestDate = d; 
                 statisticsObj.oldestStatusId = statusId; 
@@ -56,7 +58,24 @@ export function updateStatistics(data, category, statisticsObj) {
                 statisticsObj.newestStatusId = statusId; 
             }
         }
-    });
+    }
+
+    return statisticsObj;
+}
+
+export function updateStatistics(data, category, statisticsObj) {
+    if (!statisticsObj) {
+        statisticsObj = { trips: 0, distance: 0, lineCounts: {}, typeCounts: {}, travelBuddies: {}, oldestDate: null, newestDate: null, oldestStatusId: null, newestStatusId: null };
+    }
+    if (data?.features) {
+        data.features.forEach(f => {
+            updateStatisticsWithTrip(f, statisticsObj);
+        });
+    } else if (Array.isArray(data)) {
+        data.forEach(t => {
+            updateStatisticsWithTrip(t, statisticsObj);
+        });
+    }
     return statisticsObj;
 }
 
@@ -102,7 +121,7 @@ export function refreshStatsDisplay(statisticsObj) {
  * Returns a Map of lowercaseHandle -> preferredDisplayName.
  */
 export function extractUniqueBuddiesFromTrip(trip, includeNotes = null, currentUsername = null) {
-    const state = store.get();
+    const state = store.get() || {};
     const shouldIncludeNotes = includeNotes !== null ? includeNotes : !!state.filters?.includeNoteMentions;
     const currentUser = (currentUsername !== null ? currentUsername : (state.username || '')).toLowerCase().trim();
     const buddyMap = new Map(); // key: lowercase username, value: display username
@@ -347,6 +366,22 @@ export function updateMenuBuddyList(onSelectBuddy = null) {
 export function updateAllStatistics() {
     const state = store.get();
     state.statistics = resetStatistics(state.statistics);
-    state.layers.data.forEach((layer, id) => { if (layer.visible) state.statistics = updateStatistics(layer.data, id, state.statistics); });
+
+    // Get layer visibility map
+    const layerVisibility = new Map();
+    state.layers.data.forEach((layer, id) => {
+        layerVisibility.set(id, layer.visible);
+    });
+
+    const activeList = state.activeTrips || [];
+    activeList.forEach(trip => {
+        const cat = trip.train?.category || 'unknown';
+        // If layer exists, check its visibility; if not tracked in layers (or legacy category), include by default
+        const isVisible = layerVisibility.has(cat) ? layerVisibility.get(cat) : true;
+        if (isVisible) {
+            state.statistics = updateStatisticsWithTrip(trip, state.statistics);
+        }
+    });
+
     refreshStatsDisplay(state.statistics);
 }

@@ -356,13 +356,12 @@ export async function processAndDisplayData(trips) {
                 }, beforeLayer);
 
                 state.layers.data.set(layerId, { data, color, visible: true });
-                state.statistics = analytics.updateStatistics(data, layerId, state.statistics);
             } catch (e) {
                 console.error(`Failed to add layer ${layerId}:`, e);
             }
         }
+        analytics.updateAllStatistics();
         analytics.updateMenuBuddyList();
-        analytics.refreshStatsDisplay(state.statistics);
         loadLayers();
     };
     
