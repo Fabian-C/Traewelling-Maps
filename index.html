@@ -192,22 +192,21 @@
                     <button type="button" class="btn-auth-logout" id="authLogoutBtn" title="Log out and switch account">Log out</button>
                 </div>
 
+                <!-- 1-Click Login section at the top (when unauthenticated) -->
+                <div class="oauth-section" id="oauthSection">
+                    <button class="btn-oauth" id="oauthLoginBtn" type="button">
+                        <span class="oauth-icon">🚆</span>
+                        <span>Log in with Träwelling</span>
+                    </button>
+                </div>
+
                 <div class="form-group" id="queryGroup">
                     <label for="username" id="usernameLabel">Username</label>
                     <input type="text" id="username" placeholder="Enter username to explore" autocomplete="username" autocapitalize="none" autocorrect="off">
                     <p class="form-hint" id="usernameHint">Public profiles load immediately without needing a token or login.</p>
                 </div>
 
-                <button class="btn-primary" id="startFetchBtn">🚀 Load Travel Data</button>
-
-                <!-- 1-Click Login section (when unauthenticated) -->
-                <div class="oauth-section" id="oauthSection">
-                    <div class="setup-divider" id="setupDivider"><span>or</span></div>
-                    <button class="btn-oauth" id="oauthLoginBtn" type="button">
-                        <span class="oauth-icon">🚆</span>
-                        <span>Log in with Träwelling</span>
-                    </button>
-                </div>
+                <button class="btn-primary" id="startFetchBtn">🔍 Search & Explore</button>
 
                 <details class="token-dropdown" id="tokenDropdown">
                     <summary class="token-dropdown-summary">

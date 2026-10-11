@@ -479,7 +479,7 @@ export const UI = {
         } else {
             if (authCard) authCard.style.display = 'none';
             if (oauthSection) oauthSection.style.display = 'block';
-            if (setupDivider) setupDivider.style.display = 'flex';
+            if (setupDivider) setupDivider.style.display = 'none';
             if (usernameLabel) usernameLabel.textContent = 'Username';
             if (usernameHint) usernameHint.textContent = 'Public profiles load immediately without needing a token or login.';
         }
