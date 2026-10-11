@@ -211,7 +211,7 @@ export function extractUniqueBuddiesFromTrip(trip, includeNotes = null, currentU
  * Extracts travel companions and trip counts across all fetched trips
  */
 export function getBuddyStats(trips = null, includeNotes = null) {
-    const state = store.get();
+    const state = store.get() || {};
     const tripList = trips || state.fetchedTrips || [];
     const currentUsername = (state.username || '').toLowerCase().trim();
     const buddyCounts = new Map(); // key: lowercase, value: { name: string, count: number }
