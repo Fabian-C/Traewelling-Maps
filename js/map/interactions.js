@@ -222,7 +222,8 @@ export function setupMapInteractions() {
         }
 
         if (state.delays.enabled) {
-            const overlayFeature = getDelayOverlayFeatureAtLngLat(e.lngLat);
+            const touchTolerance = ('ontouchstart' in window || navigator.maxTouchPoints > 0) ? 36 : 24;
+            const overlayFeature = getDelayOverlayFeatureAtLngLat(e.lngLat, { maxDistancePx: touchTolerance });
             if (overlayFeature) {
                 const synthetic = buildFeatureFromDelayOverlay(overlayFeature);
                 if (synthetic) {
@@ -230,7 +231,7 @@ export function setupMapInteractions() {
                     return;
                 }
             }
-            return;
+            // If delay overlay not hit, continue falling through to regular layers
         }
 
         const layers = getActiveLayers();

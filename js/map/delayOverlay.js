@@ -66,7 +66,7 @@ export function buildDelayOverlayCache(force = false) {
         const train = trip.train || {};
         const coords = train.polyline?.geometry?.coordinates;
         if (!coords || coords.length < 2) return;
-        const category = train.category || 'unknown';
+        const category = dataProcessing.normalizeCategory(train.category);
 
         const delays = time.deriveDelaySeconds(train);
         if (delays.worst === null || delays.worst <= 0) return;
@@ -211,12 +211,15 @@ export function getPixelRadiusKm(lngLat, pixelRadius = 20) {
     return Math.max(0.03, Math.min(1.5, km));
 }
 
-export function getDelayOverlayFeatureAtLngLat(lngLat) {
+export function getDelayOverlayFeatureAtLngLat(lngLat, options = {}) {
     const state = store.get();
     return findOverlayFeatureAtPoint(
         state.delays.overlayFeatureCollection,
         lngLat,
-        { priorityAccessor: feature => feature.properties?.delaySeconds || 0 }
+        { 
+            maxDistancePx: options.maxDistancePx ?? 28,
+            priorityAccessor: feature => feature.properties?.delaySeconds || 0 
+        }
     );
 }
 

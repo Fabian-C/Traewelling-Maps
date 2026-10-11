@@ -1,7 +1,7 @@
 // Centralized filter manager module
 // All filter logic is centralized here for consistency and modularity
 
-import { isAccuratePolyline } from '../data/processing.js';
+import { isAccuratePolyline, normalizeCategory } from '../data/processing.js';
 import { extractUniqueBuddiesFromTrip } from '../analytics/statistics.js';
 
 // Filter registry - allows easy addition of new filters
@@ -96,7 +96,7 @@ function filterTripsByAccuracy(trips, filterLevel) {
     if (filterLevel === 0) return trips.slice();
     
     return trips.filter(trip => {
-        const category = trip.train?.category || 'unknown';
+        const category = normalizeCategory(trip.train?.category);
         const coords = trip.train?.polyline?.geometry?.coordinates;
         // Check-ins without geodata do not disrupt the map and must still be counted in statistics
         if (!coords || coords.length < 2) return true;

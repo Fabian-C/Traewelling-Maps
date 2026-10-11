@@ -3,6 +3,7 @@ import { store } from '../state/store.js';
 import { toggleDelayOverlay } from './delayOverlay.js';
 import { RouteAnimation } from './routeAnimation.js';
 import { refreshActiveTrips } from '../fetch/orchestrator.js';
+import { normalizeCategory } from '../data/processing.js';
 
 export function getCurrentBaseOpacity(state) {
     if (!state) state = store.get();
@@ -161,7 +162,7 @@ export function buildRouteDensityFeatureCollection(state, force = false) {
         const coords = train.polyline?.geometry?.coordinates;
         if (!coords || coords.length < 2) return;
 
-        const layerId = train.category || 'unknown';
+        const layerId = normalizeCategory(train.category);
         const layerInfo = state.layers.data.get(layerId);
         if (layerInfo && layerInfo.visible === false) return;
 

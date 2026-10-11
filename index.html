@@ -38,7 +38,7 @@
         import { initMap, fitMapToData, waitForMapReady, setupMapInteractions, showPopup, highlightRoute, clearRouteHighlight, findOverlayFeatureAtPoint } from './js/map/interactions.js';
         import { toggleDelayOverlay, removeDelayOverlay, updateDelayOverlay, updateDelayOverlaySummary, updateHeatmapColors, getPixelRadiusKm, getDelayOverlayFeatureAtLngLat, buildFeatureFromDelayOverlay, invalidateDelayOverlayCache } from './js/map/delayOverlay.js';
         // Fetch module
-        import { startDataFetch, cancelFetch, showFetchError, refreshActiveTrips, processAndDisplayData } from './js/fetch/orchestrator.js';
+        import { startDataFetch, stopAndShowData, cancelFetch, showFetchError, refreshActiveTrips, processAndDisplayData } from './js/fetch/orchestrator.js';
         // Session module
         import { fetchUserProfile, saveCurrentSession, loadSessionByUsername, deleteSession, clearAllSessions, updateMenuAccountList, rememberToken, validateStoredToken, logout, handleOAuthCallbackProcess, OAuth } from './js/session/manager.js';
         // Events module
@@ -58,6 +58,7 @@
         window.setBaseLayerVisibility = heatmap.setBaseLayerVisibility;
         window.applyBaseLayerOpacity = heatmap.applyBaseLayerOpacity;
         window.startDataFetch = startDataFetch;
+        window.stopAndShowData = stopAndShowData;
         window.cancelFetch = cancelFetch;
         window.saveCurrentSession = saveCurrentSession;
         window.loadSessionByUsername = loadSessionByUsername;
@@ -96,6 +97,8 @@
             window.loadLayers();
             document.getElementById('startFetchBtn').onclick = () => window.startDataFetch(false);
             document.getElementById('cancelFetchBtn').onclick = window.cancelFetch;
+            const stopBtn = document.getElementById('stopAndShowBtn');
+            if (stopBtn) stopBtn.onclick = window.stopAndShowData;
             
             const oauthBtn = document.getElementById('oauthLoginBtn');
             if (oauthBtn) {
@@ -205,6 +208,20 @@
                     <input type="text" id="username" placeholder="Enter username to explore" autocomplete="username" autocapitalize="none" autocorrect="off">
                 </div>
 
+                <div class="form-group" style="margin-top: -6px; margin-bottom: 14px;">
+                    <label for="fetchLimitSelect" style="font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <span>Trip Limit</span>
+                        <span style="opacity: 0.7;">Stop after N trips</span>
+                    </label>
+                    <select id="fetchLimitSelect" style="width: 100%; padding: 8px 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text); font-size: 13px;">
+                        <option value="0" selected>All Check-ins (Default)</option>
+                        <option value="50">Recent 50 trips</option>
+                        <option value="100">Recent 100 trips</option>
+                        <option value="250">Recent 250 trips</option>
+                        <option value="500">Recent 500 trips</option>
+                    </select>
+                </div>
+
                 <button class="btn-primary" id="startFetchBtn">🔍 Search & Explore</button>
 
                 <details class="token-dropdown" id="tokenDropdown">
@@ -287,7 +304,10 @@
             </div>
             <div class="fetch-error hidden" id="fetchError"></div>
             <button class="fetch-retry hidden" id="retryFetchBtn">🔄 Retry Connection</button>
-            <button class="fetch-cancel" id="cancelFetchBtn">Cancel</button>
+            <div style="display: flex; gap: 8px; width: 100%; margin-top: 10px;">
+                <button type="button" class="fetch-retry" id="stopAndShowBtn" style="flex: 1; margin: 0; padding: 10px 8px; background: rgba(59, 130, 246, 0.85); border-color: rgba(96, 165, 250, 0.5); font-size: 13px;">⚡ Show Fetched</button>
+                <button type="button" class="fetch-cancel" id="cancelFetchBtn" style="flex: 1; margin: 0; padding: 10px 8px; font-size: 13px;">Cancel</button>
+            </div>
         </div>
     </div>
 

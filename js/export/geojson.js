@@ -1,7 +1,7 @@
-// GeoJSON Exporter Module for Träwelling Maps
 import { store } from '../state/store.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
 import { formatDelayMinutes } from '../utils/format.js';
+import { normalizeCategory } from '../data/processing.js';
 
 /**
  * Convert an array of Träwelling trips into a standard GeoJSON FeatureCollection
@@ -38,7 +38,7 @@ export function tripsToGeoJSON(trips = [], metadata = {}) {
             properties: {
                 statusId: trip.id,
                 lineName: train.lineName || train.number || train.name || 'Unknown',
-                category: train.category || 'unknown',
+                category: normalizeCategory(train.category),
                 origin: originData.name || originData.station?.name || 'Unknown',
                 destination: destData.name || destData.station?.name || 'Unknown',
                 plannedDeparture: originData.departurePlanned || train.plannedDeparture || null,
@@ -113,12 +113,23 @@ export async function copyGeoJSONToClipboard(geojsonData) {
  */
 export async function exportTripsGeoJSON(scope = 'active', action = 'download') {
     const state = store.get();
-    const trips = scope === 'all' 
+    let trips = scope === 'all' 
         ? (state.fetchedTrips || []) 
         : (state.activeTrips?.length ? state.activeTrips : state.fetchedTrips || []);
 
+    if (scope === 'active') {
+        const layerVisibility = new Map();
+        state.layers.data.forEach((layer, id) => {
+            layerVisibility.set(id, layer.visible);
+        });
+        trips = trips.filter(trip => {
+            const cat = normalizeCategory(trip.train?.category);
+            return layerVisibility.has(cat) ? layerVisibility.get(cat) : true;
+        });
+    }
+
     if (!trips.length) {
-        alert('No trips available to export.');
+        alert('No trips available to export with current layer visibility.');
         return;
     }
 

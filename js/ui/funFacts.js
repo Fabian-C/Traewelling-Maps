@@ -31,10 +31,29 @@ export const FunFacts = {
         this.activeFacts = [];
         this.init();
         this.container.innerHTML = '';
+        this.showSkeleton();
+    },
+    
+    showSkeleton() {
+        if (!this.container) return;
+        const existing = document.getElementById('funFactSkeleton');
+        if (existing) return;
+        const skel = document.createElement('div');
+        skel.id = 'funFactSkeleton';
+        skel.className = 'fun-fact-skeleton';
+        this.container.appendChild(skel);
+    },
+
+    hideSkeleton() {
+        const skel = document.getElementById('funFactSkeleton');
+        if (skel && skel.parentNode) {
+            skel.parentNode.removeChild(skel);
+        }
     },
     
     stop() {
         this.isRunning = false;
+        this.hideSkeleton();
         this.activeFacts.forEach(fact => {
             if (fact.element && fact.element.parentNode) {
                 fact.element.parentNode.removeChild(fact.element);
@@ -73,6 +92,7 @@ export const FunFacts = {
         if (this.activeFacts.length >= MAX_VISIBLE_FACTS) return;
         
         this.lastFactTime = now;
+        this.hideSkeleton();
         
         const element = document.createElement('div');
         element.className = `fun-fact ${fact.type}`;

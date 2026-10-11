@@ -1,6 +1,20 @@
 // Data processing functions
 import { CONFIG } from '../config/config.js';
 
+const KNOWN_CATEGORIES = new Set([
+    'nationalExpress', 'national', 'regionalExp', 'regional',
+    'suburban', 'bus', 'tram', 'subway', 'plane', 'ferry'
+]);
+
+/**
+ * Normalize transport categories from Träwelling API (e.g. ferry vs ship, unknown)
+ */
+export function normalizeCategory(category) {
+    if (!category) return 'unknown';
+    if (category === 'ship') return 'ferry';
+    return KNOWN_CATEGORIES.has(category) ? category : 'unknown';
+}
+
 /**
  * Process trips to GeoJSON by category
  */
@@ -9,7 +23,7 @@ export function processTripsToGeoJSON(trips) {
     CONFIG.LAYER_CONFIG.forEach(([cat]) => { categories[cat] = { type: 'FeatureCollection', features: [] }; });
 
     trips.forEach(trip => {
-        const category = trip.train?.category || 'unknown';
+        const category = normalizeCategory(trip.train?.category);
         const targetCat = categories[category] ? category : 'unknown';
         const polyline = trip.train?.polyline;
         if (!polyline?.geometry?.coordinates) return;
@@ -35,7 +49,8 @@ export function processTripsToGeoJSON(trips) {
  */
 export function isAccuratePolyline(coords, category, filterLevel = 0) {
     if (!coords || coords.length < 2) return false;
-    if (category === 'plane' || category === 'ship') return true;
+    const normCat = normalizeCategory(category);
+    if (normCat === 'plane' || normCat === 'ferry') return true;
 
     if (filterLevel === 0) return true;
 

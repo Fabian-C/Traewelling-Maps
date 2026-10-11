@@ -64,7 +64,7 @@ class StateStore {
                     'unknown',
                     'plane',
                     'bus',
-                    'ship',
+                    'ferry',
                     'tram',
                     'subway',
                     'suburban',

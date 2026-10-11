@@ -81,6 +81,18 @@ export async function loadSessionByUsername(username) {
         UI.syncTokenInputs(session.token);
         UI.syncUsernameInput(session.username);
         
+        // Reset filters when switching accounts
+        state.filters.fromDate = null;
+        state.filters.toDate = null;
+        state.filters.buddies = [];
+        state.filters.buddy = null;
+        state.filters.searchQuery = '';
+        state.filters.business = { personal: true, work: true, commute: true };
+        const tripSearch = document.getElementById('tripSearchInput');
+        if (tripSearch) tripSearch.value = '';
+        const tripSearchClear = document.getElementById('tripSearchClearBtn');
+        if (tripSearchClear) tripSearchClear.style.display = 'none';
+
         if (session.trips && session.trips.length > 0) {
             state.fetchedTrips = session.trips;
             

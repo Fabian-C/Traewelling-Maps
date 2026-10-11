@@ -3,6 +3,7 @@ import { CONFIG } from '../config/config.js';
 import { store } from '../state/store.js';
 import { refreshActiveTrips } from '../fetch/orchestrator.js';
 import * as dataProcessing from '../data/processing.js';
+import { normalizeCategory } from '../data/processing.js';
 import * as heatmap from '../map/heatmap.js';
 import { updateRouteDensity } from '../map/heatmap.js';
 import { updateAllStatistics as updateAllStats } from '../analytics/statistics.js';
@@ -18,6 +19,7 @@ export const CATEGORY_NAMES = {
     tram: 'Tram',
     subway: 'Subway (U-Bahn)',
     plane: 'Flight',
+    ferry: 'Ferry / Ship',
     ship: 'Ferry / Ship',
     unknown: 'Other / Unknown'
 };
@@ -32,6 +34,11 @@ export function loadLayers() {
         console.warn('Layer list not found in DOM, retrying...');
         setTimeout(loadLayers, 150);
         return;
+    }
+
+    // Migrate legacy 'ship' layer to 'ferry' if present
+    if (state.layers.order.includes('ship')) {
+        state.layers.order = state.layers.order.map(id => id === 'ship' ? 'ferry' : id);
     }
 
     // Ensure state.layers.data has entries for all categories in state.layers.order
@@ -88,7 +95,7 @@ export function loadLayers() {
         // Count from active trips in category (fallback to GeoJSON features length)
         let routeCount = 0;
         if (state.activeTrips && state.activeTrips.length) {
-            routeCount = state.activeTrips.filter(t => (t.train?.category || 'unknown') === layerId).length;
+            routeCount = state.activeTrips.filter(t => normalizeCategory(t.train?.category) === layerId).length;
         } else if (state.statistics?.typeCounts?.[layerId] !== undefined) {
             routeCount = state.statistics.typeCounts[layerId];
         } else {

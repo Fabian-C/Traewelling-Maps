@@ -36,13 +36,14 @@ export const RouteAnimation = {
             tram: [47, 197, 204],
             subway: [246, 154, 0],
             plane: [80, 80, 80],
+            ferry: [0, 85, 170],
             ship: [0, 85, 170],
             unknown: [136, 136, 136],
             default: [255, 255, 255]
         },
         speeds: {
             plane: 2.0, nationalExpress: 1.6, national: 1.4, regionalExp: 1.2,
-            regional: 1.0, suburban: 0.9, bus: 0.8, tram: 0.7, subway: 0.6, ship: 0.5, unknown: 1.0
+            regional: 1.0, suburban: 0.9, bus: 0.8, tram: 0.7, subway: 0.6, ferry: 0.5, ship: 0.5, unknown: 1.0
         }
     },
     

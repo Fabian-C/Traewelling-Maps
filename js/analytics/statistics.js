@@ -1,6 +1,7 @@
 // Statistics and analytics functions
 import { store } from '../state/store.js';
 import { escapeHtml } from '../utils/format.js';
+import { normalizeCategory } from '../data/processing.js';
 
 export function resetStatistics(statisticsObj) {
     if (!statisticsObj) {
@@ -31,7 +32,7 @@ export function updateStatisticsWithTrip(trip, statisticsObj) {
     const distance = (typeof train.totalDistance === 'number' ? train.totalDistance : train.distance) || 0;
     const createdAt = trip.createdAt || trip.properties?.createdAt;
     const statusId = trip.id || trip.properties?.statusId;
-    const category = train.category || 'unknown';
+    const category = normalizeCategory(train.category);
 
     statisticsObj.trips++;
     statisticsObj.distance += distance;
@@ -370,7 +371,7 @@ export function updateAllStatistics() {
 
     const activeList = state.activeTrips || [];
     activeList.forEach(trip => {
-        const cat = trip.train?.category || 'unknown';
+        const cat = normalizeCategory(trip.train?.category);
         // If layer exists, check its visibility; if not tracked in layers (or legacy category), include by default
         const isVisible = layerVisibility.has(cat) ? layerVisibility.get(cat) : true;
         if (isVisible) {
