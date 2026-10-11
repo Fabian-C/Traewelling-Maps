@@ -243,6 +243,9 @@ export async function validateStoredToken(token) {
 
 export function logout() {
     const state = store.get();
+    try {
+        localStorage.removeItem('tw_token');
+    } catch (e) {}
     state.token = null; state.username = null; state.fetchedTrips = [];
     state.tokenOwner = { username: null, displayName: null, avatar: null, profileUrl: null, validated: false };
     state.layers.data.clear();
@@ -283,8 +286,11 @@ export async function handleOAuthCallbackProcess() {
         UI.syncTokenInputs(result.accessToken);
         UI.syncUsernameInput(user.data.username);
 
-        // Auto-start fetch or let user click Start Fetch
-        startDataFetch(false, false);
+        const usernameInput = document.getElementById('username');
+        if (usernameInput) {
+            usernameInput.value = user.data.username;
+            usernameInput.focus();
+        }
         return true;
     } catch (e) {
         console.error('OAuth callback failed:', e);

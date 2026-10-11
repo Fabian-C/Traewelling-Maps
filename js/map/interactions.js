@@ -402,15 +402,26 @@ export function showPopup(lngLat, feature) {
     }
     bodyMentions = Array.isArray(bodyMentions) ? bodyMentions : [];
 
+    let createdBy = props.createdBy;
+    if (typeof createdBy === 'string') {
+        try { createdBy = JSON.parse(createdBy); } catch (e) { createdBy = null; }
+    }
+
     let mentionsHtml = '';
-    if (bodyMentions.length > 0) {
+    const buddyLinks = [];
+    bodyMentions.forEach(m => {
+        const u = m.user?.username || m.username;
+        if (u) buddyLinks.push(`<a href="https://traewelling.de/@${escapeHtml(u)}" target="_blank" class="mention-link">@${escapeHtml(u)}</a>`);
+    });
+    if (createdBy?.username && !buddyLinks.some(l => l.includes(`@${escapeHtml(createdBy.username)}`))) {
+        buddyLinks.push(`<a href="https://traewelling.de/@${escapeHtml(createdBy.username)}" target="_blank" class="mention-link">@${escapeHtml(createdBy.username)}</a>`);
+    }
+
+    if (buddyLinks.length > 0) {
         mentionsHtml = `
             <div class="popup-mentions">
                 <label>Travel Buddies:</label>
-                <span>${bodyMentions.map(m => {
-                    const u = m.user?.username || m.username || 'user';
-                    return `<a href="https://traewelling.de/@${escapeHtml(u)}" target="_blank" class="mention-link">@${escapeHtml(u)}</a>`;
-                }).join(' ')}</span>
+                <span>${buddyLinks.join(' ')}</span>
             </div>
         `;
     }

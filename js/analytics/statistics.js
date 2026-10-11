@@ -38,7 +38,7 @@ export function updateStatistics(data, category, statisticsObj) {
         statisticsObj.lineCounts[lineName] = (statisticsObj.lineCounts[lineName] || 0) + 1;
         statisticsObj.typeCounts[category] = (statisticsObj.typeCounts[category] || 0) + 1;
 
-        // Track travel buddies from mentions and comments
+        // Track travel buddies directly from API data structures (no notes parsing)
         let mentions = f.properties?.bodyMentions;
         if (typeof mentions === 'string') {
             try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
@@ -51,17 +51,9 @@ export function updateStatistics(data, category, statisticsObj) {
                 }
             });
         }
-        const bodyText = f.properties?.body;
-        if (bodyText && typeof bodyText === 'string') {
-            const matches = bodyText.match(/@([a-zA-Z0-9_-]+)/g);
-            if (matches) {
-                matches.forEach(tag => {
-                    const u = tag.slice(1);
-                    if (u && !mentions?.some?.(m => (m.user?.username || m.username) === u)) {
-                        statisticsObj.travelBuddies[u] = (statisticsObj.travelBuddies[u] || 0) + 1;
-                    }
-                });
-            }
+        const createdBy = f.properties?.createdBy?.username;
+        if (createdBy) {
+            statisticsObj.travelBuddies[createdBy] = (statisticsObj.travelBuddies[createdBy] || 0) + 1;
         }
 
         if (createdAt) {

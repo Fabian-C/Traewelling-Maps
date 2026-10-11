@@ -442,6 +442,47 @@ export const UI = {
                 tokenOwnerProfileLink.removeAttribute('href');
             }
         }
+
+        // Setup screen sync
+        const authCard = document.getElementById('authCard');
+        const oauthSection = document.getElementById('oauthSection');
+        const setupDivider = document.getElementById('setupDivider');
+        const usernameLabel = document.getElementById('usernameLabel');
+        const usernameHint = document.getElementById('usernameHint');
+        const usernameInput = document.getElementById('username');
+
+        if (owner && owner.username) {
+            if (authCard) {
+                authCard.style.display = 'flex';
+                const avatarEl = document.getElementById('authCardAvatar');
+                const nameEl = document.getElementById('authCardName');
+                if (avatarEl) {
+                    if (owner.avatar) {
+                        avatarEl.style.backgroundImage = `url(${owner.avatar})`;
+                        avatarEl.textContent = '';
+                    } else {
+                        avatarEl.style.backgroundImage = 'none';
+                        avatarEl.textContent = (owner.displayName || owner.username || '?')[0].toUpperCase();
+                    }
+                }
+                if (nameEl) {
+                    nameEl.textContent = owner.displayName ? `${owner.displayName} (@${owner.username})` : `@${owner.username}`;
+                }
+            }
+            if (oauthSection) oauthSection.style.display = 'none';
+            if (setupDivider) setupDivider.style.display = 'none';
+            if (usernameLabel) usernameLabel.textContent = 'User to explore';
+            if (usernameHint) usernameHint.textContent = 'Defaults to your account. Enter any username to explore their travel map.';
+            if (usernameInput && (!usernameInput.value || usernameInput.value === 'Traewelling_Maps_SRVUSR')) {
+                usernameInput.value = owner.username;
+            }
+        } else {
+            if (authCard) authCard.style.display = 'none';
+            if (oauthSection) oauthSection.style.display = 'block';
+            if (setupDivider) setupDivider.style.display = 'flex';
+            if (usernameLabel) usernameLabel.textContent = 'Username';
+            if (usernameHint) usernameHint.textContent = 'Public profiles load immediately without needing a token or login.';
+        }
     },
     setTokenStatus(message, state = 'idle', expiryText = '') {
         if (!this.refs) return;

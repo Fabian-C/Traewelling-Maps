@@ -125,48 +125,104 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     background: rgba(102, 126, 234, 0.15);
     border-color: var(--accent-color);
 }
-.oauth-subtle-container {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-.setup-divider-subtle {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--text-muted);
-    font-size: 11px;
-}
-.setup-divider-subtle::before, .setup-divider-subtle::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border-color);
-}
-.btn-oauth-subtle {
-    padding: 10px 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    color: var(--text-primary);
-    font-size: 13px;
+.btn-oauth-main {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #c72730 0%, #9e1a22 100%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    color: #ffffff;
+    font-size: 15px;
     font-weight: 600;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    transition: all 0.2s ease;
+    gap: 10px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 14px rgba(199, 39, 48, 0.3);
 }
-.btn-oauth-subtle:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.25);
-    transform: translateY(-1px);
+.btn-oauth-main:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(199, 39, 48, 0.45);
 }
-.btn-oauth-subtle:disabled {
-    opacity: 0.6;
+.btn-oauth-main:disabled {
+    opacity: 0.7;
     cursor: not-allowed;
     transform: none;
+}
+.auth-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    background: rgba(104, 211, 145, 0.08);
+    border: 1px solid rgba(104, 211, 145, 0.3);
+    border-radius: 10px;
+}
+.auth-card-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--accent-color);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+.auth-card-info {
+    flex: 1;
+    min-width: 0;
+}
+.auth-card-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.auth-card-sub {
+    font-size: 12px;
+    color: #68d391;
+    font-weight: 500;
+}
+.btn-auth-logout {
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+.btn-auth-logout:hover {
+    background: rgba(255, 107, 107, 0.15);
+    border-color: #ff6b6b;
+    color: #ff6b6b;
+}
+.setup-divider {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--text-muted);
+    font-size: 12px;
+    margin: 4px 0;
+}
+.setup-divider::before, .setup-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
 }
 .oauth-icon {
     font-size: 16px;

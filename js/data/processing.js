@@ -22,7 +22,8 @@ export function processTripsToGeoJSON(trips) {
                 createdAt: trip.createdAt, 
                 train: trip.train, 
                 body: typeof trip.body === 'string' ? trip.body : '',
-                bodyMentions: Array.isArray(trip.bodyMentions) ? trip.bodyMentions : []
+                bodyMentions: Array.isArray(trip.bodyMentions) ? trip.bodyMentions : [],
+                createdBy: trip.createdBy || null
             }
         });
     });
