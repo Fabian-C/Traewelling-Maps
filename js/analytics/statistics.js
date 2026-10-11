@@ -76,6 +76,7 @@ export function updateStatistics(data, category, statisticsObj) {
 }
 
 export function refreshStatsDisplay(statisticsObj) {
+    if (!statisticsObj) return;
     document.getElementById('statTrips').textContent = statisticsObj.trips;
     document.getElementById('statDistance').textContent = Math.round(statisticsObj.distance / 1000 * 100) / 100 + ' km';
 

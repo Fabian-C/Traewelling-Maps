@@ -6,7 +6,26 @@
     --accent-color: #667eea; --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     --depot-width: 130px; --gantry-width: 116px; --gantry-depot-left: 42px; --gantry-train-left: 182px;
 }
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
 body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: var(--bg-primary); color: var(--text-primary); position: fixed; width: 100%; height: 100%; overflow: hidden; }
 .setup-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-primary);
@@ -401,7 +420,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; background: var(--bg-primary); }
 .menu { position: absolute; top: 8px; right: 8px; z-index: 1000; background: var(--menu-bg);
     border: 1px solid var(--border-color); border-radius: 8px; width: max-content; min-width: 220px; max-width: min(340px, calc(100vw - 16px));
-    font-size: 13px; backdrop-filter: blur(10px); box-sizing: border-box; }
+    font-size: 13px; backdrop-filter: blur(10px); box-sizing: border-box; overflow: hidden; }
 .menu summary { padding: 10px 14px; cursor: pointer; font-weight: 700; color: var(--text-primary);
     list-style: none; display: flex; align-items: center; justify-content: space-between; border-radius: 8px; min-height: 40px; }
 .menu summary::-webkit-details-marker { display: none; }
