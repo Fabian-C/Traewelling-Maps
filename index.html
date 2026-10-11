@@ -452,7 +452,10 @@
                 <summary>🔍 Search Trips & Notes</summary>
                 <div class="menu-submenu-content">
                     <div style="padding: 10px 16px; display: flex; flex-direction: column; gap: 8px;">
-                        <input type="text" id="tripSearchInput" placeholder="Search comments, line, buddy..." style="padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 13px; width: 100%; box-sizing: border-box;">
+                        <div style="position: relative; display: flex; align-items: center;">
+                            <input type="text" id="tripSearchInput" placeholder="Search comments, line, buddy..." style="padding: 10px 32px 10px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 13px; width: 100%; box-sizing: border-box;">
+                            <button type="button" id="tripSearchClearBtn" style="display: none; position: absolute; right: 8px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 4px;">✕</button>
+                        </div>
                         <p class="section-sub" style="margin: 0; font-size: 11px;">Filter trips by comment text, @buddy mention, line, or station</p>
                     </div>
                 </div>

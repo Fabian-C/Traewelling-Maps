@@ -248,10 +248,37 @@ export function setupEventListeners() {
     document.getElementById('businessPersonal').onchange = applyBusinessFilter;
     document.getElementById('businessWork').onchange = applyBusinessFilter;
     
-    // Add search filter event listener
+    // Add search filter event listener with debounce
     const searchInput = document.getElementById('tripSearchInput');
+    const searchClearBtn = document.getElementById('tripSearchClearBtn');
+    let searchDebounceTimer = null;
     if (searchInput) {
-        searchInput.oninput = applySearchFilter;
+        searchInput.oninput = () => {
+            if (searchClearBtn) {
+                searchClearBtn.style.display = searchInput.value ? 'inline-block' : 'none';
+            }
+            if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => {
+                applySearchFilter();
+            }, 300);
+        };
+        searchInput.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+                applySearchFilter();
+                searchInput.blur();
+            }
+        };
+    }
+    if (searchClearBtn) {
+        searchClearBtn.onclick = () => {
+            if (searchInput) {
+                searchInput.value = '';
+                searchClearBtn.style.display = 'none';
+            }
+            if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+            applySearchFilter();
+        };
     }
 
     // Share functionality temporarily disabled for future reimplementation
@@ -513,6 +540,8 @@ export function resetAllActiveFilters() {
 
     const s = document.getElementById('tripSearchInput');
     if (s) s.value = '';
+    const clr = document.getElementById('tripSearchClearBtn');
+    if (clr) clr.style.display = 'none';
 
     const filteredTrips = refreshActiveTrips();
     state.datasetVersion++;
@@ -575,6 +604,8 @@ export function updateFilterBadges() {
             onClear: () => {
                 const s = document.getElementById('tripSearchInput');
                 if (s) s.value = '';
+                const c = document.getElementById('tripSearchClearBtn');
+                if (c) c.style.display = 'none';
                 applySearchFilter();
             }
         });
