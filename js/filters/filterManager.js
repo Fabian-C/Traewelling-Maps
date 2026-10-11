@@ -53,14 +53,16 @@ function filterTripsByDateRange(trips, fromDate, toDate) {
     if (!trips.length) return [];
     if (!fromDate && !toDate) return trips.slice();
     
-    const from = fromDate ? new Date(fromDate + 'T00:00:00Z') : null;
-    const to = toDate ? new Date(toDate + 'T23:59:59Z') : null;
+    const from = fromDate ? new Date(fromDate + 'T00:00:00Z').getTime() : null;
+    const to = toDate ? new Date(toDate + 'T23:59:59.999Z').getTime() : null;
     
     return trips.filter(trip => {
-        if (!trip?.createdAt) return true;
-        const created = new Date(trip.createdAt);
-        if (from && created < from) return false;
-        if (to && created > to) return false;
+        const raw = trip?.createdAt || trip?.train?.origin?.departure || trip?.train?.origin?.plannedDeparture;
+        if (!raw) return true;
+        const time = new Date(raw).getTime();
+        if (isNaN(time)) return true;
+        if (from !== null && time < from) return false;
+        if (to !== null && time > to) return false;
         return true;
     });
 }

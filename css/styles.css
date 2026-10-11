@@ -125,32 +125,37 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     background: rgba(102, 126, 234, 0.15);
     border-color: var(--accent-color);
 }
-.btn-oauth-main {
+.btn-oauth {
     width: 100%;
-    min-height: 48px;
-    padding: 12px 20px;
+    min-height: 42px;
+    padding: 10px 16px;
     background: linear-gradient(135deg, #c72730 0%, #9e1a22 100%);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 10px;
+    border-radius: 8px;
     color: #ffffff;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    gap: 8px;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
-    box-shadow: 0 4px 14px rgba(199, 39, 48, 0.3);
+    box-shadow: 0 3px 10px rgba(199, 39, 48, 0.25);
 }
-.btn-oauth-main:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(199, 39, 48, 0.45);
+.btn-oauth:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(199, 39, 48, 0.4);
 }
-.btn-oauth-main:disabled {
+.btn-oauth:disabled {
     opacity: 0.7;
     cursor: not-allowed;
     transform: none;
+}
+.oauth-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 .auth-card {
     display: flex;
@@ -705,9 +710,10 @@ input:checked+.toggle-slider:before { transform: translateX(22px); }
     :root { --depot-width: 106px; --gantry-width: 106px; --gantry-depot-left: 30px; --gantry-train-left: 142px; }
     .setup-screen { padding: 16px; overflow-y: auto; align-items: flex-start; }
     .setup-container { padding: 22px 18px; margin: auto 0; width: 100%; max-width: 440px; border-radius: 12px; }
-    .setup-header { margin-bottom: 18px; }
-    .setup-header h1 { font-size: 22px; }
-    .setup-form { gap: 14px; }
+    .setup-header { margin-bottom: 12px; }
+    .setup-header h1 { font-size: 20px; margin: 0 0 4px; }
+    .setup-header p { font-size: 13px; }
+    .setup-form { gap: 12px; }
     .token-input-row input { font-size: 16px; }
     .menu { top: 5px; right: 5px; min-width: 180px; max-width: 75vw; font-size: 12px; }
     .menu-content { max-height: 70vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }

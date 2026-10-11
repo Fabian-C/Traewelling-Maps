@@ -294,7 +294,7 @@ export async function processAndDisplayData(trips) {
     state.filters.buddy = null;
     state.filters.fromDate = null;
     state.filters.toDate = null;
-    analytics.initializeDateInputs(null, state.fetchedTrips, true);
+    analytics.initializeDateInputs(state.fetchedTrips);
 
     const activeTrips = refreshActiveTrips();
     const categories = dataProcessing.processTripsToGeoJSON(activeTrips);
@@ -360,7 +360,6 @@ export async function processAndDisplayData(trips) {
                 console.error(`Failed to add layer ${layerId}:`, e);
             }
         }
-        analytics.initializeDateInputs(state.statistics, trips, false);
         analytics.updateMenuBuddyList();
         analytics.refreshStatsDisplay(state.statistics);
         loadLayers();
@@ -380,7 +379,6 @@ export async function processAndDisplayData(trips) {
     setTimeout(() => analytics.refreshStatsDisplay(state.statistics), 100);
 
     setupMapInteractions();
-    analytics.initializeDateInputs(state.statistics, trips, false);
     analytics.updateMenuBuddyList();
     UI.toggleFetch(false);
     UI.refs.menu.style.display = 'block';

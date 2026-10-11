@@ -107,8 +107,6 @@ export function refreshStatsDisplay(statisticsObj) {
         }
     }
 
-    // Prefill date selectors if not already populated
-    initializeDateInputs(statisticsObj, null, false);
     updateMenuBuddyList();
 }
 
@@ -144,52 +142,51 @@ export function getBuddyStats(trips = null) {
 }
 
 /**
- * Prefills the time filter inputs with the first and last dates from the user's travel data
+ * Prefills the time filter inputs with the first and last dates from the user's travel data.
+ * Should ONLY be called when initializing the full dataset or resetting the filter.
  */
-export function initializeDateInputs(statisticsObj, trips = null, force = false) {
+export function initializeDateInputs(trips = null) {
     const dateFrom = document.getElementById('dateFrom');
     const dateTo = document.getElementById('dateTo');
     if (!dateFrom && !dateTo) return;
 
-    let oldest = statisticsObj?.oldestDate;
-    let newest = statisticsObj?.newestDate;
+    const state = store.get();
+    const tripList = trips || state.fetchedTrips || [];
+    if (!tripList.length) return;
 
-    // If statistics dates aren't computed yet, compute directly from trips
-    if (!oldest || !newest) {
-        const state = store.get();
-        const tripList = trips || state.fetchedTrips || [];
-        tripList.forEach(t => {
-            const raw = t.createdAt || t.train?.origin?.departure || t.train?.origin?.plannedDeparture;
-            if (raw) {
-                const d = new Date(raw);
-                if (!isNaN(d.getTime())) {
-                    if (!oldest || d < oldest) oldest = d;
-                    if (!newest || d > newest) newest = d;
-                }
-            }
-        });
-    }
+    let oldest = null;
+    let newest = null;
 
-    if (oldest) {
-        const oldestD = oldest instanceof Date ? oldest : new Date(oldest);
-        if (!isNaN(oldestD.getTime())) {
-            const str = oldestD.toISOString().slice(0, 10);
-            if (force || !dateFrom.value) {
-                dateFrom.value = str;
+    tripList.forEach(t => {
+        const raw = t.createdAt || t.train?.origin?.departure || t.train?.origin?.plannedDeparture;
+        if (raw) {
+            const d = new Date(raw);
+            if (!isNaN(d.getTime())) {
+                if (!oldest || d < oldest) oldest = d;
+                if (!newest || d > newest) newest = d;
             }
-            dateFrom.min = str;
-            if (dateTo) dateTo.min = str;
         }
-    }
-    if (newest) {
+    });
+
+    if (oldest && newest) {
+        const oldestD = oldest instanceof Date ? oldest : new Date(oldest);
         const newestD = newest instanceof Date ? newest : new Date(newest);
-        if (!isNaN(newestD.getTime())) {
-            const str = newestD.toISOString().slice(0, 10);
-            if (force || !dateTo.value) {
-                dateTo.value = str;
-            }
-            dateTo.max = str;
-            if (dateFrom) dateFrom.max = str;
+        const minStr = oldestD.toISOString().slice(0, 10);
+        const maxStr = newestD.toISOString().slice(0, 10);
+
+        // Store dataset boundaries
+        state.dateBounds = { min: minStr, max: maxStr };
+
+        // Set min and max limits based on the full dataset so user can always pick any date
+        if (dateFrom) {
+            dateFrom.min = minStr;
+            dateFrom.max = maxStr;
+            dateFrom.value = minStr;
+        }
+        if (dateTo) {
+            dateTo.min = minStr;
+            dateTo.max = maxStr;
+            dateTo.value = maxStr;
         }
     }
 }

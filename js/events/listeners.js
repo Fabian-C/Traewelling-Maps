@@ -450,7 +450,7 @@ function resetDateFilter() {
     const state = store.get();
     state.filters.fromDate = null;
     state.filters.toDate = null;
-    analytics.initializeDateInputs(state.statistics, state.fetchedTrips, true);
+    analytics.initializeDateInputs(state.fetchedTrips);
     applyTimeFilter();
 }
 
