@@ -21,7 +21,15 @@ class StateStore {
             datasetVersion: 0,
             fetchedTrips: [],
             activeTrips: [],
-            filters: { fromDate: null, toDate: null, searchQuery: '', filterLevel: 1, buddy: null, business: { personal: true, work: true, commute: true } },
+            filters: { 
+                fromDate: null, 
+                toDate: null, 
+                searchQuery: '', 
+                filterLevel: 1, 
+                buddy: null, 
+                includeNoteMentions: typeof localStorage !== 'undefined' && localStorage.getItem('tw_include_notes') === 'true',
+                business: { personal: true, work: true, commute: true } 
+            },
             railway: { enabled: false },
             heatmap: { 
                 enabled: false, 

@@ -196,6 +196,12 @@
                     <label for="username" id="usernameLabel">Username</label>
                     <input type="text" id="username" placeholder="Enter username to explore" autocomplete="username" autocapitalize="none" autocorrect="off">
                     <p class="form-hint" id="usernameHint">Public profiles load immediately without needing a token or login.</p>
+                    <div class="setup-option-row">
+                        <label class="checkbox-label" for="includeNoteMentions">
+                            <input type="checkbox" id="includeNoteMentions">
+                            <span>Also include @mentions from check-in notes</span>
+                        </label>
+                    </div>
                 </div>
 
                 <button class="btn-primary" id="startFetchBtn">🚀 Load Travel Data</button>
@@ -431,6 +437,12 @@
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <span class="section-sub" style="margin: 0; font-size: 11px;">Filter map by companion:</span>
                             <button type="button" class="btn-clear-buddy" id="clearBuddyFilterBtn" style="display: none;">Show All</button>
+                        </div>
+                        <div style="padding: 2px 0;">
+                            <label class="checkbox-label" for="menuIncludeNoteMentions" style="font-size: 11px;">
+                                <input type="checkbox" id="menuIncludeNoteMentions">
+                                <span>Include @mentions from notes</span>
+                            </label>
                         </div>
                         <div class="buddy-list" id="menuBuddyList">
                             <p class="section-sub" style="margin: 0; text-align: center; font-size: 11px;">No travel buddies recorded in loaded trips</p>

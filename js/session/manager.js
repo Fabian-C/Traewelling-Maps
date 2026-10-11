@@ -286,10 +286,13 @@ export async function handleOAuthCallbackProcess() {
         UI.syncTokenInputs(result.accessToken);
         UI.syncUsernameInput(user.data.username);
 
+        // Ensure user is on the setup screen and can freely select/change the query username
+        UI.toggleSetup(true);
         const usernameInput = document.getElementById('username');
         if (usernameInput) {
             usernameInput.value = user.data.username;
             usernameInput.focus();
+            usernameInput.select();
         }
         return true;
     } catch (e) {

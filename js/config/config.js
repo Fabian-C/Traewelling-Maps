@@ -7,7 +7,7 @@ export const CONFIG = {
     RATE_WINDOW: 60000,
     SESSION_MAX_AGE_MS: 1000 * 60 * 60 * 24 * 90, // 90 days
     OAUTH: {
-        CLIENT_ID: '416',
+        CLIENT_ID: '419',
         AUTHORIZE_URL: 'https://traewelling.de/oauth/authorize',
         TOKEN_URL: 'https://traewelling.de/oauth/token',
         SCOPES: 'read-statuses read-statistics',

@@ -39,24 +39,11 @@ export function updateStatistics(data, category, statisticsObj) {
         statisticsObj.lineCounts[lineName] = (statisticsObj.lineCounts[lineName] || 0) + 1;
         statisticsObj.typeCounts[category] = (statisticsObj.typeCounts[category] || 0) + 1;
 
-        // Track travel buddies directly from API data structures (no notes parsing)
-        const currentUsername = (store.get().username || '').toLowerCase();
-        let mentions = f.properties?.bodyMentions;
-        if (typeof mentions === 'string') {
-            try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
-        }
-        if (Array.isArray(mentions)) {
-            mentions.forEach(m => {
-                const u = m.user?.username || m.username;
-                if (u && u.toLowerCase() !== currentUsername) {
-                    statisticsObj.travelBuddies[u] = (statisticsObj.travelBuddies[u] || 0) + 1;
-                }
-            });
-        }
-        const createdBy = f.properties?.createdBy?.username;
-        if (createdBy && createdBy.toLowerCase() !== currentUsername) {
-            statisticsObj.travelBuddies[createdBy] = (statisticsObj.travelBuddies[createdBy] || 0) + 1;
-        }
+        // Track travel buddies using deduplicated, case-insensitive helper
+        const tripBuddies = extractUniqueBuddiesFromTrip(f, null, null);
+        tripBuddies.forEach((displayName) => {
+            statisticsObj.travelBuddies[displayName] = (statisticsObj.travelBuddies[displayName] || 0) + 1;
+        });
 
         if (createdAt) {
             const d = new Date(createdAt);
@@ -111,34 +98,101 @@ export function refreshStatsDisplay(statisticsObj) {
 }
 
 /**
+ * Helper to extract unique travel companions from a single trip.
+ * Deduplicates multiple mentions/sources per trip and groups case-insensitively.
+ * Returns a Map of lowercaseHandle -> preferredDisplayName.
+ */
+export function extractUniqueBuddiesFromTrip(trip, includeNotes = null, currentUsername = null) {
+    const state = store.get();
+    const shouldIncludeNotes = includeNotes !== null ? includeNotes : !!state.filters?.includeNoteMentions;
+    const currentUser = (currentUsername !== null ? currentUsername : (state.username || '')).toLowerCase().trim();
+    const buddyMap = new Map(); // key: lowercase username, value: display username
+
+    const addBuddy = (name) => {
+        if (!name) return;
+        const cleanName = String(name).trim();
+        const lower = cleanName.toLowerCase();
+        if (!lower || (currentUser && lower === currentUser)) return;
+        if (!buddyMap.has(lower)) {
+            buddyMap.set(lower, cleanName);
+        }
+    };
+
+    // 1. Structured API bodyMentions
+    let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
+    if (typeof mentions === 'string') {
+        try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
+    }
+    if (Array.isArray(mentions)) {
+        mentions.forEach(m => {
+            const u = m.user?.username || m.username;
+            addBuddy(u);
+        });
+    }
+
+    // 2. Structured API createdBy (e.g. check-in created by companion)
+    let createdBy = trip.createdBy || trip.properties?.createdBy;
+    if (typeof createdBy === 'string') {
+        try { createdBy = JSON.parse(createdBy); } catch (e) { createdBy = null; }
+    }
+    const createdByUsername = createdBy?.username;
+    addBuddy(createdByUsername);
+
+    // 3. Structured API fellowPassengers / alsoOnThisConnection if available
+    let fps = trip.fellowPassengers || trip.properties?.fellowPassengers;
+    if (typeof fps === 'string') {
+        try { fps = JSON.parse(fps); } catch (e) { fps = []; }
+    }
+    if (Array.isArray(fps)) {
+        fps.forEach(fp => {
+            const u = fp.user?.username || fp.username;
+            addBuddy(u);
+        });
+    }
+
+    // 4. Optionally parse @mentions from check-in notes text
+    if (shouldIncludeNotes) {
+        const noteText = trip.body || trip.properties?.body;
+        if (typeof noteText === 'string' && noteText.includes('@')) {
+            // Match @username (alphanumeric, underscore, hyphen)
+            const matches = noteText.match(/@([a-zA-Z0-9_-]+)/g);
+            if (matches) {
+                matches.forEach(m => {
+                    const handle = m.substring(1);
+                    addBuddy(handle);
+                });
+            }
+        }
+    }
+
+    return buddyMap;
+}
+
+/**
  * Extracts travel companions and trip counts across all fetched trips
  */
-export function getBuddyStats(trips = null) {
+export function getBuddyStats(trips = null, includeNotes = null) {
     const state = store.get();
     const tripList = trips || state.fetchedTrips || [];
     const currentUsername = (state.username || '').toLowerCase().trim();
-    const buddies = {};
+    const buddyCounts = new Map(); // key: lowercase, value: { name: string, count: number }
 
     tripList.forEach(t => {
-        let mentions = t.bodyMentions || t.properties?.bodyMentions;
-        if (typeof mentions === 'string') {
-            try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
-        }
-        if (Array.isArray(mentions)) {
-            mentions.forEach(m => {
-                const u = m.user?.username || m.username;
-                if (u && u.toLowerCase() !== currentUsername) {
-                    buddies[u] = (buddies[u] || 0) + 1;
-                }
-            });
-        }
-        const createdBy = t.createdBy?.username || t.properties?.createdBy?.username;
-        if (createdBy && createdBy.toLowerCase() !== currentUsername) {
-            buddies[createdBy] = (buddies[createdBy] || 0) + 1;
-        }
+        const tripBuddies = extractUniqueBuddiesFromTrip(t, includeNotes, currentUsername);
+        tripBuddies.forEach((displayName, lowerHandle) => {
+            if (!buddyCounts.has(lowerHandle)) {
+                buddyCounts.set(lowerHandle, { name: displayName, count: 0 });
+            }
+            buddyCounts.get(lowerHandle).count++;
+        });
     });
 
-    return buddies;
+    // Convert to dictionary { [displayName]: count }
+    const result = {};
+    buddyCounts.forEach(val => {
+        result[val.name] = val.count;
+    });
+    return result;
 }
 
 /**

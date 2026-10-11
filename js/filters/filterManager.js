@@ -2,6 +2,7 @@
 // All filter logic is centralized here for consistency and modularity
 
 import { isAccuratePolyline } from '../data/processing.js';
+import { extractUniqueBuddiesFromTrip } from '../analytics/statistics.js';
 
 // Filter registry - allows easy addition of new filters
 const filters = {
@@ -145,37 +146,14 @@ function filterTripsBySearch(trips, query) {
 }
 
 /**
- * Filter trips by specific travel buddy (from API data: bodyMentions, createdBy, fellowPassengers)
+ * Filter trips by specific travel buddy (from deduplicated sources: bodyMentions, createdBy, fellowPassengers, and optional notes)
  */
 function filterTripsByBuddy(trips, targetBuddy) {
     if (!trips.length || !targetBuddy) return trips.slice();
     const target = targetBuddy.toLowerCase().trim();
     return trips.filter(trip => {
-        // Check bodyMentions
-        let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
-        if (typeof mentions === 'string') {
-            try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
-        }
-        if (Array.isArray(mentions)) {
-            if (mentions.some(m => {
-                const u = m.user?.username || m.username || '';
-                return u.toLowerCase() === target;
-            })) return true;
-        }
-        // Check createdBy
-        const createdBy = trip.createdBy?.username || trip.properties?.createdBy?.username;
-        if (createdBy && createdBy.toLowerCase() === target) {
-            return true;
-        }
-        // Check fellowPassengers / alsoOnThisConnection if present
-        let fps = trip.fellowPassengers || trip.properties?.fellowPassengers;
-        if (typeof fps === 'string') {
-            try { fps = JSON.parse(fps); } catch (e) { fps = []; }
-        }
-        if (Array.isArray(fps)) {
-            if (fps.some(fp => (fp.user?.username || fp.username || '').toLowerCase() === target)) return true;
-        }
-        return false;
+        const tripBuddies = extractUniqueBuddiesFromTrip(trip);
+        return tripBuddies.has(target);
     });
 }
 

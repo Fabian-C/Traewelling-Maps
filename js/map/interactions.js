@@ -396,28 +396,34 @@ export function showPopup(lngLat, feature) {
     ` : '';
 
     const body = props.body ? escapeHtml(props.body.trim()) : '';
+
+    // Extract deduplicated buddies for the popup
+    const popupBuddies = [];
     let bodyMentions = props.bodyMentions;
     if (typeof bodyMentions === 'string') {
         try { bodyMentions = JSON.parse(bodyMentions); } catch (e) { bodyMentions = []; }
     }
-    bodyMentions = Array.isArray(bodyMentions) ? bodyMentions : [];
+    if (Array.isArray(bodyMentions)) {
+        bodyMentions.forEach(m => {
+            const u = m.user?.username || m.username;
+            if (u && !popupBuddies.some(b => b.toLowerCase() === u.toLowerCase())) {
+                popupBuddies.push(u);
+            }
+        });
+    }
 
     let createdBy = props.createdBy;
     if (typeof createdBy === 'string') {
         try { createdBy = JSON.parse(createdBy); } catch (e) { createdBy = null; }
     }
-
-    let mentionsHtml = '';
-    const buddyLinks = [];
-    bodyMentions.forEach(m => {
-        const u = m.user?.username || m.username;
-        if (u) buddyLinks.push(`<a href="https://traewelling.de/@${escapeHtml(u)}" target="_blank" class="mention-link">@${escapeHtml(u)}</a>`);
-    });
-    if (createdBy?.username && !buddyLinks.some(l => l.includes(`@${escapeHtml(createdBy.username)}`))) {
-        buddyLinks.push(`<a href="https://traewelling.de/@${escapeHtml(createdBy.username)}" target="_blank" class="mention-link">@${escapeHtml(createdBy.username)}</a>`);
+    const createdByUsername = createdBy?.username;
+    if (createdByUsername && !popupBuddies.some(b => b.toLowerCase() === createdByUsername.toLowerCase())) {
+        popupBuddies.push(createdByUsername);
     }
 
-    if (buddyLinks.length > 0) {
+    let mentionsHtml = '';
+    if (popupBuddies.length > 0) {
+        const buddyLinks = popupBuddies.map(u => `<a href="https://traewelling.de/@${escapeHtml(u)}" target="_blank" class="mention-link">@${escapeHtml(u)}</a>`);
         mentionsHtml = `
             <div class="popup-mentions">
                 <label>Travel Buddies:</label>
@@ -426,12 +432,25 @@ export function showPopup(lngLat, feature) {
         `;
     }
 
-    const commentHtml = body || mentionsHtml ? `
-        <div class="popup-comment">
-            ${body ? `<label>Note / Comment:</label><p>${body}</p>` : ''}
-            ${mentionsHtml}
-        </div>
-    ` : '';
+    let commentHtml = '';
+    if (body || mentionsHtml) {
+        commentHtml = `
+            <div class="popup-comment">
+                ${body ? `
+                    <details class="popup-comment-details">
+                        <summary class="popup-comment-summary">
+                            <span>💬 Check-in Note</span>
+                            <span class="popup-comment-toggle">▾</span>
+                        </summary>
+                        <div class="popup-comment-content">
+                            <p>${body}</p>
+                        </div>
+                    </details>
+                ` : ''}
+                ${mentionsHtml}
+            </div>
+        `;
+    }
 
     const html = `<div class="popup-content">
         <div class="popup-title">
