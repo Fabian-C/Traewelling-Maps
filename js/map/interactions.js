@@ -24,8 +24,8 @@ export function initMap() {
         touchPitch: false,
         dragRotate: !isMobile,
         maxZoom: 20,
-        // Ensure proper rendering on mobile
-        preserveDrawingBuffer: isMobile
+        // Ensure proper rendering and canvas screenshots on all devices
+        preserveDrawingBuffer: true
     });
 
     try {

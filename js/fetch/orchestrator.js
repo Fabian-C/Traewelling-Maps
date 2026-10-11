@@ -438,4 +438,5 @@ export async function processAndDisplayData(trips) {
     } else {
         updateDelayOverlaySummary();
     }
+    document.body.dataset.mapReady = 'true';
 }

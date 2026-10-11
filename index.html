@@ -161,6 +161,21 @@
                 }
             }
 
+            // Support ?user= query param to automatically explore a user profile (e.g. ?user=Hash&limit=50)
+            const userParam = new URLSearchParams(window.location.search).get('user');
+            if (userParam) {
+                const limitParam = new URLSearchParams(window.location.search).get('limit');
+                const limitSelect = document.getElementById('fetchLimitSelect');
+                if (limitParam && limitSelect) {
+                    limitSelect.value = limitParam;
+                }
+                const userInput = document.getElementById('username');
+                if (userInput) {
+                    userInput.value = userParam;
+                }
+                window.startDataFetch(false);
+            }
+
             // Preview query param handler for testing and automated screenshots
             const previewMode = new URLSearchParams(window.location.search).get('preview');
             if (previewMode) {
@@ -408,7 +423,7 @@
 
     <!-- Map -->
     <div id="map"></div>
-    <div class="status-banner" id="statusBanner" role="status" aria-live="polite">
+    <div class="status-banner hidden" id="statusBanner" role="status" aria-live="polite">
         <div>
             <strong>Heads-up:</strong>
             Träwelling's GeoJSON export is degraded due to an upstream issue.
