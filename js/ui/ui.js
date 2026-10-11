@@ -22,6 +22,7 @@ export const UI = {
             tokenOwnerProfileLink: document.getElementById('tokenOwnerProfileLink'),
             tokenStatusText: document.getElementById('tokenStatusText'),
             tokenExpiryText: document.getElementById('tokenExpiryText'),
+            menuApiTokenDetails: document.getElementById('menuApiTokenDetails'),
             menuApiToken: document.getElementById('menuApiToken'),
             menuUsername: document.getElementById('menuUsername'),
             menuValidateBtn: document.getElementById('menuValidateBtn'),
@@ -483,6 +484,18 @@ export const UI = {
             if (usernameLabel) usernameLabel.textContent = 'Username';
             if (usernameHint) usernameHint.textContent = '';
         }
+
+        this.updateTokenVisibility();
+    },
+    updateTokenVisibility() {
+        if (!this.refs?.menuApiTokenDetails) {
+            this.refs.menuApiTokenDetails = document.getElementById('menuApiTokenDetails');
+        }
+        if (!this.refs?.menuApiTokenDetails) return;
+        const authMethod = (typeof window !== 'undefined' && window.state?.authMethod) 
+            || (typeof localStorage !== 'undefined' ? localStorage.getItem('tw_auth_method') : null);
+        // Only display if user explicitly entered via dedicated API token
+        this.refs.menuApiTokenDetails.style.display = (authMethod === 'token') ? 'block' : 'none';
     },
     setTokenStatus(message, state = 'idle', expiryText = '') {
         if (!this.refs) return;

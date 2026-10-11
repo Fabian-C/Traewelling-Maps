@@ -205,10 +205,15 @@ export async function updateMenuAccountList() {
     }
 }
 
-export function rememberToken(token, { autoValidate = true } = {}) {
+export function rememberToken(token, { autoValidate = true, authMethod = 'token' } = {}) {
     if (!token) return;
     try {
         localStorage.setItem('tw_token', token);
+        if (authMethod) {
+            localStorage.setItem('tw_auth_method', authMethod);
+            const state = store.get();
+            if (state) state.authMethod = authMethod;
+        }
     } catch (error) {
         console.warn('Failed to persist API token for auto-validation:', error);
     }
@@ -230,6 +235,9 @@ export async function validateStoredToken(token) {
             validated: true
         };
         state.token = token;
+        if (!state.authMethod) {
+            state.authMethod = localStorage.getItem('tw_auth_method') || 'token';
+        }
         UI.setTokenOwner(state.tokenOwner);
         UI.setTokenStatus('Token valid', 'success');
         UI.syncTokenInputs(token);
@@ -237,7 +245,10 @@ export async function validateStoredToken(token) {
         console.warn('Auto-validation failed:', error);
         UI.setTokenStatus('Token expired', 'error');
         localStorage.removeItem('tw_token');
+        localStorage.removeItem('tw_auth_method');
         state.token = null;
+        state.authMethod = null;
+        UI.updateTokenVisibility();
     }
 }
 
@@ -245,8 +256,9 @@ export function logout() {
     const state = store.get();
     try {
         localStorage.removeItem('tw_token');
+        localStorage.removeItem('tw_auth_method');
     } catch (e) {}
-    state.token = null; state.username = null; state.fetchedTrips = [];
+    state.token = null; state.authMethod = null; state.username = null; state.fetchedTrips = [];
     state.tokenOwner = { username: null, displayName: null, avatar: null, profileUrl: null, validated: false };
     state.layers.data.clear();
     CONFIG.LAYER_CONFIG.forEach(([id]) => {
@@ -265,9 +277,14 @@ export async function handleOAuthCallbackProcess() {
         const result = await OAuth.checkForCallback();
         if (!result) return false;
 
-        rememberToken(result.accessToken, { autoValidate: false });
+        rememberToken(result.accessToken, { autoValidate: false, authMethod: 'oauth' });
 
         const state = store.get();
+        state.authMethod = 'oauth';
+        try {
+            localStorage.setItem('tw_auth_method', 'oauth');
+        } catch (e) {}
+
         const api = new TraewellingAPI(result.accessToken);
         const user = await api.getAuthenticatedUser();
 

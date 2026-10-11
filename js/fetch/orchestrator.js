@@ -24,7 +24,10 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
     if (!username) return alert('Please enter a username');
 
     state.token = token; state.username = username; state.isFetching = true;
-    if (token) rememberToken(token, { autoValidate: false });
+    if (token) {
+        const authMethod = state.authMethod || (document.getElementById('apiToken').value.trim() ? 'token' : 'token');
+        rememberToken(token, { autoValidate: false, authMethod });
+    }
     state.cancelFetch = false;
     
     // Check for cached data for incremental fetch

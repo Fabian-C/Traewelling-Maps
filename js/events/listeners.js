@@ -327,8 +327,9 @@ export function setupEventListeners() {
                 UI.setTokenOwner(state.tokenOwner);
                 UI.setTokenStatus('Token valid', 'success');
                 state.token = token;
+                state.authMethod = 'token';
                 UI.syncTokenInputs(token);
-                rememberToken(token, { autoValidate: false });
+                rememberToken(token, { autoValidate: false, authMethod: 'token' });
             } catch (error) {
                 UI.setTokenStatus('Invalid token', 'error');
                 state.tokenOwner.validated = false;

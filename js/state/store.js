@@ -17,6 +17,7 @@ class StateStore {
             isMapMoving: false,
             lastMoveEndTime: 0,
             token: null,
+            authMethod: typeof localStorage !== 'undefined' ? localStorage.getItem('tw_auth_method') : null,
             username: null,
             datasetVersion: 0,
             fetchedTrips: [],
