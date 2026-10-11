@@ -508,11 +508,12 @@ input:checked+.toggle-slider:before { transform: translateX(22px); }
 .delay-section { padding: 4px 0 8px; display: flex; flex-direction: column; gap: 2px; }
 .delay-summary-line { display: block; margin: 0; font-size: 12px; line-height: 1.3; }
 .stats-panel { position: absolute; top: 10px; left: -340px; background: var(--menu-bg); padding: 14px 16px;
-    border: 1px solid var(--border-color); border-radius: 12px; z-index: 999; width: 220px; box-sizing: border-box;
+    border: 1px solid var(--border-color); border-radius: 12px; z-index: 1005; width: 220px; box-sizing: border-box;
     backdrop-filter: blur(12px); opacity: 0; transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none;
     box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
 .stats-panel.active { transform: translateX(350px); opacity: 1; pointer-events: auto; }
 .stats-title { font-size: 13px; font-weight: 700; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; }
+.stats-close-btn:hover { color: var(--text-primary) !important; }
 .stat-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; }
 .stat-label { color: var(--text-secondary); font-size: 11px; }
 .stat-value { font-weight: 700; color: var(--text-primary); text-align: right; }
@@ -530,6 +531,11 @@ input:checked+.toggle-slider:before { transform: translateX(22px); }
     gap: 6px;
     max-width: calc(100vw - 320px);
     pointer-events: auto;
+    transition: left 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+body.stats-open .active-filter-badges {
+    left: 240px;
+    max-width: calc(100vw - 550px);
 }
 .filter-badge {
     display: inline-flex;
@@ -849,6 +855,7 @@ input:checked+.toggle-slider:before { transform: translateX(22px); }
     .stats-panel { top: 8px; left: -260px; width: 220px; max-width: 80vw; font-size: 11px; }
     .stats-panel.active { transform: translateX(268px); }
     .active-filter-badges { top: 8px; left: 8px; max-width: calc(100vw - 120px); gap: 4px; }
+    body.stats-open .active-filter-badges { left: 240px; max-width: calc(100vw - 340px); }
     .filter-badge { padding: 4px 8px; font-size: 10px; }
     .btn-share { padding: 12px; min-height: 44px; }
     .account-card { padding: 10px; }

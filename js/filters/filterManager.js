@@ -98,6 +98,8 @@ function filterTripsByAccuracy(trips, filterLevel) {
     return trips.filter(trip => {
         const category = trip.train?.category || 'unknown';
         const coords = trip.train?.polyline?.geometry?.coordinates;
+        // Check-ins without geodata do not disrupt the map and must still be counted in statistics
+        if (!coords || coords.length < 2) return true;
         return isAccuratePolyline(coords, category, filterLevel);
     });
 }

@@ -303,6 +303,19 @@ export async function processAndDisplayData(trips) {
     const activeTrips = refreshActiveTrips();
     const categories = dataProcessing.processTripsToGeoJSON(activeTrips);
 
+    // Populate initial state.layers.data with route data so layer counts are accurate immediately
+    state.layers.order.forEach(layerId => {
+        const config = CONFIG.LAYER_CONFIG.find(([id]) => id === layerId);
+        const color = config ? config[1] : '#888888';
+        const data = categories[layerId] || { type: 'FeatureCollection', features: [] };
+        const existing = state.layers.data.get(layerId);
+        state.layers.data.set(layerId, {
+            data,
+            color,
+            visible: existing !== undefined ? existing.visible : true
+        });
+    });
+
     if (!state.map) {
         initMap();
     }

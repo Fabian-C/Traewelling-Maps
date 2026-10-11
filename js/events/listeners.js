@@ -28,10 +28,13 @@ export function setupEventListeners() {
         });
     }
 
-    document.getElementById('statsToggle').onclick = () => {
+    const toggleStatsPanel = (show) => {
         const panel = document.getElementById('statsPanel');
-        panel.classList.toggle('active');
-        if (panel.classList.contains('active')) {
+        if (!panel) return;
+        const isActive = show !== undefined ? show : !panel.classList.contains('active');
+        panel.classList.toggle('active', isActive);
+        document.body.classList.toggle('stats-open', isActive);
+        if (isActive) {
             analytics.refreshStatsDisplay(state.statistics);
             // On mobile devices, close main menu so they don't overlap
             if (window.innerWidth <= 768) {
@@ -40,6 +43,12 @@ export function setupEventListeners() {
             }
         }
     };
+
+    document.getElementById('statsToggle').onclick = () => toggleStatsPanel();
+    const statsCloseBtn = document.getElementById('statsCloseBtn');
+    if (statsCloseBtn) {
+        statsCloseBtn.onclick = () => toggleStatsPanel(false);
+    }
     document.getElementById('railwayToggle').onclick = () => {
         state.railway.enabled = !state.railway.enabled;
         if (state.map && state.map.getLayer('open-railway-map')) {
@@ -86,6 +95,7 @@ export function setupEventListeners() {
             const layer = state.layers.data.get(layerId);
             if (layer) layer.data = data;
         });
+        loadLayers();
         updateAllStats();
         
         // Update heatmap if enabled
@@ -412,6 +422,7 @@ function applyTimeFilter() {
         const layer = state.layers.data.get(layerId);
         if (layer) layer.data = data;
     });
+    loadLayers();
     updateAllStats();
     if (state.heatmap.enabled) updateRouteDensity(true);
     analytics.updateMenuBuddyList(applyBuddyFilter);
@@ -437,6 +448,7 @@ function applyBusinessFilter() {
         const layer = state.layers.data.get(layerId);
         if (layer) layer.data = data;
     });
+    loadLayers();
     updateAllStats();
     if (state.heatmap.enabled) updateRouteDensity(true);
     analytics.updateMenuBuddyList(applyBuddyFilter);
@@ -461,6 +473,7 @@ function applySearchFilter() {
         const layer = state.layers.data.get(layerId);
         if (layer) layer.data = data;
     });
+    loadLayers();
     updateAllStats();
     if (state.heatmap.enabled) updateRouteDensity(true);
     analytics.updateMenuBuddyList(applyBuddyFilter);
@@ -501,6 +514,7 @@ export function applyBuddyFilter(buddy) {
         const layer = state.layers.data.get(layerId);
         if (layer) layer.data = data;
     });
+    loadLayers();
     updateAllStats();
     if (state.heatmap.enabled) updateRouteDensity(true);
     analytics.updateMenuBuddyList(applyBuddyFilter);
@@ -552,6 +566,7 @@ export function resetAllActiveFilters() {
         const layer = state.layers.data.get(layerId);
         if (layer) layer.data = data;
     });
+    loadLayers();
     updateAllStats();
     if (state.heatmap.enabled) updateRouteDensity(true);
     analytics.updateMenuBuddyList(applyBuddyFilter);

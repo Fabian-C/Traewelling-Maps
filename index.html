@@ -304,7 +304,10 @@
 
         <!-- Stats Panel -->
     <div class="stats-panel" id="statsPanel">
-        <h3 class="stats-title">📊 Statistics</h3>
+        <h3 class="stats-title">
+            <span>📊 Statistics</span>
+            <button type="button" class="stats-close-btn" id="statsCloseBtn" aria-label="Close statistics" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;">✕</button>
+        </h3>
         <div class="stat-item"><span class="stat-label">Total Trips:</span><span class="stat-value" id="statTrips">0</span></div>
         <div class="stat-item"><span class="stat-label">Total Distance:</span><span class="stat-value" id="statDistance">0 km</span></div>
         <div class="stat-item"><span class="stat-label">Most Used Line:</span><span class="stat-value" id="statLine">-</span></div>
