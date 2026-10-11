@@ -29,7 +29,6 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         rememberToken(token, { autoValidate: false, authMethod });
     }
     state.cancelFetch = false;
-    state.stopFetchEarly = false;
     
     // Check for cached data for incremental fetch
     let cachedTrips = null;
@@ -131,11 +130,11 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
 
         const skipPageFetching = resumeFromState && state.fetchProgress && state.fetchProgress.pagesFetchComplete;
         
-        const limitEl = document.getElementById('fetchLimitSelect');
-        const tripLimit = limitEl ? parseInt(limitEl.value, 10) : 0;
+        const urlLimit = typeof window !== 'undefined' ? parseInt(new URLSearchParams(window.location.search).get('limit'), 10) : 0;
+        const tripLimit = !isNaN(urlLimit) && urlLimit > 0 ? urlLimit : 0;
 
         if (!skipPageFetching) {
-            while (hasMore && !state.cancelFetch && !state.stopFetchEarly) {
+            while (hasMore && !state.cancelFetch) {
                 UI.updateFetchStats({ status: `Fetching page ${page}...` });
                 const response = await api.getUserStatuses(username, page);
                 if (!response?.data?.length) { hasMore = false; break; }
@@ -190,7 +189,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             UI.updateFetchStats({ trips: allStatuses.length, pages: page - 1 });
         }
 
-        if (state.cancelFetch && !state.stopFetchEarly) return showFetchError('Cancelled', false);
+        if (state.cancelFetch) return showFetchError('Cancelled', false);
 
         UI.updateFetchStats({ status: 'Fetching route polylines...' });
         let polylineCount = resumeFromState && state.fetchProgress ? state.fetchProgress.polylineCount : 0;
@@ -200,7 +199,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         const totalBatches = Math.ceil((tripsWithTrain.length - startIndex) / batchSize);
         UI.startLoadingToTrain(totalBatches);
         
-        for (let i = startIndex; i < tripsWithTrain.length && !state.cancelFetch && !state.stopFetchEarly; i += batchSize) {
+        for (let i = startIndex; i < tripsWithTrain.length && !state.cancelFetch; i += batchSize) {
             const batch = tripsWithTrain.slice(i, i + Math.min(batchSize, tripsWithTrain.length - i));
             const statusIds = batch.map(s => s.id);
             
@@ -222,8 +221,8 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             
             UI.updateFetchStats({ routes: polylineCount, progress: ((i + batch.length) / tripsWithTrain.length) * 100 });
             UI.onPolylineBatchComplete();
-            await UI.waitForTrainCatchUp(() => state.cancelFetch || state.stopFetchEarly);
-            if (state.cancelFetch || state.stopFetchEarly) break;
+            await UI.waitForTrainCatchUp(() => state.cancelFetch);
+            if (state.cancelFetch) break;
             
             state.fetchProgress = {
                 page: page,
@@ -259,12 +258,6 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                        (state.fetchProgress.allStatuses.length > 0 || state.fetchProgress.processedPolylines > 0);
         showFetchError(error.message, canRetry);
     }
-}
-
-export function stopAndShowData() {
-    const state = store.get();
-    state.stopFetchEarly = true;
-    UI.updateFetchStats({ status: 'Wrapping up and displaying data...' });
 }
 
 export function cancelFetch() { 
