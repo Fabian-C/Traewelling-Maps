@@ -652,7 +652,7 @@ export const UI = {
         const rootStyle = window.getComputedStyle(document.documentElement);
         const gantryTrainLeft = parseFloat(rootStyle.getPropertyValue('--gantry-train-left'));
         const gantryWidth = parseFloat(rootStyle.getPropertyValue('--gantry-width'));
-        const safeGantryLeft = Number.isFinite(gantryTrainLeft) ? gantryTrainLeft : 140;
+        const safeGantryLeft = Number.isFinite(gantryTrainLeft) ? gantryTrainLeft : (window.innerWidth <= 768 ? 95 : 130);
         const safeGantryWidth = Number.isFinite(gantryWidth) ? gantryWidth : 136;
         const targetCenter = safeGantryLeft + (safeGantryWidth / 2);
 

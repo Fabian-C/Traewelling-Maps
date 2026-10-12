@@ -4,7 +4,7 @@
     --border-color: #333333; --hover-bg: #2a2a2a; --menu-bg: rgba(26, 26, 26, 0.95);
     --popup-bg: rgba(30, 30, 30, 0.95); --shadow: rgba(0, 0, 0, 0.3);
     --accent-color: #667eea; --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --depot-width: 130px; --gantry-width: 136px; --gantry-depot-left: 32px; --gantry-train-left: 140px;
+    --depot-width: 130px; --gantry-width: 136px; --gantry-depot-left: 32px; --gantry-train-left: 130px;
 }
 * {
     box-sizing: border-box;
@@ -1594,7 +1594,7 @@ body.stats-open .active-filter-badges {
 }
 
 @media (max-width: 768px) {
-    :root { --depot-width: 106px; --gantry-width: 106px; --gantry-depot-left: 30px; --gantry-train-left: 120px; }
+    :root { --depot-width: 106px; --gantry-width: 106px; --gantry-depot-left: 30px; --gantry-train-left: 95px; }
     .setup-screen { padding: 16px; overflow-y: auto; align-items: flex-start; }
     .setup-container { padding: 22px 18px; margin: auto 0; width: 100%; max-width: 440px; border-radius: 12px; }
     .setup-header { margin-bottom: 12px; }
@@ -1631,7 +1631,7 @@ body.stats-open .active-filter-badges {
     .account-avatar { width: 36px; height: 36px; font-size: 14px; }
 }
 @media (max-width: 375px) {
-    :root { --depot-width: 98px; --gantry-width: 100px; --gantry-depot-left: 18px; --gantry-train-left: 128px; }
+    :root { --depot-width: 98px; --gantry-width: 100px; --gantry-depot-left: 18px; --gantry-train-left: 88px; }
     .menu { max-width: 85vw; }
     .stats-panel { width: 180px; max-width: 58vw; padding: 8px 10px; font-size: 10px; }
     .stats-panel.active { transform: translateX(218px); }
