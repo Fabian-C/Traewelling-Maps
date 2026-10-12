@@ -229,13 +229,16 @@ export async function fetchStopoversForTrips(trips = [], onProgress = null) {
 
     for (let i = 0; i < stillMissing.length; i += BATCH_SIZE) {
         const batch = stillMissing.slice(i, i + BATCH_SIZE);
-        const batchIds = batch.map(t => t.id);
+        const queryIds = batch.map(t => t.train?.trip || t.id).filter(Boolean);
 
         try {
-            const res = await api.getStopovers(batchIds);
+            const res = await api.getStopovers(queryIds);
             const data = res?.data || {};
             batch.forEach(t => {
-                const stops = Array.isArray(data[t.id]) ? data[t.id] : [];
+                const tripId = t.train?.trip;
+                const stops = Array.isArray(data[tripId]) 
+                    ? data[tripId] 
+                    : (Array.isArray(data[t.id]) ? data[t.id] : []);
                 t.train.stopovers = stops;
                 newlyFetched[t.id] = stops;
             });
