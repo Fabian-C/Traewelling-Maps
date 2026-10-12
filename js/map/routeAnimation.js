@@ -137,7 +137,11 @@ export const RouteAnimation = {
             state.filters.fromDate || 'null',
             state.filters.toDate || 'null',
             state.layers.order.filter(id => state.layers.data.get(id)?.visible).join('-'),
-            state.heatmap.intensity
+            state.heatmap.intensity,
+            (state.filters.buddies || []).join(','),
+            state.filters.buddy || 'null',
+            state.filters.business ? `${state.filters.business.personal ? 1 : 0}${state.filters.business.work ? 1 : 0}${state.filters.business.commute ? 1 : 0}` : '111',
+            state.filters.searchQuery || 'null'
         ].join('|');
         
         if (this.data.routes && this.data.key === cacheKey) {

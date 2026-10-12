@@ -138,13 +138,12 @@ export function updateDelayOverlay(force = false) {
     state.deckLayers.push(overlayLayer);
     if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
 
+    const worstRoute = selected[0];
     state.delays.lastStats = {
         count: featureCollection.features.length,
         minDelay: state.delays.minDelayMinutes,
-        worstDelayMinutes: featureCollection.features.length
-            ? featureCollection.features[featureCollection.features.length - 1].properties.delayMinutes
-            : null,
-        worstLine: selected[0]?.lineName
+        worstDelayMinutes: worstRoute ? Math.max(0, Math.round(worstRoute.delaySeconds / 60)) : null,
+        worstLine: worstRoute?.lineName || '—'
     };
     updateDelayOverlaySummary();
 }

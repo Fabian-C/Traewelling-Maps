@@ -86,7 +86,7 @@ export function toggleHeatmap(enabled) {
     } else {
         // Restore Mapbox layers visibility
         state.layers.data.forEach((layer, id) => { 
-            if (layer.visible) {
+            if (layer.visible && state.map?.getLayer(id)) {
                 state.map.setLayoutProperty(id, 'visibility', 'visible');
             }
         });
@@ -145,7 +145,11 @@ export function buildRouteDensityLines(state, force = false) {
         state.heatmap.densityRadius,
         state.filters.filterLevel,
         state.filters.fromDate || 'null',
-        state.filters.toDate || 'null'
+        state.filters.toDate || 'null',
+        (state.filters.buddies || []).join(','),
+        state.filters.buddy || 'null',
+        state.filters.business ? `${state.filters.business.personal ? 1 : 0}${state.filters.business.work ? 1 : 0}${state.filters.business.commute ? 1 : 0}` : '111',
+        state.filters.searchQuery || 'null'
     ].join('|');
 
     if (!force && state.heatmap.lineData && state.heatmap.cacheKey === cacheKey) {

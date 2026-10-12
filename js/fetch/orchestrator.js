@@ -218,6 +218,18 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         if (state.cancelFetch) return showFetchError('Cancelled', false);
 
         if (allStatuses.length === 0) {
+            if (incremental && cachedTrips && cachedTrips.length > 0) {
+                state.fetchedTrips = cachedTrips;
+                state.activeTrips = state.fetchedTrips;
+                saveCurrentSession(true);
+                UI.updateFetchStats({ status: 'Already up to date!', progress: 100 });
+                await processAndDisplayData(state.fetchedTrips);
+                await UI.departTrain();
+                FunFacts.stop();
+                UI.releaseWakeLock();
+                return;
+            }
+
             FunFacts.stop();
             UI.releaseWakeLock();
             return showFetchError({

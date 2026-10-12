@@ -62,12 +62,12 @@ export function updateStatisticsWithTrip(trip, statisticsObj) {
     statisticsObj.typeCounts[category] = (statisticsObj.typeCounts[category] || 0) + 1;
 
     if (timestamp !== null) {
-        if (statisticsObj.oldestTimestamp === null || timestamp < statisticsObj.oldestTimestamp) { 
+        if (statisticsObj.oldestTimestamp == null || timestamp < statisticsObj.oldestTimestamp) { 
             statisticsObj.oldestTimestamp = timestamp; 
             statisticsObj.oldestDate = new Date(timestamp); 
             statisticsObj.oldestStatusId = statusId; 
         }
-        if (statisticsObj.newestTimestamp === null || timestamp > statisticsObj.newestTimestamp) { 
+        if (statisticsObj.newestTimestamp == null || timestamp > statisticsObj.newestTimestamp) { 
             statisticsObj.newestTimestamp = timestamp; 
             statisticsObj.newestDate = new Date(timestamp); 
             statisticsObj.newestStatusId = statusId; 
@@ -79,7 +79,7 @@ export function updateStatisticsWithTrip(trip, statisticsObj) {
 
 export function updateStatistics(data, category, statisticsObj) {
     if (!statisticsObj) {
-        statisticsObj = { trips: 0, distance: 0, lineCounts: {}, typeCounts: {}, travelBuddies: {}, oldestDate: null, newestDate: null, oldestStatusId: null, newestStatusId: null };
+        statisticsObj = { trips: 0, distance: 0, lineCounts: {}, typeCounts: {}, travelBuddies: {}, oldestDate: null, newestDate: null, oldestStatusId: null, newestStatusId: null, oldestTimestamp: null, newestTimestamp: null };
     }
     if (data?.features) {
         data.features.forEach(f => {
@@ -335,18 +335,19 @@ export function updateMenuBuddyList(onSelectBuddy = null) {
         }
     }
 
+    const selectedBuddies = (state.filters.buddies || (state.filters.buddy ? [state.filters.buddy] : []))
+        .map(b => String(b).toLowerCase().trim())
+        .filter(Boolean);
+    const selectedSet = new Set(selectedBuddies);
+
     if (clearBtn) {
-        clearBtn.style.display = 'none';
+        clearBtn.style.display = selectedBuddies.length > 0 ? '' : 'none';
     }
 
     if (sorted.length === 0) {
         listEl.innerHTML = '<p class="section-sub" style="margin: 0; text-align: center; font-size: 11px;">No travel buddies recorded in loaded trips</p>';
         return;
     }
-
-    const selectedBuddies = (state.filters.buddies || (state.filters.buddy ? [state.filters.buddy] : []))
-        .map(b => String(b).toLowerCase().trim());
-    const selectedSet = new Set(selectedBuddies);
 
     listEl.innerHTML = sorted.map(([user, count]) => {
         const isActive = selectedSet.has(user.toLowerCase());
