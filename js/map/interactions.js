@@ -126,7 +126,7 @@ export function waitForMapReady(timeoutMs = 4000) {
 function queryLayersNearPoint(point, layers, tolerance = 10) {
     const state = store.get();
     if (!state?.map || !point || !layers?.length) return [];
-    const clamped = Math.max(2, Math.min(50, tolerance));
+    const clamped = Math.max(2, Math.min(80, tolerance));
     const bounds = [
         [point.x - clamped, point.y - clamped],
         [point.x + clamped, point.y + clamped]
@@ -139,11 +139,28 @@ function queryLayersNearPoint(point, layers, tolerance = 10) {
     }
 }
 
-function measureFeatureDistance(feature, lngLat) {
-    if (!feature || !lngLat || !window.turf) return Infinity;
+function measureFeatureDistance(feature, lngLat, clickPoint = null) {
+    if (!feature) return Infinity;
+    const state = store.get();
+    const geom = feature.geometry;
+
+    // Prefer screen-space pixel distance if map.project and clickPoint are available
+    if (state.map?.project && clickPoint && geom?.type === 'LineString' && Array.isArray(geom.coordinates)) {
+        let minPixelDist = Infinity;
+        const coords = geom.coordinates;
+        for (let i = 0; i < coords.length - 1; i++) {
+            const p1 = state.map.project(coords[i]);
+            const p2 = state.map.project(coords[i + 1]);
+            const d = pointToSegmentDistancePx(clickPoint.x, clickPoint.y, p1.x, p1.y, p2.x, p2.y);
+            if (d < minPixelDist) minPixelDist = d;
+            if (minPixelDist <= 1) break;
+        }
+        return minPixelDist;
+    }
+
+    if (!lngLat || !window.turf) return Infinity;
     try {
         const point = turf.point([lngLat.lng, lngLat.lat]);
-        const geom = feature.geometry;
         if (geom?.type === 'LineString' && Array.isArray(geom.coordinates)) {
             const line = turf.lineString(geom.coordinates);
             return turf.pointToLineDistance(point, line, { units: 'kilometers' });
@@ -165,12 +182,12 @@ function measureFeatureDistance(feature, lngLat) {
     return Infinity;
 }
 
-function pickClosestFeature(features, lngLat) {
+function pickClosestFeature(features, lngLat, clickPoint = null) {
     if (!Array.isArray(features) || !features.length) return null;
     let winner = null;
     let bestDistance = Infinity;
     features.forEach((feature) => {
-        const distance = measureFeatureDistance(feature, lngLat);
+        const distance = measureFeatureDistance(feature, lngLat, clickPoint);
         if (distance < bestDistance) {
             bestDistance = distance;
             winner = feature;
@@ -278,7 +295,8 @@ export function setupMapInteractions() {
         const layers = getActiveLayers();
         if (!layers.length) return;
         
-        const tolerance = getTapTolerancePx();
+        const currentZoom = state.map?.getZoom?.() ?? null;
+        const tolerance = getTapTolerancePx(currentZoom);
         let features = state.map.queryRenderedFeatures(e.point, { layers });
         if (!features.length) {
             features = queryLayersNearPoint(e.point, layers, tolerance);
@@ -290,7 +308,7 @@ export function setupMapInteractions() {
             }
         }
         if (!features.length) return;
-        const feature = pickClosestFeature(features, e.lngLat) || features[0];
+        const feature = pickClosestFeature(features, e.lngLat, e.point) || features[0];
         const snapped = snapLngLatToLine(e.lngLat, feature);
         const anchor = snapped || e.lngLat;
         showPopup(anchor, feature);

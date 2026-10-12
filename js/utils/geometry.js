@@ -1,10 +1,38 @@
 // Geometry and coordinate utilities
 
 /**
- * Get tap tolerance in pixels based on device type
+ * Get tap tolerance in pixels based on device type and map zoom level.
+ * High zoom levels (zoomed in) require a generous pixel tolerance, especially
+ * on touch devices where fingers cover ~30-44px.
  */
-export function getTapTolerancePx() {
-    return window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth <= 768 ? 12 : 10;
+export function getTapTolerancePx(zoom = null) {
+    const isTouch = (typeof window !== 'undefined') && (
+        window.matchMedia?.('(pointer: coarse)').matches ||
+        window.innerWidth <= 768 ||
+        (navigator.maxTouchPoints > 0)
+    );
+
+    // If zoom is not provided, try to read current map zoom if available
+    let currentZoom = zoom;
+    if (currentZoom === null && typeof window !== 'undefined') {
+        try {
+            const map = window._activeMapInstance || (window.store?.get?.()?.map);
+            if (map?.getZoom) currentZoom = map.getZoom();
+        } catch (_) {}
+    }
+
+    // Base tolerance for touch vs pointer
+    const baseTol = isTouch ? 36 : 16;
+    if (currentZoom == null) return baseTol;
+
+    // When zoomed in (z12 to z20), lines are visually thicker or tracks are spread out,
+    // so ensure tolerance is at least 32-44px on mobile and 18-28px on desktop.
+    if (currentZoom >= 14) {
+        return isTouch ? 44 : 24;
+    } else if (currentZoom >= 10) {
+        return isTouch ? 38 : 20;
+    }
+    return baseTol;
 }
 
 /**
@@ -23,20 +51,6 @@ export function snapLngLatToLine(lngLat, featureOrGeometry) {
         );
         const nearestCoords = nearest?.geometry?.coordinates;
         if (!nearestCoords) return null;
-        const snappedPoint = turf.point(nearestCoords);
-        let closestVertex = null;
-        let bestDistance = Infinity;
-        coords.forEach(coord => {
-            const vertexPoint = turf.point(coord);
-            const distance = turf.distance(snappedPoint, vertexPoint, { units: 'kilometers' });
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                closestVertex = coord;
-            }
-        });
-        if (closestVertex) {
-            return { lng: closestVertex[0], lat: closestVertex[1] };
-        }
         return { lng: nearestCoords[0], lat: nearestCoords[1] };
     } catch (error) {
         console.warn('Failed to snap point to line:', error);
