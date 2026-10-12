@@ -107,9 +107,9 @@ export function refreshStatsDisplay(statisticsObj) {
     const oldest = statisticsObj.oldestDate;
     const newest = statisticsObj.newestDate;
     document.getElementById('statOldestDate').innerHTML = oldest && statisticsObj.oldestStatusId
-        ? `<a href="https://traewelling.de/status/${statisticsObj.oldestStatusId}" target="_blank" class="popup-link">${oldest.toLocaleDateString('de-DE')}</a>` : '-';
+        ? `<a href="https://traewelling.de/status/${statisticsObj.oldestStatusId}" target="_blank" class="stat-link popup-link">${oldest.toLocaleDateString('de-DE')}</a>` : '-';
     document.getElementById('statNewestDate').innerHTML = newest && statisticsObj.newestStatusId
-        ? `<a href="https://traewelling.de/status/${statisticsObj.newestStatusId}" target="_blank" class="popup-link">${newest.toLocaleDateString('de-DE')}</a>` : '-';
+        ? `<a href="https://traewelling.de/status/${statisticsObj.newestStatusId}" target="_blank" class="stat-link popup-link">${newest.toLocaleDateString('de-DE')}</a>` : '-';
 
     // Favorite travel buddy in Stats panel
     const buddiesItem = document.getElementById('statBuddiesItem');

@@ -1266,6 +1266,29 @@ input:checked+.toggle-slider:before { transform: translateX(22px); }
 .stat-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; }
 .stat-label { color: var(--text-secondary); font-size: 11px; }
 .stat-value { font-weight: 700; color: var(--text-primary); text-align: right; }
+.stat-value a,
+.stat-value a:visited,
+.stat-link,
+.stat-link:visited,
+.popup-link,
+.popup-link:visited {
+    color: #4fc3f7;
+    text-decoration: underline;
+    text-decoration-color: rgba(79, 195, 247, 0.6);
+    text-underline-offset: 2px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+.stat-value a:hover,
+.stat-value a:focus,
+.stat-link:hover,
+.stat-link:focus,
+.popup-link:hover,
+.popup-link:focus {
+    color: #7dd3fc;
+    text-decoration-color: #7dd3fc;
+}
 .stat-top-buddy { font-weight: 700; color: #4fc3f7; }
 .stat-buddy-badge { white-space: nowrap; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 999px; background: rgba(102, 126, 234, 0.18); color: #8ba4f9; margin-left: 4px; }
 
@@ -1392,7 +1415,19 @@ body.stats-open .active-filter-badges {
     background: var(--accent-color); box-shadow: 0 0 0 2px rgba(0,0,0,0.2); margin-top: -5px; }
 .route-popup .popup-scroll-slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent-color);
     box-shadow: 0 0 0 2px rgba(0,0,0,0.2); border: none; }
-.route-popup .popup-link { color: #4fc3f7; text-decoration: none; font-weight: 600; }
+.popup-link,
+.route-popup .popup-link {
+    color: #4fc3f7;
+    text-decoration: underline;
+    text-decoration-color: rgba(79, 195, 247, 0.6);
+    text-underline-offset: 2px;
+    font-weight: 600;
+}
+.popup-link:hover,
+.route-popup .popup-link:hover {
+    color: #7dd3fc;
+    text-decoration-color: #7dd3fc;
+}
 .route-popup .popup-actions { display: flex; gap: 6px; margin-top: 6px; }
 .route-popup .popup-actions button,
 .route-popup .popup-actions a { flex: 1; border-radius: 7px; border: 1px solid var(--border-color); background: transparent;

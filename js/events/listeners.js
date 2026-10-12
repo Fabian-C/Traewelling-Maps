@@ -43,6 +43,7 @@ export function setupEventListeners() {
             analytics.refreshStatsDisplay(state.statistics);
         }
     };
+    window.toggleStatsPanel = toggleStatsPanel;
 
     const statsToggleBtn = document.getElementById('statsToggle');
     if (statsToggleBtn) {

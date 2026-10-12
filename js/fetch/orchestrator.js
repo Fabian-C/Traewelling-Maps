@@ -282,6 +282,12 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 await new Promise(r => setTimeout(r, 200));
                 UI.toggleFetch(false);
                 UI.refs.menu.style.display = 'block';
+                const panel = document.getElementById('statsPanel');
+                if (panel) {
+                    panel.classList.add('active');
+                    document.body.classList.add('stats-open');
+                    document.getElementById('statsToggle')?.classList.add('active');
+                }
                 FunFacts.stop();
                 UI.releaseWakeLock();
                 return;
@@ -408,6 +414,12 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
 
         UI.toggleFetch(false);
         UI.refs.menu.style.display = 'block';
+        const panel = document.getElementById('statsPanel');
+        if (panel) {
+            panel.classList.add('active');
+            document.body.classList.add('stats-open');
+            document.getElementById('statsToggle')?.classList.add('active');
+        }
         FunFacts.stop(); // Stop fun facts when complete
         UI.releaseWakeLock();
     } catch (error) {
@@ -738,6 +750,12 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
     setupMapInteractions();
     analytics.updateMenuBuddyList();
     updateFilterBadges();
+    const statsPanel = document.getElementById('statsPanel');
+    if (statsPanel) {
+        statsPanel.classList.add('active');
+        document.body.classList.add('stats-open');
+        document.getElementById('statsToggle')?.classList.add('active');
+    }
     if (hideFetchUI) {
         UI.toggleFetch(false);
         UI.refs.menu.style.display = 'block';

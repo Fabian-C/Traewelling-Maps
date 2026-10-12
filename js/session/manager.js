@@ -293,6 +293,10 @@ export function logout() {
         if (state.map?.getSource(id)) state.map.removeSource(id);
     });
     UI.refs.menu.style.display = 'none';
+    const statsPanel = document.getElementById('statsPanel');
+    if (statsPanel) statsPanel.classList.remove('active');
+    document.body.classList.remove('stats-open');
+    document.getElementById('statsToggle')?.classList.remove('active');
     UI.toggleSetup(true);
     UI.setTokenOwner(null);
     UI.setTokenStatus('Token not validated', 'idle');
