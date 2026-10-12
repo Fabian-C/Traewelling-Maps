@@ -1,7 +1,7 @@
 import { store } from '../state/store.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
 import { formatDelayMinutes } from '../utils/format.js';
-import { normalizeCategory } from '../data/processing.js';
+import { normalizeCategory, getTripBusinessType } from '../data/processing.js';
 
 /**
  * Convert an array of Träwelling trips into a standard GeoJSON FeatureCollection
@@ -30,7 +30,8 @@ export function tripsToGeoJSON(trips = [], metadata = {}) {
         const distanceKm = Math.round(rawDistance / 10) / 100;
         const durationMin = computeTripDurationMinutes(train);
 
-        const businessLabel = trip.business === 1 ? 'work' : (trip.business === 2 ? 'commute' : 'personal');
+        const bType = getTripBusinessType(trip);
+        const businessLabel = bType === 1 ? 'work' : (bType === 2 ? 'commute' : 'personal');
 
         features.push({
             type: 'Feature',

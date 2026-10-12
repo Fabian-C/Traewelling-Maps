@@ -122,7 +122,7 @@ export function indexTrip(trip, currentUsername = '') {
         lineName,
         originName,
         destName,
-        business: trip.business,
+        business: getTripBusinessType(trip),
         searchCorpus,
         buddiesNoNotes,
         buddiesWithNotes,
@@ -249,6 +249,20 @@ export function filterTripsByDateRange(trips = [], fromDate, toDate) {
 }
 
 /**
+ * Normalize and determine the trip business type:
+ * 0 = Personal (default, null, 0)
+ * 1 = Work / Business (1, 'work')
+ * 2 = Commute (2, 'commute', or boolean commute)
+ */
+export function getTripBusinessType(trip) {
+    if (!trip) return 0;
+    const raw = trip._index?.business !== undefined ? trip._index.business : trip.business;
+    if (raw === 2 || raw === '2' || raw === 'commute' || trip.commute === true || trip._index?.commute === true) return 2;
+    if (raw === 1 || raw === '1' || raw === 'work' || raw === 'business') return 1;
+    return 0;
+}
+
+/**
  * Filter trips by business type (personal, work, commute)
  */
 export function filterTripsByBusiness(trips = [], businessFilters) {
@@ -256,13 +270,10 @@ export function filterTripsByBusiness(trips = [], businessFilters) {
     if (!businessFilters) return trips.slice();
     
     return trips.filter(trip => {
-        const businessValue = trip?.business;
-        
-        // business: 0 = personal, 1 = work, 2 = commute (based on Träwelling API)
-        if (businessValue === 0 && !businessFilters.personal) return false;
-        if (businessValue === 1 && !businessFilters.work) return false;
-        if (businessValue === 2 && !businessFilters.commute) return false;
-        
+        const b = getTripBusinessType(trip);
+        if (b === 0 && !businessFilters.personal) return false;
+        if (b === 1 && !businessFilters.work) return false;
+        if (b === 2 && !businessFilters.commute) return false;
         return true;
     });
 }

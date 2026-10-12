@@ -16,6 +16,7 @@ import { toggleDelayOverlay, updateDelayOverlay, updateDelayOverlaySummary, inva
 import { fetchUserProfile, saveCurrentSession, rememberToken, logout } from '../session/manager.js';
 import { FunFacts } from '../ui/funFacts.js';
 import { updateFilterBadges } from '../events/listeners.js';
+import { escapeHtml } from '../utils/format.js';
 
 export async function startDataFetch(resumeFromState = false, incremental = false) {
     const state = store.get();
@@ -165,7 +166,8 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                     break;
                 }
 
-                UI.updateFetchStats({ trips: allStatuses.length, pages: page });
+                const pageProgress = Math.min(45, Math.round((page / (page + 4)) * 45));
+                UI.updateFetchStats({ trips: allStatuses.length, pages: page, progress: pageProgress });
                 UI.addPacketToDepot(page);
                 const randomFactCount = Math.floor(Math.random() * 3) + 1; // Random 1-3 facts per page
                 FunFacts.showFactsFromTrips(response.data, randomFactCount);
@@ -187,12 +189,25 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 state.fetchProgress.pagesFetchComplete = true;
             }
         } else {
-            UI.updateFetchStats({ trips: allStatuses.length, pages: page - 1 });
+            UI.updateFetchStats({ trips: allStatuses.length, pages: page - 1, progress: 45 });
         }
 
         if (state.cancelFetch) return showFetchError('Cancelled', false);
 
-        UI.updateFetchStats({ status: 'Fetching route polylines...' });
+        if (allStatuses.length === 0) {
+            FunFacts.stop();
+            UI.releaseWakeLock();
+            return showFetchError({
+                type: 'no_trips',
+                icon: '🚆',
+                title: 'No Trips Found',
+                message: `No public travel check-ins found for @${username}.`,
+                tip: 'This account has not recorded any public journeys yet, or all check-ins might be private.',
+                action: 'setup'
+            }, false);
+        }
+
+        UI.updateFetchStats({ status: 'Fetching route polylines...', progress: 48 });
         let polylineCount = resumeFromState && state.fetchProgress ? state.fetchProgress.polylineCount : 0;
         const tripsWithTrain = allStatuses.filter(s => s.train);
         const batchSize = 15;
@@ -220,7 +235,9 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 });
             }
             
-            UI.updateFetchStats({ routes: polylineCount, progress: ((i + batch.length) / tripsWithTrain.length) * 100 });
+            const polyPct = tripsWithTrain.length > 0 ? ((i + batch.length) / tripsWithTrain.length) : 1;
+            const overallProgress = 45 + Math.round(polyPct * 45); // 45% -> 90%
+            UI.updateFetchStats({ routes: polylineCount, progress: overallProgress });
             UI.onPolylineBatchComplete();
             await UI.waitForTrainCatchUp(() => state.cancelFetch);
             if (state.cancelFetch) break;
@@ -242,22 +259,20 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         state.fetchedTrips = incremental && cachedTrips ? [...allStatuses, ...cachedTrips] : allStatuses;
         state.activeTrips = state.fetchedTrips;
         saveCurrentSession(incremental); // Pass incremental flag to merge data and update timestamp
-        UI.updateFetchStats({ status: 'Processing data...' });
+        UI.updateFetchStats({ status: 'Building map layers...', progress: 95 });
         await processAndDisplayData(state.fetchedTrips);
+        UI.updateFetchStats({ status: 'Ready!', progress: 100 });
+        await UI.departTrain();
         FunFacts.stop(); // Stop fun facts when complete
         UI.releaseWakeLock();
     } catch (error) {
         console.error('Fetch error:', error);
         FunFacts.stop(); // Stop fun facts on error
-        const isNetworkError = error.message.includes('fetch') || 
-                               error.message.includes('network') || 
-                               error.message.includes('timeout') ||
-                               error.message.includes('Failed to fetch') ||
-                               error.name === 'TypeError' ||
-                               error.message.includes('NetworkError');
-        const canRetry = isNetworkError && state.fetchProgress && 
-                       (state.fetchProgress.allStatuses.length > 0 || state.fetchProgress.processedPolylines > 0);
-        showFetchError(error.message, canRetry);
+        UI.releaseWakeLock();
+        const classified = classifyError(error, username);
+        const canRetry = (classified.action === 'retry' || classified.type === 'network' || classified.type === 'rate_limit') &&
+            state.fetchProgress && (state.fetchProgress.allStatuses.length > 0 || state.fetchProgress.processedPolylines > 0);
+        showFetchError(classified, canRetry);
     }
 }
 
@@ -269,35 +284,171 @@ export function cancelFetch() {
     UI.releaseWakeLock();
 }
 
-export function showFetchError(msg, showRetry = false) {
+export function classifyError(error, username = '') {
+    if (!error) {
+        return {
+            type: 'generic',
+            icon: '⚠️',
+            title: 'An Error Occurred',
+            message: 'An unknown error occurred while retrieving data.',
+            tip: 'Please try again or return to Setup.',
+            action: 'setup'
+        };
+    }
+    if (typeof error === 'object' && error.type && error.title && error.message) {
+        return error;
+    }
+    const msg = (error && error.message) ? error.message : String(error);
+    const errStatus = (error && error.status) || (msg.match(/API Error:\s*(\d+)/)?.[1]) || null;
+    const cleanUser = username ? `@${username}` : 'the specified user';
+
+    if (errStatus === '404' || msg.includes('404')) {
+        return {
+            type: 'not_found',
+            icon: '🔍',
+            title: 'User Not Found',
+            message: `Could not find a Träwelling profile for ${cleanUser}.`,
+            tip: 'Please double-check the spelling of the username or confirm the account exists on traewelling.de.',
+            action: 'setup'
+        };
+    }
+    if (errStatus === '401' || errStatus === '403' || msg.includes('401') || msg.includes('403') || msg.includes('Authentication token required')) {
+        return {
+            type: 'auth_required',
+            icon: '🔒',
+            title: 'Private Profile / Token Required',
+            message: `The profile for ${cleanUser} is private or requires authentication to access.`,
+            tip: 'To access private check-ins, add your Personal Access Token in the Setup screen.',
+            action: 'token'
+        };
+    }
+    if (errStatus === '429' || msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
+        return {
+            type: 'rate_limit',
+            icon: '⏳',
+            title: 'Rate Limit Reached',
+            message: 'Träwelling API limit reached (maximum 55 requests per minute).',
+            tip: 'The rate window refreshes automatically every 60 seconds. You can retry in a moment without losing progress.',
+            action: 'retry'
+        };
+    }
+    if (msg.includes('fetch') || msg.includes('network') || msg.includes('timeout') || msg.includes('Failed to fetch') || error.name === 'TypeError' || msg.includes('NetworkError')) {
+        return {
+            type: 'network',
+            icon: '📡',
+            title: 'Connection Lost',
+            message: 'Unable to connect to Träwelling servers. Your network connection may be offline or interrupted.',
+            tip: 'Check your internet connection. You can resume fetching where it stopped.',
+            action: 'retry'
+        };
+    }
+    if (errStatus && parseInt(errStatus, 10) >= 500) {
+        return {
+            type: 'server_error',
+            icon: '⚠️',
+            title: `Träwelling Server Error (${errStatus})`,
+            message: 'Träwelling servers encountered a temporary issue while retrieving status data.',
+            tip: 'This is usually a temporary outage with Träwelling. Please wait a minute and retry.',
+            action: 'retry'
+        };
+    }
+    if (msg === 'Cancelled') {
+        return {
+            type: 'cancelled',
+            icon: '⏹️',
+            title: 'Fetch Stopped',
+            message: 'Data loading was cancelled.',
+            tip: 'You can return to Setup to query another user or change settings.',
+            action: 'setup'
+        };
+    }
+    return {
+        type: 'generic',
+        icon: '⚠️',
+        title: 'Error Loading Rides',
+        message: msg,
+        tip: 'Try retrying the connection or returning to Setup.',
+        action: 'retry'
+    };
+}
+
+export function showFetchError(errInput, showRetry = false) {
     const state = store.get();
     const errorEl = document.getElementById('fetchError');
     const retryBtn = document.getElementById('retryFetchBtn');
     const cancelBtn = document.getElementById('cancelFetchBtn');
     
-    errorEl.textContent = msg;
-    errorEl.classList.remove('hidden');
-    
-    if (showRetry && state.fetchProgress) {
-        retryBtn.classList.remove('hidden');
-        retryBtn.onclick = () => {
-            console.log('Retrying fetch from saved progress...');
-            startDataFetch(true);
-        };
-    } else {
-        retryBtn.classList.add('hidden');
+    UI.onFetchError();
+
+    const info = (typeof errInput === 'object' && errInput !== null && errInput.title)
+        ? errInput
+        : classifyError(errInput, state.username);
+
+    if (errorEl) {
+        errorEl.innerHTML = `
+            <div class="fetch-error-header">
+                <span class="fetch-error-icon" aria-hidden="true">${info.icon || '⚠️'}</span>
+                <h3 class="fetch-error-title">${escapeHtml(info.title || 'Error')}</h3>
+            </div>
+            <p class="fetch-error-desc">${escapeHtml(info.message || 'An error occurred.')}</p>
+            ${info.tip ? `<div class="fetch-error-tip">${escapeHtml(info.tip)}</div>` : ''}
+            <div class="fetch-error-actions">
+                ${(showRetry || info.action === 'retry') && state.fetchProgress ? `
+                    <button class="fetch-error-btn-primary" id="cardRetryBtn">🔄 Retry Connection</button>
+                ` : ''}
+                <button class="fetch-error-btn-secondary" id="cardSetupBtn">⚙️ Back to Setup</button>
+            </div>
+        `;
+        errorEl.classList.remove('hidden');
+
+        const cardRetry = document.getElementById('cardRetryBtn');
+        if (cardRetry) {
+            cardRetry.onclick = () => {
+                errorEl.classList.add('hidden');
+                startDataFetch(true);
+            };
+        }
+        const cardSetup = document.getElementById('cardSetupBtn');
+        if (cardSetup) {
+            cardSetup.onclick = () => {
+                UI.toggleFetch(false);
+                UI.toggleSetup(true);
+                errorEl.classList.add('hidden');
+                if (retryBtn) retryBtn.classList.add('hidden');
+                if (cancelBtn) {
+                    cancelBtn.textContent = 'Cancel';
+                    cancelBtn.onclick = cancelFetch;
+                }
+                state.fetchProgress = null;
+            };
+        }
     }
-    
-    cancelBtn.textContent = 'Back to Setup';
-    cancelBtn.onclick = () => {
-        UI.toggleFetch(false);
-        UI.toggleSetup(true);
-        errorEl.classList.add('hidden');
-        retryBtn.classList.add('hidden');
-        cancelBtn.textContent = 'Cancel';
-        cancelBtn.onclick = cancelFetch;
-        state.fetchProgress = null;
-    };
+
+    if (showRetry && state.fetchProgress) {
+        if (retryBtn) {
+            retryBtn.classList.remove('hidden');
+            retryBtn.onclick = () => {
+                if (errorEl) errorEl.classList.add('hidden');
+                console.log('Retrying fetch from saved progress...');
+                startDataFetch(true);
+            };
+        }
+    } else {
+        if (retryBtn) retryBtn.classList.add('hidden');
+    }
+
+    if (cancelBtn) {
+        cancelBtn.textContent = 'Back to Setup';
+        cancelBtn.onclick = () => {
+            UI.toggleFetch(false);
+            UI.toggleSetup(true);
+            if (errorEl) errorEl.classList.add('hidden');
+            if (retryBtn) retryBtn.classList.add('hidden');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.onclick = cancelFetch;
+            state.fetchProgress = null;
+        };
+    }
 }
 
 export function refreshActiveTrips() {

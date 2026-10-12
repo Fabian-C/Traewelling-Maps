@@ -69,6 +69,9 @@ export const UI = {
     toggleFetch(show) {
         if (!this.refs) return;
         this.refs.fetchScreen.classList.toggle('hidden', !show);
+        if (show) {
+            this.ensureLocomotive();
+        }
     },
     bindGlobalActions() {
         document.querySelectorAll('[data-action="clear-cache"]').forEach(btn => {
@@ -317,12 +320,7 @@ export const UI = {
         }, t(780));
         setTimeout(() => {
             if (this.trainCarsCount === 0 && !trainZone.querySelector('.locomotive')) {
-                const loco = document.createElement('div');
-                loco.className = 'locomotive';
-                loco.innerHTML = `<div class="loco-body"><div class="loco-cab"><div class="loco-window"></div></div><div class="loco-stripe"></div></div>
-                    <div class="loco-bogie bl"><div class="flatcar-axle"></div><div class="flatcar-axle"></div></div>
-                    <div class="loco-bogie br"><div class="flatcar-axle"></div><div class="flatcar-axle"></div></div>`;
-                trainZone.insertBefore(loco, trainZone.firstChild);
+                this.ensureLocomotive();
             }
             const car = document.createElement('div');
             car.className = 'flatcar';
@@ -385,8 +383,55 @@ export const UI = {
         const shift = overflowCols * (colWidth + gap);
         stack.style.transform = `translateX(${-shift}px)`;
     },
+    ensureLocomotive() {
+        const trainZone = this.refs.trainZone;
+        if (!trainZone) return;
+        if (!trainZone.querySelector('.locomotive')) {
+            const loco = document.createElement('div');
+            loco.className = 'locomotive';
+            loco.innerHTML = `<div class="loco-body">
+                <div class="loco-cab"><div class="loco-window"></div></div>
+                <div class="loco-stripe"></div>
+                <div class="loco-headlight"></div>
+                <div class="loco-steam"></div>
+            </div>
+            <div class="loco-bogie bl"><div class="flatcar-axle"></div><div class="flatcar-axle"></div></div>
+            <div class="loco-bogie br"><div class="flatcar-axle"></div><div class="flatcar-axle"></div></div>`;
+            trainZone.insertBefore(loco, trainZone.firstChild);
+            trainZone.classList.add('arriving');
+            setTimeout(() => trainZone.classList.remove('arriving'), 600);
+            this._updateTrainScroll();
+        }
+    },
+    async departTrain() {
+        if (!this.refs.trainZone) return;
+        const trainZone = this.refs.trainZone;
+        const currentTransform = trainZone.style.transform || 'translateX(0px)';
+        const match = currentTransform.match(/translateX\(([-\d.]+)px\)/);
+        const currentX = match ? parseFloat(match[1]) : 0;
+        trainZone.style.setProperty('--train-shift', `${currentX}px`);
+        trainZone.classList.add('departing');
+        await new Promise(r => setTimeout(r, 750));
+    },
+    onFetchError() {
+        if (this.refs.cargoScene) {
+            this.refs.cargoScene.classList.add('has-error');
+        }
+        if (this.refs.gantry) {
+            this.refs.gantry.classList.remove('at-train');
+            this.refs.gantry.classList.add('at-depot');
+        }
+        if (this.refs.gantryHoist) {
+            this.refs.gantryHoist.style.height = '12px';
+        }
+        if (this.refs.gantryPayload) {
+            this.refs.gantryPayload.classList.remove('visible');
+        }
+        this.craneAnimating = false;
+        this.loadQueue = [];
+    },
     _updateTrainScroll() {
-        if (!this.refs.trainZone || this.trainCarsCount === 0) return;
+        if (!this.refs.trainZone) return;
         const trainZone = this.refs.trainZone;
         const sceneWidth = this._cargoSceneWidth || (this.refs.cargoScene ? this.refs.cargoScene.clientWidth : 500);
 
@@ -399,7 +444,9 @@ export const UI = {
 
         const locoWidth = 40;
         const carWidth = 44;
-        const newestCarCenterNoShift = sceneWidth - (locoWidth + this.trainCarsCount * carWidth) + (carWidth / 2);
+        const newestCarCenterNoShift = this.trainCarsCount > 0
+            ? sceneWidth - (locoWidth + this.trainCarsCount * carWidth) + (carWidth / 2)
+            : sceneWidth - (locoWidth / 2);
         const shift = targetCenter - newestCarCenterNoShift;
 
         trainZone.style.transform = `translateX(${shift}px)`;
@@ -413,12 +460,14 @@ export const UI = {
         this.totalDepotReceived = 0;
         this.totalBatches = 0;
         this.batchesCompleted = 0;
+        if (this.refs.cargoScene) this.refs.cargoScene.classList.remove('has-error');
         if (this.refs.depotStack) { this.refs.depotStack.innerHTML = ''; this.refs.depotStack.style.transform = ''; }
-        if (this.refs.trainZone) { this.refs.trainZone.innerHTML = ''; this.refs.trainZone.style.transform = ''; }
+        if (this.refs.trainZone) { this.refs.trainZone.innerHTML = ''; this.refs.trainZone.style.transform = ''; this.refs.trainZone.classList.remove('departing', 'arriving'); }
         if (this.refs.gantry) this.refs.gantry.classList.remove('at-depot', 'at-train');
         if (this.refs.gantryHoist) this.refs.gantryHoist.style.height = '12px';
         if (this.refs.gantryPayload) this.refs.gantryPayload.classList.remove('visible');
         if (this.refs.cargoStage) { this.refs.cargoStage.textContent = ''; this.refs.cargoStage.classList.remove('visible'); }
+        this.ensureLocomotive();
     },
     setTokenOwner(owner) {
         if (!this.refs) return;

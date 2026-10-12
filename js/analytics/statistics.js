@@ -1,7 +1,7 @@
 // Statistics and analytics functions
 import { store } from '../state/store.js';
 import { escapeHtml } from '../utils/format.js';
-import { normalizeCategory, indexTrip, indexTrips } from '../data/processing.js';
+import { normalizeCategory, indexTrip, indexTrips, getTripBusinessType } from '../data/processing.js';
 
 export function resetStatistics(statisticsObj) {
     if (!statisticsObj) {
@@ -282,7 +282,7 @@ export function getFilteredContextTrips() {
 
     if (state.filters.business && (!state.filters.business.personal || !state.filters.business.work || !state.filters.business.commute)) {
         contextTrips = contextTrips.filter(t => {
-            const b = t._index ? t._index.business : t?.business;
+            const b = getTripBusinessType(t);
             if (b === 0 && !state.filters.business.personal) return false;
             if (b === 1 && !state.filters.business.work) return false;
             if (b === 2 && !state.filters.business.commute) return false;

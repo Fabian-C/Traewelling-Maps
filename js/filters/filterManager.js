@@ -1,7 +1,7 @@
 // Centralized filter manager module
 // All filter logic is centralized here for consistency and modularity
 
-import { isAccuratePolyline, normalizeCategory } from '../data/processing.js';
+import { isAccuratePolyline, normalizeCategory, getTripBusinessType } from '../data/processing.js';
 import { extractUniqueBuddiesFromTrip } from '../analytics/statistics.js';
 
 // Filter registry - allows easy addition of new filters
@@ -75,13 +75,10 @@ function filterTripsByBusiness(trips, businessFilters) {
     if (!businessFilters) return trips.slice();
     
     return trips.filter(trip => {
-        const businessValue = trip._index ? trip._index.business : trip?.business;
-        
-        // business: 0 = personal, 1 = work, 2 = commute (based on Träwelling API)
-        if (businessValue === 0 && !businessFilters.personal) return false;
-        if (businessValue === 1 && !businessFilters.work) return false;
-        if (businessValue === 2 && !businessFilters.commute) return false;
-        
+        const b = getTripBusinessType(trip);
+        if (b === 0 && !businessFilters.personal) return false;
+        if (b === 1 && !businessFilters.work) return false;
+        if (b === 2 && !businessFilters.commute) return false;
         return true;
     });
 }

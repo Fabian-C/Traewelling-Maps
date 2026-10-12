@@ -60,6 +60,7 @@
         window.applyBaseLayerOpacity = heatmap.applyBaseLayerOpacity;
         window.startDataFetch = startDataFetch;
         window.cancelFetch = cancelFetch;
+        window.showFetchError = showFetchError;
         window.processAndDisplayData = processAndDisplayData;
         window.saveCurrentSession = saveCurrentSession;
         window.loadSessionByUsername = loadSessionByUsername;
@@ -97,6 +98,7 @@
             window.RateLimitUI.init();
             window.updateMenuAccountList();
             window.loadLayers();
+            setupEventListeners();
             document.getElementById('startFetchBtn').onclick = () => window.startDataFetch(false);
             document.getElementById('cancelFetchBtn').onclick = window.cancelFetch;
 
@@ -217,6 +219,9 @@
                 if (previewMode === 'fetch') {
                     window.UI.toggleSetup(false);
                     window.UI.toggleFetch(true);
+                    window.UI.resetCargoAnimation();
+                    window.UI.addPacketToDepot(1);
+                    window.UI.addPacketToDepot(2);
                     window.UI.updateFetchStats({ status: 'Fetching page 2...', trips: 30, pages: 2, routes: 15, progress: 50 });
                 } else {
                     document.getElementById('setupScreen').classList.add('hidden');
@@ -548,31 +553,31 @@
                     </div>
                 </div>
             </details>
-            <details class="menu-submenu">
+            <details class="menu-submenu" id="tripTypeSubmenu">
                 <summary>💼 Trip Type</summary>
                 <div class="menu-submenu-content">
                     <div class="business-filter">
-                        <div class="menu-item" style="padding: 12px 16px;">
-                            <span style="margin-right: 10px;">Personal</span>
-                            <label class="toggle">
+                        <label class="menu-item toggle-row" for="businessPersonal" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; cursor: pointer; user-select: none;">
+                            <span>Personal</span>
+                            <span class="toggle">
                                 <input type="checkbox" id="businessPersonal" checked>
                                 <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <div class="menu-item" style="padding: 12px 16px;">
-                            <span style="margin-right: 10px;">Work</span>
-                            <label class="toggle">
+                            </span>
+                        </label>
+                        <label class="menu-item toggle-row" for="businessWork" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; cursor: pointer; user-select: none;">
+                            <span>Work</span>
+                            <span class="toggle">
                                 <input type="checkbox" id="businessWork" checked>
                                 <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <div class="menu-item" style="padding: 12px 16px;">
-                            <span style="margin-right: 10px;">Commute</span>
-                            <label class="toggle">
+                            </span>
+                        </label>
+                        <label class="menu-item toggle-row" for="businessCommute" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; cursor: pointer; user-select: none;">
+                            <span>Commute</span>
+                            <span class="toggle">
                                 <input type="checkbox" id="businessCommute" checked>
                                 <span class="toggle-slider"></span>
-                            </label>
-                        </div>
+                            </span>
+                        </label>
                     </div>
                 </div>
             </details>
