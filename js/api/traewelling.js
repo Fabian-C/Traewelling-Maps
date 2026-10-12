@@ -33,9 +33,12 @@ export class TraewellingAPI {
     }
 
     async request(endpoint, requireAuth = false) {
+        if (requireAuth && !this.token) {
+            throw new Error('API Error: Authentication token required');
+        }
         await this.waitForRateLimit();
         const headers = { 'Accept': 'application/json' };
-        if (this.token || requireAuth) {
+        if (this.token) {
             headers['Authorization'] = `Bearer ${this.token}`;
         }
         const response = await fetch(`${CONFIG.API_BASE_URL}${endpoint}`, { headers });
@@ -43,9 +46,9 @@ export class TraewellingAPI {
         return response.json();
     }
 
-    getUserStatuses(username, page = 1) { return this.request(`/user/${username}/statuses?page=${page}`); }
+    getUserStatuses(username, page = 1) { return this.request(`/user/${encodeURIComponent(username)}/statuses?page=${page}`); }
     getPolyline(statusId) { return this.request(`/polyline/${statusId}`).catch(() => null); }
     getPolylines(statusIds) { return this.request(`/polyline/${statusIds.join(',')}`).catch(() => null); }
     getAuthenticatedUser() { return this.request('/auth/user', true); }
-    getPublicUser(username) { return this.request(`/user/${username}`); }
+    getPublicUser(username) { return this.request(`/user/${encodeURIComponent(username)}`); }
 }

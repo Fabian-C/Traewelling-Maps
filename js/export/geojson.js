@@ -115,7 +115,7 @@ export async function exportTripsGeoJSON(scope = 'active', action = 'download') 
     const state = store.get();
     let trips = scope === 'all' 
         ? (state.fetchedTrips || []) 
-        : (state.activeTrips?.length ? state.activeTrips : state.fetchedTrips || []);
+        : (state.activeTrips !== undefined && state.activeTrips !== null ? state.activeTrips : (state.fetchedTrips || []));
 
     if (scope === 'active') {
         const layerVisibility = new Map();

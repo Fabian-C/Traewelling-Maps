@@ -10,6 +10,8 @@ import { getDelayOverlayFeatureAtLngLat, buildFeatureFromDelayOverlay } from './
 import { setupEventListeners } from '../events/listeners.js';
 import { updateRouteDensity } from './heatmap.js';
 import { escapeHtml } from '../utils/format.js';
+import { CATEGORY_NAMES } from './layers.js';
+import { normalizeCategory } from '../data/processing.js';
 
 export function initMap() {
     const state = store.get();
@@ -215,11 +217,13 @@ export function setupMapInteractions() {
         .map(([id]) => id)
         .filter(id => state.map.getLayer(id));
     
+    let lastTapTimestamp = 0;
     const handleMapTap = (e) => {
         const now = Date.now();
-        if (state.isMapMoving || (now - state.lastMoveEndTime < 300)) {
+        if (state.isMapMoving || (now - state.lastMoveEndTime < 300) || (now - lastTapTimestamp < 350)) {
             return;
         }
+        lastTapTimestamp = now;
 
         if (state.delays.enabled) {
             const touchTolerance = ('ontouchstart' in window || navigator.maxTouchPoints > 0) ? 36 : 24;
@@ -261,12 +265,6 @@ export function setupMapInteractions() {
         state.isMapMoving = false; 
         state.lastMoveEndTime = Date.now();
         if (state.heatmap.enabled) setTimeout(() => updateRouteDensity(), 200); 
-    });
-
-    state.map.on('touchend', (e) => {
-        if (e.points && e.points[0]) {
-            handleMapTap({ point: e.points[0], lngLat: e.lngLat });
-        }
     });
 }
 
@@ -329,7 +327,8 @@ export function showPopup(lngLat, feature) {
     const arrivalLabel = actualArrival || plannedArrival;
     const durationDisplay = formatDuration(durationActual || durationPlanned);
 
-    const category = feature.layer?.id || 'Unknown';
+    const rawCategory = normalizeCategory(props.category || train.category || feature.layer?.id);
+    const category = CATEGORY_NAMES[rawCategory] || rawCategory || 'Unknown';
 
     highlightRoute(feature, statusId);
 

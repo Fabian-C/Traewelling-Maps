@@ -211,7 +211,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             if (polylinesData?.data?.features) {
                 polylinesData.data.features.forEach(feature => {
                     if (feature?.properties?.statusId) {
-                        const status = allStatuses.find(s => s.id === feature.properties.statusId);
+                        const status = allStatuses.find(s => String(s.id) === String(feature.properties.statusId));
                         if (status && status.train) {
                             status.train.polyline = feature;
                             polylineCount++;
