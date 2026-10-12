@@ -280,7 +280,7 @@ export const UI = {
         const baseHeight = 12;
         const stackLevel = Math.max(1, item.stackHeight || 1);
         const hoistDepot = Math.max(baseHeight, 70 - (stackLevel - 1) * 20);
-        const hoistTrain = 67;
+        const hoistTrain = 58;
         let targetCar = null;
 
         gantry.classList.remove('at-train');
@@ -322,6 +322,7 @@ export const UI = {
                     <div class="flatcar-chassis"></div>
                     <div class="flatcar-pin tl"></div>
                     <div class="flatcar-pin tr"></div>
+                    <div class="flatcar-coupler"></div>
                 </div>
                 <div class="flatcar-bogie bl"><div class="train-wheel"><div class="wheel-spoke"></div></div><div class="train-wheel"><div class="wheel-spoke"></div></div></div>
                 <div class="flatcar-bogie br"><div class="train-wheel"><div class="wheel-spoke"></div></div><div class="train-wheel"><div class="wheel-spoke"></div></div></div>`;
@@ -336,6 +337,8 @@ export const UI = {
             if (targetCar) {
                 const crate = this._createCrateElement('train-crate', item.page, item.designBg);
                 targetCar.appendChild(crate);
+                targetCar.classList.add('settling');
+                setTimeout(() => targetCar.classList.remove('settling'), 300);
                 requestAnimationFrame(() => {
                     const tc = targetCar.querySelector('.train-crate');
                     if (tc) tc.classList.add('placed');
@@ -401,6 +404,8 @@ export const UI = {
                 <div class="loco-pantograph"></div>
                 <div class="loco-headlight"></div>
                 <div class="loco-headlight-cone"></div>
+                <div class="loco-coupler"></div>
+                <div class="loco-taillight"></div>
             </div>
             <div class="loco-bogie bl"><div class="train-wheel"><div class="wheel-spoke"></div></div><div class="train-wheel"><div class="wheel-spoke"></div></div></div>
             <div class="loco-bogie br"><div class="train-wheel"><div class="wheel-spoke"></div></div><div class="train-wheel"><div class="wheel-spoke"></div></div></div>`;
@@ -454,8 +459,9 @@ export const UI = {
 
         const locoWidth = 44;
         const carWidth = 44;
+        const carGap = 4;
         const newestCarCenterNoShift = this.trainCarsCount > 0
-            ? sceneWidth - (locoWidth + this.trainCarsCount * carWidth) + (carWidth / 2)
+            ? sceneWidth - (locoWidth + carGap + (carWidth / 2) + (this.trainCarsCount - 1) * (carWidth + carGap))
             : sceneWidth - (locoWidth / 2);
         const shift = targetCenter - newestCarCenterNoShift;
 

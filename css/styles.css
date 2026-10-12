@@ -468,7 +468,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     bottom: 14px;
     left: var(--depot-width);
     right: 0;
-    height: 15px;
+    height: 16px;
     z-index: 2;
 }
 .cargo-ballast {
@@ -496,10 +496,10 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 }
 .cargo-rail-steel {
     position: absolute;
-    top: 2px;
+    top: 1px;
     left: 0;
     right: 0;
-    height: 3px;
+    height: 4px;
     background: linear-gradient(180deg, #f1f5f9 0%, #cbd5e1 35%, #64748b 70%, #334155 100%);
     border-radius: 1px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.8), 0 0 6px rgba(203, 213, 225, 0.3);
@@ -513,6 +513,24 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     z-index: 8;
     pointer-events: none;
     background: center bottom / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg transform='translate(32 0) scale(-1 1)'%3E%3Cpath fill='none' stroke='%23646464' stroke-width='6.81511784' d='M12.160561 8.4267H3.921841'/%3E%3Cpath fill='none' stroke='%23000' stroke-width='5.80712891' d='M4.34043 13.8788V2.9746'/%3E%3Cpath fill='%23b90000' stroke='%23b90000' stroke-width='5' d='M14.46743 25.5937V5.8964h6.499883l6.824514 19.6973z'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Crane Runway Ground Rails */
+.crane-runway {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 17px;
+    height: 3px;
+    z-index: 13;
+    pointer-events: none;
+}
+.crane-rail-front {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, #94a3b8 0%, #475569 50%, #1e293b 100%);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+    border-radius: 1px;
 }
 
 /* Intermodal Gantry Crane */
@@ -708,9 +726,9 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 .train-zone {
     position: absolute;
     right: 0;
-    bottom: 25px;
+    bottom: 29px;
     display: flex;
-    gap: 3px;
+    gap: 4px;
     z-index: 6;
     flex-direction: row-reverse;
     align-items: flex-end;
@@ -721,18 +739,18 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     animation: train-arrive 0.65s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
 }
 @keyframes train-arrive {
-    0% { transform: translateX(110px); opacity: 0; }
-    100% { transform: translateX(0); opacity: 1; }
+    0% { transform: translateX(calc(var(--train-shift, 0px) + 120px)); opacity: 0; }
+    100% { transform: translateX(var(--train-shift, 0px)); opacity: 1; }
 }
 .train-zone.departing {
-    animation: train-depart 0.9s cubic-bezier(0.4, 0, 0.8, 0.2) forwards;
+    animation: train-depart 0.95s cubic-bezier(0.3, 0, 0.8, 0.3) forwards;
 }
 @keyframes train-depart {
     0% { transform: translateX(var(--train-shift, 0px)); opacity: 1; }
-    100% { transform: translateX(calc(var(--train-shift, 0px) - 340px)); opacity: 0; }
+    100% { transform: translateX(calc(var(--train-shift, 0px) + 380px)); opacity: 0; }
 }
 
-/* Modern Electric Vectron Locomotive */
+/* Modern Electric Vectron Locomotive - Heading Right */
 .locomotive {
     width: 44px;
     height: 25px;
@@ -743,7 +761,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     width: 100%;
     height: 18px;
     background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-    border-radius: 2px 5px 2px 2px;
+    border-radius: 2px 6px 2px 2px;
     border: 1px solid #334155;
     position: relative;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
@@ -751,7 +769,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 .loco-cab {
     position: absolute;
     top: 1px;
-    left: 2px;
+    right: 3px;
     width: 14px;
     height: 8px;
     background: rgba(15, 23, 42, 0.9);
@@ -760,7 +778,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 .loco-window {
     position: absolute;
     inset: 1px;
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.45) 0%, rgba(30, 58, 138, 0.6) 100%);
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.6) 0%, rgba(56, 189, 248, 0.5) 100%);
     border-radius: 1px;
     box-shadow: 0 0 4px rgba(56, 189, 248, 0.3);
 }
@@ -776,7 +794,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 .loco-pantograph {
     position: absolute;
     top: -9px;
-    right: 6px;
+    left: 6px;
     width: 14px;
     height: 10px;
     pointer-events: none;
@@ -789,8 +807,8 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     width: 10px;
     height: 8px;
     border-top: 1.5px solid #94a3b8;
-    border-right: 1.5px solid #94a3b8;
-    transform: skewX(-25deg);
+    border-left: 1.5px solid #94a3b8;
+    transform: skewX(25deg);
 }
 .loco-pantograph::after {
     content: '';
@@ -804,8 +822,8 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 }
 .loco-headlight {
     position: absolute;
-    left: -2px;
-    top: 8px;
+    right: -2px;
+    top: 9px;
     width: 4px;
     height: 4px;
     background: #fef08a;
@@ -814,26 +832,46 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 }
 .loco-headlight-cone {
     position: absolute;
-    right: 100%;
+    left: 100%;
     top: -2px;
-    width: 70px;
-    height: 22px;
+    width: 80px;
+    height: 24px;
     pointer-events: none;
-    background: linear-gradient(to left, rgba(254, 240, 138, 0.28) 0%, rgba(254, 240, 138, 0.06) 65%, transparent 100%);
-    clip-path: polygon(100% 35%, 0% 0%, 0% 100%, 100% 65%);
+    background: linear-gradient(to right, rgba(254, 240, 138, 0.32) 0%, rgba(254, 240, 138, 0.08) 65%, transparent 100%);
+    clip-path: polygon(0% 35%, 100% 0%, 100% 100%, 0% 65%);
+}
+.loco-coupler {
+    position: absolute;
+    left: -4px;
+    bottom: 1px;
+    width: 5px;
+    height: 4px;
+    background: #475569;
+    border-radius: 1px;
+}
+.loco-taillight {
+    position: absolute;
+    left: 1px;
+    top: 10px;
+    width: 2px;
+    height: 2px;
+    background: #ef4444;
+    border-radius: 50%;
+    box-shadow: 0 0 4px #ef4444;
 }
 .loco-bogie {
     position: absolute;
-    bottom: -6px;
+    bottom: 0;
     display: flex;
     gap: 3px;
 }
 .loco-bogie.bl { left: 4px; }
 .loco-bogie.br { right: 4px; }
 
-/* Flatcars & Rotating Bogie Wheels */
+/* Flatcars & Articulated Trainset */
 .flatcar {
     width: 44px;
+    height: 25px;
     flex-shrink: 0;
     position: relative;
     opacity: 0;
@@ -841,16 +879,27 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     will-change: transform, opacity;
 }
 @keyframes car-roll {
-    0% { opacity: 0; transform: translateX(24px); }
+    0% { opacity: 0; transform: translateX(-24px); }
     100% { opacity: 1; transform: translateX(0); }
 }
+.flatcar.settling {
+    animation: flatcar-spring 0.28s cubic-bezier(0.3, 1.4, 0.6, 1);
+}
+@keyframes flatcar-spring {
+    0% { transform: translateY(0); }
+    35% { transform: translateY(2px); }
+    70% { transform: translateY(-1px); }
+    100% { transform: translateY(0); }
+}
 .flatcar-deck {
-    width: 100%;
-    height: 6px;
+    position: absolute;
+    bottom: 5px;
+    left: 0;
+    right: 0;
+    height: 5px;
     background: linear-gradient(180deg, #475569 0%, #1e293b 100%);
     border: 1px solid #334155;
     border-radius: 1px;
-    position: relative;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 .flatcar-deck .flatcar-chassis {
@@ -868,17 +917,26 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 }
 .flatcar-deck .flatcar-pin.tl { left: 6px; }
 .flatcar-deck .flatcar-pin.tr { right: 6px; }
+.flatcar-deck .flatcar-coupler {
+    position: absolute;
+    left: -4px;
+    top: 1px;
+    width: 5px;
+    height: 3px;
+    background: #475569;
+    border-radius: 1px;
+}
 
 .flatcar-bogie {
     position: absolute;
-    bottom: -6px;
+    bottom: 0;
     display: flex;
     gap: 3px;
 }
 .flatcar-bogie.bl { left: 4px; }
 .flatcar-bogie.br { right: 4px; }
 
-/* Wheel Animation */
+/* Wheel Animation - Clockwise Forward */
 .train-wheel {
     width: 6px;
     height: 6px;
@@ -899,13 +957,13 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 }
 @keyframes wheel-spin {
     0% { transform: rotate(0deg); }
-    100% { transform: rotate(-360deg); }
+    100% { transform: rotate(360deg); }
 }
 
 /* Train Loaded Container Placement */
 .train-crate {
     position: absolute;
-    bottom: 6px;
+    bottom: 10px;
     left: 50%;
     transform: translateX(-50%);
     width: 28px;
