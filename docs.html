@@ -288,12 +288,24 @@
         <p>The time filter automatically detects the exact first and last dates in your travel dataset upon load, with a single-click <strong>Reset Date Range</strong> button to restore full view.</p>
       </article>
       <article class="card">
-        <h3>📤 GeoJSON Route Export</h3>
-        <p>Export your travels as standardized GeoJSON. Export active filtered layers or your full trip database, with options to download <code>.geojson</code> or copy directly to clipboard.</p>
+        <h3>📤 GeoJSON Route & Stopovers Export</h3>
+        <p>Export your travels as standardized GeoJSON. Export active filtered layers or your full trip database, with the option to fetch intermediate station stopovers (platforms, delay telemetry, and coordinates) or copy directly to clipboard.</p>
       </article>
       <article class="card">
-        <h3>🚦 Transport Layers</h3>
-        <p>Toggle individual categories (ICE, IC/EC, Regional Express, Regional, S-Bahn, Bus, Tram, Subway, Plane, Ship) and drag-and-drop to reorder visual stacking.</p>
+        <h3>🚉 Intermediate Stations & Stopovers</h3>
+        <p>Query Träwelling's <code>/v1/stopovers/{ids}</code> API to fetch complete station itineraries along train routes. Cached in IndexedDB to minimize network requests.</p>
+      </article>
+      <article class="card">
+        <h3>⚡ Instant 0ms Setup & Session Switcher</h3>
+        <p>Zero-delay synchronous cache in the setup menu. Instantaneously displays your recent Träwelling accounts and allows seamless profile switching or offline exploring.</p>
+      </article>
+      <article class="card">
+        <h3>🖼️ Photo & Video Lightbox Gallery</h3>
+        <p>Browse media attachments directly in check-in popups. Full-screen lightbox with mobile touch gestures, debounced image loading, and muted video playback.</p>
+      </article>
+      <article class="card">
+        <h3>🚦 Transport Layers & Taxi Support</h3>
+        <p>Toggle individual categories (ICE, IC/EC, Regional Express, Regional, S-Bahn, Bus, Tram, Subway, Taxi/Rideshare, Plane, Ferry) and drag-and-drop to reorder visual stacking.</p>
       </article>
       <article class="card">
         <h3>🔥 Route Density Heatmap</h3>

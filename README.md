@@ -8,42 +8,72 @@ A modular, production-ready web application for visualizing Träwelling travel d
 
 ## Features
 
-- **Streamlined Setup & Zero-Auth Public Exploration**: Explore any public Träwelling user immediately with just their username — no credentials needed
-- **Flexible Token & Auth Options**: Collapsible dropdown for private profiles and personal API tokens with 1-tap mobile clipboard pasting, plus optional OAuth 2.0 PKCE support
-- **Interactive Map**: Powered by Mapbox GL JS and Deck.gl
-- **Transport Layers**: Color-coded transit categories with custom ordering (ICE, RE, IC/EC, RB, S-Bahn, etc.)
-- **Trip Notes & Comment Search**: User notes and status text displayed safely in route popups, plus real-time trip & comment search
-- **Travel Buddies**: Automatic companion recognition from mentions (`@username`) with a top travel buddies ranking
-- **Data Visualization & Export**: Route polylines, heatmap overlays, delay indicators, and full GeoJSON export
-- **Session Management**: Cached sessions via IndexedDB with multi-account support
-- **Rate Limiting**: Built-in API rate limiting with visual feedback
-- **Responsive Design**: Mobile-friendly interface with tap-first interactions and mobile-optimized dropdowns
+- **Streamlined Setup & Zero-Auth Exploration**: Explore any public Träwelling user immediately with just their username — no login or token required.
+- **Instant Local Session Switching**: Synchronous 0ms local metadata cache and 90-day IndexedDB session store with multi-account switching and account pruning.
+- **Flexible Auth (OAuth 2.0 PKCE & Tokens)**: Connect securely with 1-click Träwelling OAuth using PKCE, or use Personal Access Tokens with 1-tap clipboard pasting.
+- **Interactive Map & Layers**: Powered by Mapbox GL JS and Deck.gl. Color-coded categories across all transit modes: ICE/High-Speed, IC/EC, RE, RB, S-Bahn, Bus, Tram, Subway, Taxi/Rideshare, Ferry, and Plane.
+- **Intermediate Stations & Stopovers**: On-demand batch retrieval of underway station stopovers (`GET /v1/stopovers/{ids}`) cached in IndexedDB.
+- **Rich GeoJSON Export**: Export filtered or complete journeys as standardized GeoJSON, with optional inclusion of intermediate stations (scheduled vs. actual times, platforms, coordinates, and cancellation status).
+- **Photo & Video Media Gallery**: Inline previews and immersive full-screen media lightbox supporting swipe gestures, loop/mute controls, and debounced loading.
+- **Travel Buddies Ranking**: Automatic companion recognition from mentions (`@username`) and `createdBy` metadata, with 1-click buddy trip filtering.
+- **Route Heatmap & Route Animation**: Dynamic heatmap density overlay with customizable color gradients and real-time trip playback animation.
+- **Delay Tracker & Railway Tracks Overlay**: Pinpoint worst delays and overlay detailed OpenRailwayMap infrastructure over base vector tiles.
+- **Trip Notes & Comment Search**: User notes and status text displayed safely in route popups, with instant client-side full-text search across lines, stations, buddies, and notes.
 
 ## Architecture
 
-### Modular Structure
+### Modular Directory Structure
 
 ```
 js/
-├── api/           # API client (Traewelling)
-├── cache/         # IndexedDB session storage
-├── map/           # Map initialization and layer management
-├── analytics/     # Statistics and filters
-├── utils/         # Validation, error handling, loading states
-├── ui/            # UI modules (setup, fetch, menu, popup)
-├── data/          # Data fetching logic
-├── config.js      # Configuration constants
-├── state.js       # Global state management
-└── main.js        # Application entry point
+├── analytics/
+│   └── statistics.js     # Travel metrics, operator stats, buddy rankings
+├── api/
+│   └── traewelling.js    # Rate-limited API client (statuses, polylines, stopovers)
+├── cache/
+│   └── session.js        # IndexedDB v2 storage (sessions, stopovers, fast meta cache)
+├── config/
+│   └── config.js         # API base URLs, layer colors, rate limits, OAuth config
+├── data/
+│   └── processing.js     # GeoJSON feature normalization, coordinate validation
+├── events/
+│   └── listeners.js      # Global UI events, filters, debounced handlers
+├── export/
+│   └── geojson.js        # GeoJSON serialization, stopovers enrichment, file downloads
+├── fetch/
+│   └── orchestrator.js   # Multi-page status fetching, cargo progress animation
+├── filters/
+│   └── filterManager.js  # Date range, transport mode, buddy, and business filtering
+├── map/
+│   ├── delayOverlay.js   # Deck.gl delay highlights and summary metrics
+│   ├── heatmap.js        # Density heatmap layer with color stops
+│   ├── interactions.js   # Map click/hover handlers, popups, media viewer
+│   ├── layers.js         # Category layer sources, ordering, and toggles
+│   └── routeAnimation.js # Animated trip playback along route polylines
+├── session/
+│   ├── manager.js        # Session persistence, auto-validation, account switcher
+│   └── oauth.js          # PKCE code challenge and token exchange
+├── state/
+│   ├── state.js          # Central state shape initialization
+│   └── store.js          # Reactive store with subscription callbacks
+├── ui/
+│   ├── funFacts.js       # Dynamic travel milestones and fun facts
+│   ├── rateLimit.js      # Live rate-limit gauge and quota meter
+│   └── ui.js             # Setup modal, cargo depot animation, status banners
+└── utils/
+    ├── color.js          # Hex/RGB conversions and color blending
+    ├── data.js           # Empty statistics factories and normalization
+    ├── format.js         # Date, duration, and delay formatting
+    ├── geometry.js       # Distance, bearing, and bounding box math
+    ├── math.js           # Numeric helpers
+    └── time.js           # Timestamp parsing and scheduled vs real delay math
 ```
 
 ### Key Modules
 
-- **API Client**: Rate-limited Träwelling API client
-- **IndexedDB**: Session caching with automatic pruning
-- **Error Handler**: Centralized error handling with user-friendly messages
-- **Validation**: Input validation for usernames, tokens, dates
-- **Loading Manager**: Loading state management with progress tracking
+- **API Client ([js/api/traewelling.js](js/api/traewelling.js))**: Auto-throttling Träwelling API client respecting 55 req/60s rate limit with visual headroom meter.
+- **Persistent Cache ([js/cache/session.js](js/cache/session.js))**: IndexedDB v2 storing full trip sets, multi-account credentials, and batch stopovers, paired with synchronous `localStorage` metadata for instantaneous startup.
+- **GeoJSON Exporter ([js/export/geojson.js](js/export/geojson.js))**: Converts check-ins to valid GeoJSON FeatureCollections, optionally batch-fetching intermediate stations for full route telemetry.
 
 ## Quick Start
 
