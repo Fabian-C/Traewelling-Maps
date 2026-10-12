@@ -16,6 +16,134 @@ export function normalizeCategory(category) {
 }
 
 /**
+ * Pre-indexes a trip for ultra-fast filtering and analytics.
+ * Attaches _index object to the trip.
+ */
+export function indexTrip(trip, currentUsername = '') {
+    const currentUser = (currentUsername || '').toLowerCase().trim();
+    if (trip._index && trip._index.owner === currentUser) {
+        return trip._index;
+    }
+
+    const train = trip.train || trip.properties?.train || {};
+    const rawDate = trip.createdAt || trip.properties?.createdAt || train.origin?.departure || train.origin?.plannedDeparture;
+    let timestamp = null;
+    if (rawDate) {
+        const parsed = Date.parse(rawDate);
+        if (!isNaN(parsed)) timestamp = parsed;
+    }
+
+    const category = normalizeCategory(train.category);
+    const distance = (typeof train.totalDistance === 'number' ? train.totalDistance : train.distance) || 0;
+    const lineName = train.lineName || train.number || 'Unknown';
+    const originName = train.origin?.name || train.origin?.station?.name || '';
+    const destName = train.destination?.name || train.destination?.station?.name || '';
+    const bodyText = typeof trip.body === 'string' ? trip.body : '';
+
+    let mentionsText = '';
+    const buddiesNoNotes = new Map();
+    const buddiesWithNotes = new Map();
+
+    const addBuddy = (name) => {
+        if (!name) return;
+        const clean = String(name).trim();
+        const lower = clean.toLowerCase();
+        if (!lower || (currentUser && lower === currentUser)) return;
+        if (!buddiesNoNotes.has(lower)) {
+            buddiesNoNotes.set(lower, clean);
+        }
+        if (!buddiesWithNotes.has(lower)) {
+            buddiesWithNotes.set(lower, clean);
+        }
+    };
+
+    // 1. bodyMentions
+    let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
+    if (typeof mentions === 'string') {
+        try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
+    }
+    if (Array.isArray(mentions)) {
+        mentions.forEach(m => {
+            const u = m.user?.username || m.username;
+            const d = m.user?.displayName || '';
+            if (u) {
+                addBuddy(u);
+                mentionsText += ' ' + u + ' ' + d;
+            }
+        });
+    }
+
+    // 2. createdBy
+    let createdBy = trip.createdBy || trip.properties?.createdBy;
+    if (typeof createdBy === 'string') {
+        try { createdBy = JSON.parse(createdBy); } catch (e) { createdBy = null; }
+    }
+    if (createdBy?.username) {
+        addBuddy(createdBy.username);
+        mentionsText += ' ' + createdBy.username;
+    }
+
+    // 3. fellowPassengers
+    let fps = trip.fellowPassengers || trip.properties?.fellowPassengers;
+    if (typeof fps === 'string') {
+        try { fps = JSON.parse(fps); } catch (e) { fps = []; }
+    }
+    if (Array.isArray(fps)) {
+        fps.forEach(fp => {
+            const u = fp.user?.username || fp.username;
+            if (u) {
+                addBuddy(u);
+                mentionsText += ' ' + u;
+            }
+        });
+    }
+
+    // 4. Notes mentions (@username)
+    if (bodyText.includes('@')) {
+        const matches = bodyText.match(/@([a-zA-Z0-9_-]+)/g);
+        if (matches) {
+            matches.forEach(m => {
+                const clean = m.substring(1).trim();
+                const lower = clean.toLowerCase();
+                if (lower && (!currentUser || lower !== currentUser) && !buddiesWithNotes.has(lower)) {
+                    buddiesWithNotes.set(lower, clean);
+                }
+            });
+        }
+    }
+
+    const searchCorpus = `${bodyText} ${lineName} ${originName} ${destName} ${mentionsText}`.toLowerCase();
+
+    trip._index = {
+        owner: currentUser,
+        timestamp,
+        category,
+        distance,
+        lineName,
+        originName,
+        destName,
+        business: trip.business,
+        searchCorpus,
+        buddiesNoNotes,
+        buddiesWithNotes,
+        buddySetNoNotes: new Set(buddiesNoNotes.keys()),
+        buddySetWithNotes: new Set(buddiesWithNotes.keys())
+    };
+
+    return trip._index;
+}
+
+/**
+ * Pre-index an array of trips in a single efficient pass.
+ */
+export function indexTrips(trips, currentUsername = '') {
+    if (!Array.isArray(trips)) return;
+    for (let i = 0; i < trips.length; i++) {
+        indexTrip(trips[i], currentUsername);
+    }
+}
+
+/**
  * Process trips to GeoJSON by category
  */
 export function processTripsToGeoJSON(trips) {
@@ -23,7 +151,7 @@ export function processTripsToGeoJSON(trips) {
     CONFIG.LAYER_CONFIG.forEach(([cat]) => { categories[cat] = { type: 'FeatureCollection', features: [] }; });
 
     trips.forEach(trip => {
-        const category = normalizeCategory(trip.train?.category);
+        const category = trip._index?.category || normalizeCategory(trip.train?.category);
         const targetCat = categories[category] ? category : 'unknown';
         const polyline = trip.train?.polyline;
         if (!polyline?.geometry?.coordinates) return;

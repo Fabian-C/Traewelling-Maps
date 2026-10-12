@@ -16,7 +16,7 @@ const filters = {
     },
     buddy: {
         name: 'Travel Buddy',
-        apply: (trips, config) => filterTripsByBuddy(trips, config.buddies || config.buddy)
+        apply: (trips, config) => filterTripsByBuddy(trips, config.buddies || config.buddy, config.includeNoteMentions)
     },
     search: {
         name: 'Search Query',
@@ -58,10 +58,9 @@ function filterTripsByDateRange(trips, fromDate, toDate) {
     const to = toDate ? new Date(toDate + 'T23:59:59.999Z').getTime() : null;
     
     return trips.filter(trip => {
-        const raw = trip?.createdAt || trip?.train?.origin?.departure || trip?.train?.origin?.plannedDeparture;
-        if (!raw) return true;
-        const time = new Date(raw).getTime();
-        if (isNaN(time)) return true;
+        const idx = trip._index;
+        const time = idx?.timestamp !== undefined ? idx.timestamp : (trip.createdAt ? new Date(trip.createdAt).getTime() : null);
+        if (time === null || isNaN(time)) return true;
         if (from !== null && time < from) return false;
         if (to !== null && time > to) return false;
         return true;
@@ -76,7 +75,7 @@ function filterTripsByBusiness(trips, businessFilters) {
     if (!businessFilters) return trips.slice();
     
     return trips.filter(trip => {
-        const businessValue = trip?.business;
+        const businessValue = trip._index ? trip._index.business : trip?.business;
         
         // business: 0 = personal, 1 = work, 2 = commute (based on Träwelling API)
         if (businessValue === 0 && !businessFilters.personal) return false;
@@ -96,7 +95,7 @@ function filterTripsByAccuracy(trips, filterLevel) {
     if (filterLevel === 0) return trips.slice();
     
     return trips.filter(trip => {
-        const category = normalizeCategory(trip.train?.category);
+        const category = trip._index?.category || normalizeCategory(trip.train?.category);
         const coords = trip.train?.polyline?.geometry?.coordinates;
         // Check-ins without geodata do not disrupt the map and must still be counted in statistics
         if (!coords || coords.length < 2) return true;
@@ -128,9 +127,11 @@ function filterTripsBySearch(trips, query) {
     if (!query || !query.trim()) return trips;
     const q = query.trim().toLowerCase();
     return trips.filter(trip => {
-        // Search in status body / comment
+        if (trip._index) {
+            return trip._index.searchCorpus.includes(q);
+        }
+        // Fallback if not indexed
         if (trip.body && String(trip.body).toLowerCase().includes(q)) return true;
-        // Search in bodyMentions usernames
         if (Array.isArray(trip.bodyMentions)) {
             if (trip.bodyMentions.some(m => {
                 const u = m.user?.username || m.username || '';
@@ -138,7 +139,6 @@ function filterTripsBySearch(trips, query) {
                 return u.toLowerCase().includes(q) || d.toLowerCase().includes(q);
             })) return true;
         }
-        // Search lineName or origin / destination
         const train = trip.train || {};
         const line = (train.lineName || train.number || '').toLowerCase();
         const origin = (train.origin?.name || '').toLowerCase();
@@ -150,17 +150,23 @@ function filterTripsBySearch(trips, query) {
 /**
  * Filter trips by specific travel buddy or buddies (from deduplicated sources: bodyMentions, createdBy, fellowPassengers, and optional notes)
  */
-function filterTripsByBuddy(trips, targetBuddies) {
+function filterTripsByBuddy(trips, targetBuddies, includeNotes = false) {
     if (!trips.length || !targetBuddies) return trips.slice();
     const buddyList = Array.isArray(targetBuddies) ? targetBuddies : [targetBuddies];
     const targets = buddyList.map(b => String(b).toLowerCase().trim()).filter(Boolean);
     if (!targets.length) return trips.slice();
 
-    const targetSet = new Set(targets);
     return trips.filter(trip => {
-        const tripBuddies = extractUniqueBuddiesFromTrip(trip);
-        for (const b of targetSet) {
-            if (tripBuddies.has(b)) return true;
+        if (trip._index) {
+            const set = includeNotes ? trip._index.buddySetWithNotes : trip._index.buddySetNoNotes;
+            for (let i = 0; i < targets.length; i++) {
+                if (set.has(targets[i])) return true;
+            }
+            return false;
+        }
+        const tripBuddies = extractUniqueBuddiesFromTrip(trip, includeNotes);
+        for (let i = 0; i < targets.length; i++) {
+            if (tripBuddies.has(targets[i])) return true;
         }
         return false;
     });

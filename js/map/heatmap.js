@@ -36,11 +36,18 @@ export function setBaseLayerVisibility(state, visible) {
     });
 }
 
-export function getDensityColor(feature) {
+export function getDensityColor(featureOrDensity, maybeIntensity = null) {
     const state = store.get();
-    if (!feature?.properties?.density) return [100, 100, 100, 150];
-    const density = feature.properties.density;
-    const intensity = state.heatmap.intensity || 1;
+    let density = 1;
+    const intensity = maybeIntensity !== null ? maybeIntensity : (state.heatmap.intensity || 1);
+    
+    if (typeof featureOrDensity === 'number') {
+        density = featureOrDensity;
+    } else if (featureOrDensity?.properties?.density) {
+        density = featureOrDensity.properties.density;
+    } else if (featureOrDensity?.density) {
+        density = featureOrDensity.density;
+    }
     
     // Non-linear intensity scaling: fine granularity at low levels, sharper steps at high levels
     // Uses combination of linear and quadratic: intensity + (intensity^2 / 14) for 1-14 range
@@ -52,7 +59,7 @@ export function getDensityColor(feature) {
         Math.min(255, normalizedDensity * 25),
         Math.min(255, 128 * (1 - normalizedDensity * 0.15)),
         Math.min(255, 255 * (1 - normalizedDensity * 0.15)),
-        150
+        160
     ];
 }
 
@@ -93,24 +100,22 @@ export function updateRouteDensity(force = false) {
     const state = store.get();
     if (!state.heatmap.enabled || !state.useDeckGL) return;
     RouteAnimation.invalidateCache();
-    const featureCollection = buildRouteDensityFeatureCollection(state, force);
-    if (!featureCollection?.features?.length) {
+    const lines = buildRouteDensityLines(state, force);
+    if (!lines?.length) {
         removeRouteDensityOverlay();
         return;
     }
-    const overlayLayer = new deck.GeoJsonLayer({
+    const overlayLayer = new deck.LineLayer({
         id: state.heatmap.layerId,
-        data: featureCollection,
-        stroked: true,
-        filled: false,
-        lineJointRounded: true,
-        lineCapRounded: true,
-        pickable: false,
+        data: lines,
+        getSourcePosition: d => d.source,
+        getTargetPosition: d => d.target,
+        getColor: d => d.color,
+        getWidth: () => getDensityWidth(),
+        widthUnits: 'pixels',
+        widthMinPixels: 1.5,
         parameters: { depthTest: false },
-        getLineColor: f => getDensityColor(f),
-        getLineWidth: () => getDensityWidth(),
-        lineWidthUnits: 'pixels',
-        lineWidthMinPixels: 1.5
+        pickable: false
     });
     state.deckLayers = state.deckLayers.filter(l => l.id !== state.heatmap.layerId);
     const particleIndex = state.deckLayers.findIndex(l => l.id === 'animated-routes');
@@ -126,11 +131,12 @@ export function removeRouteDensityOverlay() {
     const state = store.get();
     state.deckLayers = state.deckLayers.filter(l => l.id !== state.heatmap.layerId);
     if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
+    state.heatmap.lineData = null;
     state.heatmap.overlayFeatureCollection = null;
     state.heatmap.overlayLookup = new Map();
 }
 
-export function buildRouteDensityFeatureCollection(state, force = false) {
+export function buildRouteDensityLines(state, force = false) {
     if (!state.heatmap.enabled || !state.useDeckGL) return null;
     
     const cacheKey = [
@@ -142,78 +148,86 @@ export function buildRouteDensityFeatureCollection(state, force = false) {
         state.filters.toDate || 'null'
     ].join('|');
 
-    if (!force && state.heatmap.overlayFeatureCollection && state.heatmap.cacheKey === cacheKey) {
-        return state.heatmap.overlayFeatureCollection;
+    if (!force && state.heatmap.lineData && state.heatmap.cacheKey === cacheKey) {
+        return state.heatmap.lineData;
     }
 
     const trips = state.activeTrips?.length ? state.activeTrips : refreshActiveTrips();
     if (!Array.isArray(trips) || !trips.length) {
-        state.heatmap.overlayFeatureCollection = null;
+        state.heatmap.lineData = [];
+        state.heatmap.overlayFeatureCollection = { type: 'FeatureCollection', features: [] };
         state.heatmap.cacheKey = cacheKey;
-        return state.heatmap.overlayFeatureCollection;
+        return state.heatmap.lineData;
     }
 
     const segmentMap = new Map();
-    // Round to 5 decimal places for precise segment matching
-    const roundCoord = (value) => Math.round(value * 1e5) / 1e5;
+    const roundVal = (v) => Math.round(v * 1e5);
     
-    trips.forEach(trip => {
+    for (let t = 0; t < trips.length; t++) {
+        const trip = trips[t];
         const train = trip.train || {};
         const coords = train.polyline?.geometry?.coordinates;
-        if (!coords || coords.length < 2) return;
+        if (!coords || coords.length < 2) continue;
 
-        const layerId = normalizeCategory(train.category);
+        const layerId = trip._index?.category || normalizeCategory(train.category);
         const layerInfo = state.layers.data.get(layerId);
-        if (layerInfo && layerInfo.visible === false) return;
+        if (layerInfo && layerInfo.visible === false) continue;
 
-        // Use a simpler Set-like approach with an object for better performance
-        const tripSegments = Object.create(null);
+        const tripSegments = new Set();
 
         for (let i = 0; i < coords.length - 1; i++) {
-            const x1 = coords[i][0], y1 = coords[i][1];
-            const x2 = coords[i + 1][0], y2 = coords[i + 1][1];
-            
-            // Normalize direction
-            const ax = x1, ay = y1, bx = x2, by = y2;
-            let key;
-            if (ax < bx || (ax === bx && ay <= by)) {
-                key = `${ax},${ay}-${bx},${by}`;
-            } else {
-                key = `${bx},${by}-${ax},${ay}`;
+            const p1 = coords[i];
+            const p2 = coords[i + 1];
+            const x1 = roundVal(p1[0]), y1 = roundVal(p1[1]);
+            const x2 = roundVal(p2[0]), y2 = roundVal(p2[1]);
+
+            if (x1 === x2 && y1 === y2) continue;
+
+            let k1x = x1, k1y = y1, k2x = x2, k2y = y2;
+            if (k1x > k2x || (k1x === k2x && k1y > k2y)) {
+                k1x = x2; k1y = y2; k2x = x1; k2y = y1;
             }
-            
-            // Only increment if this segment hasn't been counted for this trip yet
-            if (!tripSegments[key]) {
-                // Round coordinates for the actual segment map key
-                const p1x = roundCoord(x1), p1y = roundCoord(y1);
-                const p2x = roundCoord(x2), p2y = roundCoord(y2);
-                const roundedKey = `${p1x},${p1y}-${p2x},${p2y}`;
-                segmentMap.set(roundedKey, (segmentMap.get(roundedKey) || 0) + 1);
-                tripSegments[key] = true;
+
+            const segKey = `${k1x},${k1y}:${k2x},${k2y}`;
+            if (!tripSegments.has(segKey)) {
+                tripSegments.add(segKey);
+                const existing = segmentMap.get(segKey);
+                if (existing) {
+                    existing.count++;
+                } else {
+                    segmentMap.set(segKey, {
+                        source: [k1x / 1e5, k1y / 1e5],
+                        target: [k2x / 1e5, k2y / 1e5],
+                        count: 1
+                    });
+                }
             }
         }
+    }
+
+    const lines = [];
+    const intensity = state.heatmap.intensity || 1;
+    segmentMap.forEach(item => {
+        lines.push({
+            source: item.source,
+            target: item.target,
+            density: item.count,
+            color: getDensityColor(item.count, intensity)
+        });
     });
 
-    const lineData = [];
-    segmentMap.forEach((count, key) => {
-        const [s, t] = key.split('-');
-        lineData.push({ source: s.split(',').map(Number), target: t.split(',').map(Number), density: count });
-    });
+    lines.sort((a, b) => a.density - b.density);
 
-    const intensity = (state.heatmap.intensity * 3) / 4;
-    const ordered = lineData.slice().sort((a, b) => a.density - b.density);
-    const features = ordered.map((item, index) => ({
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: [item.source, item.target] },
-        properties: {
-            density: item.density,
-            intensity: intensity,
-            order: index
-        }
-    }));
-
-    state.heatmap.overlayFeatureCollection = { type: 'FeatureCollection', features };
-    state.heatmap.overlayLookup = new Map(features.map((feature, idx) => [idx, feature]));
+    state.heatmap.lineData = lines;
+    state.heatmap.overlayFeatureCollection = {
+        type: 'FeatureCollection',
+        features: lines
+    };
     state.heatmap.cacheKey = cacheKey;
+    return lines;
+}
+
+export function buildRouteDensityFeatureCollection(state, force = false) {
+    buildRouteDensityLines(state, force);
     return state.heatmap.overlayFeatureCollection;
 }

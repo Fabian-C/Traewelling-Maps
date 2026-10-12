@@ -1,11 +1,11 @@
 // Statistics and analytics functions
 import { store } from '../state/store.js';
 import { escapeHtml } from '../utils/format.js';
-import { normalizeCategory } from '../data/processing.js';
+import { normalizeCategory, indexTrip, indexTrips } from '../data/processing.js';
 
 export function resetStatistics(statisticsObj) {
     if (!statisticsObj) {
-        statisticsObj = { trips: 0, distance: 0, lineCounts: {}, typeCounts: {}, travelBuddies: {}, oldestDate: null, newestDate: null, oldestStatusId: null, newestStatusId: null };
+        statisticsObj = { trips: 0, distance: 0, lineCounts: {}, typeCounts: {}, travelBuddies: {}, oldestDate: null, newestDate: null, oldestStatusId: null, newestStatusId: null, oldestTimestamp: null, newestTimestamp: null };
     } else {
         statisticsObj.trips = 0;
         statisticsObj.distance = 0;
@@ -16,43 +16,61 @@ export function resetStatistics(statisticsObj) {
         statisticsObj.newestDate = null;
         statisticsObj.oldestStatusId = null;
         statisticsObj.newestStatusId = null;
+        statisticsObj.oldestTimestamp = null;
+        statisticsObj.newestTimestamp = null;
     }
     return statisticsObj;
 }
 
 export function updateStatisticsWithTrip(trip, statisticsObj) {
     if (!statisticsObj) {
-        statisticsObj = { trips: 0, distance: 0, lineCounts: {}, typeCounts: {}, travelBuddies: {}, oldestDate: null, newestDate: null, oldestStatusId: null, newestStatusId: null };
+        statisticsObj = { trips: 0, distance: 0, lineCounts: {}, typeCounts: {}, travelBuddies: {}, oldestDate: null, newestDate: null, oldestStatusId: null, newestStatusId: null, oldestTimestamp: null, newestTimestamp: null };
     }
     if (!statisticsObj.travelBuddies) statisticsObj.travelBuddies = {};
 
-    let train = trip.train || trip.properties?.train;
-    if (typeof train === 'string') try { train = JSON.parse(train); } catch (e) { train = {}; }
-    train = train || {};
-    const distance = (typeof train.totalDistance === 'number' ? train.totalDistance : train.distance) || 0;
-    const createdAt = trip.createdAt || trip.properties?.createdAt;
+    const idx = trip._index;
+    let distance = 0;
+    let lineName = 'Unknown';
+    let category = 'unknown';
+    let timestamp = null;
+
+    if (idx) {
+        distance = idx.distance;
+        lineName = idx.lineName;
+        category = idx.category;
+        timestamp = idx.timestamp;
+    } else {
+        let train = trip.train || trip.properties?.train;
+        if (typeof train === 'string') try { train = JSON.parse(train); } catch (e) { train = {}; }
+        train = train || {};
+        distance = (typeof train.totalDistance === 'number' ? train.totalDistance : train.distance) || 0;
+        lineName = train.lineName || train.number || 'Unknown';
+        category = normalizeCategory(train.category);
+        const createdAt = trip.createdAt || trip.properties?.createdAt;
+        if (createdAt) {
+            const d = Date.parse(createdAt);
+            if (!isNaN(d)) timestamp = d;
+        }
+    }
+
     const statusId = trip.id || trip.properties?.statusId;
-    const category = normalizeCategory(train.category);
 
     statisticsObj.trips++;
     statisticsObj.distance += distance;
 
-    const lineName = train.lineName || train.number || 'Unknown';
     statisticsObj.lineCounts[lineName] = (statisticsObj.lineCounts[lineName] || 0) + 1;
     statisticsObj.typeCounts[category] = (statisticsObj.typeCounts[category] || 0) + 1;
 
-
-    if (createdAt) {
-        const d = new Date(createdAt);
-        if (!isNaN(d.getTime())) {
-            if (!statisticsObj.oldestDate || d < statisticsObj.oldestDate) { 
-                statisticsObj.oldestDate = d; 
-                statisticsObj.oldestStatusId = statusId; 
-            }
-            if (!statisticsObj.newestDate || d > statisticsObj.newestDate) { 
-                statisticsObj.newestDate = d; 
-                statisticsObj.newestStatusId = statusId; 
-            }
+    if (timestamp !== null) {
+        if (statisticsObj.oldestTimestamp === null || timestamp < statisticsObj.oldestTimestamp) { 
+            statisticsObj.oldestTimestamp = timestamp; 
+            statisticsObj.oldestDate = new Date(timestamp); 
+            statisticsObj.oldestStatusId = statusId; 
+        }
+        if (statisticsObj.newestTimestamp === null || timestamp > statisticsObj.newestTimestamp) { 
+            statisticsObj.newestTimestamp = timestamp; 
+            statisticsObj.newestDate = new Date(timestamp); 
+            statisticsObj.newestStatusId = statusId; 
         }
     }
 
@@ -142,70 +160,22 @@ export function refreshStatsDisplay(statisticsObj) {
  * Deduplicates multiple mentions/sources per trip and groups case-insensitively.
  * Returns a Map of lowercaseHandle -> preferredDisplayName.
  */
+/**
+ * Helper to extract unique travel companions from a single trip.
+ * Deduplicates multiple mentions/sources per trip and groups case-insensitively.
+ * Returns a Map of lowercaseHandle -> preferredDisplayName.
+ */
 export function extractUniqueBuddiesFromTrip(trip, includeNotes = null, currentUsername = null) {
     const state = store.get() || {};
     const shouldIncludeNotes = includeNotes !== null ? includeNotes : !!state.filters?.includeNoteMentions;
     const currentUser = (currentUsername !== null ? currentUsername : (state.username || '')).toLowerCase().trim();
-    const buddyMap = new Map(); // key: lowercase username, value: display username
 
-    const addBuddy = (name) => {
-        if (!name) return;
-        const cleanName = String(name).trim();
-        const lower = cleanName.toLowerCase();
-        if (!lower || (currentUser && lower === currentUser)) return;
-        if (!buddyMap.has(lower)) {
-            buddyMap.set(lower, cleanName);
-        }
-    };
-
-    // 1. Structured API bodyMentions
-    let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
-    if (typeof mentions === 'string') {
-        try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
-    }
-    if (Array.isArray(mentions)) {
-        mentions.forEach(m => {
-            const u = m.user?.username || m.username;
-            addBuddy(u);
-        });
+    if (trip._index && trip._index.owner === currentUser) {
+        return shouldIncludeNotes ? trip._index.buddiesWithNotes : trip._index.buddiesNoNotes;
     }
 
-    // 2. Structured API createdBy (e.g. check-in created by companion)
-    let createdBy = trip.createdBy || trip.properties?.createdBy;
-    if (typeof createdBy === 'string') {
-        try { createdBy = JSON.parse(createdBy); } catch (e) { createdBy = null; }
-    }
-    const createdByUsername = createdBy?.username;
-    addBuddy(createdByUsername);
-
-    // 3. Structured API fellowPassengers / alsoOnThisConnection if available
-    let fps = trip.fellowPassengers || trip.properties?.fellowPassengers;
-    if (typeof fps === 'string') {
-        try { fps = JSON.parse(fps); } catch (e) { fps = []; }
-    }
-    if (Array.isArray(fps)) {
-        fps.forEach(fp => {
-            const u = fp.user?.username || fp.username;
-            addBuddy(u);
-        });
-    }
-
-    // 4. Optionally parse @mentions from check-in notes text
-    if (shouldIncludeNotes) {
-        const noteText = trip.body || trip.properties?.body;
-        if (typeof noteText === 'string' && noteText.includes('@')) {
-            // Match @username (alphanumeric, underscore, hyphen)
-            const matches = noteText.match(/@([a-zA-Z0-9_-]+)/g);
-            if (matches) {
-                matches.forEach(m => {
-                    const handle = m.substring(1);
-                    addBuddy(handle);
-                });
-            }
-        }
-    }
-
-    return buddyMap;
+    const idx = indexTrip(trip, currentUser);
+    return shouldIncludeNotes ? idx.buddiesWithNotes : idx.buddiesNoNotes;
 }
 
 /**
@@ -214,18 +184,22 @@ export function extractUniqueBuddiesFromTrip(trip, includeNotes = null, currentU
 export function getBuddyStats(trips = null, includeNotes = null) {
     const state = store.get() || {};
     const tripList = trips || state.fetchedTrips || [];
+    const shouldIncludeNotes = includeNotes !== null ? includeNotes : !!state.filters?.includeNoteMentions;
     const currentUsername = (state.username || '').toLowerCase().trim();
     const buddyCounts = new Map(); // key: lowercase, value: { name: string, count: number }
 
-    tripList.forEach(t => {
-        const tripBuddies = extractUniqueBuddiesFromTrip(t, includeNotes, currentUsername);
+    for (let i = 0; i < tripList.length; i++) {
+        const t = tripList[i];
+        const tripBuddies = extractUniqueBuddiesFromTrip(t, shouldIncludeNotes, currentUsername);
         tripBuddies.forEach((displayName, lowerHandle) => {
-            if (!buddyCounts.has(lowerHandle)) {
-                buddyCounts.set(lowerHandle, { name: displayName, count: 0 });
+            const existing = buddyCounts.get(lowerHandle);
+            if (!existing) {
+                buddyCounts.set(lowerHandle, { name: displayName, count: 1 });
+            } else {
+                existing.count++;
             }
-            buddyCounts.get(lowerHandle).count++;
         });
-    });
+    }
 
     // Convert to dictionary { [displayName]: count }
     const result = {};
@@ -248,25 +222,21 @@ export function initializeDateInputs(trips = null) {
     const tripList = trips || state.fetchedTrips || [];
     if (!tripList.length) return;
 
-    let oldest = null;
-    let newest = null;
+    let oldestTime = null;
+    let newestTime = null;
 
-    tripList.forEach(t => {
-        const raw = t.createdAt || t.train?.origin?.departure || t.train?.origin?.plannedDeparture;
-        if (raw) {
-            const d = new Date(raw);
-            if (!isNaN(d.getTime())) {
-                if (!oldest || d < oldest) oldest = d;
-                if (!newest || d > newest) newest = d;
-            }
+    for (let i = 0; i < tripList.length; i++) {
+        const t = tripList[i];
+        const time = t._index?.timestamp !== undefined ? t._index.timestamp : (t.createdAt ? Date.parse(t.createdAt) : null);
+        if (time !== null && !isNaN(time)) {
+            if (oldestTime === null || time < oldestTime) oldestTime = time;
+            if (newestTime === null || time > newestTime) newestTime = time;
         }
-    });
+    }
 
-    if (oldest && newest) {
-        const oldestD = oldest instanceof Date ? oldest : new Date(oldest);
-        const newestD = newest instanceof Date ? newest : new Date(newest);
-        const minStr = oldestD.toISOString().slice(0, 10);
-        const maxStr = newestD.toISOString().slice(0, 10);
+    if (oldestTime !== null && newestTime !== null) {
+        const minStr = new Date(oldestTime).toISOString().slice(0, 10);
+        const maxStr = new Date(newestTime).toISOString().slice(0, 10);
 
         // Store dataset boundaries
         state.dateBounds = { min: minStr, max: maxStr };
@@ -302,10 +272,8 @@ export function getFilteredContextTrips() {
         const from = state.filters.fromDate ? new Date(state.filters.fromDate + 'T00:00:00Z').getTime() : null;
         const to = state.filters.toDate ? new Date(state.filters.toDate + 'T23:59:59.999Z').getTime() : null;
         contextTrips = contextTrips.filter(t => {
-            const raw = t?.createdAt || t?.train?.origin?.departure || t?.train?.origin?.plannedDeparture;
-            if (!raw) return true;
-            const time = new Date(raw).getTime();
-            if (isNaN(time)) return true;
+            const time = t._index?.timestamp !== undefined ? t._index.timestamp : (t.createdAt ? Date.parse(t.createdAt) : null);
+            if (time === null || isNaN(time)) return true;
             if (from !== null && time < from) return false;
             if (to !== null && time > to) return false;
             return true;
@@ -314,7 +282,7 @@ export function getFilteredContextTrips() {
 
     if (state.filters.business && (!state.filters.business.personal || !state.filters.business.work || !state.filters.business.commute)) {
         contextTrips = contextTrips.filter(t => {
-            const b = t?.business;
+            const b = t._index ? t._index.business : t?.business;
             if (b === 0 && !state.filters.business.personal) return false;
             if (b === 1 && !state.filters.business.work) return false;
             if (b === 2 && !state.filters.business.commute) return false;
@@ -325,6 +293,7 @@ export function getFilteredContextTrips() {
     if (state.filters.searchQuery) {
         const q = state.filters.searchQuery.toLowerCase();
         contextTrips = contextTrips.filter(t => {
+            if (t._index) return t._index.searchCorpus.includes(q);
             if (t.body && String(t.body).toLowerCase().includes(q)) return true;
             const train = t.train || {};
             const line = (train.lineName || train.number || '').toLowerCase();

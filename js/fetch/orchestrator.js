@@ -325,6 +325,7 @@ export async function processAndDisplayData(trips) {
     invalidateDelayOverlayCache();
 
     state.fetchedTrips = Array.isArray(trips) ? trips.slice() : [];
+    dataProcessing.indexTrips(state.fetchedTrips, state.username);
     // Reset buddy and time filters for fresh dataset, and prefill dates from travel data
     state.filters.buddies = [];
     state.filters.buddy = null;

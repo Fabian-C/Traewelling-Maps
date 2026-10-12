@@ -99,34 +99,8 @@ export function setupEventListeners() {
             span.classList.toggle('active', i <= val);
         });
         
-        // Refresh active trips to apply accuracy filter
-        const filteredTrips = refreshActiveTrips();
-        
-        // Update map layers
-        state.datasetVersion++;
-        state.heatmap.needsRebuild = true;
-        state.heatmap.cacheKey = null;
-        const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
-        state.layers.order.forEach(layerId => {
-            let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
-            const source = state.map.getSource(layerId);
-            if (source) source.setData(data);
-            const layer = state.layers.data.get(layerId);
-            if (layer) layer.data = data;
-        });
-        loadLayers();
-        updateAllStats();
-        
-        // Update heatmap if enabled
-        if (state.heatmap.enabled) updateRouteDensity(true);
-        
-        // Update delay overlay
-        invalidateDelayOverlayCache();
-        if (state.delays.enabled) {
-            updateDelayOverlay();
-        } else {
-            updateDelayOverlaySummary();
-        }
+        // Throttled refresh: immediate slider label feedback, debounced map update
+        applyFiltersAndRefresh({ debounceMs: 75 });
     };
 
     document.getElementById('heatmapToggle').onchange = (e) => toggleHeatmap(e.target.checked);
@@ -258,22 +232,7 @@ export function setupEventListeners() {
             if (state.fetchedTrips?.length) {
                 analytics.updateMenuBuddyList(applyBuddyFilter);
                 if (state.filters.buddies?.length) {
-                    const filteredTrips = refreshActiveTrips();
-                    state.datasetVersion++;
-                    state.heatmap.needsRebuild = true;
-                    state.heatmap.cacheKey = null;
-                    const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
-                    state.layers.order.forEach(layerId => {
-                        let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
-                        const source = state.map?.getSource(layerId);
-                        if (source) source.setData(data);
-                        const layer = state.layers.data.get(layerId);
-                        if (layer) layer.data = data;
-                    });
-                    loadLayers();
-                    updateAllStats();
-                    if (state.heatmap.enabled) updateRouteDensity(true);
-                    updateFilterBadges();
+                    applyFiltersAndRefresh({ immediate: true });
                 }
             }
         };
@@ -287,25 +246,23 @@ export function setupEventListeners() {
     // Add business filter event listeners
     document.getElementById('businessPersonal').onchange = applyBusinessFilter;
     document.getElementById('businessWork').onchange = applyBusinessFilter;
+    document.getElementById('businessCommute').onchange = applyBusinessFilter;
     
     // Add search filter event listener with debounce
     const searchInput = document.getElementById('tripSearchInput');
     const searchClearBtn = document.getElementById('tripSearchClearBtn');
-    let searchDebounceTimer = null;
     if (searchInput) {
         searchInput.oninput = () => {
             if (searchClearBtn) {
                 searchClearBtn.style.display = searchInput.value ? 'inline-block' : 'none';
             }
-            if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-            searchDebounceTimer = setTimeout(() => {
-                applySearchFilter();
-            }, 300);
+            applySearchFilter();
         };
         searchInput.onkeydown = (e) => {
             if (e.key === 'Enter') {
-                if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-                applySearchFilter();
+                const state = store.get();
+                state.filters.searchQuery = searchInput.value.trim();
+                applyFiltersAndRefresh({ immediate: true });
                 searchInput.blur();
             }
         };
@@ -316,8 +273,9 @@ export function setupEventListeners() {
                 searchInput.value = '';
                 searchClearBtn.style.display = 'none';
             }
-            if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-            applySearchFilter();
+            const state = store.get();
+            state.filters.searchQuery = '';
+            applyFiltersAndRefresh({ immediate: true });
         };
     }
 
@@ -437,30 +395,75 @@ export function setupEventListeners() {
     }
 }
 
+let pendingFilterRaf = null;
+let pendingFilterTimer = null;
+
+/**
+ * Centrally schedules filter application using requestAnimationFrame and optional debounce
+ * to prevent frame drops and redundant GPU buffer re-uploads during rapid user interactions.
+ */
+export function applyFiltersAndRefresh({ immediate = false, debounceMs = 0, updateOverlay = true } = {}) {
+    if (pendingFilterTimer) {
+        clearTimeout(pendingFilterTimer);
+        pendingFilterTimer = null;
+    }
+    if (pendingFilterRaf) {
+        cancelAnimationFrame(pendingFilterRaf);
+        pendingFilterRaf = null;
+    }
+
+    const execute = () => {
+        const state = store.get();
+        const filteredTrips = refreshActiveTrips();
+
+        state.datasetVersion++;
+        state.heatmap.needsRebuild = true;
+        state.heatmap.cacheKey = null;
+
+        const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
+        state.layers.order.forEach(layerId => {
+            const data = categories[layerId] || { type: 'FeatureCollection', features: [] };
+            const source = state.map?.getSource(layerId);
+            if (source) source.setData(data);
+            const layer = state.layers.data.get(layerId);
+            if (layer) layer.data = data;
+        });
+
+        loadLayers();
+        updateAllStats();
+        if (state.heatmap.enabled) updateRouteDensity(true);
+
+        if (updateOverlay) {
+            invalidateDelayOverlayCache();
+            if (state.delays.enabled) {
+                updateDelayOverlay();
+            } else {
+                updateDelayOverlaySummary();
+            }
+        }
+
+        analytics.updateMenuBuddyList(applyBuddyFilter);
+        updateFilterBadges();
+    };
+
+    if (immediate) {
+        execute();
+    } else if (debounceMs > 0) {
+        pendingFilterTimer = setTimeout(() => {
+            pendingFilterRaf = requestAnimationFrame(execute);
+        }, debounceMs);
+    } else {
+        pendingFilterRaf = requestAnimationFrame(execute);
+    }
+}
+
 function applyTimeFilter() {
     const state = store.get();
     const from = document.getElementById('dateFrom').value || null;
     const to = document.getElementById('dateTo').value || null;
-    state.filters.fromDate = from; state.filters.toDate = to;
-
-    const filteredTrips = refreshActiveTrips();
-
-    state.datasetVersion++;
-    state.heatmap.needsRebuild = true;
-    state.heatmap.cacheKey = null;
-    const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
-    state.layers.order.forEach(layerId => {
-        let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
-        const source = state.map.getSource(layerId);
-        if (source) source.setData(data);
-        const layer = state.layers.data.get(layerId);
-        if (layer) layer.data = data;
-    });
-    loadLayers();
-    updateAllStats();
-    if (state.heatmap.enabled) updateRouteDensity(true);
-    analytics.updateMenuBuddyList(applyBuddyFilter);
-    updateFilterBadges();
+    state.filters.fromDate = from;
+    state.filters.toDate = to;
+    applyFiltersAndRefresh({ debounceMs: 60 });
 }
 
 function applyBusinessFilter() {
@@ -468,50 +471,14 @@ function applyBusinessFilter() {
     state.filters.business.personal = document.getElementById('businessPersonal').checked;
     state.filters.business.work = document.getElementById('businessWork').checked;
     state.filters.business.commute = document.getElementById('businessCommute').checked;
-
-    const filteredTrips = refreshActiveTrips();
-
-    state.datasetVersion++;
-    state.heatmap.needsRebuild = true;
-    state.heatmap.cacheKey = null;
-    const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
-    state.layers.order.forEach(layerId => {
-        let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
-        const source = state.map.getSource(layerId);
-        if (source) source.setData(data);
-        const layer = state.layers.data.get(layerId);
-        if (layer) layer.data = data;
-    });
-    loadLayers();
-    updateAllStats();
-    if (state.heatmap.enabled) updateRouteDensity(true);
-    analytics.updateMenuBuddyList(applyBuddyFilter);
-    updateFilterBadges();
+    applyFiltersAndRefresh({ immediate: true });
 }
 
 function applySearchFilter() {
     const state = store.get();
     const searchInput = document.getElementById('tripSearchInput');
     state.filters.searchQuery = searchInput ? searchInput.value.trim() : '';
-
-    const filteredTrips = refreshActiveTrips();
-
-    state.datasetVersion++;
-    state.heatmap.needsRebuild = true;
-    state.heatmap.cacheKey = null;
-    const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
-    state.layers.order.forEach(layerId => {
-        let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
-        const source = state.map?.getSource(layerId);
-        if (source) source.setData(data);
-        const layer = state.layers.data.get(layerId);
-        if (layer) layer.data = data;
-    });
-    loadLayers();
-    updateAllStats();
-    if (state.heatmap.enabled) updateRouteDensity(true);
-    analytics.updateMenuBuddyList(applyBuddyFilter);
-    updateFilterBadges();
+    applyFiltersAndRefresh({ debounceMs: 200 });
 }
 
 function shareView() {
@@ -547,24 +514,7 @@ export function applyBuddyFilter(buddy) {
         }
     }
 
-    const filteredTrips = refreshActiveTrips();
-
-    state.datasetVersion++;
-    state.heatmap.needsRebuild = true;
-    state.heatmap.cacheKey = null;
-    const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
-    state.layers.order.forEach(layerId => {
-        let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
-        const source = state.map?.getSource(layerId);
-        if (source) source.setData(data);
-        const layer = state.layers.data.get(layerId);
-        if (layer) layer.data = data;
-    });
-    loadLayers();
-    updateAllStats();
-    if (state.heatmap.enabled) updateRouteDensity(true);
-    analytics.updateMenuBuddyList(applyBuddyFilter);
-    updateFilterBadges();
+    applyFiltersAndRefresh({ immediate: true });
 }
 
 function resetDateFilter() {
@@ -572,7 +522,7 @@ function resetDateFilter() {
     state.filters.fromDate = null;
     state.filters.toDate = null;
     analytics.initializeDateInputs(state.fetchedTrips);
-    applyTimeFilter();
+    applyFiltersAndRefresh({ immediate: true });
 }
 
 /**
