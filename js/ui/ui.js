@@ -312,6 +312,24 @@ export const UI = {
             this.ensureLocomotive();
         }
 
+        // Concurrent action: roll next empty car into loading position whilst gantry travels to depot
+        if (this.loadedCarsCount > 0) {
+            // Ensure next empty car exists
+            if (!this.flatcars[this.loadedCarsCount]) {
+                const nextCar = this._createFlatcarElement();
+                trainZone.appendChild(nextCar);
+                this.flatcars.push(nextCar);
+            }
+            // Ensure a trailing buffer car exists so cars are seen coupled behind
+            if (!this.flatcars[this.loadedCarsCount + 1] && (this.loadQueue.length > 0 || (this.totalDepotReceived - this.loadedCarsCount) > 1)) {
+                const bufferCar = this._createFlatcarElement();
+                trainZone.appendChild(bufferCar);
+                this.flatcars.push(bufferCar);
+            }
+            // Advance train forward so new car rolls into place under the crane
+            this._updateTrainPosition(this.loadedCarsCount);
+        }
+
         const baseHeight = 12;
         const stackLevel = Math.max(1, item.stackHeight || 1);
         const hoistDepot = Math.max(baseHeight, 70 - (stackLevel - 1) * 20);
@@ -390,29 +408,6 @@ export const UI = {
             this.trainCarsCount = this.loadedCarsCount;
             hoist.style.height = baseHeight + 'px';
 
-            const remainingInQueue = this.loadQueue.length;
-            const remainingInDepot = this.totalDepotReceived - this.loadedCarsCount;
-            const hasMoreToLoad = remainingInQueue > 0 || remainingInDepot > 0;
-
-            if (hasMoreToLoad) {
-                // Ensure next empty car exists
-                if (!this.flatcars[this.loadedCarsCount]) {
-                    const nextCar = this._createFlatcarElement();
-                    trainZone.appendChild(nextCar);
-                    this.flatcars.push(nextCar);
-                }
-                // Ensure a trailing buffer car exists so empty cars are seen waiting behind it
-                if (!this.flatcars[this.loadedCarsCount + 1] && (remainingInQueue > 1 || remainingInDepot > 1)) {
-                    const bufferCar = this._createFlatcarElement();
-                    trainZone.appendChild(bufferCar);
-                    this.flatcars.push(bufferCar);
-                }
-                // Advance train by 1 car length (+48px)
-                setTimeout(() => {
-                    this._updateTrainPosition(this.loadedCarsCount);
-                }, t(100));
-            }
-
             if (this.refs.cargoStage) {
                 if (this.trainCarsCount >= this.totalDepotReceived && this.loadQueue.length === 0) {
                     setTimeout(() => { if (this.refs.cargoStage) this.refs.cargoStage.classList.remove('visible'); }, 2000);
@@ -465,8 +460,14 @@ export const UI = {
                 <div class="flatcar-pin tr"></div>
                 <div class="flatcar-coupler"></div>
             </div>
-            <div class="flatcar-bogie bl"><div class="train-wheel"><div class="wheel-spoke"></div></div><div class="train-wheel"><div class="wheel-spoke"></div></div></div>
-            <div class="flatcar-bogie br"><div class="train-wheel"><div class="wheel-spoke"></div></div><div class="train-wheel"><div class="wheel-spoke"></div></div></div>`;
+            <div class="flatcar-axle al">
+                <div class="axle-guard"></div>
+                <div class="train-wheel"><div class="wheel-spoke"></div></div>
+            </div>
+            <div class="flatcar-axle ar">
+                <div class="axle-guard"></div>
+                <div class="train-wheel"><div class="wheel-spoke"></div></div>
+            </div>`;
         return car;
     },
     _createLocomotiveElement() {
@@ -575,8 +576,8 @@ export const UI = {
         const currentShift = match ? parseFloat(match[1]) : 0;
 
         const locoWidth = 48;
-        const carWidth = 44;
-        const carGap = 4;
+        const carWidth = 32;
+        const carGap = 2;
 
         // Locomotive check
         const loco = this.refs.trainZone.querySelector('.locomotive');
@@ -608,8 +609,8 @@ export const UI = {
         const targetCenter = safeGantryLeft + (safeGantryWidth / 2);
 
         const locoWidth = 48;
-        const carWidth = 44;
-        const carGap = 4;
+        const carWidth = 32;
+        const carGap = 2;
 
         // Position carIndex directly under the gantry hoist at targetCenter (240px)
         const distFromRight = locoWidth + carGap + (carWidth / 2) + (carIndex * (carWidth + carGap));
