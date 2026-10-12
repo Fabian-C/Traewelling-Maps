@@ -303,6 +303,21 @@ export function getFilteredContextTrips() {
         });
     }
 
+    if (state.layers?.data) {
+        const layerVisibility = new Map();
+        let anyHidden = false;
+        state.layers.data.forEach((layer, id) => {
+            layerVisibility.set(id, layer.visible);
+            if (!layer.visible) anyHidden = true;
+        });
+        if (anyHidden) {
+            contextTrips = contextTrips.filter(t => {
+                const cat = normalizeCategory(t.train?.category);
+                return layerVisibility.has(cat) ? layerVisibility.get(cat) : true;
+            });
+        }
+    }
+
     return contextTrips;
 }
 

@@ -652,7 +652,7 @@ export const UI = {
         const rootStyle = window.getComputedStyle(document.documentElement);
         const gantryTrainLeft = parseFloat(rootStyle.getPropertyValue('--gantry-train-left'));
         const gantryWidth = parseFloat(rootStyle.getPropertyValue('--gantry-width'));
-        const safeGantryLeft = Number.isFinite(gantryTrainLeft) ? gantryTrainLeft : 235;
+        const safeGantryLeft = Number.isFinite(gantryTrainLeft) ? gantryTrainLeft : 140;
         const safeGantryWidth = Number.isFinite(gantryWidth) ? gantryWidth : 136;
         const targetCenter = safeGantryLeft + (safeGantryWidth / 2);
 
@@ -669,11 +669,6 @@ export const UI = {
         const rollDuration = Math.max(250, Math.round(500 * this._animSpeed));
         this._triggerRollingAnimation(rollDuration);
         this._updateOffscreenCars();
-
-        // If train advances past car 2, fold down buffer stop so it clears shunting movements
-        if (this.refs.cargoScene) {
-            this.refs.cargoScene.classList.toggle('train-shunting', carIndex >= 2);
-        }
     },
     _updateTrainScroll() {
         this._updateTrainPosition(this.currentTrainLoadedCount || 0);

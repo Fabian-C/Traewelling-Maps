@@ -760,13 +760,10 @@
                         where the biggest delays are.</p>
                 </div>
             </details>
-            <div class="menu-item" id="railwayToggle"
+            <div class="menu-item" id="railwayToggle" role="button" tabindex="0"
                 style="display: flex; justify-content: space-between; align-items: center;">
                 <span>🛤️ Railway Map</span>
-                <label class="toggle" style="pointer-events: none;">
-                    <input type="checkbox" id="railwayCheckbox">
-                    <span class="toggle-slider"></span>
-                </label>
+                <span class="railway-status-badge" id="railwayStatusBadge">Off</span>
             </div>
             <details class="menu-submenu" id="exportSubmenu">
                 <summary>📤 Export GeoJSON</summary>

@@ -11,6 +11,7 @@ import { logout, rememberToken } from '../session/manager.js';
 import { startDataFetch, refreshActiveTrips, processAndDisplayData } from '../fetch/orchestrator.js';
 import * as dataProcessing from '../data/processing.js';
 import * as analytics from '../analytics/statistics.js';
+import { updateAllStatistics as updateAllStats } from '../analytics/statistics.js';
 import { reloadAllLayers, loadLayers } from '../map/layers.js';
 import { exportTripsGeoJSON, handleStopoverToggleChange } from '../export/geojson.js';
 
@@ -58,15 +59,15 @@ export function setupEventListeners() {
 
 
     const railwayToggle = document.getElementById('railwayToggle');
-    const railwayCheckbox = document.getElementById('railwayCheckbox');
+    const railwayStatusBadge = document.getElementById('railwayStatusBadge');
     if (railwayToggle) {
-        railwayToggle.onclick = (e) => {
-            e.stopPropagation();
+        const toggleRailway = (e) => {
+            if (e) e.stopPropagation();
             state.railway.enabled = !state.railway.enabled;
-            if (railwayCheckbox) {
-                railwayCheckbox.checked = state.railway.enabled;
-            }
             railwayToggle.classList.toggle('active', state.railway.enabled);
+            if (railwayStatusBadge) {
+                railwayStatusBadge.textContent = state.railway.enabled ? 'On' : 'Off';
+            }
             railwayToggle.blur();
             if (state.map && state.map.getLayer('open-railway-map')) {
                 state.map.setLayoutProperty('open-railway-map', 'visibility', state.railway.enabled ? 'visible' : 'none');
@@ -76,6 +77,13 @@ export function setupEventListeners() {
                         state.map.setLayoutProperty('open-railway-map', 'visibility', state.railway.enabled ? 'visible' : 'none');
                     }
                 }, RouteAnimation.isMobile() ? 300 : 100);
+            }
+        };
+        railwayToggle.onclick = toggleRailway;
+        railwayToggle.onkeydown = (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleRailway(e);
             }
         };
     }
@@ -554,23 +562,7 @@ export function resetAllActiveFilters() {
     const clr = document.getElementById('tripSearchClearBtn');
     if (clr) clr.style.display = 'none';
 
-    const filteredTrips = refreshActiveTrips();
-    state.datasetVersion++;
-    state.heatmap.needsRebuild = true;
-    state.heatmap.cacheKey = null;
-    const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
-    state.layers.order.forEach(layerId => {
-        let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
-        const source = state.map?.getSource(layerId);
-        if (source) source.setData(data);
-        const layer = state.layers.data.get(layerId);
-        if (layer) layer.data = data;
-    });
-    loadLayers();
-    updateAllStats();
-    if (state.heatmap.enabled) updateRouteDensity(true);
-    analytics.updateMenuBuddyList(applyBuddyFilter);
-    updateFilterBadges();
+    applyFiltersAndRefresh({ immediate: true });
 }
 
 /**
