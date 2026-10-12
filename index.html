@@ -403,29 +403,46 @@
     <div class="fetch-screen hidden" id="fetchScreen">
         <div class="fetch-container">
             <div class="cargo-scene" id="cargoScene">
+                <div class="cargo-floodlight" aria-hidden="true"></div>
                 <div class="cargo-stage" id="cargoStage"></div>
-                <div class="depot-label">Depot</div>
+                <div class="depot-label">DEPOT</div>
                 <div class="depot-zone">
                     <div class="depot-stack" id="depotStack"></div>
                 </div>
-                <div class="depot-platform"></div>
+                <div class="depot-platform">
+                    <div class="hazard-stripe"></div>
+                </div>
                 <div class="gantry">
-                    <div class="gantry-leg l"></div>
-                    <div class="gantry-leg r"></div>
+                    <div class="gantry-portal gantry-back">
+                        <div class="gantry-leg l"></div>
+                        <div class="gantry-leg r"></div>
+                    </div>
                     <div class="gantry-beam">
+                        <div class="gantry-truss-pattern"></div>
+                        <div class="gantry-cabin"></div>
                         <div class="gantry-trolley" id="gantryTrolley">
                             <div class="gantry-hoist" id="gantryHoist">
+                                <div class="gantry-cables"></div>
                                 <div class="gantry-spreader">
+                                    <div class="spreader-twistlock tl"></div>
+                                    <div class="spreader-twistlock tr"></div>
                                     <div class="gantry-payload" id="gantryPayload">
                                         <div class="crate-ribs"></div>
+                                        <div class="crate-corners"></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                    <div class="gantry-portal gantry-front">
+                        <div class="gantry-leg l"><div class="gantry-truck"></div></div>
+                        <div class="gantry-leg r"><div class="gantry-truck"></div></div>
+                    </div>
                 </div>
                 <div class="cargo-rails">
+                    <div class="cargo-ballast"></div>
                     <div class="cargo-sleepers"></div>
+                    <div class="cargo-rail-steel"></div>
                     <div class="buffer-stop" aria-hidden="true"></div>
                 </div>
                 <div class="train-zone" id="trainZone"></div>

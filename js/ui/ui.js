@@ -182,7 +182,7 @@ export const UI = {
         return designBg || this._getDefaultContainerBackground();
     },
     _crateMarkup(pageNumber) {
-        return `<div class="crate-ribs"></div><div class="crate-lbl">${pageNumber}</div>`;
+        return `<div class="crate-ribs"></div><div class="crate-corners"></div><div class="crate-lbl">${pageNumber}</div>`;
     },
     _createCrateElement(className, pageNumber, designBg) {
         const crate = document.createElement('div');
@@ -277,16 +277,10 @@ export const UI = {
         const trainZone = this.refs.trainZone;
         if (!gantry || !hoist || !payload || !trainZone) { this.craneAnimating = false; return; }
 
-        const crateHeight = 18;
-        const crateGap = 2;
         const baseHeight = 12;
-        const gantryBeamHeight = 95;
-        const depotBottom = 26;
-        const stackLevel = item.stackHeight || 1;
-        const containerTop = depotBottom + (stackLevel - 1) * (crateHeight + crateGap) + crateHeight;
-        const hoistDepot = Math.max(baseHeight, gantryBeamHeight - containerTop + baseHeight);
-        const trainDeck = 28 + 5;
-        const hoistTrain = gantryBeamHeight - trainDeck + baseHeight;
+        const stackLevel = Math.max(1, item.stackHeight || 1);
+        const hoistDepot = Math.max(baseHeight, 70 - (stackLevel - 1) * 20);
+        const hoistTrain = 67;
         let targetCar = null;
 
         gantry.classList.remove('at-train');
@@ -324,9 +318,13 @@ export const UI = {
             }
             const car = document.createElement('div');
             car.className = 'flatcar';
-            car.innerHTML = `<div class="flatcar-deck"></div>
-                <div class="flatcar-bogie bl"><div class="flatcar-axle"></div><div class="flatcar-axle"></div></div>
-                <div class="flatcar-bogie br"><div class="flatcar-axle"></div><div class="flatcar-axle"></div></div>`;
+            car.innerHTML = `<div class="flatcar-deck">
+                    <div class="flatcar-chassis"></div>
+                    <div class="flatcar-pin tl"></div>
+                    <div class="flatcar-pin tr"></div>
+                </div>
+                <div class="flatcar-bogie bl"><div class="train-wheel"><div class="wheel-spoke"></div></div><div class="train-wheel"><div class="wheel-spoke"></div></div></div>
+                <div class="flatcar-bogie br"><div class="train-wheel"><div class="wheel-spoke"></div></div><div class="train-wheel"><div class="wheel-spoke"></div></div></div>`;
             trainZone.appendChild(car);
             targetCar = car;
             this.trainCarsCount++;
@@ -383,6 +381,14 @@ export const UI = {
         const shift = overflowCols * (colWidth + gap);
         stack.style.transform = `translateX(${-shift}px)`;
     },
+    _triggerRollingAnimation(durationMs = 450) {
+        if (!this.refs?.trainZone) return;
+        this.refs.trainZone.classList.add('rolling');
+        if (this._rollingTimer) clearTimeout(this._rollingTimer);
+        this._rollingTimer = setTimeout(() => {
+            if (this.refs?.trainZone) this.refs.trainZone.classList.remove('rolling');
+        }, durationMs);
+    },
     ensureLocomotive() {
         const trainZone = this.refs.trainZone;
         if (!trainZone) return;
@@ -392,14 +398,16 @@ export const UI = {
             loco.innerHTML = `<div class="loco-body">
                 <div class="loco-cab"><div class="loco-window"></div></div>
                 <div class="loco-stripe"></div>
+                <div class="loco-pantograph"></div>
                 <div class="loco-headlight"></div>
-                <div class="loco-steam"></div>
+                <div class="loco-headlight-cone"></div>
             </div>
-            <div class="loco-bogie bl"><div class="flatcar-axle"></div><div class="flatcar-axle"></div></div>
-            <div class="loco-bogie br"><div class="flatcar-axle"></div><div class="flatcar-axle"></div></div>`;
+            <div class="loco-bogie bl"><div class="train-wheel"><div class="wheel-spoke"></div></div><div class="train-wheel"><div class="wheel-spoke"></div></div></div>
+            <div class="loco-bogie br"><div class="train-wheel"><div class="wheel-spoke"></div></div><div class="train-wheel"><div class="wheel-spoke"></div></div></div>`;
             trainZone.insertBefore(loco, trainZone.firstChild);
             trainZone.classList.add('arriving');
-            setTimeout(() => trainZone.classList.remove('arriving'), 600);
+            this._triggerRollingAnimation(650);
+            setTimeout(() => trainZone.classList.remove('arriving'), 650);
             this._updateTrainScroll();
         }
     },
@@ -410,8 +418,9 @@ export const UI = {
         const match = currentTransform.match(/translateX\(([-\d.]+)px\)/);
         const currentX = match ? parseFloat(match[1]) : 0;
         trainZone.style.setProperty('--train-shift', `${currentX}px`);
+        this._triggerRollingAnimation(950);
         trainZone.classList.add('departing');
-        await new Promise(r => setTimeout(r, 750));
+        await new Promise(r => setTimeout(r, 900));
     },
     onFetchError() {
         if (!this.refs) return;
@@ -439,11 +448,11 @@ export const UI = {
         const rootStyle = window.getComputedStyle(document.documentElement);
         const gantryTrainLeft = parseFloat(rootStyle.getPropertyValue('--gantry-train-left'));
         const gantryWidth = parseFloat(rootStyle.getPropertyValue('--gantry-width'));
-        const safeGantryLeft = Number.isFinite(gantryTrainLeft) ? gantryTrainLeft : 200;
-        const safeGantryWidth = Number.isFinite(gantryWidth) ? gantryWidth : 120;
-        const targetCenter = safeGantryLeft + (safeGantryWidth / 2) + 4;
+        const safeGantryLeft = Number.isFinite(gantryTrainLeft) ? gantryTrainLeft : 172;
+        const safeGantryWidth = Number.isFinite(gantryWidth) ? gantryWidth : 136;
+        const targetCenter = safeGantryLeft + (safeGantryWidth / 2);
 
-        const locoWidth = 40;
+        const locoWidth = 44;
         const carWidth = 44;
         const newestCarCenterNoShift = this.trainCarsCount > 0
             ? sceneWidth - (locoWidth + this.trainCarsCount * carWidth) + (carWidth / 2)
@@ -451,6 +460,7 @@ export const UI = {
         const shift = targetCenter - newestCarCenterNoShift;
 
         trainZone.style.transform = `translateX(${shift}px)`;
+        this._triggerRollingAnimation(450);
     },
     resetCargoAnimation() {
         if (!this.refs) return;
