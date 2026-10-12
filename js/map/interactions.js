@@ -11,7 +11,7 @@ import { setupEventListeners } from '../events/listeners.js';
 import { updateRouteDensity } from './heatmap.js';
 import { escapeHtml } from '../utils/format.js';
 import { CATEGORY_NAMES } from './layers.js';
-import { normalizeCategory, extractTripTags } from '../data/processing.js';
+import { normalizeCategory, extractTripTags, getTripSearchMatchReason } from '../data/processing.js';
 
 export function initMap() {
     const state = store.get();
@@ -544,11 +544,36 @@ export function showPopup(lngLat, feature) {
         `;
     }
 
+    let matchBannerHtml = '';
+    const activeSearchQuery = state.filters?.searchQuery?.trim();
+    if (activeSearchQuery) {
+        // Resolve original trip object from store for complete metadata
+        const fullTrip = (statusId !== 'unknown' && Array.isArray(state.fetchedTrips))
+            ? state.fetchedTrips.find(t => String(t.id) === String(statusId))
+            : null;
+        const tripToEvaluate = fullTrip || { properties: props, train, body: props.body, ticket: props.ticket };
+        const matchReasons = getTripSearchMatchReason(tripToEvaluate, activeSearchQuery);
+        if (matchReasons.length > 0) {
+            matchBannerHtml = `
+                <div class="popup-match-banner">
+                    <div class="popup-match-title">
+                        <span class="popup-match-icon">🔍</span>
+                        <span>Matched search: <strong>"${escapeHtml(activeSearchQuery)}"</strong></span>
+                    </div>
+                    <ul class="popup-match-list">
+                        ${matchReasons.map(r => `<li>${escapeHtml(r)}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+    }
+
     const html = `<div class="popup-content">
         <div class="popup-title">
             <span class="popup-badge">${category}</span>
             <span>${lineName}</span>
         </div>
+        ${matchBannerHtml}
         <div class="popup-route">
             <div class="popup-stop">
                 <label>Origin</label>

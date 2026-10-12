@@ -111,24 +111,8 @@ export function setupEventListeners() {
 
     const intensitySlider = document.getElementById('intensitySlider');
     const intensityValueEl = document.getElementById('intensityValue');
-    const intensityStateEl = document.getElementById('intensityState');
-    const intensityTickEls = document.querySelectorAll('#intensityTicks span');
-
-    const getIntensityState = (value) => {
-        if (value <= 4) return 'low';
-        if (value <= 9) return 'medium';
-        return 'high';
-    };
 
     const updateIntensityUI = (value) => {
-        const stateKey = getIntensityState(value);
-        if (intensityStateEl) {
-            const label = stateKey.charAt(0).toUpperCase() + stateKey.slice(1);
-            intensityStateEl.textContent = label;
-        }
-        intensityTickEls.forEach(tick => {
-            tick.classList.toggle('active', tick.dataset.state === stateKey);
-        });
         if (intensitySlider) {
             const min = parseInt(intensitySlider.min || '0', 10);
             const max = parseInt(intensitySlider.max || '1', 10);

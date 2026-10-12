@@ -408,6 +408,90 @@ export function matchesTripSearch(trip, query) {
 }
 
 /**
+ * Returns human-readable explanation(s) of why a trip matched an active search query.
+ * e.g. "Called at intermediate station Berlin Südkreuz", "Destination: Berlin Hbf", etc.
+ */
+export function getTripSearchMatchReason(trip, query) {
+    if (!query || !query.trim()) return [];
+    const q = query.trim().toLowerCase();
+    const train = trip.train || trip.properties?.train || {};
+    const reasons = [];
+
+    // 1. Origin & Destination
+    const originName = train.origin?.name || train.origin?.station?.name || '';
+    const destName = train.destination?.name || train.destination?.station?.name || '';
+    if (originName.toLowerCase().includes(q)) {
+        reasons.push(`Origin station matches: "${originName}"`);
+    }
+    if (destName.toLowerCase().includes(q)) {
+        reasons.push(`Destination station matches: "${destName}"`);
+    }
+
+    // 2. Intermediate stopover stations
+    const stopovers = train.stopovers || trip.stopovers;
+    if (Array.isArray(stopovers)) {
+        const matchedStops = stopovers
+            .map(s => s.name || s.station?.name || '')
+            .filter(name => name && name.toLowerCase().includes(q));
+        if (matchedStops.length > 0) {
+            const uniqueStops = [...new Set(matchedStops)];
+            reasons.push(`Stopover waypoint: ${uniqueStops.join(', ')}`);
+        }
+    }
+
+    // 3. Line / Service name
+    const lineName = train.lineName || train.number || train.name || '';
+    if (lineName.toLowerCase().includes(q)) {
+        reasons.push(`Train/Line matches: "${lineName}"`);
+    }
+
+    // 4. Notes / Comment
+    const bodyText = typeof trip.body === 'string' ? trip.body : '';
+    const noteText = typeof trip.notes === 'string' ? trip.notes : (typeof trip.comment === 'string' ? trip.comment : '');
+    if (bodyText.toLowerCase().includes(q) || noteText.toLowerCase().includes(q)) {
+        reasons.push(`Check-in note mentions: "${query.trim()}"`);
+    }
+
+    // 5. Travel buddies / mentions
+    let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
+    if (typeof mentions === 'string') {
+        try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
+    }
+    if (Array.isArray(mentions)) {
+        const matchedBuddies = mentions
+            .map(m => m.user?.username || m.username || '')
+            .filter(u => u && u.toLowerCase().includes(q));
+        if (matchedBuddies.length > 0) {
+            reasons.push(`Buddy @${matchedBuddies.join(', @')}`);
+        }
+    }
+
+    // 6. Tags
+    const tags = extractTripTags(trip);
+    const matchedTags = tags.filter(t => {
+        const k = (t.key || '').toLowerCase();
+        const v = String(t.value || '').toLowerCase();
+        return k.includes(q) || v.includes(q);
+    });
+    if (matchedTags.length > 0) {
+        reasons.push(`Tag: #${matchedTags.map(t => t.value || t.key).join(', #')}`);
+    }
+
+    // 7. Ticket / Seat / Wagon
+    const ticketObj = trip.ticket || trip.properties?.ticket || train.ticket;
+    const ticketName = typeof ticketObj === 'string' ? ticketObj : (ticketObj?.name || ticketObj?.title || '');
+    if (ticketName.toLowerCase().includes(q)) {
+        reasons.push(`Ticket: "${ticketName}"`);
+    }
+
+    if (reasons.length === 0 && matchesTripSearch(trip, query)) {
+        reasons.push(`Matches search: "${query.trim()}"`);
+    }
+
+    return reasons;
+}
+
+/**
  * Pre-index an array of trips in a single efficient pass.
  */
 export function indexTrips(trips, currentUsername = '') {
