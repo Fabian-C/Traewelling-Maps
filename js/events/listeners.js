@@ -59,15 +59,11 @@ export function setupEventListeners() {
 
 
     const railwayToggle = document.getElementById('railwayToggle');
-    const railwayStatusBadge = document.getElementById('railwayStatusBadge');
     if (railwayToggle) {
         const toggleRailway = (e) => {
             if (e) e.stopPropagation();
             state.railway.enabled = !state.railway.enabled;
             railwayToggle.classList.toggle('active', state.railway.enabled);
-            if (railwayStatusBadge) {
-                railwayStatusBadge.textContent = state.railway.enabled ? 'On' : 'Off';
-            }
             railwayToggle.blur();
             if (state.map && state.map.getLayer('open-railway-map')) {
                 state.map.setLayoutProperty('open-railway-map', 'visibility', state.railway.enabled ? 'visible' : 'none');

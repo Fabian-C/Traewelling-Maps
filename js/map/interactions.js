@@ -179,9 +179,18 @@ function pickClosestFeature(features, lngLat) {
     return winner || features[0];
 }
 
+function pointToSegmentDistancePx(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
+    return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
 export function findOverlayFeatureAtPoint(featureCollection, lngLat, options = {}) {
-    if (!featureCollection?.features?.length || !window.turf) return null;
-    const point = turf.point([lngLat.lng, lngLat.lat]);
+    if (!featureCollection?.features?.length) return null;
+    const state = store.get();
     const tapTolerancePx = options.maxDistancePx ?? getTapTolerancePx();
     const distanceThreshold = getPixelRadiusKm(lngLat, tapTolerancePx);
     let bestFeature = null;
@@ -190,18 +199,45 @@ export function findOverlayFeatureAtPoint(featureCollection, lngLat, options = {
     const getPriority = typeof options.priorityAccessor === 'function'
         ? options.priorityAccessor
         : () => 0;
+
+    const clickPoint = state.map?.project ? state.map.project([lngLat.lng, lngLat.lat]) : null;
+
     featureCollection.features.forEach((feature) => {
         try {
-            const distance = turf.pointToLineDistance(point, feature, { units: 'kilometers' });
-            if (distance <= distanceThreshold) {
-                const priorityValue = Number(getPriority(feature)) || 0;
-                if (
-                    priorityValue > bestPriority ||
-                    (priorityValue === bestPriority && distance < bestDistance)
-                ) {
-                    bestPriority = priorityValue;
-                    bestDistance = distance;
-                    bestFeature = feature;
+            let distance = Infinity;
+            if (clickPoint && feature.geometry?.coordinates?.length) {
+                const coords = feature.geometry.coordinates;
+                for (let i = 0; i < coords.length - 1; i++) {
+                    const p1 = state.map.project(coords[i]);
+                    const p2 = state.map.project(coords[i + 1]);
+                    const d = pointToSegmentDistancePx(clickPoint.x, clickPoint.y, p1.x, p1.y, p2.x, p2.y);
+                    if (d < distance) distance = d;
+                    if (distance <= 2) break;
+                }
+                if (distance <= tapTolerancePx) {
+                    const priorityValue = Number(getPriority(feature)) || 0;
+                    if (
+                        priorityValue > bestPriority ||
+                        (priorityValue === bestPriority && distance < bestDistance)
+                    ) {
+                        bestPriority = priorityValue;
+                        bestDistance = distance;
+                        bestFeature = feature;
+                    }
+                }
+            } else if (window.turf) {
+                const point = turf.point([lngLat.lng, lngLat.lat]);
+                const kmDistance = turf.pointToLineDistance(point, feature, { units: 'kilometers' });
+                if (kmDistance <= distanceThreshold) {
+                    const priorityValue = Number(getPriority(feature)) || 0;
+                    if (
+                        priorityValue > bestPriority ||
+                        (priorityValue === bestPriority && kmDistance < bestDistance)
+                    ) {
+                        bestPriority = priorityValue;
+                        bestDistance = kmDistance;
+                        bestFeature = feature;
+                    }
                 }
             }
         } catch (error) {
@@ -226,12 +262,13 @@ export function setupMapInteractions() {
         lastTapTimestamp = now;
 
         if (state.delays.enabled) {
-            const touchTolerance = ('ontouchstart' in window || navigator.maxTouchPoints > 0) ? 36 : 24;
+            const touchTolerance = ('ontouchstart' in window || navigator.maxTouchPoints > 0) ? 44 : 32;
             const overlayFeature = getDelayOverlayFeatureAtLngLat(e.lngLat, { maxDistancePx: touchTolerance });
             if (overlayFeature) {
                 const synthetic = buildFeatureFromDelayOverlay(overlayFeature);
                 if (synthetic) {
-                    showPopup(e.lngLat, synthetic);
+                    const snapped = snapLngLatToLine(e.lngLat, synthetic);
+                    showPopup(snapped || e.lngLat, synthetic);
                     return;
                 }
             }
@@ -592,6 +629,27 @@ export function highlightRoute(feature, statusId) {
             'line-opacity': 1
         }
     });
+
+    if (state.useDeckGL && state.deck && window.deck?.GeoJsonLayer) {
+        const deckHighlight = new deck.GeoJsonLayer({
+            id: 'deck-route-highlight',
+            data: highlightData,
+            stroked: true,
+            filled: false,
+            lineJointRounded: true,
+            lineCapRounded: true,
+            parameters: { depthTest: false },
+            getLineColor: [255, 255, 0, 255],
+            getLineWidth: 6,
+            lineWidthUnits: 'pixels',
+            lineWidthMinPixels: 4
+        });
+        state.deckLayers = state.deckLayers.filter(l => l.id !== 'deck-route-highlight');
+        state.deckLayers.push(deckHighlight);
+        if (state.deck.setProps) {
+            state.deck.setProps({ layers: state.deckLayers });
+        }
+    }
 }
 
 export function clearRouteHighlight() {
@@ -604,5 +662,11 @@ export function clearRouteHighlight() {
     }
     if (state.map?.getSource('route-highlight')) {
         state.map.removeSource('route-highlight');
+    }
+    if (state.useDeckGL && state.deck) {
+        state.deckLayers = state.deckLayers.filter(l => l.id !== 'deck-route-highlight');
+        if (state.deck.setProps) {
+            state.deck.setProps({ layers: state.deckLayers });
+        }
     }
 }

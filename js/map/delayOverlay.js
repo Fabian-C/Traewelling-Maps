@@ -99,12 +99,6 @@ export function updateDelayOverlay(force = false) {
         updateDelayOverlaySummary();
         return;
     }
-    if (!state.useDeckGL) {
-        console.warn('Delay overlay requires Deck.GL support.');
-        updateDelayOverlaySummary();
-        return;
-    }
-
     const delayData = buildDelayOverlayCache(force);
     const minDelaySeconds = (state.delays.minDelayMinutes || 0) * 60;
     const filtered = delayData.filter(item => item.delaySeconds >= minDelaySeconds);
@@ -119,24 +113,26 @@ export function updateDelayOverlay(force = false) {
 
     const featureCollection = buildDelayOverlayFeatureCollection(selected);
 
-    const overlayLayer = new deck.GeoJsonLayer({
-        id: state.delays.layerId,
-        data: featureCollection,
-        stroked: true,
-        filled: false,
-        lineJointRounded: true,
-        lineCapRounded: true,
-        pickable: false,
-        parameters: { depthTest: false },
-        getLineColor: f => color.getDelayColor(f.properties.delayMinutes, 200),
-        getLineWidth: f => Math.max(2, math.getDelayWidth(f.properties.delayMinutes) * 0.6),
-        lineWidthUnits: 'pixels',
-        lineWidthMinPixels: 1.5
-    });
+    if (state.useDeckGL && window.deck?.GeoJsonLayer) {
+        const overlayLayer = new deck.GeoJsonLayer({
+            id: state.delays.layerId,
+            data: featureCollection,
+            stroked: true,
+            filled: false,
+            lineJointRounded: true,
+            lineCapRounded: true,
+            pickable: false,
+            parameters: { depthTest: false },
+            getLineColor: f => color.getDelayColor(f.properties.delayMinutes, 200),
+            getLineWidth: f => Math.max(2, math.getDelayWidth(f.properties.delayMinutes) * 0.6),
+            lineWidthUnits: 'pixels',
+            lineWidthMinPixels: 1.5
+        });
 
-    state.deckLayers = state.deckLayers.filter(l => !l.id.startsWith(state.delays.layerId));
-    state.deckLayers.push(overlayLayer);
-    if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
+        state.deckLayers = state.deckLayers.filter(l => !l.id.startsWith(state.delays.layerId));
+        state.deckLayers.push(overlayLayer);
+        if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
+    }
 
     const worstRoute = selected[0];
     state.delays.lastStats = {
@@ -201,13 +197,13 @@ export function updateHeatmapColors() {
     updateRouteDensity(false);
 }
 
-export function getPixelRadiusKm(lngLat, pixelRadius = 20) {
+export function getPixelRadiusKm(lngLat, pixelRadius = 24) {
     const state = store.get();
     const zoom = state.map?.getZoom?.() ?? 6;
     const lat = Math.max(-89, Math.min(89, lngLat?.lat ?? 0));
     const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
     const km = (metersPerPixel * pixelRadius) / 1000;
-    return Math.max(0.03, Math.min(1.5, km));
+    return Math.max(0.01, km);
 }
 
 export function getDelayOverlayFeatureAtLngLat(lngLat, options = {}) {
@@ -216,7 +212,7 @@ export function getDelayOverlayFeatureAtLngLat(lngLat, options = {}) {
         state.delays.overlayFeatureCollection,
         lngLat,
         { 
-            maxDistancePx: options.maxDistancePx ?? 28,
+            maxDistancePx: options.maxDistancePx ?? 32,
             priorityAccessor: feature => feature.properties?.delaySeconds || 0 
         }
     );
