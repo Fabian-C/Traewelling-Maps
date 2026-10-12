@@ -403,7 +403,8 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         if (stopoversToFetch.length > 0 && !state.cancelFetch) {
             for (let j = 0; j < stopoversToFetch.length && !state.cancelFetch; j += stopoverBatchSize) {
                 const batch = stopoversToFetch.slice(j, j + stopoverBatchSize);
-                const batchIds = batch.map(s => s.id);
+                // Träwelling /api/v1/stopovers/{ids} expects trip IDs (s.train.trip) with fallback to status ID (s.id)
+                const queryIds = batch.map(s => s.train?.trip || s.id).filter(Boolean);
 
                 const currentBatchNum = Math.floor(j / stopoverBatchSize) + 1;
                 const totalStopoverBatches = Math.ceil(stopoversToFetch.length / stopoverBatchSize);
@@ -413,12 +414,16 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 });
 
                 try {
-                    const stopoversData = await api.getStopovers(batchIds);
+                    const stopoversData = await api.getStopovers(queryIds);
                     const newlyFetchedStopovers = {};
                     const dataObj = stopoversData?.data || {};
 
                     batch.forEach(s => {
-                        const stops = Array.isArray(dataObj[s.id]) ? dataObj[s.id] : [];
+                        const tripId = s.train?.trip;
+                        // Check both trip ID and status ID in API response
+                        const stops = Array.isArray(dataObj[tripId]) 
+                            ? dataObj[tripId] 
+                            : (Array.isArray(dataObj[s.id]) ? dataObj[s.id] : []);
                         s.train.stopovers = stops;
                         newlyFetchedStopovers[s.id] = stops;
                         stopoverCount += stops.length;
