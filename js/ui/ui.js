@@ -592,9 +592,9 @@ export const UI = {
         const match = currentTransform.match(/translateX\(([-\d.]+)px\)/);
         const currentX = match ? parseFloat(match[1]) : 0;
         trainZone.style.setProperty('--train-shift', `${currentX}px`);
-        this._triggerRollingAnimation(950);
+        this._triggerRollingAnimation(1050);
         trainZone.classList.add('departing');
-        await new Promise(r => setTimeout(r, 900));
+        await new Promise(r => setTimeout(r, 1000));
     },
     onFetchError() {
         if (!this.refs) return;

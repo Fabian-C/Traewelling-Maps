@@ -737,12 +737,12 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     100% { transform: translateX(var(--train-shift, 0px)); opacity: 1; }
 }
 .train-zone.departing {
-    animation: train-depart 0.95s cubic-bezier(0.45, 0, 0.7, 0.2) forwards;
+    animation: train-depart 1.05s cubic-bezier(0.4, 0, 0.7, 0.2) forwards;
 }
 @keyframes train-depart {
     0% { transform: translateX(var(--train-shift, 0px)); opacity: 1; }
     85% { opacity: 1; }
-    100% { transform: translateX(calc(var(--train-shift, 0px) + 380px)); opacity: 0; }
+    100% { transform: translateX(calc(var(--train-shift, 0px) + 520px)); opacity: 0; }
 }
 
 /* Heavy Industrial Diesel Shunter Locomotive - Heading Right */

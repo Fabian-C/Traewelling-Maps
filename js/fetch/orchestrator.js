@@ -269,9 +269,19 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 state.fetchedTrips = cachedTrips;
                 state.activeTrips = state.fetchedTrips;
                 saveCurrentSession(true);
-                UI.updateFetchStats({ status: 'Already up to date!', progress: 100 });
-                await processAndDisplayData(state.fetchedTrips);
-                await UI.departTrain();
+                UI.updateFetchStats({ status: 'Train departing terminal...', progress: 92 });
+                if (UI.refs.cargoStage) {
+                    UI.refs.cargoStage.textContent = 'Consist departing terminal...';
+                    UI.refs.cargoStage.classList.add('visible');
+                }
+                const departPromise = UI.departTrain();
+                UI.updateFetchStats({ status: 'Already up to date!', progress: 96 });
+                await processAndDisplayData(state.fetchedTrips, { hideFetchUI: false });
+                await departPromise;
+                UI.updateFetchStats({ status: 'Ready!', progress: 100 });
+                await new Promise(r => setTimeout(r, 200));
+                UI.toggleFetch(false);
+                UI.refs.menu.style.display = 'block';
                 FunFacts.stop();
                 UI.releaseWakeLock();
                 return;
@@ -378,10 +388,26 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         state.fetchedTrips = incremental && cachedTrips ? [...allStatuses, ...cachedTrips] : allStatuses;
         state.activeTrips = state.fetchedTrips;
         saveCurrentSession(incremental); // Pass incremental flag to merge data and update timestamp
-        UI.updateFetchStats({ status: 'Building map layers...', progress: 95 });
-        await processAndDisplayData(state.fetchedTrips);
+
+        // Final 10% (90% -> 100%): Train departs terminal while background builds layers & finalizes map
+        UI.updateFetchStats({ status: 'Train departing terminal...', progress: 92 });
+        if (UI.refs.cargoStage) {
+            UI.refs.cargoStage.textContent = 'Consist departing terminal...';
+            UI.refs.cargoStage.classList.add('visible');
+        }
+
+        const departPromise = UI.departTrain();
+
+        UI.updateFetchStats({ status: 'Building map layers...', progress: 96 });
+        await processAndDisplayData(state.fetchedTrips, { hideFetchUI: false });
+
+        await departPromise;
+
         UI.updateFetchStats({ status: 'Ready!', progress: 100 });
-        await UI.departTrain();
+        await new Promise(r => setTimeout(r, 200));
+
+        UI.toggleFetch(false);
+        UI.refs.menu.style.display = 'block';
         FunFacts.stop(); // Stop fun facts when complete
         UI.releaseWakeLock();
     } catch (error) {
@@ -578,7 +604,7 @@ export function refreshActiveTrips() {
     return state.activeTrips;
 }
 
-export async function processAndDisplayData(trips) {
+export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) {
     const state = store.get();
     state.statistics = analytics.resetStatistics(state.statistics);
     analytics.refreshStatsDisplay(state.statistics);
@@ -712,8 +738,10 @@ export async function processAndDisplayData(trips) {
     setupMapInteractions();
     analytics.updateMenuBuddyList();
     updateFilterBadges();
-    UI.toggleFetch(false);
-    UI.refs.menu.style.display = 'block';
+    if (hideFetchUI) {
+        UI.toggleFetch(false);
+        UI.refs.menu.style.display = 'block';
+    }
     
     fitMapToData();
     if (state.delays.enabled) {
