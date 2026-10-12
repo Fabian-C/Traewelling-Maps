@@ -459,6 +459,18 @@
                     <div class="crane-rail-front"></div>
                 </div>
                 <div class="train-zone" id="trainZone"></div>
+                <div class="waypoint-board" id="waypointBoard" aria-hidden="true">
+                    <div class="waypoint-header">
+                        <span class="waypoint-signal-light green"></span>
+                        <span class="waypoint-title">WAYPOINT TELEMETRY</span>
+                    </div>
+                    <div class="waypoint-display">
+                        <div class="split-flap-row">
+                            <span class="split-flap-code" id="waypointFlapCode">---</span>
+                            <span class="split-flap-station" id="waypointFlapStation">SYNCING ROUTE...</span>
+                        </div>
+                    </div>
+                </div>
                 <div class="cargo-ground"></div>
             </div>
             <h2 class="fetch-title">Loading your rides</h2>
@@ -473,6 +485,8 @@
                         class="fetch-stat-label">Pages</span></div>
                 <div class="fetch-stat"><span class="fetch-stat-value" id="fetchPolylines">0</span><span
                         class="fetch-stat-label">Routes</span></div>
+                <div class="fetch-stat"><span class="fetch-stat-value" id="fetchStopovers">0</span><span
+                        class="fetch-stat-label">Waypoints</span></div>
             </div>
             <div class="rate-limit-card" id="rateLimitCard" aria-live="polite">
                 <div class="rate-limit-header">

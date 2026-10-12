@@ -37,7 +37,11 @@ export const UI = {
             gantryHoist: document.getElementById('gantryHoist'),
             gantryPayload: document.getElementById('gantryPayload'),
             trainZone: document.getElementById('trainZone'),
-            cargoStage: document.getElementById('cargoStage')
+            cargoStage: document.getElementById('cargoStage'),
+            fetchStopovers: document.getElementById('fetchStopovers'),
+            waypointBoard: document.getElementById('waypointBoard'),
+            waypointFlapCode: document.getElementById('waypointFlapCode'),
+            waypointFlapStation: document.getElementById('waypointFlapStation')
         };
         this.depotCrates = [];
         this.depotColumns = [];
@@ -78,11 +82,12 @@ export const UI = {
             });
         });
     },
-    updateFetchStats({ trips, pages, routes, progress, status }) {
+    updateFetchStats({ trips, pages, routes, stopovers, progress, status }) {
         if (!this.refs) return;
         if (typeof trips === 'number') this.refs.fetchTrips.textContent = trips;
         if (typeof pages === 'number') this.refs.fetchPages.textContent = pages;
         if (typeof routes === 'number') this.refs.fetchRoutes.textContent = routes;
+        if (typeof stopovers === 'number' && this.refs.fetchStopovers) this.refs.fetchStopovers.textContent = stopovers;
         if (typeof progress === 'number') {
             this.refs.fetchProgress.style.width = `${Math.min(100, progress)}%`;
         }
@@ -596,6 +601,39 @@ export const UI = {
         trainZone.classList.add('departing');
         await new Promise(r => setTimeout(r, 1000));
     },
+    updateWaypointBoard(stationName = '', lineCode = 'ICE') {
+        if (!this.refs?.waypointBoard) return;
+        this.refs.waypointBoard.classList.add('active');
+        const light = this.refs.waypointBoard.querySelector('.waypoint-signal-light');
+        if (light) {
+            light.className = 'waypoint-signal-light amber';
+        }
+        if (this.refs.waypointFlapCode) {
+            this.refs.waypointFlapCode.textContent = (lineCode || 'WAY').slice(0, 7).toUpperCase();
+        }
+        if (this.refs.waypointFlapStation && stationName) {
+            const stationEl = this.refs.waypointFlapStation;
+            stationEl.classList.remove('flipping');
+            void stationEl.offsetWidth;
+            stationEl.textContent = stationName.toUpperCase();
+            stationEl.classList.add('flipping');
+            setTimeout(() => {
+                if (stationEl) stationEl.classList.remove('flipping');
+            }, 250);
+        }
+    },
+    hideWaypointBoard() {
+        if (!this.refs?.waypointBoard) return;
+        const light = this.refs.waypointBoard.querySelector('.waypoint-signal-light');
+        if (light) {
+            light.className = 'waypoint-signal-light green';
+        }
+        setTimeout(() => {
+            if (this.refs?.waypointBoard) {
+                this.refs.waypointBoard.classList.remove('active');
+            }
+        }, 600);
+    },
     onFetchError() {
         if (!this.refs) return;
         if (this.refs.cargoScene) {
@@ -715,6 +753,14 @@ export const UI = {
         if (this.refs.cargoStage) {
             this.refs.cargoStage.textContent = '';
             this.refs.cargoStage.classList.remove('visible');
+        }
+        if (this.refs.waypointBoard) {
+            this.refs.waypointBoard.classList.remove('active');
+            const light = this.refs.waypointBoard.querySelector('.waypoint-signal-light');
+            if (light) light.className = 'waypoint-signal-light green';
+        }
+        if (this.refs.fetchStopovers) {
+            this.refs.fetchStopovers.textContent = '0';
         }
     },
     setTokenOwner(owner) {

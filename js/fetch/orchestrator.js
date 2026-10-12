@@ -325,7 +325,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             }
             
             const polyPct = tripsToFetch.length > 0 ? ((i + batch.length) / tripsToFetch.length) : 1;
-            const overallProgress = 48 + Math.round(polyPct * 42); // 48% -> 90%
+            const overallProgress = 46 + Math.round(polyPct * 26); // 46% -> 72%
             UI.updateFetchStats({ routes: polylineCount, progress: overallProgress });
             UI.onPolylineBatchComplete();
             await UI.waitForTrainCatchUp(() => state.cancelFetch);
@@ -340,6 +340,88 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             };
         }
 
+        // =========================================================================
+        // STEP 3: WAYPOINT STATIONS & STOPOVERS FETCHING (72% -> 90%)
+        // =========================================================================
+        let stopoverCount = 0;
+        const allTripsWithTrain = allStatuses.filter(s => s && s.train);
+
+        // 1. Count stopovers already present in memory
+        allTripsWithTrain.forEach(s => {
+            if (Array.isArray(s.train.stopovers)) stopoverCount += s.train.stopovers.length;
+        });
+
+        // 2. Check IndexedDB batch cache for stopovers
+        const tripsNeedingStopovers = allTripsWithTrain.filter(s => !Array.isArray(s.train.stopovers));
+        if (tripsNeedingStopovers.length > 0) {
+            UI.updateFetchStats({ status: 'Loading cached waypoint stopovers...', progress: 73, stopovers: stopoverCount });
+            const missingIds = tripsNeedingStopovers.map(s => s.id).filter(Boolean);
+            const cachedStopovers = await SessionDB.getStopoversBatch(missingIds);
+            tripsNeedingStopovers.forEach(s => {
+                if (cachedStopovers[s.id]) {
+                    s.train.stopovers = cachedStopovers[s.id];
+                    stopoverCount += (Array.isArray(s.train.stopovers) ? s.train.stopovers.length : 0);
+                }
+            });
+        }
+
+        // 3. Batch fetch remaining missing stopovers from Träwelling API (batch size: 20)
+        const stopoversToFetch = allTripsWithTrain.filter(s => !Array.isArray(s.train.stopovers));
+        const stopoverBatchSize = 20;
+
+        if (stopoversToFetch.length > 0 && !state.cancelFetch) {
+            if (UI.refs.cargoStage) {
+                UI.refs.cargoStage.textContent = 'Syncing waypoint itinerary...';
+                UI.refs.cargoStage.classList.add('visible');
+            }
+
+            for (let j = 0; j < stopoversToFetch.length && !state.cancelFetch; j += stopoverBatchSize) {
+                const batch = stopoversToFetch.slice(j, j + stopoverBatchSize);
+                const batchIds = batch.map(s => s.id);
+
+                const currentBatchNum = Math.floor(j / stopoverBatchSize) + 1;
+                const totalStopoverBatches = Math.ceil(stopoversToFetch.length / stopoverBatchSize);
+                UI.updateFetchStats({
+                    status: `Fetching stopovers: batch ${currentBatchNum}/${totalStopoverBatches}`,
+                    stopovers: stopoverCount
+                });
+
+                // Animate split-flap departure board with active waypoint
+                const sampleTrip = batch[0];
+                const sampleStation = sampleTrip?.train?.destination?.name || sampleTrip?.train?.origin?.name || 'Waypoint';
+                const sampleLine = sampleTrip?.train?.lineName || sampleTrip?.train?.category || 'Train';
+                UI.updateWaypointBoard(sampleStation, sampleLine);
+
+                try {
+                    const stopoversData = await api.getStopovers(batchIds);
+                    const newlyFetchedStopovers = {};
+                    const dataObj = stopoversData?.data || {};
+
+                    batch.forEach(s => {
+                        const stops = Array.isArray(dataObj[s.id]) ? dataObj[s.id] : [];
+                        s.train.stopovers = stops;
+                        newlyFetchedStopovers[s.id] = stops;
+                        stopoverCount += stops.length;
+                    });
+
+                    if (Object.keys(newlyFetchedStopovers).length > 0) {
+                        SessionDB.saveStopoversBatch(newlyFetchedStopovers).catch(() => {});
+                    }
+                } catch (err) {
+                    console.warn('Failed to fetch stopover batch:', err);
+                    batch.forEach(s => {
+                        if (!Array.isArray(s.train.stopovers)) s.train.stopovers = [];
+                    });
+                }
+
+                const stopPct = stopoversToFetch.length > 0 ? ((j + batch.length) / stopoversToFetch.length) : 1;
+                const overallProgress = 73 + Math.round(stopPct * 17); // 73% -> 90%
+                UI.updateFetchStats({ stopovers: stopoverCount, progress: overallProgress });
+            }
+        }
+
+        UI.hideWaypointBoard();
+
         if (UI.refs.cargoStage && (totalBatches === 0 || tripsToFetch.length === 0)) {
             UI.refs.cargoStage.textContent = 'Processing\u2026';
             setTimeout(() => { if (UI.refs.cargoStage) UI.refs.cargoStage.classList.remove('visible'); }, 1500);
@@ -350,7 +432,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         saveCurrentSession(incremental); // Pass incremental flag to merge data and update timestamp
 
         // Final 10% (90% -> 100%): Train departs terminal while background builds layers & finalizes map
-        UI.updateFetchStats({ status: 'Train departing terminal...', progress: 92 });
+        UI.updateFetchStats({ status: 'Train departing terminal...', progress: 92, stopovers: stopoverCount });
         if (UI.refs.cargoStage) {
             UI.refs.cargoStage.textContent = 'Consist departing terminal...';
             UI.refs.cargoStage.classList.add('visible');
@@ -363,7 +445,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
 
         await departPromise;
 
-        UI.updateFetchStats({ status: 'Ready!', progress: 100 });
+        UI.updateFetchStats({ status: 'Ready!', progress: 100, stopovers: stopoverCount });
         await new Promise(r => setTimeout(r, 200));
 
         UI.toggleFetch(false);
