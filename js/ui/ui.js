@@ -39,9 +39,6 @@ export const UI = {
             trainZone: document.getElementById('trainZone'),
             cargoStage: document.getElementById('cargoStage'),
             fetchStopovers: document.getElementById('fetchStopovers'),
-            waypointBoard: document.getElementById('waypointBoard'),
-            waypointFlapCode: document.getElementById('waypointFlapCode'),
-            waypointFlapStation: document.getElementById('waypointFlapStation'),
             sceneFlipContainer: document.getElementById('sceneFlipContainer'),
             sceneFlipper: document.getElementById('sceneFlipper'),
             solariRows: document.getElementById('solariRows'),
@@ -274,8 +271,8 @@ export const UI = {
         const toQueue = Math.max(0, targetLoaded - alreadyQueued);
         for (let i = 0; i < toQueue; i++) {
             if (this.depotCrates.length === 0) break;
-            // FIFO: Take from oldest arrived crate so the depot clears naturally from front to back
-            this.loadQueue.push(this.depotCrates.shift());
+            // LIFO: Crane picks the topmost container of the current stack (top-to-bottom stack physics)
+            this.loadQueue.push(this.depotCrates.pop());
         }
         this._processQueue();
     },
@@ -385,7 +382,6 @@ export const UI = {
                     const col = this.depotColumns[colIndex];
                     col.count = colEl.children.length;
                     if (col.count === 0) {
-                        // Cleanly remove empty column from DOM and tracking array so dock slides back
                         colEl.remove();
                         this.depotColumns.splice(colIndex, 1);
                     }
@@ -452,14 +448,24 @@ export const UI = {
         const gap = parseFloat(computedStyle.gap || '3') || 3;
         const colWidth = colEl ? colEl.getBoundingClientRect().width : 28;
         
-        // Find the first column that actually has crates in it
-        const firstActiveColIndex = this.depotColumns.findIndex(c => c.count > 0);
-        const activeIndex = firstActiveColIndex >= 0 ? firstActiveColIndex : 0;
-        
-        // Shift stack so the active pickup column is smoothly centered in the visible dock area
-        const shiftCols = Math.max(0, Math.min(activeIndex, colCount - this._maxVisibleCols));
+        // Find the rightmost active column (LIFO pickup order)
+        let activeIndex = -1;
+        for (let i = this.depotColumns.length - 1; i >= 0; i--) {
+            if (this.depotColumns[i].count > 0) {
+                activeIndex = i;
+                break;
+            }
+        }
+        if (activeIndex === -1) activeIndex = Math.max(0, colCount - 1);
+
+        // In a flex-end container, column (colCount - 1) is naturally at 0px offset.
+        // If the active column is deeper to the left (e.g. index 0), shifting right (+px)
+        // pulls older leftward columns smoothly into view underneath the crane runway.
+        const colsFromRight = (colCount - 1) - activeIndex;
+        const maxColsFromRight = Math.max(0, colCount - this._maxVisibleCols);
+        const shiftCols = Math.min(colsFromRight, maxColsFromRight);
         const shift = shiftCols * (colWidth + gap);
-        stack.style.transform = `translateX(${-shift}px)`;
+        stack.style.transform = `translateX(${shift}px)`;
     },
     _triggerRollingAnimation(durationMs = 450) {
         if (!this.refs?.trainZone) return;
@@ -554,8 +560,8 @@ export const UI = {
             this.refs.cargoStage.classList.add('visible');
         }
 
-        // 1. Depart the current full train
-        await this.departTrain();
+        // 1. Depart the current full train (intermediate departure: do NOT flip board)
+        await this.departTrain([], { isFinal: false });
 
         if (this.refs.cargoStage) {
             this.refs.cargoStage.textContent = 'New train arriving...';
@@ -600,7 +606,7 @@ export const UI = {
         const numCars = Math.max(1, this.totalDepotReceived || 1);
         this.ensureTrain(numCars);
     },
-    async departTrain(trips = []) {
+    async departTrain(trips = [], { isFinal = true } = {}) {
         if (!this.refs.trainZone) return;
         const trainZone = this.refs.trainZone;
         const currentTransform = trainZone.style.transform || 'translateX(0px)';
@@ -613,14 +619,31 @@ export const UI = {
         // Allow train to pick up speed across the scene
         await new Promise(r => setTimeout(r, 650));
 
-        // Flip the entire animation housing over to the Solari departure board
-        if (this.refs.sceneFlipper) {
+        // Flip the entire animation housing over to the Solari departure board ONLY on final departure
+        if (isFinal && this.refs.sceneFlipper) {
             this.populateSolariBoard(trips);
             this.refs.sceneFlipper.classList.add('flipped');
             this.startSolariShuffle(trips);
+            await new Promise(r => setTimeout(r, 700));
+        } else {
+            await new Promise(r => setTimeout(r, 400));
         }
+    },
+    _formatRouteHtml(trip) {
+        const origin = (trip.train?.origin?.name || 'Origin').toUpperCase();
+        const dest = (trip.train?.destination?.name || 'Destination').toUpperCase();
+        const stopovers = Array.isArray(trip.train?.stopovers) ? trip.train.stopovers : [];
+        let viaNames = [];
+        if (stopovers.length > 0) {
+            viaNames = stopovers
+                .map(st => (st.name || st.station?.name || '').trim())
+                .filter(n => n && n.toUpperCase() !== origin && n.toUpperCase() !== dest);
+        }
+        const viaText = viaNames.length > 0 
+            ? ` via ${viaNames.slice(0, 6).join(' • ')}`
+            : '';
 
-        await new Promise(r => setTimeout(r, 550));
+        return `<span class="solari-dest-main">${origin} → ${dest}</span>${viaText ? `<span class="solari-dest-via">${viaText}</span>` : ''}`;
     },
     populateSolariBoard(trips = []) {
         if (!this.refs.solariRows) return;
@@ -630,14 +653,15 @@ export const UI = {
         // Extract real journey segments from fetched trips
         const validTrips = Array.isArray(trips) ? trips.filter(t => t && t.train) : [];
         const pool = validTrips.length > 0 ? validTrips : [
-            { train: { lineName: 'ICE 726', destination: { name: 'Köln Hbf' }, origin: { name: 'München Hbf' }, category: 'ICE' }, createdAt: new Date().toISOString() },
-            { train: { lineName: 'RE 1', destination: { name: 'Aachen Hbf' }, origin: { name: 'Hamm(Westf)' }, category: 'RE' }, createdAt: new Date().toISOString() },
-            { train: { lineName: 'IC 2020', destination: { name: 'Hamburg-Altona' }, origin: { name: 'Frankfurt(Main)Hbf' }, category: 'IC' }, createdAt: new Date().toISOString() },
-            { train: { lineName: 'TGV 9556', destination: { name: 'Paris Est' }, origin: { name: 'Stuttgart Hbf' }, category: 'TGV' }, createdAt: new Date().toISOString() }
+            { train: { lineName: 'ICE 726', origin: { name: 'München Hbf' }, destination: { name: 'Köln Hbf' }, stopovers: [{ name: 'Nürnberg Hbf' }, { name: 'Würzburg Hbf' }, { name: 'Frankfurt Hbf' }, { name: 'Bonn Hbf' }], category: 'ICE' }, createdAt: new Date().toISOString() },
+            { train: { lineName: 'RE 1', origin: { name: 'Hamm(Westf)' }, destination: { name: 'Aachen Hbf' }, stopovers: [{ name: 'Dortmund Hbf' }, { name: 'Bochum Hbf' }, { name: 'Essen Hbf' }, { name: 'Düsseldorf Hbf' }], category: 'RE' }, createdAt: new Date().toISOString() },
+            { train: { lineName: 'IC 2020', origin: { name: 'Frankfurt Hbf' }, destination: { name: 'Hamburg-Altona' }, stopovers: [{ name: 'Göttingen' }, { name: 'Hannover Hbf' }, { name: 'Hamburg Hbf' }], category: 'IC' }, createdAt: new Date().toISOString() },
+            { train: { lineName: 'TGV 9556', origin: { name: 'Stuttgart Hbf' }, destination: { name: 'Paris Est' }, stopovers: [{ name: 'Karlsruhe Hbf' }, { name: 'Strasbourg' }], category: 'TGV' }, createdAt: new Date().toISOString() },
+            { train: { lineName: 'FLX 10', origin: { name: 'Berlin Hbf' }, destination: { name: 'Basel Bad Bf' }, stopovers: [{ name: 'Leipzig Hbf' }, { name: 'Erfurt Hbf' }, { name: 'Heidelberg' }], category: 'FLX' }, createdAt: new Date().toISOString() }
         ];
 
-        // Display up to 4 real departure rows on the board
-        const rowsToShow = pool.slice(0, 4);
+        // Display up to 5 real departure rows on the board
+        const rowsToShow = pool.slice(0, 5);
         rowsToShow.forEach((trip, idx) => {
             const row = document.createElement('div');
             row.className = 'solari-row';
@@ -645,16 +669,16 @@ export const UI = {
 
             const d = trip.createdAt ? new Date(trip.createdAt) : new Date();
             const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-            const trainStr = (trip.train?.lineName || trip.train?.category || 'TRAIN').slice(0, 7).toUpperCase();
-            const destStr = (trip.train?.destination?.name || trip.train?.origin?.name || 'TERMINAL').toUpperCase();
+            const trainStr = (trip.train?.lineName || trip.train?.category || 'TRAIN').slice(0, 8).toUpperCase();
+            const routeHtml = this._formatRouteHtml(trip);
             const platformStr = String((idx * 3 + 2) % 14 + 1);
-            const statuses = ['ON TIME', 'BOARDING', 'ON TIME', 'DEP 5M'];
-            const statClasses = ['on-time', 'boarding', 'on-time', 'delayed'];
+            const statuses = ['ON TIME', 'BOARDING', 'ON TIME', 'DEP 5M', 'ON TIME'];
+            const statClasses = ['on-time', 'boarding', 'on-time', 'delayed', 'on-time'];
 
             row.innerHTML = `
                 <span class="solari-time" data-field="time">${timeStr}</span>
                 <span class="solari-train" data-field="train">${trainStr}</span>
-                <span class="solari-dest" data-field="dest">${destStr}</span>
+                <span class="solari-dest" data-field="dest">${routeHtml}</span>
                 <span class="solari-plat" data-field="plat">${platformStr}</span>
                 <span class="solari-stat ${statClasses[idx % statClasses.length]}" data-field="stat">${statuses[idx % statuses.length]}</span>
             `;
@@ -663,7 +687,7 @@ export const UI = {
 
         if (this.refs.solariTicker && validTrips.length > 0) {
             const count = validTrips.length;
-            this.refs.solariTicker.textContent = `TRÄWELLING NETWORK TELEMETRY • ${count} JOURNEYS RECORDED • ALL TRACKS OPERATIONAL`;
+            this.refs.solariTicker.textContent = `FETCHING STOPOVERS • ${count} JOURNEYS • LIVE VIA STATIONS POPULATING`;
         }
     },
     startSolariShuffle(trips = []) {
@@ -671,7 +695,7 @@ export const UI = {
         const validTrips = Array.isArray(trips) ? trips.filter(t => t && t.train) : [];
         if (validTrips.length <= 1) return;
 
-        // Randomly flip departure board rows with real station names from user's check-ins
+        // Randomly flip departure board rows with real station names and stopovers from user's check-ins
         this._solariTimer = setInterval(() => {
             if (!this.refs.solariRows) return;
             const rows = this.refs.solariRows.querySelectorAll('.solari-row');
@@ -686,15 +710,15 @@ export const UI = {
             const trainEl = targetRow.querySelector('[data-field="train"]');
             const timeEl = targetRow.querySelector('[data-field="time"]');
 
-            const nextDest = (randomTrip.train?.destination?.name || randomTrip.train?.origin?.name || 'CENTRAL').toUpperCase();
-            const nextTrain = (randomTrip.train?.lineName || randomTrip.train?.category || 'ICE').slice(0, 7).toUpperCase();
+            const nextRouteHtml = this._formatRouteHtml(randomTrip);
+            const nextTrain = (randomTrip.train?.lineName || randomTrip.train?.category || 'ICE').slice(0, 8).toUpperCase();
             const d = randomTrip.createdAt ? new Date(randomTrip.createdAt) : new Date();
             const nextTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
             if (destEl) {
                 destEl.classList.remove('flipping');
                 void destEl.offsetWidth;
-                destEl.textContent = nextDest;
+                destEl.innerHTML = nextRouteHtml;
                 destEl.classList.add('flipping');
             }
             if (trainEl) {
@@ -709,46 +733,66 @@ export const UI = {
                 timeEl.textContent = nextTime;
                 timeEl.classList.add('flipping');
             }
-        }, 850);
+        }, 950);
+    },
+    onSolariBatchUpdated(tripsWithStopovers = [], batchNumber = 0, totalBatches = 0) {
+        if (!this.refs?.solariRows || !Array.isArray(tripsWithStopovers) || tripsWithStopovers.length === 0) return;
+        const rows = this.refs.solariRows.querySelectorAll('.solari-row');
+        if (rows.length === 0) return;
+
+        // Take trips from this batch that have stopovers
+        const tripsWithStops = tripsWithStopovers.filter(t => Array.isArray(t?.train?.stopovers) && t.train.stopovers.length > 0);
+        const tripToDisplay = tripsWithStops.length > 0 ? tripsWithStops[Math.floor(Math.random() * tripsWithStops.length)] : tripsWithStopovers[0];
+        if (!tripToDisplay) return;
+
+        // Choose a target row to flip
+        const targetRow = rows[Math.floor(Math.random() * rows.length)];
+        if (!targetRow) return;
+
+        const destEl = targetRow.querySelector('[data-field="dest"]');
+        const trainEl = targetRow.querySelector('[data-field="train"]');
+        const timeEl = targetRow.querySelector('[data-field="time"]');
+        const statEl = targetRow.querySelector('[data-field="stat"]');
+
+        const nextRouteHtml = this._formatRouteHtml(tripToDisplay);
+        const nextTrain = (tripToDisplay.train?.lineName || tripToDisplay.train?.category || 'ICE').slice(0, 8).toUpperCase();
+        const d = tripToDisplay.createdAt ? new Date(tripToDisplay.createdAt) : new Date();
+        const nextTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+        if (destEl) {
+            destEl.classList.remove('flipping');
+            void destEl.offsetWidth;
+            destEl.innerHTML = nextRouteHtml;
+            destEl.classList.add('flipping');
+        }
+        if (trainEl) {
+            trainEl.classList.remove('flipping');
+            void trainEl.offsetWidth;
+            trainEl.textContent = nextTrain;
+            trainEl.classList.add('flipping');
+        }
+        if (timeEl) {
+            timeEl.classList.remove('flipping');
+            void timeEl.offsetWidth;
+            timeEl.textContent = nextTime;
+            timeEl.classList.add('flipping');
+        }
+        if (statEl) {
+            statEl.textContent = 'SYNCED';
+            statEl.className = 'solari-stat on-time';
+        }
+
+        if (this.refs?.solariTicker) {
+            const stopCount = Array.isArray(tripToDisplay.train?.stopovers) ? tripToDisplay.train.stopovers.length : 0;
+            const progressPart = (batchNumber && totalBatches) ? `[BATCH ${batchNumber}/${totalBatches}] ` : '';
+            this.refs.solariTicker.textContent = `FETCHING STOPOVER STATIONS • ${progressPart}${nextTrain}: ${stopCount} VIA STATIONS RETRIEVED • LIVE NETWORK BOARD`;
+        }
     },
     stopSolariShuffle() {
         if (this._solariTimer) {
             clearInterval(this._solariTimer);
             this._solariTimer = null;
         }
-    },
-    updateWaypointBoard(stationName = '', lineCode = 'ICE') {
-        if (!this.refs?.waypointBoard) return;
-        this.refs.waypointBoard.classList.add('active');
-        const light = this.refs.waypointBoard.querySelector('.waypoint-signal-light');
-        if (light) {
-            light.className = 'waypoint-signal-light amber';
-        }
-        if (this.refs.waypointFlapCode) {
-            this.refs.waypointFlapCode.textContent = (lineCode || 'WAY').slice(0, 7).toUpperCase();
-        }
-        if (this.refs.waypointFlapStation && stationName) {
-            const stationEl = this.refs.waypointFlapStation;
-            stationEl.classList.remove('flipping');
-            void stationEl.offsetWidth;
-            stationEl.textContent = stationName.toUpperCase();
-            stationEl.classList.add('flipping');
-            setTimeout(() => {
-                if (stationEl) stationEl.classList.remove('flipping');
-            }, 250);
-        }
-    },
-    hideWaypointBoard() {
-        if (!this.refs?.waypointBoard) return;
-        const light = this.refs.waypointBoard.querySelector('.waypoint-signal-light');
-        if (light) {
-            light.className = 'waypoint-signal-light green';
-        }
-        setTimeout(() => {
-            if (this.refs?.waypointBoard) {
-                this.refs.waypointBoard.classList.remove('active');
-            }
-        }, 600);
     },
     onFetchError() {
         if (!this.refs) return;

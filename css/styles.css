@@ -340,7 +340,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     background: #090e17;
     border: 1px solid rgba(56, 189, 248, 0.35);
     border-radius: 12px;
-    padding: 10px 14px;
+    padding: 6px 10px;
     box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8), 0 16px 36px -10px rgba(0, 0, 0, 0.6);
     display: flex;
     flex-direction: column;
@@ -355,23 +355,23 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid rgba(56, 189, 248, 0.2);
-    padding-bottom: 6px;
-    margin-bottom: 4px;
+    padding-bottom: 4px;
+    margin-bottom: 2px;
 }
 .solari-title-box {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
 }
 .solari-board-title {
-    font-size: 11px;
+    font-size: 9.5px;
     font-weight: 800;
-    letter-spacing: 1.2px;
+    letter-spacing: 1.1px;
     color: #f8fafc;
     text-transform: uppercase;
 }
 .solari-telemetry {
-    font-size: 9px;
+    font-size: 8px;
 }
 .solari-live-badge {
     display: inline-flex;
@@ -380,18 +380,18 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     background: rgba(16, 185, 129, 0.15);
     color: #34d399;
     border: 1px solid rgba(16, 185, 129, 0.35);
-    padding: 2px 6px;
-    border-radius: 10px;
-    font-size: 8.5px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    font-size: 7.5px;
     font-weight: 700;
-    letter-spacing: 0.6px;
+    letter-spacing: 0.5px;
 }
 .solari-dot {
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
     border-radius: 50%;
     background: #10b981;
-    box-shadow: 0 0 6px #10b981;
+    box-shadow: 0 0 5px #10b981;
     animation: solari-pulse 1s ease-in-out infinite alternate;
 }
 @keyframes solari-pulse {
@@ -400,46 +400,46 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 }
 .solari-grid-header {
     display: grid;
-    grid-template-columns: 42px 55px 1fr 34px 58px;
-    gap: 6px;
-    font-size: 8.5px;
+    grid-template-columns: 34px 50px 1fr 26px 48px;
+    gap: 4px;
+    font-size: 7px;
     font-weight: 700;
     color: #64748b;
-    letter-spacing: 0.8px;
-    padding: 0 4px 4px;
+    letter-spacing: 0.6px;
+    padding: 0 3px 2px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 .solari-rows {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
     flex: 1;
-    justify-content: space-around;
-    padding: 2px 0;
+    justify-content: space-evenly;
+    padding: 1px 0;
     min-height: 0;
 }
 .solari-row {
     display: grid;
-    grid-template-columns: 42px 55px 1fr 34px 58px;
-    gap: 6px;
+    grid-template-columns: 34px 50px 1fr 26px 48px;
+    gap: 4px;
     align-items: center;
     background: #0d1524;
-    padding: 3px 6px;
-    border-radius: 4px;
+    padding: 2px 4px;
+    border-radius: 3px;
     border: 1px solid rgba(255, 255, 255, 0.05);
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 .solari-time {
     color: #94a3b8;
-    font-size: 10px;
+    font-size: 8.5px;
     font-weight: 700;
 }
 .solari-train {
     background: #1e293b;
     color: #38bdf8;
-    font-size: 9.5px;
+    font-size: 8px;
     font-weight: 800;
-    padding: 1px 4px;
+    padding: 0 3px;
     border-radius: 2px;
     text-align: center;
     white-space: nowrap;
@@ -449,12 +449,31 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 }
 .solari-dest {
     color: #f1f5f9;
-    font-size: 10.5px;
-    font-weight: 700;
+    font-size: 8.5px;
+    font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    min-width: 0;
+}
+.solari-dest-main {
+    color: #ffffff;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.solari-dest-via {
+    color: #93c5fd;
+    font-size: 7.5px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.9;
 }
 .solari-dest.flipping,
 .solari-train.flipping,
@@ -463,18 +482,18 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 }
 .solari-plat {
     color: #f59e0b;
-    font-size: 10px;
+    font-size: 8.5px;
     font-weight: 700;
     text-align: center;
 }
 .solari-stat {
-    font-size: 8.5px;
+    font-size: 7px;
     font-weight: 800;
-    padding: 1px 4px;
+    padding: 0 2px;
     border-radius: 2px;
     text-align: center;
     white-space: nowrap;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.2px;
 }
 .solari-stat.on-time {
     color: #34d399;
@@ -491,17 +510,19 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 .solari-footer {
     display: flex;
     align-items: center;
-    padding-top: 4px;
+    padding-top: 3px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     overflow: hidden;
 }
 .solari-ticker {
-    font-size: 8px;
+    font-size: 7.5px;
     font-weight: 700;
-    letter-spacing: 1px;
-    color: #475569;
+    letter-spacing: 0.8px;
+    color: #64748b;
     text-transform: uppercase;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Atmospheric terminal floodlight */
@@ -578,7 +599,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     overflow: hidden;
     display: flex;
     align-items: flex-end;
-    justify-content: flex-start;
+    justify-content: flex-end;
     z-index: 4;
 }
 .depot-stack {
@@ -1302,109 +1323,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 .fetch-stat-value { font-size: 24px; font-weight: 600; color: var(--text-primary); }
 .fetch-stat-label { font-size: 12px; color: var(--text-muted); }
 
-/* Waypoint Departure Board & Signal Box (Step 3 animation) */
-.waypoint-board {
-    position: absolute;
-    top: 10px;
-    right: 12px;
-    width: 175px;
-    background: rgba(13, 20, 32, 0.92);
-    border: 1px solid rgba(56, 189, 248, 0.28);
-    border-radius: 8px;
-    padding: 6px 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    z-index: 26;
-    opacity: 0;
-    transform: translateY(-8px) scale(0.95);
-    transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-    pointer-events: none;
-    backdrop-filter: blur(6px);
-}
-.waypoint-board.active {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-}
-.waypoint-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 5px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-.waypoint-signal-light {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #10b981;
-    box-shadow: 0 0 6px #10b981;
-    flex-shrink: 0;
-}
-.waypoint-signal-light.amber {
-    background: #f59e0b;
-    box-shadow: 0 0 8px #f59e0b;
-    animation: signal-amber-pulse 0.9s ease-in-out infinite alternate;
-}
-.waypoint-signal-light.green {
-    background: #10b981;
-    box-shadow: 0 0 8px #10b981;
-    animation: signal-green-pulse 1.2s ease-in-out infinite alternate;
-}
-@keyframes signal-amber-pulse {
-    from { opacity: 0.6; transform: scale(0.9); }
-    to { opacity: 1; transform: scale(1.15); }
-}
-@keyframes signal-green-pulse {
-    from { opacity: 0.7; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1.1); }
-}
-.waypoint-title {
-    font-size: 8.5px;
-    font-weight: 800;
-    letter-spacing: 0.9px;
-    color: #94a3b8;
-    text-transform: uppercase;
-    font-family: monospace;
-}
-.waypoint-display {
-    background: #080d15;
-    border-radius: 4px;
-    padding: 4px 6px;
-    border: 1px solid rgba(0, 0, 0, 0.6);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7);
-}
-.split-flap-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-family: 'Consolas', 'Menlo', 'Monaco', monospace;
-    font-size: 10px;
-    line-height: 1.2;
-    overflow: hidden;
-}
-.split-flap-code {
-    background: #1e293b;
-    color: #38bdf8;
-    font-weight: 700;
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-size: 9px;
-    letter-spacing: 0.5px;
-    flex-shrink: 0;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
-}
-.split-flap-station {
-    color: #f1f5f9;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    letter-spacing: 0.3px;
-    transition: transform 0.15s ease, opacity 0.15s ease;
-}
-.split-flap-station.flipping {
-    animation: flap-flip 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-}
+/* Split-flap flip keyframes */
 @keyframes flap-flip {
     0% { transform: rotateX(0deg); opacity: 1; }
     45% { transform: rotateX(-80deg); opacity: 0.3; }

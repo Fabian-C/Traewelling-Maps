@@ -124,7 +124,7 @@
                             window.UI.syncUsernameInput(target);
                         }
                     }
-                    window.startDataFetch(false);
+                    window.startDataFetch(false, false, { forceFresh: true });
                 };
             }
             const usernameInput = document.getElementById('username');
@@ -463,18 +463,6 @@
                                 <div class="crane-rail-front"></div>
                             </div>
                             <div class="train-zone" id="trainZone"></div>
-                            <div class="waypoint-board" id="waypointBoard" aria-hidden="true">
-                                <div class="waypoint-header">
-                                    <span class="waypoint-signal-light green"></span>
-                                    <span class="waypoint-title">WAYPOINT TELEMETRY</span>
-                                </div>
-                                <div class="waypoint-display">
-                                    <div class="split-flap-row">
-                                        <span class="split-flap-code" id="waypointFlapCode">---</span>
-                                        <span class="split-flap-station" id="waypointFlapStation">SYNCING ROUTE...</span>
-                                    </div>
-                                </div>
-                            </div>
                             <div class="cargo-ground"></div>
                         </div>
                     </div>
@@ -485,24 +473,24 @@
                             <div class="solari-header">
                                 <div class="solari-title-box">
                                     <span class="solari-clock-icon">🕒</span>
-                                    <span class="solari-board-title">ABFAHRT / DEPARTURES</span>
+                                    <span class="solari-board-title">NETWORK DEPARTURES • FETCHING STOPOVER STATIONS</span>
                                 </div>
                                 <div class="solari-telemetry">
-                                    <span class="solari-live-badge"><span class="solari-dot"></span>LIVE ITINERARY</span>
+                                    <span class="solari-live-badge"><span class="solari-dot"></span>SYNCING STOPOVERS</span>
                                 </div>
                             </div>
                             <div class="solari-grid-header">
                                 <span class="col-time">TIME</span>
                                 <span class="col-train">TRAIN</span>
-                                <span class="col-dest">DESTINATION / ROUTE</span>
+                                <span class="col-route">ORIGIN → DESTINATION (via STOPOVER STATIONS)</span>
                                 <span class="col-plat">PLAT</span>
                                 <span class="col-stat">STATUS</span>
                             </div>
                             <div class="solari-rows" id="solariRows">
-                                <!-- Split-flap departure rows dynamically generated from fetched rides -->
+                                <!-- Split-flap departure rows dynamically generated from fetched rides with origin, destination, and via stations -->
                             </div>
                             <div class="solari-footer">
-                                <span class="solari-ticker" id="solariTicker">TRÄWELLING NETWORK TELEMETRY • ALL SIGNALS CLEAR</span>
+                                <span class="solari-ticker" id="solariTicker">TRÄWELLING NETWORK TELEMETRY • LIVE STOPOVER SYNC • ALL TRACKS OPERATIONAL</span>
                             </div>
                         </div>
                     </div>

@@ -18,7 +18,7 @@ import { FunFacts } from '../ui/funFacts.js';
 import { updateFilterBadges } from '../events/listeners.js';
 import { escapeHtml } from '../utils/format.js';
 
-export async function startDataFetch(resumeFromState = false, incremental = false) {
+export async function startDataFetch(resumeFromState = false, incremental = false, options = {}) {
     const state = store.get();
     const token = state.token || document.getElementById('apiToken')?.value?.trim();
 
@@ -39,8 +39,11 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
     const username = targetUsername.toLowerCase();
     if (!username) return alert('Please enter a username to explore');
 
-    // If exploring a different profile than the one previously loaded, clear out old state & progress
-    if (state.username && state.username.toLowerCase() !== username) {
+    // Force fresh scrape if requested or if exploring a username directly without explicit incremental request
+    const isFreshScrape = options.forceFresh || (!resumeFromState && !incremental);
+
+    // If fresh scrape or exploring a different profile than the one previously loaded, clear out old state & progress
+    if (isFreshScrape || (state.username && state.username.toLowerCase() !== username)) {
         state.fetchProgress = null;
         state.queriedUserProfile = null;
         state.fetchedTrips = [];
@@ -58,7 +61,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
     // Check for cached data for incremental fetch
     let cachedTrips = null;
     let newestCachedTripId = null;
-    if (incremental) {
+    if (incremental && !isFreshScrape) {
         try {
             const session = await SessionDB.get(username);
             if (session?.trips && session.trips.length > 0) {
@@ -271,30 +274,36 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             }
         });
 
-        // 1. Count any polylines already in memory
-        allStatuses.forEach(s => {
-            if (s.train?.polyline) polylineCount++;
-        });
-
-        // 2. Check IndexedDB batch cache for polylines (stopovers-style)
-        const tripsNeedingPolyline = allStatuses.filter(s => s.train && !s.train.polyline);
-        if (tripsNeedingPolyline.length > 0) {
-            UI.updateFetchStats({ status: 'Loading cached polylines...', progress: 47 });
-            const missingIds = tripsNeedingPolyline.map(s => s.id);
-            const cachedPolylines = await SessionDB.getPolylinesBatch(missingIds);
-            tripsNeedingPolyline.forEach(s => {
-                if (cachedPolylines[s.id]) {
-                    s.train.polyline = cachedPolylines[s.id];
-                    polylineCount++;
-                }
+        // 1. Count any polylines already in memory (only when resuming mid-fetch)
+        if (resumeFromState) {
+            allStatuses.forEach(s => {
+                if (s.train?.polyline) polylineCount++;
             });
+        }
+
+        // 2. Check IndexedDB batch cache for polylines (only when NOT a fresh scrape)
+        if (!isFreshScrape) {
+            const tripsNeedingPolyline = allStatuses.filter(s => s.train && !s.train.polyline);
+            if (tripsNeedingPolyline.length > 0) {
+                UI.updateFetchStats({ status: 'Loading cached polylines...', progress: 47 });
+                const missingIds = tripsNeedingPolyline.map(s => s.id);
+                const cachedPolylines = await SessionDB.getPolylinesBatch(missingIds);
+                tripsNeedingPolyline.forEach(s => {
+                    if (cachedPolylines[s.id]) {
+                        s.train.polyline = cachedPolylines[s.id];
+                        polylineCount++;
+                    }
+                });
+            }
         }
 
         // 3. Batch fetch remaining missing polylines from Träwelling API (batchSize: 25)
         const tripsToFetch = allStatuses.filter(s => s.train && !s.train.polyline);
         const batchSize = 25;
         const startIndex = resumeFromState && state.fetchProgress ? state.fetchProgress.processedPolylines : 0;
-        const totalBatches = Math.ceil((tripsToFetch.length - startIndex) / batchSize);
+        // Total batches should reflect the work to load onto trains — guarantee at least 1 batch if we have items
+        const rawBatches = Math.ceil((tripsToFetch.length - startIndex) / batchSize);
+        const totalBatches = Math.max(1, rawBatches || Math.ceil(allStatuses.length / batchSize) || 1);
         UI.startLoadingToTrain(totalBatches);
         
         for (let i = startIndex; i < tripsToFetch.length && !state.cancelFetch; i += batchSize) {
@@ -341,28 +350,50 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         }
 
         // =========================================================================
-        // STEP 3: WAYPOINT STATIONS & STOPOVERS FETCHING (72% -> 90%)
+        // DEPART LAST TRAIN & FLIP OVER TO SOLARI DEPARTURE BOARD
+        // =========================================================================
+        // Ensure all pending containers in queue have finished loading onto flatcars
+        await UI.waitForTrainCatchUp(() => state.cancelFetch);
+
+        UI.updateFetchStats({ status: 'Train departing terminal...', progress: 73 });
+        if (UI.refs.cargoStage) {
+            UI.refs.cargoStage.textContent = 'Consist departing terminal...';
+            UI.refs.cargoStage.classList.add('visible');
+        }
+
+        // Depart the last train with isFinal: true, which flips the 3D scene over to the Solari board
+        await UI.departTrain(allStatuses, { isFinal: true });
+
+        // =========================================================================
+        // STEP 3: WAYPOINT STATIONS & STOPOVERS FETCHING (73% -> 92%)
+        // Solari board actively flips and displays real user train itineraries & via stations
         // =========================================================================
         let stopoverCount = 0;
         const allTripsWithTrain = allStatuses.filter(s => s && s.train);
 
-        // 1. Count stopovers already present in memory
-        allTripsWithTrain.forEach(s => {
-            if (Array.isArray(s.train.stopovers)) stopoverCount += s.train.stopovers.length;
-        });
-
-        // 2. Check IndexedDB batch cache for stopovers
-        const tripsNeedingStopovers = allTripsWithTrain.filter(s => !Array.isArray(s.train.stopovers));
-        if (tripsNeedingStopovers.length > 0) {
-            UI.updateFetchStats({ status: 'Loading cached waypoint stopovers...', progress: 73, stopovers: stopoverCount });
-            const missingIds = tripsNeedingStopovers.map(s => s.id).filter(Boolean);
-            const cachedStopovers = await SessionDB.getStopoversBatch(missingIds);
-            tripsNeedingStopovers.forEach(s => {
-                if (cachedStopovers[s.id]) {
-                    s.train.stopovers = cachedStopovers[s.id];
-                    stopoverCount += (Array.isArray(s.train.stopovers) ? s.train.stopovers.length : 0);
-                }
+        // 1. Count stopovers already present in memory (only when resuming mid-fetch)
+        if (resumeFromState) {
+            allTripsWithTrain.forEach(s => {
+                if (Array.isArray(s.train.stopovers)) stopoverCount += s.train.stopovers.length;
             });
+        }
+
+        // 2. Check IndexedDB batch cache for stopovers (only when NOT a fresh scrape)
+        if (!isFreshScrape) {
+            const tripsNeedingStopovers = allTripsWithTrain.filter(s => !Array.isArray(s.train.stopovers));
+            if (tripsNeedingStopovers.length > 0) {
+                UI.updateFetchStats({ status: 'Loading cached waypoint stopovers...', progress: 74, stopovers: stopoverCount });
+                const missingIds = tripsNeedingStopovers.map(s => s.id).filter(Boolean);
+                const cachedStopovers = await SessionDB.getStopoversBatch(missingIds);
+                tripsNeedingStopovers.forEach(s => {
+                    if (cachedStopovers[s.id]) {
+                        s.train.stopovers = cachedStopovers[s.id];
+                        stopoverCount += (Array.isArray(s.train.stopovers) ? s.train.stopovers.length : 0);
+                    }
+                });
+                // Update board with any cached stopovers
+                UI.onSolariBatchUpdated(tripsNeedingStopovers.filter(s => Array.isArray(s.train?.stopovers) && s.train.stopovers.length > 0));
+            }
         }
 
         // 3. Batch fetch remaining missing stopovers from Träwelling API (batch size: 20)
@@ -370,11 +401,6 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         const stopoverBatchSize = 20;
 
         if (stopoversToFetch.length > 0 && !state.cancelFetch) {
-            if (UI.refs.cargoStage) {
-                UI.refs.cargoStage.textContent = 'Syncing waypoint itinerary...';
-                UI.refs.cargoStage.classList.add('visible');
-            }
-
             for (let j = 0; j < stopoversToFetch.length && !state.cancelFetch; j += stopoverBatchSize) {
                 const batch = stopoversToFetch.slice(j, j + stopoverBatchSize);
                 const batchIds = batch.map(s => s.id);
@@ -385,12 +411,6 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                     status: `Fetching stopovers: batch ${currentBatchNum}/${totalStopoverBatches}`,
                     stopovers: stopoverCount
                 });
-
-                // Animate split-flap departure board with active waypoint
-                const sampleTrip = batch[0];
-                const sampleStation = sampleTrip?.train?.destination?.name || sampleTrip?.train?.origin?.name || 'Waypoint';
-                const sampleLine = sampleTrip?.train?.lineName || sampleTrip?.train?.category || 'Train';
-                UI.updateWaypointBoard(sampleStation, sampleLine);
 
                 try {
                     const stopoversData = await api.getStopovers(batchIds);
@@ -407,6 +427,9 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                     if (Object.keys(newlyFetchedStopovers).length > 0) {
                         SessionDB.saveStopoversBatch(newlyFetchedStopovers).catch(() => {});
                     }
+
+                    // Dynamically update the Solari board with freshly retrieved stopovers (via stations!)
+                    UI.onSolariBatchUpdated(batch, currentBatchNum, totalStopoverBatches);
                 } catch (err) {
                     console.warn('Failed to fetch stopover batch:', err);
                     batch.forEach(s => {
@@ -415,38 +438,24 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 }
 
                 const stopPct = stopoversToFetch.length > 0 ? ((j + batch.length) / stopoversToFetch.length) : 1;
-                const overallProgress = 73 + Math.round(stopPct * 17); // 73% -> 90%
+                const overallProgress = 74 + Math.round(stopPct * 18); // 74% -> 92%
                 UI.updateFetchStats({ stopovers: stopoverCount, progress: overallProgress });
             }
-        }
-
-        UI.hideWaypointBoard();
-
-        if (UI.refs.cargoStage && (totalBatches === 0 || tripsToFetch.length === 0)) {
-            UI.refs.cargoStage.textContent = 'Processing\u2026';
-            setTimeout(() => { if (UI.refs.cargoStage) UI.refs.cargoStage.classList.remove('visible'); }, 1500);
         }
 
         state.fetchedTrips = incremental && cachedTrips ? [...allStatuses, ...cachedTrips] : allStatuses;
         state.activeTrips = state.fetchedTrips;
         saveCurrentSession(incremental); // Pass incremental flag to merge data and update timestamp
 
-        // Final 10% (90% -> 100%): Train departs terminal while background builds layers & finalizes map
-        UI.updateFetchStats({ status: 'Train departing terminal...', progress: 92, stopovers: stopoverCount });
-        if (UI.refs.cargoStage) {
-            UI.refs.cargoStage.textContent = 'Consist departing terminal...';
-            UI.refs.cargoStage.classList.add('visible');
-        }
-
-        const departPromise = UI.departTrain(state.fetchedTrips);
-
-        UI.updateFetchStats({ status: 'Building map layers...', progress: 96 });
+        // =========================================================================
+        // STEP 4: LOAD ACTUAL MAP & FINALIZE (92% -> 100%)
+        // =========================================================================
+        UI.updateFetchStats({ status: 'Building map layers...', progress: 95, stopovers: stopoverCount });
         await processAndDisplayData(state.fetchedTrips, { hideFetchUI: false });
 
-        await departPromise;
-
         UI.updateFetchStats({ status: 'Ready!', progress: 100, stopovers: stopoverCount });
-        await new Promise(r => setTimeout(r, 200));
+        // Let the user admire their departure board before fading into the map
+        await new Promise(r => setTimeout(r, 1200));
 
         UI.toggleFetch(false);
         UI.refs.menu.style.display = 'block';

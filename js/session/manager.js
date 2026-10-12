@@ -118,9 +118,20 @@ export async function loadSessionByUsername(username) {
 }
 
 export async function deleteSession(username) {
+    const state = store.get();
     try {
         await SessionDB.delete(username);
-        updateMenuAccountList();
+        if (state.username && state.username.toLowerCase() === (username || '').toLowerCase()) {
+            state.username = null;
+            state.fetchedTrips = [];
+            state.activeTrips = [];
+            state.fetchProgress = null;
+            state.queriedUserProfile = null;
+            if (state.cache?.clear) state.cache.clear();
+            if (state.cacheTimestamps?.clear) state.cacheTimestamps.clear();
+            UI.updateDatasetSummary(null, 0);
+        }
+        await updateMenuAccountList();
     } catch (e) {
         console.error('Failed to delete session:', e);
     }
@@ -199,6 +210,7 @@ export function renderAccountItems(sessions = []) {
                             <div class="saved-account-name">${displayName}</div>
                             <div class="saved-account-meta">@${session.username} · ${session.tripCount || 0} trips · ${date}</div>
                         </div>
+                        <button class="saved-account-delete" onclick="event.stopPropagation();deleteSession('${session.username || ''}')">✕</button>
                     </div>
                 `;
             }).join('');

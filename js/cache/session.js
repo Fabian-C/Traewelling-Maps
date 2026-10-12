@@ -173,12 +173,39 @@ export const SessionDB = {
         });
     },
     
-    // Delete a session
+    // Delete a session and all its associated cached routes and stopovers
     async delete(username) {
         const db = await this.open();
+        // First retrieve session to find all trip status IDs for this user
+        let tripIds = [];
+        try {
+            const existingSession = await this.get(username);
+            if (existingSession?.trips && Array.isArray(existingSession.trips)) {
+                tripIds = existingSession.trips.map(t => Number(t.id)).filter(Boolean);
+            }
+        } catch (e) {
+            console.warn('Could not read existing trips before session delete:', e);
+        }
+
         return new Promise((resolve, reject) => {
-            const tx = db.transaction([this.STORE_NAME], 'readwrite');
+            const stores = [this.STORE_NAME];
+            if (db.objectStoreNames.contains(this.POLYLINES_STORE)) stores.push(this.POLYLINES_STORE);
+            if (db.objectStoreNames.contains(this.STOPOVERS_STORE)) stores.push(this.STOPOVERS_STORE);
+
+            const tx = db.transaction(stores, 'readwrite');
             tx.objectStore(this.STORE_NAME).delete(username);
+
+            if (tripIds.length > 0) {
+                if (stores.includes(this.POLYLINES_STORE)) {
+                    const polyStore = tx.objectStore(this.POLYLINES_STORE);
+                    tripIds.forEach(id => polyStore.delete(id));
+                }
+                if (stores.includes(this.STOPOVERS_STORE)) {
+                    const stopStore = tx.objectStore(this.STOPOVERS_STORE);
+                    tripIds.forEach(id => stopStore.delete(id));
+                }
+            }
+
             tx.oncomplete = () => {
                 try {
                     const existing = this.getStoredMetadata().filter(s => s.username !== username);
@@ -190,12 +217,16 @@ export const SessionDB = {
         });
     },
     
-    // Clear all sessions
+    // Clear all sessions and all cached routes and stopovers
     async clear() {
         const db = await this.open();
         return new Promise((resolve, reject) => {
-            const tx = db.transaction([this.STORE_NAME], 'readwrite');
-            tx.objectStore(this.STORE_NAME).clear();
+            const stores = [this.STORE_NAME];
+            if (db.objectStoreNames.contains(this.POLYLINES_STORE)) stores.push(this.POLYLINES_STORE);
+            if (db.objectStoreNames.contains(this.STOPOVERS_STORE)) stores.push(this.STOPOVERS_STORE);
+
+            const tx = db.transaction(stores, 'readwrite');
+            stores.forEach(s => tx.objectStore(s).clear());
             tx.oncomplete = () => {
                 try {
                     localStorage.removeItem(this.META_CACHE_KEY);

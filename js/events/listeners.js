@@ -367,16 +367,12 @@ export function setupEventListeners() {
                 return;
             }
             state.token = token || null;
-            state.username = username;
+            state.username = username.toLowerCase();
             UI.syncTokenInputs(token);
             UI.syncUsernameInput(username);
             
-            // Check if there's cached data for incremental fetch
-            const session = await SessionDB.get(username);
-            const hasCachedData = session?.trips && session.trips.length > 0;
-            
-            // Use incremental fetch if there's cached data
-            startDataFetch(false, hasCachedData);
+            // Manual fetch by username should always perform a complete fresh rescrape
+            startDataFetch(false, false, { forceFresh: true });
         };
     }
 
