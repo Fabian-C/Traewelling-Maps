@@ -159,55 +159,102 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         const tripLimit = !isNaN(urlLimit) && urlLimit > 0 ? urlLimit : 0;
 
         if (!skipPageFetching) {
-            while (hasMore && !state.cancelFetch) {
-                UI.updateFetchStats({ status: `Fetching page ${page}...` });
-                const response = await api.getUserStatuses(username, page);
-                if (!response?.data?.length) { hasMore = false; break; }
-                
-                // For incremental fetch, check if we've hit the newest cached trip
-                if (incremental && newestCachedTripId) {
-                    const foundNewestIndex = response.data.findIndex(s => s.id === newestCachedTripId);
-                    if (foundNewestIndex !== -1) {
-                        // Found newest cached trip, only add trips before it (strictly newer trips)
-                        if (foundNewestIndex > 0) {
-                            allStatuses.push(...response.data.slice(0, foundNewestIndex));
+            // First page check (crucial for instant incremental stops and determining next link)
+            if (page === 1 && hasMore && !state.cancelFetch) {
+                UI.updateFetchStats({ status: `Fetching page 1...` });
+                const response = await api.getUserStatuses(username, 1);
+                if (!response?.data?.length) {
+                    hasMore = false;
+                } else {
+                    if (incremental && newestCachedTripId) {
+                        const foundIdx = response.data.findIndex(s => s.id === newestCachedTripId);
+                        if (foundIdx !== -1) {
+                            if (foundIdx > 0) allStatuses.push(...response.data.slice(0, foundIdx));
+                            console.log(`Found newest cached trip on page 1, stopping incremental fetch`);
+                            hasMore = false;
+                        } else {
+                            allStatuses.push(...response.data);
                         }
-                        console.log(`Found newest cached trip at index ${foundNewestIndex} on page ${page}, stopping incremental fetch`);
+                    } else {
+                        allStatuses.push(...response.data);
+                    }
+
+                    if (tripLimit > 0 && allStatuses.length >= tripLimit) {
+                        if (allStatuses.length > tripLimit) allStatuses.length = tripLimit;
+                        hasMore = false;
+                    }
+
+                    const pageProgress = Math.min(45, Math.round((1 / 5) * 45));
+                    UI.updateFetchStats({ trips: allStatuses.length, pages: 1, progress: pageProgress });
+                    UI.addPacketToDepot(1);
+                    FunFacts.showFactsFromTrips(response.data, 2);
+
+                    hasMore = hasMore && !!response.links?.next;
+                    page = 2;
+                }
+            }
+
+            // Pipelined concurrent fetching for subsequent pages (2 at a time)
+            const PAGE_PIPELINE_SIZE = 2;
+            while (hasMore && !state.cancelFetch) {
+                const targetPages = [];
+                for (let k = 0; k < PAGE_PIPELINE_SIZE; k++) {
+                    targetPages.push(page + k);
+                }
+                UI.updateFetchStats({ status: `Fetching pages ${targetPages.join(', ')}...` });
+
+                const responses = await Promise.all(
+                    targetPages.map(p => api.getUserStatuses(username, p))
+                );
+
+                for (let idx = 0; idx < responses.length; idx++) {
+                    const res = responses[idx];
+                    const currPage = targetPages[idx];
+                    if (!res?.data?.length) {
+                        hasMore = false;
+                        break;
+                    }
+
+                    if (incremental && newestCachedTripId) {
+                        const foundIdx = res.data.findIndex(s => s.id === newestCachedTripId);
+                        if (foundIdx !== -1) {
+                            if (foundIdx > 0) allStatuses.push(...res.data.slice(0, foundIdx));
+                            console.log(`Found newest cached trip at index ${foundIdx} on page ${currPage}, stopping incremental fetch`);
+                            hasMore = false;
+                            break;
+                        }
+                    }
+
+                    allStatuses.push(...res.data);
+
+                    if (tripLimit > 0 && allStatuses.length >= tripLimit) {
+                        if (allStatuses.length > tripLimit) allStatuses.length = tripLimit;
+                        hasMore = false;
+                        break;
+                    }
+
+                    const pageProgress = Math.min(45, Math.round((currPage / (currPage + 4)) * 45));
+                    UI.updateFetchStats({ trips: allStatuses.length, pages: currPage, progress: pageProgress });
+                    UI.addPacketToDepot(currPage);
+                    FunFacts.showFactsFromTrips(res.data, Math.floor(Math.random() * 2) + 1);
+
+                    if (!res.links?.next) {
                         hasMore = false;
                         break;
                     }
                 }
-                
-                allStatuses.push(...response.data);
 
-                // Stop if trip limit reached
-                if (tripLimit > 0 && allStatuses.length >= tripLimit) {
-                    if (allStatuses.length > tripLimit) {
-                        allStatuses.length = tripLimit;
-                    }
-                    hasMore = false;
-                    break;
-                }
-
-                const pageProgress = Math.min(45, Math.round((page / (page + 4)) * 45));
-                UI.updateFetchStats({ trips: allStatuses.length, pages: page, progress: pageProgress });
-                UI.addPacketToDepot(page);
-                const randomFactCount = Math.floor(Math.random() * 3) + 1; // Random 1-3 facts per page
-                FunFacts.showFactsFromTrips(response.data, randomFactCount);
-                hasMore = !!response.links?.next;
-                
+                page += PAGE_PIPELINE_SIZE;
                 state.fetchProgress = {
-                    page: page + 1,
+                    page: page,
                     pagesFetchComplete: !hasMore,
                     allStatuses: allStatuses,
                     polylineCount: 0,
                     processedPolylines: 0
                 };
-                
-                page++;
                 if (page > 1500) break;
             }
-            
+
             if (state.fetchProgress) {
                 state.fetchProgress.pagesFetchComplete = true;
             }
@@ -242,36 +289,73 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             }, false);
         }
 
-        UI.updateFetchStats({ status: 'Fetching route polylines...', progress: 48 });
+        UI.updateFetchStats({ status: 'Preparing route polylines...', progress: 46 });
         let polylineCount = resumeFromState && state.fetchProgress ? state.fetchProgress.polylineCount : 0;
-        const tripsWithTrain = allStatuses.filter(s => s.train);
-        const batchSize = 15;
+        
+        // Fast O(1) status lookup index
+        const statusMap = new Map();
+        allStatuses.forEach(s => {
+            if (s?.id) {
+                statusMap.set(String(s.id), s);
+                statusMap.set(Number(s.id), s);
+            }
+        });
+
+        // 1. Count any polylines already in memory
+        allStatuses.forEach(s => {
+            if (s.train?.polyline) polylineCount++;
+        });
+
+        // 2. Check IndexedDB batch cache for polylines (stopovers-style)
+        const tripsNeedingPolyline = allStatuses.filter(s => s.train && !s.train.polyline);
+        if (tripsNeedingPolyline.length > 0) {
+            UI.updateFetchStats({ status: 'Loading cached polylines...', progress: 47 });
+            const missingIds = tripsNeedingPolyline.map(s => s.id);
+            const cachedPolylines = await SessionDB.getPolylinesBatch(missingIds);
+            tripsNeedingPolyline.forEach(s => {
+                if (cachedPolylines[s.id]) {
+                    s.train.polyline = cachedPolylines[s.id];
+                    polylineCount++;
+                }
+            });
+        }
+
+        // 3. Batch fetch remaining missing polylines from Träwelling API (batchSize: 25)
+        const tripsToFetch = allStatuses.filter(s => s.train && !s.train.polyline);
+        const batchSize = 25;
         const startIndex = resumeFromState && state.fetchProgress ? state.fetchProgress.processedPolylines : 0;
-        const totalBatches = Math.ceil((tripsWithTrain.length - startIndex) / batchSize);
+        const totalBatches = Math.ceil((tripsToFetch.length - startIndex) / batchSize);
         UI.startLoadingToTrain(totalBatches);
         
-        for (let i = startIndex; i < tripsWithTrain.length && !state.cancelFetch; i += batchSize) {
-            const batch = tripsWithTrain.slice(i, i + Math.min(batchSize, tripsWithTrain.length - i));
+        for (let i = startIndex; i < tripsToFetch.length && !state.cancelFetch; i += batchSize) {
+            const batch = tripsToFetch.slice(i, i + Math.min(batchSize, tripsToFetch.length - i));
             const statusIds = batch.map(s => s.id);
             
-            UI.updateFetchStats({ status: `Fetching polylines: batch ${Math.floor(i/batchSize)+1}/${Math.ceil(tripsWithTrain.length/batchSize)}` });
+            UI.updateFetchStats({ status: `Fetching polylines: batch ${Math.floor(i/batchSize)+1}/${Math.ceil(tripsToFetch.length/batchSize)}` });
             
             const polylinesData = await api.getPolylines(statusIds);
+            const newlyFetched = {};
             
             if (polylinesData?.data?.features) {
                 polylinesData.data.features.forEach(feature => {
-                    if (feature?.properties?.statusId) {
-                        const status = allStatuses.find(s => String(s.id) === String(feature.properties.statusId));
+                    const statusId = feature?.properties?.statusId;
+                    if (statusId) {
+                        const status = statusMap.get(statusId);
                         if (status && status.train) {
                             status.train.polyline = feature;
+                            newlyFetched[statusId] = feature;
                             polylineCount++;
                         }
                     }
                 });
             }
+
+            if (Object.keys(newlyFetched).length > 0) {
+                SessionDB.savePolylinesBatch(newlyFetched).catch(() => {});
+            }
             
-            const polyPct = tripsWithTrain.length > 0 ? ((i + batch.length) / tripsWithTrain.length) : 1;
-            const overallProgress = 45 + Math.round(polyPct * 45); // 45% -> 90%
+            const polyPct = tripsToFetch.length > 0 ? ((i + batch.length) / tripsToFetch.length) : 1;
+            const overallProgress = 48 + Math.round(polyPct * 42); // 48% -> 90%
             UI.updateFetchStats({ routes: polylineCount, progress: overallProgress });
             UI.onPolylineBatchComplete();
             await UI.waitForTrainCatchUp(() => state.cancelFetch);
@@ -286,7 +370,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             };
         }
 
-        if (UI.refs.cargoStage && (totalBatches === 0 || tripsWithTrain.length === 0)) {
+        if (UI.refs.cargoStage && (totalBatches === 0 || tripsToFetch.length === 0)) {
             UI.refs.cargoStage.textContent = 'Processing\u2026';
             setTimeout(() => { if (UI.refs.cargoStage) UI.refs.cargoStage.classList.remove('visible'); }, 1500);
         }

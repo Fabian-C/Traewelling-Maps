@@ -5,8 +5,9 @@ export const SessionDB = {
     DB_NAME: 'TraewellingMap',
     STORE_NAME: 'sessions',
     STOPOVERS_STORE: 'stopovers',
+    POLYLINES_STORE: 'polylines',
     META_CACHE_KEY: 'tw_cached_sessions_meta',
-    VERSION: 2,
+    VERSION: 3,
     MAX_SESSIONS: 15,
     _db: null,
     
@@ -61,6 +62,9 @@ export const SessionDB = {
                 if (!db.objectStoreNames.contains(this.STOPOVERS_STORE)) {
                     db.createObjectStore(this.STOPOVERS_STORE, { keyPath: 'statusId' });
                 }
+                if (!db.objectStoreNames.contains(this.POLYLINES_STORE)) {
+                    db.createObjectStore(this.POLYLINES_STORE, { keyPath: 'statusId' });
+                }
             };
             
             req.onsuccess = () => {
@@ -91,6 +95,17 @@ export const SessionDB = {
             
             store.put(session);
             tx.oncomplete = () => {
+                if (Array.isArray(data.trips)) {
+                    const polyMap = {};
+                    data.trips.forEach(t => {
+                        if (t?.id && t.train?.polyline) {
+                            polyMap[t.id] = t.train.polyline;
+                        }
+                    });
+                    if (Object.keys(polyMap).length > 0) {
+                        this.savePolylinesBatch(polyMap).catch(() => {});
+                    }
+                }
                 this.prune(); // Clean old sessions
                 this.getAll().then(all => this.saveStoredMetadata(all)).catch(() => {});
                 resolve(session);
@@ -241,6 +256,63 @@ export const SessionDB = {
                 tx.onerror = () => reject(tx.error);
             } catch (e) {
                 console.warn('Failed to save stopovers batch:', e);
+                resolve();
+            }
+        });
+    },
+
+    // Retrieve cached polylines for a batch of status IDs
+    async getPolylinesBatch(statusIds = []) {
+        if (!statusIds || !statusIds.length) return {};
+        const db = await this.open();
+        return new Promise((resolve) => {
+            try {
+                const tx = db.transaction([this.POLYLINES_STORE], 'readonly');
+                const store = tx.objectStore(this.POLYLINES_STORE);
+                const results = {};
+                let remaining = statusIds.length;
+
+                statusIds.forEach(rawId => {
+                    const id = Number(rawId);
+                    const req = store.get(id);
+                    req.onsuccess = () => {
+                        if (req.result?.polyline) {
+                            results[id] = req.result.polyline;
+                        }
+                        remaining--;
+                        if (remaining === 0) resolve(results);
+                    };
+                    req.onerror = () => {
+                        remaining--;
+                        if (remaining === 0) resolve(results);
+                    };
+                });
+            } catch (e) {
+                console.warn('Failed to get cached polylines batch:', e);
+                resolve({});
+            }
+        });
+    },
+
+    // Persist a batch of polylines keyed by status ID
+    async savePolylinesBatch(entries = {}) {
+        const keys = Object.keys(entries);
+        if (!keys.length) return;
+        const db = await this.open();
+        return new Promise((resolve, reject) => {
+            try {
+                const tx = db.transaction([this.POLYLINES_STORE], 'readwrite');
+                const store = tx.objectStore(this.POLYLINES_STORE);
+                keys.forEach(rawId => {
+                    const id = Number(rawId);
+                    if (entries[rawId]) {
+                        store.put({ statusId: id, polyline: entries[rawId] });
+                    }
+                });
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            } catch (e) {
+                console.warn('Failed to save polylines batch:', e);
                 resolve();
             }
         });
