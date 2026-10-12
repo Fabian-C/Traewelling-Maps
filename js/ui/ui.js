@@ -374,19 +374,9 @@ export const UI = {
 
         setTimeout(() => { hoist.style.height = hoistDepot + 'px'; }, t(380));
         setTimeout(() => {
-            if (item.el.parentElement) {
-                const colEl = item.el.parentElement;
-                item.el.remove();
-                const colIndex = this.depotColumns.findIndex(c => c.el === colEl);
-                if (colIndex !== -1) {
-                    const col = this.depotColumns[colIndex];
-                    col.count = colEl.children.length;
-                    if (col.count === 0) {
-                        colEl.remove();
-                        this.depotColumns.splice(colIndex, 1);
-                    }
-                }
-                this._updateDepotScroll();
+            // Container is hooked by the spreader: transfer visually to hoist payload
+            if (item.el) {
+                item.el.style.visibility = 'hidden';
             }
             const itemBg = this._resolveContainerBackground(item.designBg);
             payload.style.background = itemBg;
@@ -394,11 +384,38 @@ export const UI = {
             payload.classList.add('visible');
             hoist.style.height = baseHeight + 'px';
         }, t(600));
+
         setTimeout(() => {
+            // Crane begins carrying the container over to the train
             gantry.classList.remove('at-depot');
             gantry.classList.add('at-train');
             gantry.style.left = '';
             gantry.style.setProperty('--trolley-pos', '50%');
+
+            // Now that the crane has safely departed the dock queue, cleanly remove
+            // the picked container and smoothly slide the depot queue forward
+            if (item.el && item.el.parentElement) {
+                const colEl = item.el.parentElement;
+                item.el.remove();
+                const colIndex = this.depotColumns.findIndex(c => c.el === colEl);
+                if (colIndex !== -1) {
+                    const col = this.depotColumns[colIndex];
+                    col.count = colEl.children.length;
+                    if (col.count === 0) {
+                        colEl.classList.add('emptying');
+                        setTimeout(() => {
+                            colEl.remove();
+                            const idx = this.depotColumns.indexOf(col);
+                            if (idx !== -1) this.depotColumns.splice(idx, 1);
+                            this._updateDepotScroll();
+                        }, t(250));
+                    } else {
+                        this._updateDepotScroll();
+                    }
+                } else {
+                    this._updateDepotScroll();
+                }
+            }
         }, t(850));
         setTimeout(() => { hoist.style.height = hoistTrain + 'px'; }, t(1100));
         setTimeout(() => {
@@ -640,10 +657,10 @@ export const UI = {
                 .filter(n => n && n.toUpperCase() !== origin && n.toUpperCase() !== dest);
         }
         const viaText = viaNames.length > 0 
-            ? ` via ${viaNames.slice(0, 6).join(' • ')}`
+            ? `via ${viaNames.slice(0, 8).join(' • ')}`
             : '';
 
-        return `<span class="solari-dest-main">${origin} → ${dest}</span>${viaText ? `<span class="solari-dest-via">${viaText}</span>` : ''}`;
+        return `<div class="solari-dest-lines"><span class="solari-dest-main">${origin} → ${dest}</span>${viaText ? `<span class="solari-dest-via">${viaText}</span>` : ''}</div>`;
     },
     populateSolariBoard(trips = []) {
         if (!this.refs.solariRows) return;
