@@ -521,12 +521,13 @@ export const UI = {
             this.currentTrainLoadedCount = 0;
             this.currentTrainCapacity = Math.floor(Math.random() * 6) + 22; // 22 to 27 containers per train (20-30 range)
 
+            this._updateTrainPosition(0);
+            void trainZone.offsetWidth;
             trainZone.classList.add('arriving');
-            this._triggerRollingAnimation(650);
+            this._triggerRollingAnimation(800);
             setTimeout(() => {
                 if (trainZone) trainZone.classList.remove('arriving');
-            }, 650);
-            this._updateTrainPosition(0);
+            }, 800);
         }
     },
     async _swapTrainConsist() {
@@ -562,11 +563,12 @@ export const UI = {
         this.flatcars.push(car0);
 
         // 4. Arrive the new train
-        trainZone.classList.add('arriving');
-        this._triggerRollingAnimation(650);
         this._updateTrainPosition(0);
+        void trainZone.offsetWidth;
+        trainZone.classList.add('arriving');
+        this._triggerRollingAnimation(800);
 
-        await new Promise(r => setTimeout(r, 650));
+        await new Promise(r => setTimeout(r, 800));
         trainZone.classList.remove('arriving');
 
         if (this.refs.cargoStage) {
@@ -650,7 +652,7 @@ export const UI = {
         const rootStyle = window.getComputedStyle(document.documentElement);
         const gantryTrainLeft = parseFloat(rootStyle.getPropertyValue('--gantry-train-left'));
         const gantryWidth = parseFloat(rootStyle.getPropertyValue('--gantry-width'));
-        const safeGantryLeft = Number.isFinite(gantryTrainLeft) ? gantryTrainLeft : 172;
+        const safeGantryLeft = Number.isFinite(gantryTrainLeft) ? gantryTrainLeft : 235;
         const safeGantryWidth = Number.isFinite(gantryWidth) ? gantryWidth : 136;
         const targetCenter = safeGantryLeft + (safeGantryWidth / 2);
 
@@ -658,14 +660,20 @@ export const UI = {
         const carWidth = 32;
         const carGap = 2;
 
-        // Position carIndex directly under the gantry hoist at targetCenter (240px)
+        // Position carIndex directly under the gantry hoist at targetCenter
         const distFromRight = locoWidth + carGap + (carWidth / 2) + (carIndex * (carWidth + carGap));
         const shift = targetCenter - (sceneWidth - distFromRight);
 
+        trainZone.style.setProperty('--train-shift', `${shift}px`);
         trainZone.style.transform = `translateX(${shift}px)`;
         const rollDuration = Math.max(250, Math.round(500 * this._animSpeed));
         this._triggerRollingAnimation(rollDuration);
         this._updateOffscreenCars();
+
+        // If train advances past car 2, fold down buffer stop so it clears shunting movements
+        if (this.refs.cargoScene) {
+            this.refs.cargoScene.classList.toggle('train-shunting', carIndex >= 2);
+        }
     },
     _updateTrainScroll() {
         this._updateTrainPosition(this.currentTrainLoadedCount || 0);
@@ -690,9 +698,14 @@ export const UI = {
         root.style.removeProperty('--trolley-move-dur');
         root.style.removeProperty('--hoist-move-dur');
         root.style.removeProperty('--train-step-dur');
-        if (this.refs.cargoScene) this.refs.cargoScene.classList.remove('has-error');
+        if (this.refs.cargoScene) this.refs.cargoScene.classList.remove('has-error', 'train-shunting');
         if (this.refs.depotStack) { this.refs.depotStack.innerHTML = ''; this.refs.depotStack.style.transform = ''; }
-        if (this.refs.trainZone) { this.refs.trainZone.innerHTML = ''; this.refs.trainZone.style.transform = ''; this.refs.trainZone.classList.remove('departing', 'arriving'); }
+        if (this.refs.trainZone) {
+            this.refs.trainZone.innerHTML = '';
+            this.refs.trainZone.style.transform = '';
+            this.refs.trainZone.style.removeProperty('--train-shift');
+            this.refs.trainZone.classList.remove('departing', 'arriving');
+        }
         if (this.refs.gantry) {
             this.refs.gantry.classList.remove('at-depot', 'at-train');
             this.refs.gantry.style.left = '';

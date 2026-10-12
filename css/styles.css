@@ -4,7 +4,7 @@
     --border-color: #333333; --hover-bg: #2a2a2a; --menu-bg: rgba(26, 26, 26, 0.95);
     --popup-bg: rgba(30, 30, 30, 0.95); --shadow: rgba(0, 0, 0, 0.3);
     --accent-color: #667eea; --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --depot-width: 130px; --gantry-width: 136px; --gantry-depot-left: 32px; --gantry-train-left: 172px;
+    --depot-width: 130px; --gantry-width: 136px; --gantry-depot-left: 32px; --gantry-train-left: 235px;
 }
 * {
     box-sizing: border-box;
@@ -377,17 +377,6 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     justify-content: flex-end;
     z-index: 4;
 }
-.depot-label {
-    position: absolute;
-    top: 54px;
-    left: 10px;
-    font-size: 8px;
-    font-weight: 700;
-    color: rgba(148, 163, 184, 0.6);
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    z-index: 3;
-}
 .depot-stack {
     display: flex;
     gap: 3px;
@@ -419,11 +408,11 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 .crate.pickup {
-    animation: crate-lift 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: crate-lift 0.22s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
 }
 @keyframes crate-lift {
     0% { opacity: 1; transform: translateY(0); }
-    100% { opacity: 0; transform: translateY(-28px) scale(0.92); }
+    100% { opacity: 0; transform: translateY(-26px) scale(0.94); }
 }
 .crate-ribs {
     position: absolute;
@@ -506,13 +495,19 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 }
 .buffer-stop {
     position: absolute;
-    left: 2px;
+    right: 8px;
     bottom: 7px;
-    width: 20px;
-    height: 20px;
-    z-index: 8;
+    width: 22px;
+    height: 22px;
+    z-index: 5;
     pointer-events: none;
-    background: center bottom / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg transform='translate(32 0) scale(-1 1)'%3E%3Cpath fill='none' stroke='%23646464' stroke-width='6.81511784' d='M12.160561 8.4267H3.921841'/%3E%3Cpath fill='none' stroke='%23000' stroke-width='5.80712891' d='M4.34043 13.8788V2.9746'/%3E%3Cpath fill='%23b90000' stroke='%23b90000' stroke-width='5' d='M14.46743 25.5937V5.8964h6.499883l6.824514 19.6973z'/%3E%3C/g%3E%3C/svg%3E");
+    transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    background: center bottom / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='none' stroke='%23646464' stroke-width='6.81511784' d='M12.160561 8.4267H3.921841'/%3E%3Cpath fill='none' stroke='%23000' stroke-width='5.80712891' d='M4.34043 13.8788V2.9746'/%3E%3Cpath fill='%23b90000' stroke='%23b90000' stroke-width='5' d='M14.46743 25.5937V5.8964h6.499883l6.824514 19.6973z'/%3E%3C/svg%3E");
+}
+.cargo-scene.train-shunting .buffer-stop,
+.cargo-scene:has(.train-zone.departing) .buffer-stop {
+    opacity: 0;
+    transform: translateY(14px);
 }
 
 /* Crane Runway Ground Rails */
@@ -541,7 +536,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     width: var(--gantry-width);
     height: 145px;
     z-index: 10;
-    transition: left var(--gantry-move-dur, 0.32s) cubic-bezier(0.4, 0, 0.2, 1);
+    transition: left var(--gantry-move-dur, 0.38s) cubic-bezier(0.22, 1, 0.36, 1);
     will-change: left;
     pointer-events: none;
 }
@@ -657,7 +652,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     border-radius: 2px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
     z-index: 16;
-    transition: left var(--trolley-move-dur, 0.32s) cubic-bezier(0.4, 0, 0.2, 1);
+    transition: left var(--trolley-move-dur, 0.35s) cubic-bezier(0.22, 1, 0.36, 1);
 }
 .gantry-hoist {
     position: absolute;
@@ -666,7 +661,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     transform: translateX(-50%);
     width: 12px;
     background: transparent;
-    transition: height var(--hoist-move-dur, 0.2s) cubic-bezier(0.4, 0, 0.2, 1);
+    transition: height var(--hoist-move-dur, 0.26s) cubic-bezier(0.34, 1.25, 0.64, 1);
     height: 12px;
     will-change: height;
 }
@@ -733,21 +728,23 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     z-index: 6;
     flex-direction: row-reverse;
     align-items: flex-end;
-    transition: transform var(--train-step-dur, 0.35s) cubic-bezier(0.2, 0.8, 0.3, 1);
+    transition: transform var(--train-step-dur, 0.45s) cubic-bezier(0.25, 0.1, 0.25, 1);
     will-change: transform;
 }
 .train-zone.arriving {
-    animation: train-arrive 0.65s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+    animation: train-arrive 0.8s cubic-bezier(0.12, 0.8, 0.25, 1) forwards;
 }
 @keyframes train-arrive {
-    0% { transform: translateX(calc(var(--train-shift, 0px) + 120px)); opacity: 0; }
+    0% { transform: translateX(calc(var(--train-shift, 0px) - 220px)); opacity: 0; }
+    15% { opacity: 1; }
     100% { transform: translateX(var(--train-shift, 0px)); opacity: 1; }
 }
 .train-zone.departing {
-    animation: train-depart 0.95s cubic-bezier(0.3, 0, 0.8, 0.3) forwards;
+    animation: train-depart 0.95s cubic-bezier(0.45, 0, 0.7, 0.2) forwards;
 }
 @keyframes train-depart {
     0% { transform: translateX(var(--train-shift, 0px)); opacity: 1; }
+    85% { opacity: 1; }
     100% { transform: translateX(calc(var(--train-shift, 0px) + 380px)); opacity: 0; }
 }
 
@@ -980,12 +977,13 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     animation: none !important;
 }
 .flatcar.settling {
-    animation: flatcar-spring 0.28s cubic-bezier(0.3, 1.4, 0.6, 1);
+    animation: flatcar-spring 0.32s cubic-bezier(0.25, 1.4, 0.5, 1);
 }
 @keyframes flatcar-spring {
     0% { transform: translateY(0); }
-    35% { transform: translateY(2px); }
-    70% { transform: translateY(-1px); }
+    30% { transform: translateY(2.5px); }
+    60% { transform: translateY(-0.8px); }
+    80% { transform: translateY(0.3px); }
     100% { transform: translateY(0); }
 }
 .flatcar-deck {
@@ -1586,7 +1584,7 @@ body.stats-open .active-filter-badges {
 }
 
 @media (max-width: 768px) {
-    :root { --depot-width: 106px; --gantry-width: 106px; --gantry-depot-left: 30px; --gantry-train-left: 142px; }
+    :root { --depot-width: 106px; --gantry-width: 106px; --gantry-depot-left: 30px; --gantry-train-left: 175px; }
     .setup-screen { padding: 16px; overflow-y: auto; align-items: flex-start; }
     .setup-container { padding: 22px 18px; margin: auto 0; width: 100%; max-width: 440px; border-radius: 12px; }
     .setup-header { margin-bottom: 12px; }
