@@ -233,24 +233,21 @@ export const UI = {
     },
     _updateAnimSpeed() {
         const queueLen = this.loadQueue ? this.loadQueue.length : 0;
-        const total = this.totalDepotReceived || 1;
-        let speed = 0.8;
-        if (total > 80 || queueLen > 20) {
-            speed = 0.10;
-        } else if (total > 40 || queueLen > 10) {
-            speed = 0.16;
-        } else if (total > 20 || queueLen > 5) {
-            speed = 0.28;
-        } else if (total > 8) {
-            speed = 0.45;
+        // Natural, unhurried pace matching the API rate limit (~1.1s per request)
+        // Deliberate, majestic industrial rhythm
+        let speed = 0.85;
+        if (queueLen > 25) {
+            speed = 0.55;
+        } else if (queueLen > 10) {
+            speed = 0.70;
         } else {
-            speed = 0.75;
+            speed = 0.85;
         }
         this._animSpeed = speed;
 
-        const gantryMoveDur = Math.max(0.04, 0.32 * speed).toFixed(3);
-        const hoistMoveDur = Math.max(0.03, 0.20 * speed).toFixed(3);
-        const trainStepDur = Math.max(0.04, 0.35 * speed).toFixed(3);
+        const gantryMoveDur = (0.35 * speed).toFixed(3);
+        const hoistMoveDur = (0.24 * speed).toFixed(3);
+        const trainStepDur = (0.40 * speed).toFixed(3);
         const root = document.documentElement;
         root.style.setProperty('--gantry-move-dur', `${gantryMoveDur}s`);
         root.style.setProperty('--trolley-move-dur', `${gantryMoveDur}s`);
@@ -281,7 +278,7 @@ export const UI = {
         if (this.trainCarsCount >= targetLoaded) return Promise.resolve();
 
         const startTime = Date.now();
-        const maxWaitMs = 10000;
+        const maxWaitMs = 60000; // Allow ample time for natural animation pace
 
         return new Promise(resolve => {
             const poll = () => {
@@ -368,7 +365,7 @@ export const UI = {
         gantry.style.left = `${targetGantryLeft}px`;
         gantry.style.setProperty('--trolley-pos', trolleyPos);
 
-        setTimeout(() => { hoist.style.height = hoistDepot + 'px'; }, t(360));
+        setTimeout(() => { hoist.style.height = hoistDepot + 'px'; }, t(380));
         setTimeout(() => {
             if (item.el.parentElement) {
                 const colEl = item.el.parentElement;
@@ -382,21 +379,21 @@ export const UI = {
             payload.innerHTML = this._crateMarkup(item.page);
             payload.classList.add('visible');
             hoist.style.height = baseHeight + 'px';
-        }, t(570));
+        }, t(600));
         setTimeout(() => {
             gantry.classList.remove('at-depot');
             gantry.classList.add('at-train');
             gantry.style.left = '';
             gantry.style.setProperty('--trolley-pos', '50%');
-        }, t(780));
-        setTimeout(() => { hoist.style.height = hoistTrain + 'px'; }, t(980));
+        }, t(850));
+        setTimeout(() => { hoist.style.height = hoistTrain + 'px'; }, t(1100));
         setTimeout(() => {
             payload.classList.remove('visible');
             if (targetCar) {
                 const crate = this._createCrateElement('train-crate', item.page, item.designBg);
                 targetCar.appendChild(crate);
                 targetCar.classList.add('settling');
-                setTimeout(() => targetCar.classList.remove('settling'), Math.max(100, t(250)));
+                setTimeout(() => targetCar.classList.remove('settling'), Math.max(120, t(280)));
             }
             this.loadedCarsCount = (this.loadedCarsCount || 0) + 1;
             this.trainCarsCount = this.loadedCarsCount;
@@ -408,8 +405,8 @@ export const UI = {
                 }
             }
             this.craneAnimating = false;
-            if (this.loadQueue.length > 0) setTimeout(() => this._processQueue(), t(40));
-        }, t(1200));
+            if (this.loadQueue.length > 0) setTimeout(() => this._processQueue(), t(50));
+        }, t(1350));
     },
     _updateDepotScroll() {
         if (!this.refs?.depotStack) return;
@@ -602,7 +599,7 @@ export const UI = {
         const shift = targetCenter - (sceneWidth - distFromRight);
 
         trainZone.style.transform = `translateX(${shift}px)`;
-        const rollDuration = Math.max(120, Math.round(450 * this._animSpeed));
+        const rollDuration = Math.max(250, Math.round(500 * this._animSpeed));
         this._triggerRollingAnimation(rollDuration);
         this._updateOffscreenCars();
     },
