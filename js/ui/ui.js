@@ -320,12 +320,6 @@ export const UI = {
                 trainZone.appendChild(nextCar);
                 this.flatcars.push(nextCar);
             }
-            // Ensure a trailing buffer car exists so cars are seen coupled behind
-            if (!this.flatcars[this.loadedCarsCount + 1] && (this.loadQueue.length > 0 || (this.totalDepotReceived - this.loadedCarsCount) > 1)) {
-                const bufferCar = this._createFlatcarElement();
-                trainZone.appendChild(bufferCar);
-                this.flatcars.push(bufferCar);
-            }
             // Advance train forward so new car rolls into place under the crane
             this._updateTrainPosition(this.loadedCarsCount);
         }
@@ -507,20 +501,11 @@ export const UI = {
             const loco = this._createLocomotiveElement();
             trainZone.appendChild(loco);
 
-            // 2. Initial flatcars:
-            // Car 0: The first empty flatcar that stops directly under the crane
-            // Car 1: The next empty flatcar coupled behind Car 0 (if more than 1 container)
+            // 2. Initial single empty flatcar (stops directly under the crane)
             this.flatcars = [];
             const car0 = this._createFlatcarElement();
             trainZone.appendChild(car0);
             this.flatcars.push(car0);
-
-            const total = this.totalDepotReceived || numCars;
-            if (total > 1) {
-                const car1 = this._createFlatcarElement();
-                trainZone.appendChild(car1);
-                this.flatcars.push(car1);
-            }
 
             this.loadedCarsCount = 0;
             this.trainCarsCount = 0;
