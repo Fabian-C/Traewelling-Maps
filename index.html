@@ -413,65 +413,100 @@
     <!-- Fetch Progress Screen -->
     <div class="fetch-screen hidden" id="fetchScreen">
         <div class="fetch-container">
-            <div class="cargo-scene" id="cargoScene">
-                <div class="cargo-floodlight" aria-hidden="true"></div>
-                <div class="cargo-stage" id="cargoStage"></div>
-                <div class="depot-zone">
-                    <div class="depot-stack" id="depotStack"></div>
-                </div>
-                <div class="depot-platform">
-                    <div class="hazard-stripe"></div>
-                </div>
-                <div class="gantry">
-                    <div class="gantry-portal gantry-back">
-                        <div class="gantry-leg l"></div>
-                        <div class="gantry-leg r"></div>
-                    </div>
-                    <div class="gantry-beam">
-                        <div class="gantry-truss-pattern"></div>
-                        <div class="gantry-cabin"></div>
-                        <div class="gantry-trolley" id="gantryTrolley">
-                            <div class="gantry-hoist" id="gantryHoist">
-                                <div class="gantry-cables"></div>
-                                <div class="gantry-spreader">
-                                    <div class="spreader-twistlock tl"></div>
-                                    <div class="spreader-twistlock tr"></div>
-                                    <div class="gantry-payload" id="gantryPayload">
-                                        <div class="crate-ribs"></div>
-                                        <div class="crate-corners"></div>
+            <div class="scene-flip-container" id="sceneFlipContainer">
+                <div class="scene-flipper" id="sceneFlipper">
+                    <!-- Front face: Cinematic Cargo Terminal -->
+                    <div class="scene-face scene-front">
+                        <div class="cargo-scene" id="cargoScene">
+                            <div class="cargo-floodlight" aria-hidden="true"></div>
+                            <div class="cargo-stage" id="cargoStage"></div>
+                            <div class="depot-zone">
+                                <div class="depot-stack" id="depotStack"></div>
+                            </div>
+                            <div class="depot-platform">
+                                <div class="hazard-stripe"></div>
+                            </div>
+                            <div class="gantry">
+                                <div class="gantry-portal gantry-back">
+                                    <div class="gantry-leg l"></div>
+                                    <div class="gantry-leg r"></div>
+                                </div>
+                                <div class="gantry-beam">
+                                    <div class="gantry-truss-pattern"></div>
+                                    <div class="gantry-cabin"></div>
+                                    <div class="gantry-trolley" id="gantryTrolley">
+                                        <div class="gantry-hoist" id="gantryHoist">
+                                            <div class="gantry-cables"></div>
+                                            <div class="gantry-spreader">
+                                                <div class="spreader-twistlock tl"></div>
+                                                <div class="spreader-twistlock tr"></div>
+                                                <div class="gantry-payload" id="gantryPayload">
+                                                    <div class="crate-ribs"></div>
+                                                    <div class="crate-corners"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="gantry-portal gantry-front">
+                                    <div class="gantry-leg l"><div class="gantry-truck"></div></div>
+                                    <div class="gantry-leg r"><div class="gantry-truck"></div></div>
+                                </div>
+                            </div>
+                            <div class="cargo-rails">
+                                <div class="cargo-ballast"></div>
+                                <div class="cargo-sleepers"></div>
+                                <div class="cargo-rail-steel"></div>
+                                <div class="buffer-stop" aria-hidden="true"></div>
+                            </div>
+                            <div class="crane-runway" aria-hidden="true">
+                                <div class="crane-rail-front"></div>
+                            </div>
+                            <div class="train-zone" id="trainZone"></div>
+                            <div class="waypoint-board" id="waypointBoard" aria-hidden="true">
+                                <div class="waypoint-header">
+                                    <span class="waypoint-signal-light green"></span>
+                                    <span class="waypoint-title">WAYPOINT TELEMETRY</span>
+                                </div>
+                                <div class="waypoint-display">
+                                    <div class="split-flap-row">
+                                        <span class="split-flap-code" id="waypointFlapCode">---</span>
+                                        <span class="split-flap-station" id="waypointFlapStation">SYNCING ROUTE...</span>
                                     </div>
                                 </div>
                             </div>
+                            <div class="cargo-ground"></div>
                         </div>
                     </div>
-                    <div class="gantry-portal gantry-front">
-                        <div class="gantry-leg l"><div class="gantry-truck"></div></div>
-                        <div class="gantry-leg r"><div class="gantry-truck"></div></div>
-                    </div>
-                </div>
-                <div class="cargo-rails">
-                    <div class="cargo-ballast"></div>
-                    <div class="cargo-sleepers"></div>
-                    <div class="cargo-rail-steel"></div>
-                    <div class="buffer-stop" aria-hidden="true"></div>
-                </div>
-                <div class="crane-runway" aria-hidden="true">
-                    <div class="crane-rail-front"></div>
-                </div>
-                <div class="train-zone" id="trainZone"></div>
-                <div class="waypoint-board" id="waypointBoard" aria-hidden="true">
-                    <div class="waypoint-header">
-                        <span class="waypoint-signal-light green"></span>
-                        <span class="waypoint-title">WAYPOINT TELEMETRY</span>
-                    </div>
-                    <div class="waypoint-display">
-                        <div class="split-flap-row">
-                            <span class="split-flap-code" id="waypointFlapCode">---</span>
-                            <span class="split-flap-station" id="waypointFlapStation">SYNCING ROUTE...</span>
+
+                    <!-- Back face: Giant Flip Board / Solari Departure Board -->
+                    <div class="scene-face scene-back">
+                        <div class="departure-board-card" id="departureBoardCard">
+                            <div class="solari-header">
+                                <div class="solari-title-box">
+                                    <span class="solari-clock-icon">🕒</span>
+                                    <span class="solari-board-title">ABFAHRT / DEPARTURES</span>
+                                </div>
+                                <div class="solari-telemetry">
+                                    <span class="solari-live-badge"><span class="solari-dot"></span>LIVE ITINERARY</span>
+                                </div>
+                            </div>
+                            <div class="solari-grid-header">
+                                <span class="col-time">TIME</span>
+                                <span class="col-train">TRAIN</span>
+                                <span class="col-dest">DESTINATION / ROUTE</span>
+                                <span class="col-plat">PLAT</span>
+                                <span class="col-stat">STATUS</span>
+                            </div>
+                            <div class="solari-rows" id="solariRows">
+                                <!-- Split-flap departure rows dynamically generated from fetched rides -->
+                            </div>
+                            <div class="solari-footer">
+                                <span class="solari-ticker" id="solariTicker">TRÄWELLING NETWORK TELEMETRY • ALL SIGNALS CLEAR</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="cargo-ground"></div>
             </div>
             <h2 class="fetch-title">Loading your rides</h2>
             <p class="fetch-status" id="fetchStatus">Talking to the Träwelling API... hang tight.</p>

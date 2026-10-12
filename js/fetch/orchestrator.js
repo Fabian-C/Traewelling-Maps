@@ -228,7 +228,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                     UI.refs.cargoStage.textContent = 'Consist departing terminal...';
                     UI.refs.cargoStage.classList.add('visible');
                 }
-                const departPromise = UI.departTrain();
+                const departPromise = UI.departTrain(state.fetchedTrips);
                 UI.updateFetchStats({ status: 'Already up to date!', progress: 96 });
                 await processAndDisplayData(state.fetchedTrips, { hideFetchUI: false });
                 await departPromise;
@@ -438,7 +438,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             UI.refs.cargoStage.classList.add('visible');
         }
 
-        const departPromise = UI.departTrain();
+        const departPromise = UI.departTrain(state.fetchedTrips);
 
         UI.updateFetchStats({ status: 'Building map layers...', progress: 96 });
         await processAndDisplayData(state.fetchedTrips, { hideFetchUI: false });

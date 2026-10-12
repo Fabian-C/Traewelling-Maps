@@ -41,7 +41,11 @@ export const UI = {
             fetchStopovers: document.getElementById('fetchStopovers'),
             waypointBoard: document.getElementById('waypointBoard'),
             waypointFlapCode: document.getElementById('waypointFlapCode'),
-            waypointFlapStation: document.getElementById('waypointFlapStation')
+            waypointFlapStation: document.getElementById('waypointFlapStation'),
+            sceneFlipContainer: document.getElementById('sceneFlipContainer'),
+            sceneFlipper: document.getElementById('sceneFlipper'),
+            solariRows: document.getElementById('solariRows'),
+            solariTicker: document.getElementById('solariTicker')
         };
         this.depotCrates = [];
         this.depotColumns = [];
@@ -55,6 +59,7 @@ export const UI = {
         this._cargoSceneWidth = this.refs.cargoScene ? this.refs.cargoScene.clientWidth : 500;
         this._containerDesignPool = [];
         this._containerDesignPoolWeight = 0;
+        this._solariTimer = null;
         this._rebuildContainerDesignPool();
         if (this.refs.cargoScene && typeof ResizeObserver !== 'undefined') {
             if (this._cargoSceneResizeObserver) this._cargoSceneResizeObserver.disconnect();
@@ -269,7 +274,8 @@ export const UI = {
         const toQueue = Math.max(0, targetLoaded - alreadyQueued);
         for (let i = 0; i < toQueue; i++) {
             if (this.depotCrates.length === 0) break;
-            this.loadQueue.push(this.depotCrates.pop());
+            // FIFO: Take from oldest arrived crate so the depot clears naturally from front to back
+            this.loadQueue.push(this.depotCrates.shift());
         }
         this._processQueue();
     },
@@ -343,7 +349,8 @@ export const UI = {
             targetCar = extraCar;
         }
 
-        // Dynamically compute target gantry and trolley position to match the exact container center
+        // Dynamically compute target gantry and trolley position to match the container center,
+        // clamped strictly to the physical crane runway and depot boundary so the crane never drives off screen
         let targetGantryLeft = 32;
         let trolleyPos = '50%';
         if (this.refs.cargoScene && item.el) {
@@ -353,15 +360,13 @@ export const UI = {
             const gantryWidth = gantryRect.width || 136;
             if (crateRect.width > 0) {
                 const crateCenterX = (crateRect.left + (crateRect.width / 2)) - sceneRect.left;
-                targetGantryLeft = Math.round(crateCenterX - (gantryWidth / 2));
-                if (targetGantryLeft < 6) {
-                    const minGantryLeft = 6;
-                    targetGantryLeft = minGantryLeft;
-                    const trolleyPx = Math.round(crateCenterX - minGantryLeft - 2);
-                    trolleyPos = `${trolleyPx}px`;
-                } else {
-                    trolleyPos = '50%';
-                }
+                const minGantryLeft = 6;
+                const maxGantryDepotLeft = 48; // Physical runway boundary over the depot
+                targetGantryLeft = Math.min(maxGantryDepotLeft, Math.max(minGantryLeft, Math.round(crateCenterX - (gantryWidth / 2))));
+                
+                // Fine-tune trolley position along the spreader beam to hover precisely over the crate
+                const trolleyPx = Math.round(crateCenterX - targetGantryLeft - 2);
+                trolleyPos = `${Math.max(6, Math.min(gantryWidth - 16, trolleyPx))}px`;
             }
         }
 
@@ -375,8 +380,16 @@ export const UI = {
             if (item.el.parentElement) {
                 const colEl = item.el.parentElement;
                 item.el.remove();
-                const col = this.depotColumns.find(c => c.el === colEl);
-                if (col) col.count = colEl.children.length;
+                const colIndex = this.depotColumns.findIndex(c => c.el === colEl);
+                if (colIndex !== -1) {
+                    const col = this.depotColumns[colIndex];
+                    col.count = colEl.children.length;
+                    if (col.count === 0) {
+                        // Cleanly remove empty column from DOM and tracking array so dock slides back
+                        colEl.remove();
+                        this.depotColumns.splice(colIndex, 1);
+                    }
+                }
                 this._updateDepotScroll();
             }
             const itemBg = this._resolveContainerBackground(item.designBg);
@@ -428,15 +441,6 @@ export const UI = {
     _updateDepotScroll() {
         if (!this.refs?.depotStack) return;
         const stack = this.refs.depotStack;
-        const zone = stack.parentElement;
-        const zoneStyle = zone ? window.getComputedStyle(zone) : null;
-        const rightAligned = zoneStyle?.justifyContent === 'flex-end';
-
-        if (rightAligned) {
-            stack.style.transform = 'translateX(0px)';
-            return;
-        }
-
         const colCount = this.depotColumns.length;
         if (colCount <= this._maxVisibleCols) {
             stack.style.transform = 'translateX(0px)';
@@ -447,8 +451,14 @@ export const UI = {
         const computedStyle = window.getComputedStyle(stack);
         const gap = parseFloat(computedStyle.gap || '3') || 3;
         const colWidth = colEl ? colEl.getBoundingClientRect().width : 28;
-        const overflowCols = colCount - this._maxVisibleCols;
-        const shift = overflowCols * (colWidth + gap);
+        
+        // Find the first column that actually has crates in it
+        const firstActiveColIndex = this.depotColumns.findIndex(c => c.count > 0);
+        const activeIndex = firstActiveColIndex >= 0 ? firstActiveColIndex : 0;
+        
+        // Shift stack so the active pickup column is smoothly centered in the visible dock area
+        const shiftCols = Math.max(0, Math.min(activeIndex, colCount - this._maxVisibleCols));
+        const shift = shiftCols * (colWidth + gap);
         stack.style.transform = `translateX(${-shift}px)`;
     },
     _triggerRollingAnimation(durationMs = 450) {
@@ -590,7 +600,7 @@ export const UI = {
         const numCars = Math.max(1, this.totalDepotReceived || 1);
         this.ensureTrain(numCars);
     },
-    async departTrain() {
+    async departTrain(trips = []) {
         if (!this.refs.trainZone) return;
         const trainZone = this.refs.trainZone;
         const currentTransform = trainZone.style.transform || 'translateX(0px)';
@@ -599,7 +609,113 @@ export const UI = {
         trainZone.style.setProperty('--train-shift', `${currentX}px`);
         this._triggerRollingAnimation(1050);
         trainZone.classList.add('departing');
-        await new Promise(r => setTimeout(r, 1000));
+
+        // Allow train to pick up speed across the scene
+        await new Promise(r => setTimeout(r, 650));
+
+        // Flip the entire animation housing over to the Solari departure board
+        if (this.refs.sceneFlipper) {
+            this.populateSolariBoard(trips);
+            this.refs.sceneFlipper.classList.add('flipped');
+            this.startSolariShuffle(trips);
+        }
+
+        await new Promise(r => setTimeout(r, 550));
+    },
+    populateSolariBoard(trips = []) {
+        if (!this.refs.solariRows) return;
+        const container = this.refs.solariRows;
+        container.innerHTML = '';
+
+        // Extract real journey segments from fetched trips
+        const validTrips = Array.isArray(trips) ? trips.filter(t => t && t.train) : [];
+        const pool = validTrips.length > 0 ? validTrips : [
+            { train: { lineName: 'ICE 726', destination: { name: 'Köln Hbf' }, origin: { name: 'München Hbf' }, category: 'ICE' }, createdAt: new Date().toISOString() },
+            { train: { lineName: 'RE 1', destination: { name: 'Aachen Hbf' }, origin: { name: 'Hamm(Westf)' }, category: 'RE' }, createdAt: new Date().toISOString() },
+            { train: { lineName: 'IC 2020', destination: { name: 'Hamburg-Altona' }, origin: { name: 'Frankfurt(Main)Hbf' }, category: 'IC' }, createdAt: new Date().toISOString() },
+            { train: { lineName: 'TGV 9556', destination: { name: 'Paris Est' }, origin: { name: 'Stuttgart Hbf' }, category: 'TGV' }, createdAt: new Date().toISOString() }
+        ];
+
+        // Display up to 4 real departure rows on the board
+        const rowsToShow = pool.slice(0, 4);
+        rowsToShow.forEach((trip, idx) => {
+            const row = document.createElement('div');
+            row.className = 'solari-row';
+            row.id = `solariRow_${idx}`;
+
+            const d = trip.createdAt ? new Date(trip.createdAt) : new Date();
+            const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            const trainStr = (trip.train?.lineName || trip.train?.category || 'TRAIN').slice(0, 7).toUpperCase();
+            const destStr = (trip.train?.destination?.name || trip.train?.origin?.name || 'TERMINAL').toUpperCase();
+            const platformStr = String((idx * 3 + 2) % 14 + 1);
+            const statuses = ['ON TIME', 'BOARDING', 'ON TIME', 'DEP 5M'];
+            const statClasses = ['on-time', 'boarding', 'on-time', 'delayed'];
+
+            row.innerHTML = `
+                <span class="solari-time" data-field="time">${timeStr}</span>
+                <span class="solari-train" data-field="train">${trainStr}</span>
+                <span class="solari-dest" data-field="dest">${destStr}</span>
+                <span class="solari-plat" data-field="plat">${platformStr}</span>
+                <span class="solari-stat ${statClasses[idx % statClasses.length]}" data-field="stat">${statuses[idx % statuses.length]}</span>
+            `;
+            container.appendChild(row);
+        });
+
+        if (this.refs.solariTicker && validTrips.length > 0) {
+            const count = validTrips.length;
+            this.refs.solariTicker.textContent = `TRÄWELLING NETWORK TELEMETRY • ${count} JOURNEYS RECORDED • ALL TRACKS OPERATIONAL`;
+        }
+    },
+    startSolariShuffle(trips = []) {
+        if (this._solariTimer) clearInterval(this._solariTimer);
+        const validTrips = Array.isArray(trips) ? trips.filter(t => t && t.train) : [];
+        if (validTrips.length <= 1) return;
+
+        // Randomly flip departure board rows with real station names from user's check-ins
+        this._solariTimer = setInterval(() => {
+            if (!this.refs.solariRows) return;
+            const rows = this.refs.solariRows.querySelectorAll('.solari-row');
+            if (rows.length === 0) return;
+
+            const randomRowIdx = Math.floor(Math.random() * rows.length);
+            const targetRow = rows[randomRowIdx];
+            const randomTrip = validTrips[Math.floor(Math.random() * validTrips.length)];
+            if (!targetRow || !randomTrip) return;
+
+            const destEl = targetRow.querySelector('[data-field="dest"]');
+            const trainEl = targetRow.querySelector('[data-field="train"]');
+            const timeEl = targetRow.querySelector('[data-field="time"]');
+
+            const nextDest = (randomTrip.train?.destination?.name || randomTrip.train?.origin?.name || 'CENTRAL').toUpperCase();
+            const nextTrain = (randomTrip.train?.lineName || randomTrip.train?.category || 'ICE').slice(0, 7).toUpperCase();
+            const d = randomTrip.createdAt ? new Date(randomTrip.createdAt) : new Date();
+            const nextTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+            if (destEl) {
+                destEl.classList.remove('flipping');
+                void destEl.offsetWidth;
+                destEl.textContent = nextDest;
+                destEl.classList.add('flipping');
+            }
+            if (trainEl) {
+                trainEl.classList.remove('flipping');
+                void trainEl.offsetWidth;
+                trainEl.textContent = nextTrain;
+                trainEl.classList.add('flipping');
+            }
+            if (timeEl) {
+                timeEl.classList.remove('flipping');
+                void timeEl.offsetWidth;
+                timeEl.textContent = nextTime;
+                timeEl.classList.add('flipping');
+            }
+        }, 850);
+    },
+    stopSolariShuffle() {
+        if (this._solariTimer) {
+            clearInterval(this._solariTimer);
+            this._solariTimer = null;
+        }
     },
     updateWaypointBoard(stationName = '', lineCode = 'ICE') {
         if (!this.refs?.waypointBoard) return;
@@ -761,6 +877,13 @@ export const UI = {
         }
         if (this.refs.fetchStopovers) {
             this.refs.fetchStopovers.textContent = '0';
+        }
+        this.stopSolariShuffle();
+        if (this.refs.sceneFlipper) {
+            this.refs.sceneFlipper.classList.remove('flipped');
+        }
+        if (this.refs.solariRows) {
+            this.refs.solariRows.innerHTML = '';
         }
     },
     setTokenOwner(owner) {
