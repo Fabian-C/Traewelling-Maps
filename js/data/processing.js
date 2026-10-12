@@ -119,11 +119,32 @@ export function indexTrip(trip, currentUsername = '') {
         }
     }
 
-    const wagon = train.seat?.wagon || train.wagon || train.coach || trip.wagon || trip.properties?.wagon;
-    const seatNum = train.seat?.number || (typeof train.seat === 'string' || typeof train.seat === 'number' ? train.seat : null) || trip.seat?.number || (typeof trip.seat === 'string' || typeof trip.seat === 'number' ? trip.seat : null) || trip.properties?.seat;
+    const parsedTags = extractTripTags(trip);
+    let wagonTag = null;
+    let seatTag = null;
+    let ticketTag = null;
+    let travelClassTag = null;
+    let vehicleNumber = null;
+    let locomotiveClass = null;
+    let wagonClass = null;
+
+    parsedTags.forEach(t => {
+        const k = (t.key || '').toLowerCase();
+        const v = String(t.value || '').trim();
+        if (k === 'trwl:wagon' || k === 'wagon') wagonTag = v;
+        else if (k === 'trwl:seat' || k === 'seat') seatTag = v;
+        else if (k === 'trwl:ticket' || k === 'ticket') ticketTag = v;
+        else if (k === 'trwl:travel_class' || k === 'travel_class') travelClassTag = v;
+        else if (k === 'trwl:vehicle_number' || k === 'vehicle_number') vehicleNumber = v;
+        else if (k === 'trwl:locomotive_class' || k === 'locomotive_class') locomotiveClass = v;
+        else if (k === 'trwl:wagon_class' || k === 'wagon_class') wagonClass = v;
+    });
+
+    const wagon = train.seat?.wagon || train.wagon || train.coach || trip.wagon || trip.properties?.wagon || wagonTag;
+    const seatNum = train.seat?.number || (typeof train.seat === 'string' || typeof train.seat === 'number' ? train.seat : null) || trip.seat?.number || (typeof trip.seat === 'string' || typeof trip.seat === 'number' ? trip.seat : null) || trip.properties?.seat || seatTag;
     const ticketObj = trip.ticket || trip.properties?.ticket || train.ticket || null;
-    const ticketVal = typeof ticketObj === 'string' ? ticketObj : (ticketObj?.name || ticketObj?.title || ticketObj?.identifier || null);
-    const tagsVal = trip.tags || trip.properties?.tags || train.tags || trip.customTags || trip.labels || null;
+    const ticketVal = typeof ticketObj === 'string' ? ticketObj : (ticketObj?.name || ticketObj?.title || ticketObj?.identifier || ticketTag || null);
+    const travelClass = train.class || train.travelClass || trip.class || trip.travelClass || travelClassTag;
 
     const searchCorpus = buildTripSearchCorpus(trip);
 
@@ -138,7 +159,11 @@ export function indexTrip(trip, currentUsername = '') {
         wagon: wagon ? String(wagon) : null,
         seat: seatNum ? String(seatNum) : null,
         ticket: ticketVal,
-        tags: tagsVal,
+        travelClass: travelClass ? String(travelClass) : null,
+        vehicleNumber: vehicleNumber ? String(vehicleNumber) : null,
+        locomotiveClass: locomotiveClass ? String(locomotiveClass) : null,
+        wagonClass: wagonClass ? String(wagonClass) : null,
+        tags: parsedTags,
         business: getTripBusinessType(trip),
         searchCorpus,
         buddiesNoNotes,
@@ -148,6 +173,60 @@ export function indexTrip(trip, currentUsername = '') {
     };
 
     return trip._index;
+}
+
+/**
+ * Normalizes and extracts tags from a trip into a structured array of objects:
+ * [ { key: string, value: string, visibility?: number } ]
+ * Handles Träwelling's official StatusTagResource ({ key, value, visibility })
+ * as well as legacy/custom formats (plain strings, objects, comma-separated strings).
+ */
+export function extractTripTags(trip) {
+    if (!trip) return [];
+    let rawTags = trip.tags ?? trip.properties?.tags ?? trip.train?.tags ?? trip.customTags ?? trip.labels ?? trip.properties?.labels ?? null;
+    if (typeof rawTags === 'string') {
+        try {
+            rawTags = JSON.parse(rawTags);
+        } catch (e) {
+            rawTags = rawTags.includes(',') ? rawTags.split(',').map(s => s.trim()) : [rawTags];
+        }
+    }
+    if (!rawTags) return [];
+    if (!Array.isArray(rawTags)) {
+        if (typeof rawTags === 'object') {
+            rawTags = Object.entries(rawTags).map(([k, v]) => ({ key: k, value: v }));
+        } else {
+            rawTags = [rawTags];
+        }
+    }
+
+    const result = [];
+    rawTags.forEach(item => {
+        if (!item && item !== 0) return;
+        if (typeof item === 'string' || typeof item === 'number') {
+            const str = String(item).trim();
+            if (str) {
+                result.push({
+                    key: str.startsWith('#') ? str.slice(1) : str,
+                    value: str,
+                    visibility: 1
+                });
+            }
+        } else if (typeof item === 'object') {
+            const rawKey = item.key ?? item.name ?? item.tag ?? item.label ?? item.title ?? '';
+            const rawValue = item.value !== undefined && item.value !== null ? item.value : (item.name ?? item.label ?? item.title ?? '');
+            const keyStr = String(rawKey || rawValue || '').trim();
+            const valStr = String(rawValue !== '' ? rawValue : keyStr).trim();
+            if (keyStr || valStr) {
+                result.push({
+                    key: keyStr,
+                    value: valStr,
+                    visibility: item.visibility !== undefined ? item.visibility : 1
+                });
+            }
+        }
+    });
+    return result;
 }
 
 /**
@@ -228,72 +307,88 @@ export function buildTripSearchCorpus(trip) {
     extractTicket(train.ticket);
     extractTicket(trip.ticketType || trip.ticket_type || train.ticketType);
 
-    // Wagon / Coach
-    const wagon = train.seat?.wagon || train.wagon || train.coach || trip.wagon || trip.properties?.wagon;
-    if (wagon !== undefined && wagon !== null && wagon !== '') {
-        extraTokens.push(String(wagon), `wagon ${wagon}`, `wagen ${wagon}`, `coach ${wagon}`);
-    }
-
-    // Seat
-    const seatNum = train.seat?.number || (typeof train.seat === 'string' || typeof train.seat === 'number' ? train.seat : null) || trip.seat?.number || (typeof trip.seat === 'string' || typeof trip.seat === 'number' ? trip.seat : null) || trip.properties?.seat;
-    if (seatNum !== undefined && seatNum !== null && seatNum !== '') {
-        extraTokens.push(String(seatNum), `seat ${seatNum}`, `platz ${seatNum}`, `sitz ${seatNum}`);
-    }
-
-    // Class
-    const travelClass = train.class || train.travelClass || trip.class || trip.travelClass;
-    if (travelClass) {
-        extraTokens.push(String(travelClass), `class ${travelClass}`, `klasse ${travelClass}`, `${travelClass}. klasse`, `${travelClass}st class`, `${travelClass}nd class`);
-    }
-
-    // Operator
-    const operator = train.operator?.name || train.operator?.identifier || train.provider?.name || (typeof train.provider === 'string' ? train.provider : null) || train.line?.operator?.name || train.line?.productName;
-    if (operator) extraTokens.push(String(operator));
-
     // Platform / Track
     const platform = originData.departurePlatformReal || originData.platform || train.platform || train.track;
     if (platform) {
         extraTokens.push(String(platform), `gl ${platform}`, `gleis ${platform}`, `platform ${platform}`, `track ${platform}`);
     }
 
-    // Tags & Labels (array of strings or objects, or string)
-    const extractTags = (tagsList) => {
-        if (!tagsList) return;
-        if (Array.isArray(tagsList)) {
-            tagsList.forEach(item => {
-                if (typeof item === 'string' || typeof item === 'number') {
-                    extraTokens.push(String(item));
-                    if (typeof item === 'string' && item.startsWith('#')) {
-                        extraTokens.push(item.slice(1));
-                    }
-                } else if (typeof item === 'object' && item) {
-                    if (item.name) extraTokens.push(String(item.name));
-                    if (item.label) extraTokens.push(String(item.label));
-                    if (item.title) extraTokens.push(String(item.title));
-                    if (item.tag) extraTokens.push(String(item.tag));
-                }
-            });
-        } else if (typeof tagsList === 'string') {
-            try {
-                const parsed = JSON.parse(tagsList);
-                extractTags(parsed);
-            } catch (e) {
-                if (tagsList.includes(',')) {
-                    tagsList.split(',').forEach(s => extraTokens.push(s.trim()));
-                } else {
-                    extraTokens.push(tagsList);
-                }
+    // Operator
+    const operator = train.operator?.name || train.operator?.identifier || train.provider?.name || (typeof train.provider === 'string' ? train.provider : null) || train.line?.operator?.name || train.line?.productName;
+    if (operator) extraTokens.push(String(operator));
+
+    // Structured tags parsing (including Träwelling StatusTagResource: key/value)
+    const parsedTags = extractTripTags(trip);
+    let wagonTag = null;
+    let seatTag = null;
+    let ticketTag = null;
+    let travelClassTag = null;
+
+    parsedTags.forEach(t => {
+        const k = (t.key || '').toLowerCase();
+        const v = String(t.value || '').trim();
+        if (!v && !k) return;
+
+        if (k === 'trwl:wagon' || k === 'wagon' || k === 'wagen' || k === 'coach') {
+            wagonTag = v;
+            extraTokens.push(v, `wagon ${v}`, `wagen ${v}`, `coach ${v}`);
+        } else if (k === 'trwl:seat' || k === 'seat' || k === 'platz' || k === 'sitz') {
+            seatTag = v;
+            extraTokens.push(v, `seat ${v}`, `platz ${v}`, `sitz ${v}`);
+        } else if (k === 'trwl:ticket' || k === 'ticket') {
+            ticketTag = v;
+            extraTokens.push(v, `ticket ${v}`);
+        } else if (k === 'trwl:travel_class' || k === 'travel_class' || k === 'class' || k === 'klasse') {
+            travelClassTag = v;
+            extraTokens.push(v, `class ${v}`, `klasse ${v}`, `${v}. klasse`, `${v}st class`, `${v}nd class`);
+        } else if (k === 'trwl:vehicle_number' || k === 'vehicle_number' || k === 'vehicle' || k === 'uic') {
+            extraTokens.push(v, `vehicle ${v}`, `zug ${v}`, `fahrzeug ${v}`, `unit ${v}`, `triebzug ${v}`);
+        } else if (k === 'trwl:locomotive_class' || k === 'locomotive_class' || k === 'locomotive' || k === 'baureihe') {
+            extraTokens.push(v, `locomotive ${v}`, `lok ${v}`, `baureihe ${v}`, `br ${v}`);
+        } else if (k === 'trwl:wagon_class' || k === 'wagon_class') {
+            extraTokens.push(v, `wagon class ${v}`, `wagenklasse ${v}`);
+        } else if (k === 'trwl:role' || k === 'role') {
+            extraTokens.push(v, `role ${v}`);
+        } else if (k === 'trwl:journey_number' || k === 'journey_number') {
+            extraTokens.push(v, `journey ${v}`, `fahrt ${v}`);
+        } else if (k === 'trwl:price' || k === 'price') {
+            extraTokens.push(v, `price ${v}`, `preis ${v}`);
+        } else if (k === 'trwl:social_status') {
+            extraTokens.push(v);
+        } else if (k === 'trwl:passenger_rights' || k === 'passenger_rights') {
+            extraTokens.push(v, 'passenger rights', 'fahrgastrechte');
+        } else {
+            // Custom user tag
+            const cleanKey = k.replace(/^trwl:/, '');
+            if (cleanKey) {
+                extraTokens.push(cleanKey, `#${cleanKey}`);
+            }
+            if (v && v.toLowerCase() !== cleanKey) {
+                extraTokens.push(v);
+            }
+            if (cleanKey && v) {
+                extraTokens.push(`${cleanKey} ${v}`, `${cleanKey}:${v}`);
             }
         }
-    };
-    extractTags(trip.tags);
-    extractTags(trip.properties?.tags);
-    extractTags(train.tags);
-    extractTags(trip.customTags);
-    extractTags(trip.labels);
-    extractTags(trip.properties?.labels);
-    extractTags(trip.tag);
-    extractTags(train.tag);
+    });
+
+    // Wagon / Coach (if not already found in tags)
+    const wagon = train.seat?.wagon || train.wagon || train.coach || trip.wagon || trip.properties?.wagon || wagonTag;
+    if (wagon !== undefined && wagon !== null && wagon !== '' && wagon !== wagonTag) {
+        extraTokens.push(String(wagon), `wagon ${wagon}`, `wagen ${wagon}`, `coach ${wagon}`);
+    }
+
+    // Seat (if not already found in tags)
+    const seatNum = train.seat?.number || (typeof train.seat === 'string' || typeof train.seat === 'number' ? train.seat : null) || trip.seat?.number || (typeof trip.seat === 'string' || typeof trip.seat === 'number' ? trip.seat : null) || trip.properties?.seat || seatTag;
+    if (seatNum !== undefined && seatNum !== null && seatNum !== '' && seatNum !== seatTag) {
+        extraTokens.push(String(seatNum), `seat ${seatNum}`, `platz ${seatNum}`, `sitz ${seatNum}`);
+    }
+
+    // Class (if not already found in tags)
+    const travelClass = train.class || train.travelClass || trip.class || trip.travelClass || travelClassTag;
+    if (travelClass && travelClass !== travelClassTag) {
+        extraTokens.push(String(travelClass), `class ${travelClass}`, `klasse ${travelClass}`, `${travelClass}. klasse`, `${travelClass}st class`, `${travelClass}nd class`);
+    }
 
     const extraText = extraTokens.join(' ');
     return `${bodyText} ${noteText} ${lineName} ${originName} ${destName} ${mentionsText} ${stopoversText} ${extraText}`.toLowerCase();
@@ -345,10 +440,14 @@ export function processTripsToGeoJSON(trips) {
                 body: typeof trip.body === 'string' ? trip.body : '',
                 bodyMentions: Array.isArray(trip.bodyMentions) ? trip.bodyMentions : [],
                 createdBy: trip.createdBy || null,
-                ticket: trip.ticket || trip.properties?.ticket || trip.train?.ticket || null,
-                tags: trip.tags || trip.properties?.tags || trip.train?.tags || trip.customTags || trip.labels || null,
-                wagon: trip.train?.seat?.wagon || trip.train?.wagon || trip.train?.coach || trip.wagon || trip.properties?.wagon || null,
-                seat: trip.train?.seat?.number || (typeof trip.train?.seat === 'string' ? trip.train.seat : null) || trip.seat?.number || (typeof trip.seat === 'string' ? trip.seat : null) || trip.properties?.seat || null
+                ticket: trip._index?.ticket || trip.ticket || trip.properties?.ticket || trip.train?.ticket || null,
+                tags: trip._index?.tags || trip.tags || trip.properties?.tags || trip.train?.tags || trip.customTags || trip.labels || null,
+                wagon: trip._index?.wagon || trip.train?.seat?.wagon || trip.train?.wagon || trip.train?.coach || trip.wagon || trip.properties?.wagon || null,
+                seat: trip._index?.seat || trip.train?.seat?.number || (typeof trip.train?.seat === 'string' ? trip.train.seat : null) || trip.seat?.number || (typeof trip.seat === 'string' ? trip.seat : null) || trip.properties?.seat || null,
+                travelClass: trip._index?.travelClass || trip.train?.class || trip.train?.travelClass || trip.class || null,
+                vehicleNumber: trip._index?.vehicleNumber || null,
+                locomotiveClass: trip._index?.locomotiveClass || null,
+                wagonClass: trip._index?.wagonClass || null
             }
         });
     });

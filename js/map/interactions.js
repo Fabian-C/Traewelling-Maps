@@ -11,7 +11,7 @@ import { setupEventListeners } from '../events/listeners.js';
 import { updateRouteDensity } from './heatmap.js';
 import { escapeHtml } from '../utils/format.js';
 import { CATEGORY_NAMES } from './layers.js';
-import { normalizeCategory } from '../data/processing.js';
+import { normalizeCategory, extractTripTags } from '../data/processing.js';
 
 export function initMap() {
     const state = store.get();
@@ -334,25 +334,53 @@ export function showPopup(lngLat, feature) {
     const departureDelay = typeof train.departureDelay === 'number' ? train.departureDelay : derivedDepartureDelay;
     const arrivalDelay = typeof train.arrivalDelay === 'number' ? train.arrivalDelay : derivedArrivalDelay;
     const platform = originData.departurePlatformReal || originData.platform || train.platform || train.track;
-    const seat = train.seat?.number || (typeof train.seat === 'string' || typeof train.seat === 'number' ? train.seat : null) || props.seat || null;
-    const wagon = train.seat?.wagon || train.wagon || train.coach || props.wagon || null;
-    const travelClass = train.class || train.travelClass || props.class || props.travelClass || null;
+    let seat = props.seat || train.seat?.number || (typeof train.seat === 'string' || typeof train.seat === 'number' ? train.seat : null) || null;
+    let wagon = props.wagon || train.seat?.wagon || train.wagon || train.coach || null;
+    let travelClass = props.travelClass || props.class || train.class || train.travelClass || null;
+    let vehicleNumber = props.vehicleNumber || null;
+    let locomotiveClass = props.locomotiveClass || null;
+    let wagonClass = props.wagonClass || null;
     const coachPosition = train.coaches || null;
     const shareUrl = statusId !== 'unknown' ? `https://traewelling.de/status/${statusId}` : null;
     const operator = train.operator?.name || train.operator?.identifier || train.provider?.name || train.provider || '—';
 
-    const ticketObj = props.ticket || train.ticket || null;
-    const ticketName = typeof ticketObj === 'string' ? ticketObj : (ticketObj?.name || ticketObj?.title || ticketObj?.identifier || null);
-
-    let rawTags = props.tags || train.tags || null;
-    if (typeof rawTags === 'string') {
-        try { rawTags = JSON.parse(rawTags); } catch (e) {
-            rawTags = rawTags.includes(',') ? rawTags.split(',').map(s => s.trim()) : [rawTags];
-        }
+    let ticketName = typeof props.ticket === 'string' ? props.ticket : (props.ticket?.name || props.ticket?.title || props.ticket?.identifier || null);
+    if (!ticketName && train.ticket) {
+        ticketName = typeof train.ticket === 'string' ? train.ticket : (train.ticket.name || train.ticket.title || null);
     }
-    const tagsList = Array.isArray(rawTags)
-        ? rawTags.map(t => typeof t === 'string' || typeof t === 'number' ? String(t) : (t?.name || t?.label || t?.title || t?.tag || '')).filter(Boolean)
-        : [];
+
+    const parsedTags = extractTripTags(props).concat(extractTripTags({ tags: train.tags }));
+    const customTags = [];
+    const seenTagKeys = new Set();
+
+    parsedTags.forEach(t => {
+        const k = (t.key || '').toLowerCase();
+        const v = String(t.value || '').trim();
+        if (!v && !k) return;
+
+        if (k === 'trwl:wagon' || k === 'wagon') {
+            if (!wagon) wagon = v;
+        } else if (k === 'trwl:seat' || k === 'seat') {
+            if (!seat) seat = v;
+        } else if (k === 'trwl:ticket' || k === 'ticket') {
+            if (!ticketName) ticketName = v;
+        } else if (k === 'trwl:travel_class' || k === 'travel_class') {
+            if (!travelClass) travelClass = v;
+        } else if (k === 'trwl:vehicle_number' || k === 'vehicle_number') {
+            if (!vehicleNumber) vehicleNumber = v;
+        } else if (k === 'trwl:locomotive_class' || k === 'locomotive_class') {
+            if (!locomotiveClass) locomotiveClass = v;
+        } else if (k === 'trwl:wagon_class' || k === 'wagon_class') {
+            if (!wagonClass) wagonClass = v;
+        } else {
+            const cleanKey = t.key.replace(/^trwl:/, '');
+            const dedupeKey = `${cleanKey}:${v}`.toLowerCase();
+            if (!seenTagKeys.has(dedupeKey)) {
+                seenTagKeys.add(dedupeKey);
+                customTags.push({ key: cleanKey, value: v });
+            }
+        }
+    });
 
     const formatTime = (dateObj) => dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
     const formatDate = (dateObj) => dateObj ? dateObj.toLocaleDateString() : '';
@@ -431,7 +459,16 @@ export function showPopup(lngLat, feature) {
         </details>
     `;
 
-    const seatDetails = (seat || wagon || travelClass || coachPosition || ticketName || tagsList.length) ? `
+    const customTagBadges = customTags.map(t => {
+        const k = escapeHtml(t.key);
+        const v = escapeHtml(t.value);
+        if (!v || v.toLowerCase() === k.toLowerCase()) {
+            return `<span class="popup-tag-badge">#${k}</span>`;
+        }
+        return `<span class="popup-tag-badge"><strong>${k}:</strong> ${v}</span>`;
+    }).join(' ');
+
+    const seatDetails = (seat || wagon || travelClass || coachPosition || ticketName || vehicleNumber || locomotiveClass || wagonClass || customTags.length) ? `
         <details>
             <summary>Seat, ticket & coach info</summary>
             <div class="popup-body">
@@ -440,8 +477,11 @@ export function showPopup(lngLat, feature) {
                     <dt>Seat</dt><dd>${escapeHtml(String(seat || '—'))}</dd>
                     <dt>Coach / Wagon</dt><dd>${escapeHtml(String(wagon || '—'))}</dd>
                     <dt>Class</dt><dd>${escapeHtml(String(travelClass || '—'))}</dd>
+                    ${vehicleNumber ? `<dt>Vehicle / Unit</dt><dd>${escapeHtml(vehicleNumber)}</dd>` : ''}
+                    ${locomotiveClass ? `<dt>Locomotive</dt><dd>${escapeHtml(locomotiveClass)}</dd>` : ''}
+                    ${wagonClass ? `<dt>Wagon type</dt><dd>${escapeHtml(wagonClass)}</dd>` : ''}
                     <dt>Coach position</dt><dd>${escapeHtml(String(coachPosition || '—'))}</dd>
-                    ${tagsList.length ? `<dt>Tags</dt><dd>${escapeHtml(tagsList.join(', '))}</dd>` : ''}
+                    ${customTagBadges ? `<dt>Tags</dt><dd class="popup-tags-dd">${customTagBadges}</dd>` : ''}
                 </dl>
             </div>
         </details>

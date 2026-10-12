@@ -1,7 +1,7 @@
 import { store } from '../state/store.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
 import { formatDelayMinutes } from '../utils/format.js';
-import { normalizeCategory, getTripBusinessType } from '../data/processing.js';
+import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
 import { SessionDB } from '../cache/session.js';
 import { TraewellingAPI } from '../api/traewelling.js';
 
@@ -59,6 +59,22 @@ export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
             });
         }
 
+        const parsedTags = trip._index?.tags || extractTripTags(trip);
+        let wagonTag = null, seatTag = null, ticketTag = null, classTag = null, vehicleNum = null, locoClass = null, wagonCls = null;
+        if (Array.isArray(parsedTags)) {
+            parsedTags.forEach(t => {
+                const k = (t.key || '').toLowerCase();
+                const v = t.value;
+                if (k === 'trwl:wagon' || k === 'wagon') wagonTag = v;
+                else if (k === 'trwl:seat' || k === 'seat') seatTag = v;
+                else if (k === 'trwl:ticket' || k === 'ticket') ticketTag = v;
+                else if (k === 'trwl:travel_class' || k === 'travel_class') classTag = v;
+                else if (k === 'trwl:vehicle_number' || k === 'vehicle_number') vehicleNum = v;
+                else if (k === 'trwl:locomotive_class' || k === 'locomotive_class') locoClass = v;
+                else if (k === 'trwl:wagon_class' || k === 'wagon_class') wagonCls = v;
+            });
+        }
+
         features.push({
             type: 'Feature',
             geometry: polyline.geometry,
@@ -78,11 +94,14 @@ export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
                 distanceKm: distanceKm,
                 operator: train.operator?.name || train.operator?.identifier || train.provider?.name || train.provider || null,
                 platform: originData.departurePlatformReal || originData.platform || train.platform || train.track || null,
-                seat: train.seat?.number || (typeof train.seat === 'string' || typeof train.seat === 'number' ? train.seat : null) || trip.seat?.number || (typeof trip.seat === 'string' || typeof trip.seat === 'number' ? trip.seat : null) || trip.properties?.seat || null,
-                wagon: train.seat?.wagon || train.wagon || train.coach || trip.wagon || trip.properties?.wagon || null,
-                class: train.class || train.travelClass || trip.class || null,
-                ticket: trip.ticket?.name || (typeof trip.ticket === 'string' ? trip.ticket : null) || train.ticket?.name || (typeof train.ticket === 'string' ? train.ticket : null) || null,
-                tags: trip.tags || trip.properties?.tags || train.tags || trip.customTags || trip.labels || null,
+                seat: trip._index?.seat || train.seat?.number || (typeof train.seat === 'string' || typeof train.seat === 'number' ? train.seat : null) || trip.seat?.number || trip.properties?.seat || seatTag || null,
+                wagon: trip._index?.wagon || train.seat?.wagon || train.wagon || train.coach || trip.wagon || trip.properties?.wagon || wagonTag || null,
+                class: trip._index?.travelClass || train.class || train.travelClass || trip.class || classTag || null,
+                ticket: trip._index?.ticket || trip.ticket?.name || (typeof trip.ticket === 'string' ? trip.ticket : null) || train.ticket?.name || (typeof train.ticket === 'string' ? train.ticket : null) || ticketTag || null,
+                vehicleNumber: trip._index?.vehicleNumber || vehicleNum || null,
+                locomotiveClass: trip._index?.locomotiveClass || locoClass || null,
+                wagonClass: trip._index?.wagonClass || wagonCls || null,
+                tags: parsedTags.length ? parsedTags : null,
                 business: businessLabel,
                 message: trip.body || null,
                 createdAt: trip.createdAt || null,

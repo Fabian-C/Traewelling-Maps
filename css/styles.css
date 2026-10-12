@@ -1402,6 +1402,9 @@ body.stats-open .active-filter-badges {
 .route-popup dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
 .route-popup dl dt { font-size: 9px; color: var(--text-muted); letter-spacing: 0.45px; text-transform: uppercase; }
 .route-popup dl dd { margin: 0; font-size: 11px; font-weight: 600; color: var(--text-primary); }
+.route-popup dl dd.popup-tags-dd { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.route-popup .popup-tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 500; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-primary); word-break: break-word; line-height: 1.4; }
+.route-popup .popup-tag-badge strong { color: var(--accent-color, #4fc3f7); font-weight: 600; }
 .route-popup .popup-comment {
     margin: 6px 0;
     padding: 6px 8px;
