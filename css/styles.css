@@ -648,7 +648,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 .gantry-trolley {
     position: absolute;
     top: -4px;
-    left: 50%;
+    left: var(--trolley-pos, 50%);
     transform: translateX(-50%);
     width: 20px;
     height: 8px;
@@ -657,6 +657,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     border-radius: 2px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
     z-index: 16;
+    transition: left 0.32s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .gantry-hoist {
     position: absolute;
@@ -750,9 +751,9 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     100% { transform: translateX(calc(var(--train-shift, 0px) + 380px)); opacity: 0; }
 }
 
-/* Modern Electric Vectron Locomotive - Heading Right */
+/* Heavy Industrial Diesel Shunter Locomotive - Heading Right */
 .locomotive {
-    width: 44px;
+    width: 48px;
     height: 25px;
     flex-shrink: 0;
     position: relative;
@@ -760,85 +761,165 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
 .loco-body {
     width: 100%;
     height: 18px;
-    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-    border-radius: 2px 6px 2px 2px;
-    border: 1px solid #334155;
     position: relative;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
 }
+/* Short rear equipment hood (left) */
+.loco-hood-short {
+    position: absolute;
+    left: 0;
+    top: 5px;
+    width: 12px;
+    height: 13px;
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid #334155;
+    border-radius: 2px 0 0 1px;
+}
+/* Center/offset elevated operator cab */
 .loco-cab {
     position: absolute;
-    top: 1px;
-    right: 3px;
-    width: 14px;
-    height: 8px;
-    background: rgba(15, 23, 42, 0.9);
-    border-radius: 1px;
+    left: 11px;
+    top: 0;
+    width: 17px;
+    height: 18px;
+    background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+    border: 1px solid #475569;
+    border-radius: 2px 2px 0 0;
+    z-index: 2;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
-.loco-window {
+.loco-cab .loco-window.front {
     position: absolute;
-    inset: 1px;
+    top: 2px;
+    right: 2px;
+    width: 5px;
+    height: 7px;
     background: linear-gradient(135deg, rgba(30, 58, 138, 0.6) 0%, rgba(56, 189, 248, 0.5) 100%);
     border-radius: 1px;
     box-shadow: 0 0 4px rgba(56, 189, 248, 0.3);
 }
-.loco-stripe {
+.loco-cab .loco-window.side {
     position: absolute;
-    top: 10px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: #f97316;
-    box-shadow: 0 0 4px rgba(249, 115, 22, 0.5);
+    top: 2px;
+    left: 2px;
+    width: 6px;
+    height: 6px;
+    background: rgba(56, 189, 248, 0.3);
+    border-radius: 1px;
 }
-.loco-pantograph {
+/* Long forward diesel engine hood (right) */
+.loco-hood-long {
     position: absolute;
-    top: -9px;
-    left: 6px;
-    width: 14px;
-    height: 10px;
+    left: 27px;
+    top: 3px;
+    width: 21px;
+    height: 15px;
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid #334155;
+    border-radius: 0 3px 2px 0;
+    z-index: 1;
+}
+.loco-radiator {
+    position: absolute;
+    top: 2px;
+    right: 3px;
+    width: 4px;
+    height: 8px;
+    background: repeating-linear-gradient(180deg, #475569 0px, #475569 1px, #0f172a 1px, #0f172a 2px);
+}
+/* Diesel Exhaust Stack */
+.loco-exhaust {
+    position: absolute;
+    top: -5px;
+    left: 4px;
+    width: 4px;
+    height: 6px;
+    background: #0f172a;
+    border: 1px solid #475569;
+    border-radius: 1px 1px 0 0;
+}
+.exhaust-smoke {
+    position: absolute;
+    top: -5px;
+    left: 0;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(148, 163, 184, 0.35);
+    animation: diesel-puff 1.2s infinite ease-out;
     pointer-events: none;
 }
-.loco-pantograph::before {
-    content: '';
+@keyframes diesel-puff {
+    0% { transform: translateY(0) scale(0.6); opacity: 0.6; }
+    50% { opacity: 0.4; }
+    100% { transform: translateY(-8px) scale(1.6); opacity: 0; }
+}
+/* Heavy Walkway Footplate */
+.loco-walkway {
     position: absolute;
     bottom: 0;
-    left: 2px;
-    width: 10px;
-    height: 8px;
-    border-top: 1.5px solid #94a3b8;
-    border-left: 1.5px solid #94a3b8;
-    transform: skewX(25deg);
+    left: -2px;
+    right: -2px;
+    height: 3px;
+    background: linear-gradient(180deg, #475569 0%, #334155 100%);
+    border-radius: 1px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    z-index: 3;
 }
-.loco-pantograph::after {
-    content: '';
+/* Side Railing / Safety Grab Irons */
+.loco-railing {
     position: absolute;
-    top: 0;
+    bottom: 2px;
     left: 0;
-    width: 12px;
-    height: 1.5px;
-    background: #cbd5e1;
-    box-shadow: 0 0 3px rgba(203, 213, 225, 0.5);
+    right: 0;
+    height: 6px;
+    border-top: 1px solid rgba(245, 158, 11, 0.6);
+    pointer-events: none;
+    z-index: 4;
 }
+/* High-Visibility Warning Chevrons on Front Pilot */
+.loco-stripe {
+    position: absolute;
+    bottom: 2px;
+    right: 0;
+    width: 21px;
+    height: 2px;
+    background: repeating-linear-gradient(45deg, #f59e0b 0px, #f59e0b 3px, #1e293b 3px, #1e293b 6px);
+    z-index: 3;
+}
+/* Headlights & Ditch Lights on Nose */
 .loco-headlight {
     position: absolute;
     right: -2px;
-    top: 9px;
+    top: 6px;
     width: 4px;
     height: 4px;
     background: #fef08a;
     border-radius: 50%;
     box-shadow: 0 0 10px 3px rgba(254, 240, 138, 0.9);
+    z-index: 5;
+}
+.loco-ditchlights {
+    position: absolute;
+    right: 0;
+    bottom: 3px;
+    width: 3px;
+    height: 3px;
+    background: #fef08a;
+    border-radius: 50%;
+    box-shadow: 0 0 6px 2px rgba(254, 240, 138, 0.8);
+    z-index: 5;
 }
 .loco-headlight-cone {
     position: absolute;
     left: 100%;
     top: -2px;
-    width: 80px;
+    width: 85px;
     height: 24px;
     pointer-events: none;
-    background: linear-gradient(to right, rgba(254, 240, 138, 0.32) 0%, rgba(254, 240, 138, 0.08) 65%, transparent 100%);
+    background: linear-gradient(to right, rgba(254, 240, 138, 0.35) 0%, rgba(254, 240, 138, 0.08) 65%, transparent 100%);
     clip-path: polygon(0% 35%, 100% 0%, 100% 100%, 0% 65%);
+    z-index: 4;
 }
 .loco-coupler {
     position: absolute;
@@ -848,25 +929,38 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     height: 4px;
     background: #475569;
     border-radius: 1px;
+    z-index: 5;
 }
 .loco-taillight {
     position: absolute;
     left: 1px;
-    top: 10px;
+    top: 8px;
     width: 2px;
     height: 2px;
     background: #ef4444;
     border-radius: 50%;
     box-shadow: 0 0 4px #ef4444;
 }
+/* Underslung Fuel Tank */
+.loco-underbody {
+    position: absolute;
+    bottom: 0;
+    left: 18px;
+    right: 14px;
+    height: 4px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 1px;
+}
 .loco-bogie {
     position: absolute;
     bottom: 0;
     display: flex;
-    gap: 3px;
+    gap: 4px;
+    z-index: 5;
 }
 .loco-bogie.bl { left: 4px; }
-.loco-bogie.br { right: 4px; }
+.loco-bogie.br { right: 3px; }
 
 /* Flatcars & Articulated Trainset */
 .flatcar {

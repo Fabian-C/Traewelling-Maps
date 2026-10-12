@@ -69,9 +69,6 @@ export const UI = {
     toggleFetch(show) {
         if (!this.refs) return;
         this.refs.fetchScreen.classList.toggle('hidden', !show);
-        if (show) {
-            this.ensureLocomotive();
-        }
     },
     bindGlobalActions() {
         document.querySelectorAll('[data-action="clear-cache"]').forEach(btn => {
@@ -231,6 +228,7 @@ export const UI = {
     startLoadingToTrain(totalBatches) {
         this.totalBatches = totalBatches;
         this.batchesCompleted = 0;
+        this.ensureLocomotive();
     },
     onPolylineBatchComplete() {
         this.batchesCompleted++;
@@ -277,14 +275,44 @@ export const UI = {
         const trainZone = this.refs.trainZone;
         if (!gantry || !hoist || !payload || !trainZone) { this.craneAnimating = false; return; }
 
+        if (!this.locomotiveSpawned && this.trainCarsCount === 0 && !trainZone.querySelector('.locomotive')) {
+            this.ensureLocomotive();
+        }
+
         const baseHeight = 12;
         const stackLevel = Math.max(1, item.stackHeight || 1);
         const hoistDepot = Math.max(baseHeight, 70 - (stackLevel - 1) * 20);
         const hoistTrain = 58;
         let targetCar = null;
 
+        // Dynamically compute target gantry and trolley position to match the exact container center
+        let targetGantryLeft = 32;
+        let trolleyPos = '50%';
+        if (this.refs.cargoScene && item.el) {
+            const sceneRect = this.refs.cargoScene.getBoundingClientRect();
+            const crateRect = item.el.getBoundingClientRect();
+            const gantryRect = gantry.getBoundingClientRect();
+            const gantryWidth = gantryRect.width || 136;
+            if (crateRect.width > 0) {
+                const crateCenterX = (crateRect.left + (crateRect.width / 2)) - sceneRect.left;
+                targetGantryLeft = Math.round(crateCenterX - (gantryWidth / 2));
+                if (targetGantryLeft < 6) {
+                    const minGantryLeft = 6;
+                    targetGantryLeft = minGantryLeft;
+                    // Beam starts at left: 2px inside gantry
+                    const trolleyPx = Math.round(crateCenterX - minGantryLeft - 2);
+                    trolleyPos = `${trolleyPx}px`;
+                } else {
+                    trolleyPos = '50%';
+                }
+            }
+        }
+
         gantry.classList.remove('at-train');
         gantry.classList.add('at-depot');
+        gantry.style.left = `${targetGantryLeft}px`;
+        gantry.style.setProperty('--trolley-pos', trolleyPos);
+
         setTimeout(() => { hoist.style.height = hoistDepot + 'px'; }, t(360));
         setTimeout(() => {
             item.el.classList.add('pickup');
@@ -311,6 +339,8 @@ export const UI = {
         setTimeout(() => {
             gantry.classList.remove('at-depot');
             gantry.classList.add('at-train');
+            gantry.style.left = '';
+            gantry.style.setProperty('--trolley-pos', '50%');
         }, t(780));
         setTimeout(() => {
             if (this.trainCarsCount === 0 && !trainZone.querySelector('.locomotive')) {
@@ -396,23 +426,36 @@ export const UI = {
         const trainZone = this.refs.trainZone;
         if (!trainZone) return;
         if (!trainZone.querySelector('.locomotive')) {
+            this.locomotiveSpawned = true;
             const loco = document.createElement('div');
-            loco.className = 'locomotive';
+            loco.className = 'locomotive diesel';
             loco.innerHTML = `<div class="loco-body">
-                <div class="loco-cab"><div class="loco-window"></div></div>
+                <div class="loco-hood-short"></div>
+                <div class="loco-cab">
+                    <div class="loco-window side"></div>
+                    <div class="loco-window front"></div>
+                </div>
+                <div class="loco-hood-long">
+                    <div class="loco-radiator"></div>
+                    <div class="loco-exhaust"><div class="exhaust-smoke"></div></div>
+                </div>
+                <div class="loco-walkway"></div>
+                <div class="loco-railing"></div>
                 <div class="loco-stripe"></div>
-                <div class="loco-pantograph"></div>
                 <div class="loco-headlight"></div>
+                <div class="loco-ditchlights"></div>
                 <div class="loco-headlight-cone"></div>
                 <div class="loco-coupler"></div>
-                <div class="loco-taillight"></div>
             </div>
+            <div class="loco-underbody"><div class="loco-fuel-tank"></div></div>
             <div class="loco-bogie bl"><div class="train-wheel"><div class="wheel-spoke"></div></div><div class="train-wheel"><div class="wheel-spoke"></div></div></div>
             <div class="loco-bogie br"><div class="train-wheel"><div class="wheel-spoke"></div></div><div class="train-wheel"><div class="wheel-spoke"></div></div></div>`;
             trainZone.insertBefore(loco, trainZone.firstChild);
             trainZone.classList.add('arriving');
             this._triggerRollingAnimation(650);
-            setTimeout(() => trainZone.classList.remove('arriving'), 650);
+            setTimeout(() => {
+                if (trainZone) trainZone.classList.remove('arriving');
+            }, 650);
             this._updateTrainScroll();
         }
     },
@@ -435,6 +478,8 @@ export const UI = {
         if (this.refs.gantry) {
             this.refs.gantry.classList.remove('at-train');
             this.refs.gantry.classList.add('at-depot');
+            this.refs.gantry.style.left = '';
+            this.refs.gantry.style.setProperty('--trolley-pos', '50%');
         }
         if (this.refs.gantryHoist) {
             this.refs.gantryHoist.style.height = '12px';
@@ -457,13 +502,16 @@ export const UI = {
         const safeGantryWidth = Number.isFinite(gantryWidth) ? gantryWidth : 136;
         const targetCenter = safeGantryLeft + (safeGantryWidth / 2);
 
-        const locoWidth = 44;
+        const locoWidth = 48;
         const carWidth = 44;
         const carGap = 4;
+        const locoTargetCenter = targetCenter + (carWidth / 2) + carGap + (locoWidth / 2);
         const newestCarCenterNoShift = this.trainCarsCount > 0
             ? sceneWidth - (locoWidth + carGap + (carWidth / 2) + (this.trainCarsCount - 1) * (carWidth + carGap))
             : sceneWidth - (locoWidth / 2);
-        const shift = targetCenter - newestCarCenterNoShift;
+        const shift = this.trainCarsCount > 0
+            ? (targetCenter - newestCarCenterNoShift)
+            : (locoTargetCenter - newestCarCenterNoShift);
 
         trainZone.style.transform = `translateX(${shift}px)`;
         this._triggerRollingAnimation(450);
@@ -478,14 +526,18 @@ export const UI = {
         this.totalDepotReceived = 0;
         this.totalBatches = 0;
         this.batchesCompleted = 0;
+        this.locomotiveSpawned = false;
         if (this.refs.cargoScene) this.refs.cargoScene.classList.remove('has-error');
         if (this.refs.depotStack) { this.refs.depotStack.innerHTML = ''; this.refs.depotStack.style.transform = ''; }
         if (this.refs.trainZone) { this.refs.trainZone.innerHTML = ''; this.refs.trainZone.style.transform = ''; this.refs.trainZone.classList.remove('departing', 'arriving'); }
-        if (this.refs.gantry) this.refs.gantry.classList.remove('at-depot', 'at-train');
+        if (this.refs.gantry) {
+            this.refs.gantry.classList.remove('at-depot', 'at-train');
+            this.refs.gantry.style.left = '';
+            this.refs.gantry.style.setProperty('--trolley-pos', '50%');
+        }
         if (this.refs.gantryHoist) this.refs.gantryHoist.style.height = '12px';
         if (this.refs.gantryPayload) this.refs.gantryPayload.classList.remove('visible');
         if (this.refs.cargoStage) { this.refs.cargoStage.textContent = ''; this.refs.cargoStage.classList.remove('visible'); }
-        this.ensureLocomotive();
     },
     setTokenOwner(owner) {
         if (!this.refs) return;
