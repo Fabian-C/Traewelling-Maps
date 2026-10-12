@@ -711,7 +711,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     height: 18px;
     border-radius: 2px;
     opacity: 0;
-    transition: opacity 0.12s ease;
+    transition: opacity 0.05s ease;
     will-change: opacity;
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
@@ -968,13 +968,7 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     height: 25px;
     flex-shrink: 0;
     position: relative;
-    opacity: 0;
-    animation: car-roll 0.25s ease-out forwards;
-    will-change: transform, opacity;
-}
-@keyframes car-roll {
-    0% { opacity: 0; transform: translateX(-24px); }
-    100% { opacity: 1; transform: translateX(0); }
+    opacity: 1;
 }
 .flatcar.settling {
     animation: flatcar-spring 0.28s cubic-bezier(0.3, 1.4, 0.6, 1);
@@ -1063,17 +1057,11 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     width: 28px;
     height: 18px;
     border-radius: 2px;
-    opacity: 0;
+    opacity: 1;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 .train-crate.placed {
     opacity: 1;
-    animation: crate-settle 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-@keyframes crate-settle {
-    0% { transform: translateX(-50%) translateY(-8px) scale(0.96); }
-    70% { transform: translateX(-50%) translateY(1px) scale(1.02); }
-    100% { transform: translateX(-50%) translateY(0) scale(1); }
 }
 .train-crate .crate-ribs {
     position: absolute;
