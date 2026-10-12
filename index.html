@@ -6,10 +6,12 @@
     <title>Träwelling Map Explorer</title>
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <link rel="preconnect" href="https://api.mapbox.com">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.11.0/mapbox-gl.css" rel="stylesheet">
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.11.0/mapbox-gl.js"></script>
-    <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
-    <script src="https://unpkg.com/deck.gl@9.0.16/dist.min.js"></script>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.11.0/mapbox-gl.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/deck.gl@9.0.16/dist.min.js" defer></script>
     <link href="css/styles.css" rel="stylesheet">
     <link href="css/fun-facts.css" rel="stylesheet">
     <script type="module">
@@ -94,18 +96,16 @@
 
         // Immediately render cached accounts from localStorage (0ms display on startup)
         updateMenuAccountList();
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => updateMenuAccountList());
-        }
 
-        // Initialize UI after module is loaded
-        window.addEventListener('load', async () => {
+        // Initialize setup screen & UI immediately (0ms interactive, do not wait for window.load)
+        const initApp = async () => {
             window.UI.init();
             window.UI.bindGlobalActions();
             window.RateLimitUI.init();
             window.updateMenuAccountList();
             window.loadLayers();
             setupEventListeners();
+
             const startFetchBtn = document.getElementById('startFetchBtn');
             if (startFetchBtn) {
                 startFetchBtn.onclick = () => {
@@ -135,8 +135,13 @@
                         startFetchBtn?.click();
                     }
                 });
+                // Focus username input right away so user can type immediately without clicking
+                if (!usernameInput.value && !new URLSearchParams(window.location.search).has('user')) {
+                    usernameInput.focus();
+                }
             }
-            document.getElementById('cancelFetchBtn').onclick = window.cancelFetch;
+            const cancelBtn = document.getElementById('cancelFetchBtn');
+            if (cancelBtn) cancelBtn.onclick = window.cancelFetch;
 
             const oauthBtn = document.getElementById('oauthLoginBtn');
             if (oauthBtn) {
@@ -314,7 +319,13 @@
                     await window.UI.acquireWakeLock();
                 }
             });
-        });
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initApp);
+        } else {
+            initApp();
+        }
     </script>
 </head>
 
@@ -359,7 +370,7 @@
                 <div class="form-group" id="queryGroup">
                     <label for="username" id="usernameLabel">Username</label>
                     <input type="text" id="username" placeholder="Enter username to explore" autocomplete="username"
-                        autocapitalize="none" autocorrect="off">
+                        autocapitalize="none" autocorrect="off" autofocus>
                 </div>
 
 

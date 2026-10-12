@@ -536,6 +536,18 @@ export async function processAndDisplayData(trips) {
     });
 
     if (!state.map) {
+        if (!window.mapboxgl || !window.deck) {
+            await new Promise(resolve => {
+                const startTime = Date.now();
+                const check = () => {
+                    if ((window.mapboxgl && window.deck) || Date.now() - startTime > 15000) {
+                        return resolve();
+                    }
+                    setTimeout(check, 50);
+                };
+                check();
+            });
+        }
         initMap();
     }
 

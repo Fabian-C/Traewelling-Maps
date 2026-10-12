@@ -231,6 +231,32 @@ export const UI = {
         const numCars = Math.max(1, this.totalDepotReceived || 1);
         this.ensureTrain(numCars);
     },
+    _updateAnimSpeed() {
+        const queueLen = this.loadQueue ? this.loadQueue.length : 0;
+        const total = this.totalDepotReceived || 1;
+        let speed = 0.8;
+        if (total > 80 || queueLen > 20) {
+            speed = 0.10;
+        } else if (total > 40 || queueLen > 10) {
+            speed = 0.16;
+        } else if (total > 20 || queueLen > 5) {
+            speed = 0.28;
+        } else if (total > 8) {
+            speed = 0.45;
+        } else {
+            speed = 0.75;
+        }
+        this._animSpeed = speed;
+
+        const gantryMoveDur = Math.max(0.04, 0.32 * speed).toFixed(3);
+        const hoistMoveDur = Math.max(0.03, 0.20 * speed).toFixed(3);
+        const trainStepDur = Math.max(0.04, 0.35 * speed).toFixed(3);
+        const root = document.documentElement;
+        root.style.setProperty('--gantry-move-dur', `${gantryMoveDur}s`);
+        root.style.setProperty('--trolley-move-dur', `${gantryMoveDur}s`);
+        root.style.setProperty('--hoist-move-dur', `${hoistMoveDur}s`);
+        root.style.setProperty('--train-step-dur', `${trainStepDur}s`);
+    },
     onPolylineBatchComplete() {
         this.batchesCompleted++;
         if (this.totalDepotReceived === 0 || this.totalBatches === 0) return;
@@ -254,13 +280,18 @@ export const UI = {
 
         if (this.trainCarsCount >= targetLoaded) return Promise.resolve();
 
+        const startTime = Date.now();
+        const maxWaitMs = 10000;
+
         return new Promise(resolve => {
             const poll = () => {
-                if ((typeof shouldCancel === 'function' && shouldCancel()) || this.trainCarsCount >= targetLoaded) {
+                if ((typeof shouldCancel === 'function' && shouldCancel()) ||
+                    this.trainCarsCount >= targetLoaded ||
+                    (Date.now() - startTime > maxWaitMs)) {
                     resolve();
                     return;
                 }
-                setTimeout(poll, 40);
+                setTimeout(poll, 30);
             };
             poll();
         });
@@ -268,6 +299,7 @@ export const UI = {
     _processQueue() {
         if (this.craneAnimating || this.loadQueue.length === 0) return;
         this.craneAnimating = true;
+        this._updateAnimSpeed();
         const t = (ms) => Math.round(ms * this._animSpeed);
         const item = this.loadQueue.shift();
         const gantry = this.refs.gantry;
@@ -284,7 +316,18 @@ export const UI = {
         const stackLevel = Math.max(1, item.stackHeight || 1);
         const hoistDepot = Math.max(baseHeight, 70 - (stackLevel - 1) * 20);
         const hoistTrain = 58;
-        let targetCar = null;
+
+        // Ensure target car exists at current loading position
+        let targetCar = this.flatcars && this.flatcars[this.loadedCarsCount]
+            ? this.flatcars[this.loadedCarsCount]
+            : null;
+        if (!targetCar) {
+            const extraCar = this._createFlatcarElement();
+            trainZone.appendChild(extraCar);
+            if (!this.flatcars) this.flatcars = [];
+            this.flatcars.push(extraCar);
+            targetCar = extraCar;
+        }
 
         // Dynamically compute target gantry and trolley position to match the exact container center
         let targetGantryLeft = 32;
@@ -300,7 +343,6 @@ export const UI = {
                 if (targetGantryLeft < 6) {
                     const minGantryLeft = 6;
                     targetGantryLeft = minGantryLeft;
-                    // Beam starts at left: 2px inside gantry
                     const trolleyPx = Math.round(crateCenterX - minGantryLeft - 2);
                     trolleyPos = `${trolleyPx}px`;
                 } else {
@@ -335,49 +377,50 @@ export const UI = {
             gantry.style.left = '';
             gantry.style.setProperty('--trolley-pos', '50%');
         }, t(780));
-        setTimeout(() => {
-            if (!this.flatcars || this.flatcars.length === 0) {
-                this.ensureTrain(Math.max(1, this.totalDepotReceived || 1));
-            }
-            targetCar = this.flatcars && this.flatcars[this.loadedCarsCount]
-                ? this.flatcars[this.loadedCarsCount]
-                : null;
-            if (!targetCar) {
-                const extraCar = this._createFlatcarElement();
-                trainZone.appendChild(extraCar);
-                if (!this.flatcars) this.flatcars = [];
-                this.flatcars.push(extraCar);
-                targetCar = extraCar;
-            }
-        }, t(980));
-        setTimeout(() => { hoist.style.height = hoistTrain + 'px'; }, t(1130));
+        setTimeout(() => { hoist.style.height = hoistTrain + 'px'; }, t(980));
         setTimeout(() => {
             payload.classList.remove('visible');
             if (targetCar) {
                 const crate = this._createCrateElement('train-crate', item.page, item.designBg);
                 targetCar.appendChild(crate);
                 targetCar.classList.add('settling');
-                setTimeout(() => targetCar.classList.remove('settling'), 300);
+                setTimeout(() => targetCar.classList.remove('settling'), Math.max(100, t(250)));
             }
             this.loadedCarsCount = (this.loadedCarsCount || 0) + 1;
             this.trainCarsCount = this.loadedCarsCount;
             hoist.style.height = baseHeight + 'px';
 
-            // If more cars remain to be loaded, advance train forward so next car is under the crane
-            if (this.loadedCarsCount < (this.flatcars ? this.flatcars.length : 0)) {
+            const remainingInQueue = this.loadQueue.length;
+            const remainingInDepot = this.totalDepotReceived - this.loadedCarsCount;
+            const hasMoreToLoad = remainingInQueue > 0 || remainingInDepot > 0;
+
+            if (hasMoreToLoad) {
+                // Ensure next empty car exists
+                if (!this.flatcars[this.loadedCarsCount]) {
+                    const nextCar = this._createFlatcarElement();
+                    trainZone.appendChild(nextCar);
+                    this.flatcars.push(nextCar);
+                }
+                // Ensure a trailing buffer car exists so empty cars are seen waiting behind it
+                if (!this.flatcars[this.loadedCarsCount + 1] && (remainingInQueue > 1 || remainingInDepot > 1)) {
+                    const bufferCar = this._createFlatcarElement();
+                    trainZone.appendChild(bufferCar);
+                    this.flatcars.push(bufferCar);
+                }
+                // Advance train by 1 car length (+48px)
                 setTimeout(() => {
                     this._updateTrainPosition(this.loadedCarsCount);
-                }, t(120));
+                }, t(100));
             }
 
             if (this.refs.cargoStage) {
                 if (this.trainCarsCount >= this.totalDepotReceived && this.loadQueue.length === 0) {
-                    setTimeout(() => { if (this.refs.cargoStage) this.refs.cargoStage.classList.remove('visible'); }, 2500);
+                    setTimeout(() => { if (this.refs.cargoStage) this.refs.cargoStage.classList.remove('visible'); }, 2000);
                 }
             }
             this.craneAnimating = false;
-            if (this.loadQueue.length > 0) setTimeout(() => this._processQueue(), t(50));
-        }, t(1330));
+            if (this.loadQueue.length > 0) setTimeout(() => this._processQueue(), t(40));
+        }, t(1200));
     },
     _updateDepotScroll() {
         if (!this.refs?.depotStack) return;
@@ -463,13 +506,21 @@ export const UI = {
             const loco = this._createLocomotiveElement();
             trainZone.appendChild(loco);
 
-            // 2. Pre-coupled flatcars (trailing behind locomotive)
+            // 2. Initial flatcars:
+            // Car 0: The first empty flatcar that stops directly under the crane
+            // Car 1: The next empty flatcar coupled behind Car 0 (if more than 1 container)
             this.flatcars = [];
-            for (let i = 0; i < numCars; i++) {
-                const car = this._createFlatcarElement();
-                trainZone.appendChild(car);
-                this.flatcars.push(car);
+            const car0 = this._createFlatcarElement();
+            trainZone.appendChild(car0);
+            this.flatcars.push(car0);
+
+            const total = this.totalDepotReceived || numCars;
+            if (total > 1) {
+                const car1 = this._createFlatcarElement();
+                trainZone.appendChild(car1);
+                this.flatcars.push(car1);
             }
+
             this.loadedCarsCount = 0;
             this.trainCarsCount = 0;
 
@@ -516,6 +567,34 @@ export const UI = {
         this.craneAnimating = false;
         this.loadQueue = [];
     },
+    _updateOffscreenCars() {
+        if (!this.refs.trainZone || !this.flatcars) return;
+        const sceneWidth = this._cargoSceneWidth || 500;
+        const currentTransform = this.refs.trainZone.style.transform || '';
+        const match = currentTransform.match(/translateX\(([-\d.]+)px\)/);
+        const currentShift = match ? parseFloat(match[1]) : 0;
+
+        const locoWidth = 48;
+        const carWidth = 44;
+        const carGap = 4;
+
+        // Locomotive check
+        const loco = this.refs.trainZone.querySelector('.locomotive');
+        if (loco) {
+            const locoRight = sceneWidth + currentShift;
+            const locoLeft = locoRight - locoWidth;
+            loco.classList.toggle('offscreen', locoLeft > sceneWidth + 30);
+        }
+
+        // Flatcars check
+        this.flatcars.forEach((car, index) => {
+            const distFromRight = locoWidth + carGap + (index * (carWidth + carGap));
+            const carRight = sceneWidth + currentShift - distFromRight;
+            const carLeft = carRight - carWidth;
+            const isOffscreen = carLeft > sceneWidth + 30 || carRight < -80;
+            car.classList.toggle('offscreen', isOffscreen);
+        });
+    },
     _updateTrainPosition(carIndex = 0) {
         if (!this.refs.trainZone) return;
         const trainZone = this.refs.trainZone;
@@ -537,7 +616,9 @@ export const UI = {
         const shift = targetCenter - (sceneWidth - distFromRight);
 
         trainZone.style.transform = `translateX(${shift}px)`;
-        this._triggerRollingAnimation(450);
+        const rollDuration = Math.max(120, Math.round(450 * this._animSpeed));
+        this._triggerRollingAnimation(rollDuration);
+        this._updateOffscreenCars();
     },
     _updateTrainScroll() {
         this._updateTrainPosition(this.loadedCarsCount || 0);
@@ -555,6 +636,11 @@ export const UI = {
         this.totalBatches = 0;
         this.batchesCompleted = 0;
         this.locomotiveSpawned = false;
+        const root = document.documentElement;
+        root.style.removeProperty('--gantry-move-dur');
+        root.style.removeProperty('--trolley-move-dur');
+        root.style.removeProperty('--hoist-move-dur');
+        root.style.removeProperty('--train-step-dur');
         if (this.refs.cargoScene) this.refs.cargoScene.classList.remove('has-error');
         if (this.refs.depotStack) { this.refs.depotStack.innerHTML = ''; this.refs.depotStack.style.transform = ''; }
         if (this.refs.trainZone) { this.refs.trainZone.innerHTML = ''; this.refs.trainZone.style.transform = ''; this.refs.trainZone.classList.remove('departing', 'arriving'); }
