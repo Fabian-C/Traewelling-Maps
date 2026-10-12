@@ -32,6 +32,7 @@ export const CONFIG = {
         ['bus', '#238443'],
         ['tram', '#2FC5CC'],
         ['subway', '#F69A00'],
+        ['taxi', '#f1c40f'],
         ['plane', '#111111'],
         ['ferry', '#0055aa'],
         ['unknown', '#888888']

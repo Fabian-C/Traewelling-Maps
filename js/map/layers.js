@@ -18,6 +18,7 @@ export const CATEGORY_NAMES = {
     bus: 'Bus',
     tram: 'Tram',
     subway: 'Subway (U-Bahn)',
+    taxi: 'Taxi / Rideshare',
     plane: 'Flight',
     ferry: 'Ferry / Ship',
     ship: 'Ferry / Ship',
@@ -40,6 +41,18 @@ export function loadLayers() {
     if (state.layers.order.includes('ship')) {
         state.layers.order = state.layers.order.map(id => id === 'ship' ? 'ferry' : id);
     }
+
+    // Ensure all layers from CONFIG.LAYER_CONFIG exist in state.layers.order
+    CONFIG.LAYER_CONFIG.forEach(([id]) => {
+        if (!state.layers.order.includes(id)) {
+            const unknownIdx = state.layers.order.indexOf('unknown');
+            if (unknownIdx !== -1) {
+                state.layers.order.splice(unknownIdx + 1, 0, id);
+            } else {
+                state.layers.order.push(id);
+            }
+        }
+    });
 
     // Ensure state.layers.data has entries for all categories in state.layers.order
     state.layers.order.forEach((layerId) => {

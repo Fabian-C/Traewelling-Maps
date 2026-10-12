@@ -3,16 +3,23 @@ import { CONFIG } from '../config/config.js';
 
 const KNOWN_CATEGORIES = new Set([
     'nationalExpress', 'national', 'regionalExp', 'regional',
-    'suburban', 'bus', 'tram', 'subway', 'plane', 'ferry'
+    'suburban', 'bus', 'tram', 'subway', 'taxi', 'plane', 'ferry'
 ]);
 
 /**
- * Normalize transport categories from Träwelling API (e.g. ferry vs ship, unknown)
+ * Normalize transport categories from Träwelling API (e.g. ferry vs ship, unknown, taxi)
  */
 export function normalizeCategory(category) {
     if (!category) return 'unknown';
-    if (category === 'ship') return 'ferry';
-    return KNOWN_CATEGORIES.has(category) ? category : 'unknown';
+    const c = typeof category === 'string' ? category.trim() : String(category);
+    const lower = c.toLowerCase();
+    if (lower === 'ship') return 'ferry';
+    if (lower === 'taxi' || lower === 'cab' || lower === 'taxicab' || lower === 'rideshare' || lower === 'ondemand' || lower === 'on-demand') return 'taxi';
+    if (KNOWN_CATEGORIES.has(c)) return c;
+    for (const known of KNOWN_CATEGORIES) {
+        if (known.toLowerCase() === lower) return known;
+    }
+    return 'unknown';
 }
 
 /**
@@ -210,7 +217,7 @@ export function isAccuratePolyline(coords, category, filterLevel = 0) {
     // Level 1 (Normal)
     if (coords.length <= 10) {
         let threshold = 0.1;
-        if (['bus','tram','subway'].includes(category)) threshold = 0.05;
+        if (['bus','tram','subway','taxi'].includes(category)) threshold = 0.05;
         else if (['regional','regionalExp'].includes(category)) threshold = 0.2;
         else if (['national','nationalExpress'].includes(category)) threshold = 0.3;
         if (totalDist > threshold) return false;

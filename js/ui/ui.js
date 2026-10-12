@@ -414,6 +414,7 @@ export const UI = {
         await new Promise(r => setTimeout(r, 750));
     },
     onFetchError() {
+        if (!this.refs) return;
         if (this.refs.cargoScene) {
             this.refs.cargoScene.classList.add('has-error');
         }
@@ -452,6 +453,7 @@ export const UI = {
         trainZone.style.transform = `translateX(${shift}px)`;
     },
     resetCargoAnimation() {
+        if (!this.refs) return;
         this.depotCrates = [];
         this.depotColumns = [];
         this.trainCarsCount = 0;

@@ -20,14 +20,37 @@ import { escapeHtml } from '../utils/format.js';
 
 export async function startDataFetch(resumeFromState = false, incremental = false) {
     const state = store.get();
-    const token = state.token || document.getElementById('apiToken').value.trim();
+    const token = state.token || document.getElementById('apiToken')?.value?.trim();
+
+    // In setup screen / manual explore, ALWAYS read the username from the input fields first
+    const setupInputVal = document.getElementById('username')?.value?.trim() || '';
+    const menuInputVal = document.getElementById('menuUsername')?.value?.trim() || '';
+    const enteredUsername = setupInputVal || menuInputVal;
+
+    let targetUsername = '';
+    if (resumeFromState) {
+        targetUsername = (state.username || enteredUsername).trim();
+    } else {
+        // When explicitly starting or exploring, the entered username has absolute priority
+        targetUsername = (enteredUsername || state.username || '').trim();
+    }
+
     // Normalize username to lowercase — Träwelling usernames are case-insensitive
-    const username = (state.username || document.getElementById('username').value.trim()).toLowerCase();
-    if (!username) return alert('Please enter a username');
+    const username = targetUsername.toLowerCase();
+    if (!username) return alert('Please enter a username to explore');
+
+    // If exploring a different profile than the one previously loaded, clear out old state & progress
+    if (state.username && state.username.toLowerCase() !== username) {
+        state.fetchProgress = null;
+        state.queriedUserProfile = null;
+        state.fetchedTrips = [];
+        state.activeTrips = [];
+    }
 
     state.token = token; state.username = username; state.isFetching = true;
+    UI.syncUsernameInput(username);
     if (token) {
-        const authMethod = state.authMethod || (document.getElementById('apiToken').value.trim() ? 'token' : 'token');
+        const authMethod = state.authMethod || (document.getElementById('apiToken')?.value?.trim() ? 'token' : 'token');
         rememberToken(token, { autoValidate: false, authMethod });
     }
     state.cancelFetch = false;

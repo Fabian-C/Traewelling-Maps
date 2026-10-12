@@ -99,7 +99,36 @@
             window.updateMenuAccountList();
             window.loadLayers();
             setupEventListeners();
-            document.getElementById('startFetchBtn').onclick = () => window.startDataFetch(false);
+            const startFetchBtn = document.getElementById('startFetchBtn');
+            if (startFetchBtn) {
+                startFetchBtn.onclick = () => {
+                    const userField = document.getElementById('username');
+                    const target = userField?.value?.trim();
+                    if (target) {
+                        const st = window.store ? window.store.get() : (window.state || {});
+                        if (st.username && st.username.toLowerCase() !== target.toLowerCase()) {
+                            st.fetchProgress = null;
+                            st.queriedUserProfile = null;
+                            st.fetchedTrips = [];
+                            st.activeTrips = [];
+                        }
+                        st.username = target.toLowerCase();
+                        if (window.UI?.syncUsernameInput) {
+                            window.UI.syncUsernameInput(target);
+                        }
+                    }
+                    window.startDataFetch(false);
+                };
+            }
+            const usernameInput = document.getElementById('username');
+            if (usernameInput) {
+                usernameInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        startFetchBtn?.click();
+                    }
+                });
+            }
             document.getElementById('cancelFetchBtn').onclick = window.cancelFetch;
 
             const oauthBtn = document.getElementById('oauthLoginBtn');
