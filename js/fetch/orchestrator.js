@@ -159,92 +159,46 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         const tripLimit = !isNaN(urlLimit) && urlLimit > 0 ? urlLimit : 0;
 
         if (!skipPageFetching) {
-            // First page check (crucial for instant incremental stops and determining next link)
-            if (page === 1 && hasMore && !state.cancelFetch) {
-                UI.updateFetchStats({ status: `Fetching page 1...` });
-                const response = await api.getUserStatuses(username, 1);
-                if (!response?.data?.length) {
-                    hasMore = false;
-                } else {
-                    if (incremental && newestCachedTripId) {
-                        const foundIdx = response.data.findIndex(s => s.id === newestCachedTripId);
-                        if (foundIdx !== -1) {
-                            if (foundIdx > 0) allStatuses.push(...response.data.slice(0, foundIdx));
-                            console.log(`Found newest cached trip on page 1, stopping incremental fetch`);
-                            hasMore = false;
-                        } else {
-                            allStatuses.push(...response.data);
-                        }
-                    } else {
-                        allStatuses.push(...response.data);
-                    }
-
-                    if (tripLimit > 0 && allStatuses.length >= tripLimit) {
-                        if (allStatuses.length > tripLimit) allStatuses.length = tripLimit;
-                        hasMore = false;
-                    }
-
-                    const pageProgress = Math.min(45, Math.round((1 / 5) * 45));
-                    UI.updateFetchStats({ trips: allStatuses.length, pages: 1, progress: pageProgress });
-                    UI.addPacketToDepot(1);
-                    FunFacts.showFactsFromTrips(response.data, 2);
-
-                    hasMore = hasMore && !!response.links?.next;
-                    page = 2;
-                }
-            }
-
-            // Pipelined concurrent fetching for subsequent pages (2 at a time)
-            const PAGE_PIPELINE_SIZE = 2;
+            // Sequential page fetching
             while (hasMore && !state.cancelFetch) {
-                const targetPages = [];
-                for (let k = 0; k < PAGE_PIPELINE_SIZE; k++) {
-                    targetPages.push(page + k);
+                UI.updateFetchStats({ status: `Fetching page ${page}...` });
+
+                const res = await api.getUserStatuses(username, page);
+
+                if (!res?.data?.length) {
+                    hasMore = false;
+                    break;
                 }
-                UI.updateFetchStats({ status: `Fetching pages ${targetPages.join(', ')}...` });
 
-                const responses = await Promise.all(
-                    targetPages.map(p => api.getUserStatuses(username, p))
-                );
-
-                for (let idx = 0; idx < responses.length; idx++) {
-                    const res = responses[idx];
-                    const currPage = targetPages[idx];
-                    if (!res?.data?.length) {
-                        hasMore = false;
-                        break;
-                    }
-
-                    if (incremental && newestCachedTripId) {
-                        const foundIdx = res.data.findIndex(s => s.id === newestCachedTripId);
-                        if (foundIdx !== -1) {
-                            if (foundIdx > 0) allStatuses.push(...res.data.slice(0, foundIdx));
-                            console.log(`Found newest cached trip at index ${foundIdx} on page ${currPage}, stopping incremental fetch`);
-                            hasMore = false;
-                            break;
-                        }
-                    }
-
-                    allStatuses.push(...res.data);
-
-                    if (tripLimit > 0 && allStatuses.length >= tripLimit) {
-                        if (allStatuses.length > tripLimit) allStatuses.length = tripLimit;
-                        hasMore = false;
-                        break;
-                    }
-
-                    const pageProgress = Math.min(45, Math.round((currPage / (currPage + 4)) * 45));
-                    UI.updateFetchStats({ trips: allStatuses.length, pages: currPage, progress: pageProgress });
-                    UI.addPacketToDepot(currPage);
-                    FunFacts.showFactsFromTrips(res.data, Math.floor(Math.random() * 2) + 1);
-
-                    if (!res.links?.next) {
+                if (incremental && newestCachedTripId) {
+                    const foundIdx = res.data.findIndex(s => s.id === newestCachedTripId);
+                    if (foundIdx !== -1) {
+                        if (foundIdx > 0) allStatuses.push(...res.data.slice(0, foundIdx));
+                        console.log(`Found newest cached trip at index ${foundIdx} on page ${page}, stopping incremental fetch`);
                         hasMore = false;
                         break;
                     }
                 }
 
-                page += PAGE_PIPELINE_SIZE;
+                allStatuses.push(...res.data);
+
+                if (tripLimit > 0 && allStatuses.length >= tripLimit) {
+                    if (allStatuses.length > tripLimit) allStatuses.length = tripLimit;
+                    hasMore = false;
+                    break;
+                }
+
+                const pageProgress = Math.min(45, Math.round((page / (page + 4)) * 45));
+                UI.updateFetchStats({ trips: allStatuses.length, pages: page, progress: pageProgress });
+                UI.addPacketToDepot(page);
+                FunFacts.showFactsFromTrips(res.data, Math.floor(Math.random() * 2) + 1);
+
+                if (!res.links?.next) {
+                    hasMore = false;
+                    break;
+                }
+
+                page++;
                 state.fetchProgress = {
                     page: page,
                     pagesFetchComplete: !hasMore,
