@@ -310,15 +310,15 @@ export const UI = {
         }
 
         // Concurrent action: roll next empty car into loading position whilst gantry travels to depot
-        if (this.loadedCarsCount > 0) {
-            // Ensure next empty car exists
-            if (!this.flatcars[this.loadedCarsCount]) {
+        if (this.currentTrainLoadedCount > 0) {
+            // Ensure next empty car exists on current train
+            if (!this.flatcars[this.currentTrainLoadedCount]) {
                 const nextCar = this._createFlatcarElement();
                 trainZone.appendChild(nextCar);
                 this.flatcars.push(nextCar);
             }
             // Advance train forward so new car rolls into place under the crane
-            this._updateTrainPosition(this.loadedCarsCount);
+            this._updateTrainPosition(this.currentTrainLoadedCount);
         }
 
         const baseHeight = 12;
@@ -326,9 +326,9 @@ export const UI = {
         const hoistDepot = Math.max(baseHeight, 70 - (stackLevel - 1) * 20);
         const hoistTrain = 58;
 
-        // Ensure target car exists at current loading position
-        let targetCar = this.flatcars && this.flatcars[this.loadedCarsCount]
-            ? this.flatcars[this.loadedCarsCount]
+        // Ensure target car exists at current loading position on this train
+        let targetCar = this.flatcars && this.flatcars[this.currentTrainLoadedCount]
+            ? this.flatcars[this.currentTrainLoadedCount]
             : null;
         if (!targetCar) {
             const extraCar = this._createFlatcarElement();
@@ -397,7 +397,19 @@ export const UI = {
             }
             this.loadedCarsCount = (this.loadedCarsCount || 0) + 1;
             this.trainCarsCount = this.loadedCarsCount;
+            this.currentTrainLoadedCount = (this.currentTrainLoadedCount || 0) + 1;
             hoist.style.height = baseHeight + 'px';
+
+            const remainingInQueue = this.loadQueue.length;
+            const remainingInDepot = this.totalDepotReceived - this.loadedCarsCount;
+            const hasMoreToLoad = remainingInQueue > 0 || remainingInDepot > 0;
+            const trainIsFull = this.currentTrainLoadedCount >= (this.currentTrainCapacity || 24);
+
+            // After 20-30 containers, current train drives off and a brand new train arrives!
+            if (trainIsFull && hasMoreToLoad) {
+                this._swapTrainConsist();
+                return;
+            }
 
             if (this.refs.cargoStage) {
                 if (this.trainCarsCount >= this.totalDepotReceived && this.loadQueue.length === 0) {
@@ -506,6 +518,8 @@ export const UI = {
 
             this.loadedCarsCount = 0;
             this.trainCarsCount = 0;
+            this.currentTrainLoadedCount = 0;
+            this.currentTrainCapacity = Math.floor(Math.random() * 6) + 22; // 22 to 27 containers per train (20-30 range)
 
             trainZone.classList.add('arriving');
             this._triggerRollingAnimation(650);
@@ -513,6 +527,56 @@ export const UI = {
                 if (trainZone) trainZone.classList.remove('arriving');
             }, 650);
             this._updateTrainPosition(0);
+        }
+    },
+    async _swapTrainConsist() {
+        if (!this.refs.trainZone) return;
+        this.craneAnimating = true;
+
+        if (this.refs.cargoStage) {
+            this.refs.cargoStage.textContent = 'Train consist full — departing...';
+            this.refs.cargoStage.classList.add('visible');
+        }
+
+        // 1. Depart the current full train
+        await this.departTrain();
+
+        if (this.refs.cargoStage) {
+            this.refs.cargoStage.textContent = 'New train arriving...';
+        }
+
+        // 2. Clear departed train and reset current train counter
+        const trainZone = this.refs.trainZone;
+        trainZone.classList.remove('departing');
+        trainZone.innerHTML = '';
+        this.currentTrainLoadedCount = 0;
+        this.currentTrainCapacity = Math.floor(Math.random() * 6) + 22; // 22 to 27 containers (20-30 range)
+
+        // 3. Spawn fresh new train: locomotive + 1 single empty flatcar
+        const loco = this._createLocomotiveElement();
+        trainZone.appendChild(loco);
+
+        this.flatcars = [];
+        const car0 = this._createFlatcarElement();
+        trainZone.appendChild(car0);
+        this.flatcars.push(car0);
+
+        // 4. Arrive the new train
+        trainZone.classList.add('arriving');
+        this._triggerRollingAnimation(650);
+        this._updateTrainPosition(0);
+
+        await new Promise(r => setTimeout(r, 650));
+        trainZone.classList.remove('arriving');
+
+        if (this.refs.cargoStage) {
+            this.refs.cargoStage.classList.remove('visible');
+        }
+
+        this.craneAnimating = false;
+        // Resume queue processing on the new train!
+        if (this.loadQueue.length > 0) {
+            setTimeout(() => this._processQueue(), 100);
         }
     },
     ensureLocomotive() {
@@ -604,7 +668,7 @@ export const UI = {
         this._updateOffscreenCars();
     },
     _updateTrainScroll() {
-        this._updateTrainPosition(this.loadedCarsCount || 0);
+        this._updateTrainPosition(this.currentTrainLoadedCount || 0);
     },
     resetCargoAnimation() {
         if (!this.refs) return;
@@ -612,6 +676,8 @@ export const UI = {
         this.depotColumns = [];
         this.trainCarsCount = 0;
         this.loadedCarsCount = 0;
+        this.currentTrainLoadedCount = 0;
+        this.currentTrainCapacity = 24;
         this.flatcars = [];
         this.craneAnimating = false;
         this.loadQueue = [];
