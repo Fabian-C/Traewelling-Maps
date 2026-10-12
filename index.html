@@ -42,6 +42,8 @@
         import { startDataFetch, cancelFetch, showFetchError, refreshActiveTrips, processAndDisplayData } from './js/fetch/orchestrator.js';
         // Session module
         import { fetchUserProfile, saveCurrentSession, loadSessionByUsername, deleteSession, clearAllSessions, updateMenuAccountList, rememberToken, validateStoredToken, logout, handleOAuthCallbackProcess, OAuth } from './js/session/manager.js';
+        // Cache module
+        import { SessionDB } from './js/cache/session.js';
         // Events module
         import { setupEventListeners } from './js/events/listeners.js';
         // Export module
@@ -51,6 +53,7 @@
         // Export to window for inline script and cross-module access
         // Modules now use proper ES6 imports where possible
         // =====================================================================
+        window.SessionDB = SessionDB;
         window.UI = UI;
         window.RateLimitUI = RateLimitUI;
         window.RouteAnimation = RouteAnimation;
@@ -90,6 +93,12 @@
 
         // Auto-initialize state store
         initializeState(dataUtils.createEmptyStats);
+
+        // Immediately render cached accounts from localStorage (0ms display on startup)
+        updateMenuAccountList();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => updateMenuAccountList());
+        }
 
         // Initialize UI after module is loaded
         window.addEventListener('load', async () => {
@@ -733,6 +742,28 @@
                 <div class="menu-submenu-content export-section">
                     <p class="section-sub" style="margin: 0 16px 10px;">Export your travel routes and polylines as a
                         standardized GeoJSON FeatureCollection.</p>
+                    
+                    <div class="menu-item toggle-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; margin: 0 0 10px 0; background: rgba(255, 255, 255, 0.03); border-radius: 8px;">
+                        <div style="flex: 1; padding-right: 8px;">
+                            <span style="font-weight: 500; font-size: 13px;">Include intermediate stations</span>
+                            <p class="section-sub" style="margin: 2px 0 0 0; font-size: 11px;">Fetch stopovers along routes before export</p>
+                        </div>
+                        <label class="toggle" style="flex-shrink: 0;">
+                            <input type="checkbox" id="exportIncludeStopovers">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div id="exportStopoversStatus" style="display: none; padding: 0 16px 10px; font-size: 12px;">
+                        <div id="exportStopoversText" style="color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+                            <span class="export-spinner" id="exportStopoversSpinner">⏳</span>
+                            <span id="exportStopoversLabel">Fetching stopovers...</span>
+                        </div>
+                        <div class="progress-bar-bg" id="exportStopoversBarBg" style="margin-top: 6px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; display: none;">
+                            <div class="progress-bar-fill" id="exportStopoversBarFill" style="height: 100%; width: 0%; background: #3887be; transition: width 0.2s ease;"></div>
+                        </div>
+                    </div>
+
                     <div style="padding: 0 16px 14px; display: flex; flex-direction: column; gap: 8px;">
                         <button class="btn-primary" id="exportActiveGeoJsonBtn"
                             style="font-size: 13px; padding: 10px 14px;">💾 Download Filtered Trips</button>

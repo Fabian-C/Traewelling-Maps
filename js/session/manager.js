@@ -144,74 +144,89 @@ export async function clearAllSessions() {
     }
 }
 
-export async function updateMenuAccountList() {
+export function renderAccountItems(sessions = []) {
     const state = store.get();
     const menuContainer = document.getElementById('savedAccountsList');
     const setupContainer = document.getElementById('sessionsList');
     const setupSection = document.getElementById('savedSessions');
     
+    if (menuContainer) {
+        if (!sessions.length) {
+            menuContainer.innerHTML = '<p class="section-sub" style="margin: 0; text-align: center;">No saved accounts</p>';
+        } else {
+            menuContainer.innerHTML = sessions.map(session => {
+                if (!session) return '';
+                const avatarStyle = session.avatar 
+                    ? `background-image: url('${session.avatar}'); background-size: cover;`
+                    : '';
+                const avatarContent = session.avatar ? '' : (session.username?.[0]?.toUpperCase() || '?');
+                const displayName = session.displayName || session.username || 'Unknown';
+                const isActive = state?.username && session.username && state.username === session.username ? 'active' : '';
+                const date = session.timestamp ? new Date(session.timestamp).toLocaleDateString() : '';
+                
+                return `
+                    <div class="saved-account-item ${isActive}" onclick="loadSessionByUsername('${session.username || ''}')">
+                        <div class="saved-account-avatar" style="${avatarStyle}">${avatarContent}</div>
+                        <div class="saved-account-info">
+                            <div class="saved-account-name">${displayName}</div>
+                            <div class="saved-account-meta">@${session.username || 'unknown'} · ${session.tripCount || 0} trips · ${date}</div>
+                        </div>
+                        <button class="saved-account-delete" onclick="event.stopPropagation();deleteSession('${session.username || ''}')">✕</button>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+    
+    if (setupContainer && setupSection) {
+        if (!sessions.length) {
+            setupSection.style.display = 'none';
+        } else {
+            setupSection.style.display = 'block';
+            setupContainer.innerHTML = sessions.map(session => {
+                if (!session) return '';
+                const avatarStyle = session.avatar 
+                    ? `background-image: url('${session.avatar}'); background-size: cover;`
+                    : '';
+                const avatarContent = session.avatar ? '' : (session.username?.[0]?.toUpperCase() || '?');
+                const displayName = session.displayName || session.username;
+                const date = session.timestamp ? new Date(session.timestamp).toLocaleDateString() : '';
+                
+                return `
+                    <div class="saved-account-item" onclick="loadSessionByUsername('${session.username}')">
+                        <div class="saved-account-avatar" style="${avatarStyle}">${avatarContent}</div>
+                        <div class="saved-account-info">
+                            <div class="saved-account-name">${displayName}</div>
+                            <div class="saved-account-meta">@${session.username} · ${session.tripCount || 0} trips · ${date}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+}
+
+export async function updateMenuAccountList() {
+    // 1. Instant synchronous render from metadata cache (0ms delay in setup menu)
+    try {
+        const cached = SessionDB.getStoredMetadata();
+        if (cached && cached.length) {
+            renderAccountItems(cached);
+        }
+    } catch (e) {}
+
+    // 2. Asynchronous freshness check and sync with IndexedDB
     try {
         const sessions = await SessionDB.getAll();
-        
-        if (menuContainer) {
-            if (!sessions.length) {
-                menuContainer.innerHTML = '<p class="section-sub" style="margin: 0; text-align: center;">No saved accounts</p>';
-            } else {
-                menuContainer.innerHTML = sessions.map(session => {
-                    if (!session) return '';
-                    const avatarStyle = session.avatar 
-                        ? `background-image: url('${session.avatar}'); background-size: cover;`
-                        : '';
-                    const avatarContent = session.avatar ? '' : (session.username?.[0]?.toUpperCase() || '?');
-                    const displayName = session.displayName || session.username || 'Unknown';
-                    const isActive = state?.username && session.username && state.username === session.username ? 'active' : '';
-                    const date = session.timestamp ? new Date(session.timestamp).toLocaleDateString() : '';
-                    
-                    return `
-                        <div class="saved-account-item ${isActive}" onclick="loadSessionByUsername('${session.username || ''}')">
-                            <div class="saved-account-avatar" style="${avatarStyle}">${avatarContent}</div>
-                            <div class="saved-account-info">
-                                <div class="saved-account-name">${displayName}</div>
-                                <div class="saved-account-meta">@${session.username || 'unknown'} · ${session.tripCount || 0} trips · ${date}</div>
-                            </div>
-                            <button class="saved-account-delete" onclick="event.stopPropagation();deleteSession('${session.username || ''}')">✕</button>
-                        </div>
-                    `;
-                }).join('');
-            }
-        }
-        
-        if (setupContainer && setupSection) {
-            if (!sessions.length) {
-                setupSection.style.display = 'none';
-            } else {
-                setupSection.style.display = 'block';
-                setupContainer.innerHTML = sessions.map(session => {
-                    const avatarStyle = session.avatar 
-                        ? `background-image: url('${session.avatar}'); background-size: cover;`
-                        : '';
-                    const avatarContent = session.avatar ? '' : (session.username?.[0]?.toUpperCase() || '?');
-                    const displayName = session.displayName || session.username;
-                    const date = session.timestamp ? new Date(session.timestamp).toLocaleDateString() : '';
-                    
-                    return `
-                        <div class="saved-account-item" onclick="loadSessionByUsername('${session.username}')">
-                            <div class="saved-account-avatar" style="${avatarStyle}">${avatarContent}</div>
-                            <div class="saved-account-info">
-                                <div class="saved-account-name">${displayName}</div>
-                                <div class="saved-account-meta">@${session.username} · ${session.tripCount || 0} trips · ${date}</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
-        }
+        renderAccountItems(sessions);
     } catch (e) {
         console.warn('Failed to update account lists:', e);
-        if (menuContainer) {
+        const menuContainer = document.getElementById('savedAccountsList');
+        const setupSection = document.getElementById('savedSessions');
+        if (menuContainer && !menuContainer.children.length) {
             menuContainer.innerHTML = '<p class="section-sub" style="margin: 0; text-align: center;">No saved accounts</p>';
         }
-        if (setupSection) {
+        if (setupSection && !document.getElementById('sessionsList')?.children.length) {
             setupSection.style.display = 'none';
         }
     }

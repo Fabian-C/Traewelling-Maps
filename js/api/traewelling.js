@@ -49,6 +49,10 @@ export class TraewellingAPI {
     getUserStatuses(username, page = 1) { return this.request(`/user/${encodeURIComponent(username)}/statuses?page=${page}`); }
     getPolyline(statusId) { return this.request(`/polyline/${statusId}`).catch(() => null); }
     getPolylines(statusIds) { return this.request(`/polyline/${statusIds.join(',')}`).catch(() => null); }
+    getStopovers(statusIds) {
+        if (!statusIds || !statusIds.length) return Promise.resolve(null);
+        return this.request(`/stopovers/${statusIds.join(',')}`).catch(() => null);
+    }
     getAuthenticatedUser() { return this.request('/auth/user', true); }
     getPublicUser(username) { return this.request(`/user/${encodeURIComponent(username)}`); }
 }

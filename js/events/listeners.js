@@ -12,8 +12,7 @@ import { startDataFetch, refreshActiveTrips, processAndDisplayData } from '../fe
 import * as dataProcessing from '../data/processing.js';
 import * as analytics from '../analytics/statistics.js';
 import { reloadAllLayers, loadLayers } from '../map/layers.js';
-import { updateAllStatistics as updateAllStats } from '../analytics/statistics.js';
-import { exportTripsGeoJSON } from '../export/geojson.js';
+import { exportTripsGeoJSON, handleStopoverToggleChange } from '../export/geojson.js';
 
 export function setupEventListeners() {
     const state = store.get();
@@ -392,6 +391,10 @@ export function setupEventListeners() {
     const statsExportBtn = document.getElementById('statsExportBtn');
     if (statsExportBtn) {
         statsExportBtn.onclick = () => exportTripsGeoJSON('active', 'download');
+    }
+    const exportIncludeStopovers = document.getElementById('exportIncludeStopovers');
+    if (exportIncludeStopovers) {
+        exportIncludeStopovers.addEventListener('change', handleStopoverToggleChange);
     }
 }
 

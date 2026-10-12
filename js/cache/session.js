@@ -4,7 +4,9 @@ import { CONFIG } from '../config/config.js';
 export const SessionDB = {
     DB_NAME: 'TraewellingMap',
     STORE_NAME: 'sessions',
-    VERSION: 1,
+    STOPOVERS_STORE: 'stopovers',
+    META_CACHE_KEY: 'tw_cached_sessions_meta',
+    VERSION: 2,
     MAX_SESSIONS: 15,
     _db: null,
     
@@ -14,6 +16,34 @@ export const SessionDB = {
         if (!maxAge) return false;
         if (!session.timestamp) return true;
         return now - session.timestamp > maxAge;
+    },
+
+    // Fast synchronous cache for instant UI rendering in setup menu
+    getStoredMetadata() {
+        try {
+            const raw = localStorage.getItem(this.META_CACHE_KEY);
+            if (!raw) return [];
+            const list = JSON.parse(raw);
+            const now = Date.now();
+            return Array.isArray(list) ? list.filter(item => !this.isExpired(item, now)) : [];
+        } catch (e) {
+            return [];
+        }
+    },
+
+    saveStoredMetadata(sessions = []) {
+        try {
+            const meta = sessions.map(s => ({
+                username: s.username,
+                displayName: s.displayName || s.username,
+                avatar: s.avatar || null,
+                tripCount: s.tripCount || (s.trips ? s.trips.length : 0),
+                timestamp: s.timestamp || Date.now()
+            }));
+            localStorage.setItem(this.META_CACHE_KEY, JSON.stringify(meta));
+        } catch (e) {
+            console.warn('Failed to save session metadata cache:', e);
+        }
     },
     
     // Open database connection
@@ -27,6 +57,9 @@ export const SessionDB = {
                 const db = e.target.result;
                 if (!db.objectStoreNames.contains(this.STORE_NAME)) {
                     db.createObjectStore(this.STORE_NAME, { keyPath: 'username' });
+                }
+                if (!db.objectStoreNames.contains(this.STOPOVERS_STORE)) {
+                    db.createObjectStore(this.STOPOVERS_STORE, { keyPath: 'statusId' });
                 }
             };
             
@@ -59,6 +92,7 @@ export const SessionDB = {
             store.put(session);
             tx.oncomplete = () => {
                 this.prune(); // Clean old sessions
+                this.getAll().then(all => this.saveStoredMetadata(all)).catch(() => {});
                 resolve(session);
             };
             tx.onerror = () => reject(tx.error);
@@ -98,6 +132,7 @@ export const SessionDB = {
                     });
                 }
                 
+                this.saveStoredMetadata(fresh);
                 resolve(fresh);
             };
             req.onerror = () => reject(req.error);
@@ -129,7 +164,13 @@ export const SessionDB = {
         return new Promise((resolve, reject) => {
             const tx = db.transaction([this.STORE_NAME], 'readwrite');
             tx.objectStore(this.STORE_NAME).delete(username);
-            tx.oncomplete = () => resolve();
+            tx.oncomplete = () => {
+                try {
+                    const existing = this.getStoredMetadata().filter(s => s.username !== username);
+                    localStorage.setItem(this.META_CACHE_KEY, JSON.stringify(existing));
+                } catch (e) {}
+                resolve();
+            };
             tx.onerror = () => reject(tx.error);
         });
     },
@@ -140,8 +181,68 @@ export const SessionDB = {
         return new Promise((resolve, reject) => {
             const tx = db.transaction([this.STORE_NAME], 'readwrite');
             tx.objectStore(this.STORE_NAME).clear();
-            tx.oncomplete = () => resolve();
+            tx.oncomplete = () => {
+                try {
+                    localStorage.removeItem(this.META_CACHE_KEY);
+                } catch (e) {}
+                resolve();
+            };
             tx.onerror = () => reject(tx.error);
+        });
+    },
+
+    // Retrieve cached stopovers for a batch of status IDs
+    async getStopoversBatch(statusIds = []) {
+        if (!statusIds || !statusIds.length) return {};
+        const db = await this.open();
+        return new Promise((resolve) => {
+            try {
+                const tx = db.transaction([this.STOPOVERS_STORE], 'readonly');
+                const store = tx.objectStore(this.STOPOVERS_STORE);
+                const results = {};
+                let remaining = statusIds.length;
+
+                statusIds.forEach(rawId => {
+                    const id = Number(rawId);
+                    const req = store.get(id);
+                    req.onsuccess = () => {
+                        if (req.result?.stopovers) {
+                            results[id] = req.result.stopovers;
+                        }
+                        remaining--;
+                        if (remaining === 0) resolve(results);
+                    };
+                    req.onerror = () => {
+                        remaining--;
+                        if (remaining === 0) resolve(results);
+                    };
+                });
+            } catch (e) {
+                console.warn('Failed to get cached stopovers batch:', e);
+                resolve({});
+            }
+        });
+    },
+
+    // Persist a batch of stopovers keyed by status ID
+    async saveStopoversBatch(entries = {}) {
+        const keys = Object.keys(entries);
+        if (!keys.length) return;
+        const db = await this.open();
+        return new Promise((resolve, reject) => {
+            try {
+                const tx = db.transaction([this.STOPOVERS_STORE], 'readwrite');
+                const store = tx.objectStore(this.STOPOVERS_STORE);
+                keys.forEach(rawId => {
+                    const id = Number(rawId);
+                    store.put({ statusId: id, stopovers: entries[rawId] });
+                });
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            } catch (e) {
+                console.warn('Failed to save stopovers batch:', e);
+                resolve();
+            }
         });
     },
     
