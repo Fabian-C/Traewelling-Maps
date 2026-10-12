@@ -392,10 +392,6 @@ export function setupEventListeners() {
     if (copyGeoJsonBtn) {
         copyGeoJsonBtn.onclick = () => exportTripsGeoJSON('active', 'copy');
     }
-    const statsExportBtn = document.getElementById('statsExportBtn');
-    if (statsExportBtn) {
-        statsExportBtn.onclick = () => exportTripsGeoJSON('active', 'download');
-    }
     const exportIncludeStopovers = document.getElementById('exportIncludeStopovers');
     if (exportIncludeStopovers) {
         exportIncludeStopovers.addEventListener('change', handleStopoverToggleChange);
