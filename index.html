@@ -160,7 +160,8 @@
             }
 
             // Support ?user= query param to automatically explore a user profile (e.g. ?user=Hash&limit=50)
-            const userParam = new URLSearchParams(window.location.search).get('user');
+            // Username is case-insensitive — normalize to lowercase
+            const userParam = new URLSearchParams(window.location.search).get('user')?.toLowerCase();
             if (userParam) {
                 const userInput = document.getElementById('username');
                 if (userInput) {

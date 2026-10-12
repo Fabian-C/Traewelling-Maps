@@ -20,7 +20,8 @@ import { updateFilterBadges } from '../events/listeners.js';
 export async function startDataFetch(resumeFromState = false, incremental = false) {
     const state = store.get();
     const token = state.token || document.getElementById('apiToken').value.trim();
-    const username = state.username || document.getElementById('username').value.trim();
+    // Normalize username to lowercase — Träwelling usernames are case-insensitive
+    const username = (state.username || document.getElementById('username').value.trim()).toLowerCase();
     if (!username) return alert('Please enter a username');
 
     state.token = token; state.username = username; state.isFetching = true;
@@ -311,7 +312,13 @@ export async function processAndDisplayData(trips) {
     const state = store.get();
     state.statistics = analytics.resetStatistics(state.statistics);
     analytics.refreshStatsDisplay(state.statistics);
-    UI.updateDatasetSummary(state.username, trips.length);
+    const profile = state.queriedUserProfile;
+    UI.updateDatasetSummary(
+        profile?.displayName || state.username,
+        profile?.username || state.username,
+        trips.length,
+        profile?.avatar || null
+    );
     state.datasetVersion++;
     state.heatmap.needsRebuild = true;
     state.heatmap.cacheKey = null;

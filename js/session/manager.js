@@ -308,18 +308,21 @@ export async function handleOAuthCallbackProcess() {
             validated: true
         };
         state.token = result.accessToken;
-        state.username = user.data.username;
+        // NOTE: Do NOT set state.username here — the token owner is NOT necessarily
+        // the user being explored. The username input field determines the target.
 
         UI.setTokenOwner(state.tokenOwner);
         UI.setTokenStatus('Connected via OAuth', 'success');
         UI.syncTokenInputs(result.accessToken);
-        UI.syncUsernameInput(user.data.username);
 
         // Ensure user is on the setup screen and can freely select/change the query username
         UI.toggleSetup(true);
         const usernameInput = document.getElementById('username');
         if (usernameInput) {
-            usernameInput.value = user.data.username;
+            // Only pre-fill with the logged-in user if the field is currently empty
+            if (!usernameInput.value.trim()) {
+                usernameInput.value = user.data.username;
+            }
             usernameInput.focus();
             usernameInput.select();
         }
