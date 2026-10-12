@@ -334,12 +334,25 @@ export function showPopup(lngLat, feature) {
     const departureDelay = typeof train.departureDelay === 'number' ? train.departureDelay : derivedDepartureDelay;
     const arrivalDelay = typeof train.arrivalDelay === 'number' ? train.arrivalDelay : derivedArrivalDelay;
     const platform = originData.departurePlatformReal || originData.platform || train.platform || train.track;
-    const seat = train.seat?.number || null;
-    const wagon = train.seat?.wagon || train.wagon;
-    const travelClass = train.class || train.travelClass;
+    const seat = train.seat?.number || (typeof train.seat === 'string' || typeof train.seat === 'number' ? train.seat : null) || props.seat || null;
+    const wagon = train.seat?.wagon || train.wagon || train.coach || props.wagon || null;
+    const travelClass = train.class || train.travelClass || props.class || props.travelClass || null;
     const coachPosition = train.coaches || null;
     const shareUrl = statusId !== 'unknown' ? `https://traewelling.de/status/${statusId}` : null;
     const operator = train.operator?.name || train.operator?.identifier || train.provider?.name || train.provider || '—';
+
+    const ticketObj = props.ticket || train.ticket || null;
+    const ticketName = typeof ticketObj === 'string' ? ticketObj : (ticketObj?.name || ticketObj?.title || ticketObj?.identifier || null);
+
+    let rawTags = props.tags || train.tags || null;
+    if (typeof rawTags === 'string') {
+        try { rawTags = JSON.parse(rawTags); } catch (e) {
+            rawTags = rawTags.includes(',') ? rawTags.split(',').map(s => s.trim()) : [rawTags];
+        }
+    }
+    const tagsList = Array.isArray(rawTags)
+        ? rawTags.map(t => typeof t === 'string' || typeof t === 'number' ? String(t) : (t?.name || t?.label || t?.title || t?.tag || '')).filter(Boolean)
+        : [];
 
     const formatTime = (dateObj) => dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
     const formatDate = (dateObj) => dateObj ? dateObj.toLocaleDateString() : '';
@@ -418,15 +431,17 @@ export function showPopup(lngLat, feature) {
         </details>
     `;
 
-    const seatDetails = (seat || wagon || travelClass || coachPosition) ? `
+    const seatDetails = (seat || wagon || travelClass || coachPosition || ticketName || tagsList.length) ? `
         <details>
-            <summary>Seat & coach info</summary>
+            <summary>Seat, ticket & coach info</summary>
             <div class="popup-body">
                 <dl>
-                    <dt>Seat</dt><dd>${seat || '—'}</dd>
-                    <dt>Coach / Wagon</dt><dd>${wagon || '—'}</dd>
-                    <dt>Class</dt><dd>${travelClass || '—'}</dd>
-                    <dt>Coach position</dt><dd>${coachPosition || '—'}</dd>
+                    ${ticketName ? `<dt>Ticket</dt><dd>${escapeHtml(ticketName)}</dd>` : ''}
+                    <dt>Seat</dt><dd>${escapeHtml(String(seat || '—'))}</dd>
+                    <dt>Coach / Wagon</dt><dd>${escapeHtml(String(wagon || '—'))}</dd>
+                    <dt>Class</dt><dd>${escapeHtml(String(travelClass || '—'))}</dd>
+                    <dt>Coach position</dt><dd>${escapeHtml(String(coachPosition || '—'))}</dd>
+                    ${tagsList.length ? `<dt>Tags</dt><dd>${escapeHtml(tagsList.join(', '))}</dd>` : ''}
                 </dl>
             </div>
         </details>

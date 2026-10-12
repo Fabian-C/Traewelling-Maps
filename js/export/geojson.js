@@ -14,7 +14,7 @@ import { TraewellingAPI } from '../api/traewelling.js';
  */
 export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
     const features = [];
-    const includeStopovers = options.includeStopovers ?? (document.getElementById('exportIncludeStopovers')?.checked || false);
+    const includeStopovers = options.includeStopovers ?? ((typeof document !== 'undefined' ? document.getElementById('exportIncludeStopovers')?.checked : false) || false);
 
     trips.forEach(trip => {
         const train = trip.train || {};
@@ -78,9 +78,11 @@ export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
                 distanceKm: distanceKm,
                 operator: train.operator?.name || train.operator?.identifier || train.provider?.name || train.provider || null,
                 platform: originData.departurePlatformReal || originData.platform || train.platform || train.track || null,
-                seat: train.seat?.number || null,
-                wagon: train.seat?.wagon || train.wagon || null,
-                class: train.class || train.travelClass || null,
+                seat: train.seat?.number || (typeof train.seat === 'string' || typeof train.seat === 'number' ? train.seat : null) || trip.seat?.number || (typeof trip.seat === 'string' || typeof trip.seat === 'number' ? trip.seat : null) || trip.properties?.seat || null,
+                wagon: train.seat?.wagon || train.wagon || train.coach || trip.wagon || trip.properties?.wagon || null,
+                class: train.class || train.travelClass || trip.class || null,
+                ticket: trip.ticket?.name || (typeof trip.ticket === 'string' ? trip.ticket : null) || train.ticket?.name || (typeof train.ticket === 'string' ? train.ticket : null) || null,
+                tags: trip.tags || trip.properties?.tags || train.tags || trip.customTags || trip.labels || null,
                 business: businessLabel,
                 message: trip.body || null,
                 createdAt: trip.createdAt || null,

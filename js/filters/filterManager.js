@@ -1,7 +1,7 @@
 // Centralized filter manager module
 // All filter logic is centralized here for consistency and modularity
 
-import { isAccuratePolyline, normalizeCategory, getTripBusinessType } from '../data/processing.js';
+import { isAccuratePolyline, normalizeCategory, getTripBusinessType, matchesTripSearch } from '../data/processing.js';
 import { extractUniqueBuddiesFromTrip } from '../analytics/statistics.js';
 
 // Filter registry - allows easy addition of new filters
@@ -118,30 +118,12 @@ export function getRegisteredFilters() {
 }
 
 /**
- * Filter trips by free-text search (comments, mentions, buddies, line names, stations)
+ * Filter trips by free-text search (comments, mentions, buddies, line names, stations, tickets, wagon/coach, seat, tags)
  */
 function filterTripsBySearch(trips, query) {
     if (!query || !query.trim()) return trips;
     const q = query.trim().toLowerCase();
-    return trips.filter(trip => {
-        if (trip._index) {
-            return trip._index.searchCorpus.includes(q);
-        }
-        // Fallback if not indexed
-        if (trip.body && String(trip.body).toLowerCase().includes(q)) return true;
-        if (Array.isArray(trip.bodyMentions)) {
-            if (trip.bodyMentions.some(m => {
-                const u = m.user?.username || m.username || '';
-                const d = m.user?.displayName || '';
-                return u.toLowerCase().includes(q) || d.toLowerCase().includes(q);
-            })) return true;
-        }
-        const train = trip.train || {};
-        const line = (train.lineName || train.number || '').toLowerCase();
-        const origin = (train.origin?.name || '').toLowerCase();
-        const dest = (train.destination?.name || '').toLowerCase();
-        return line.includes(q) || origin.includes(q) || dest.includes(q);
-    });
+    return trips.filter(trip => matchesTripSearch(trip, q));
 }
 
 /**

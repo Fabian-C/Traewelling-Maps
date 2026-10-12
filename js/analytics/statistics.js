@@ -1,7 +1,7 @@
 // Statistics and analytics functions
 import { store } from '../state/store.js';
 import { escapeHtml } from '../utils/format.js';
-import { normalizeCategory, indexTrip, indexTrips, getTripBusinessType } from '../data/processing.js';
+import { normalizeCategory, indexTrip, indexTrips, getTripBusinessType, matchesTripSearch } from '../data/processing.js';
 
 export function resetStatistics(statisticsObj) {
     if (!statisticsObj) {
@@ -291,16 +291,8 @@ export function getFilteredContextTrips() {
     }
 
     if (state.filters.searchQuery) {
-        const q = state.filters.searchQuery.toLowerCase();
-        contextTrips = contextTrips.filter(t => {
-            if (t._index) return t._index.searchCorpus.includes(q);
-            if (t.body && String(t.body).toLowerCase().includes(q)) return true;
-            const train = t.train || {};
-            const line = (train.lineName || train.number || '').toLowerCase();
-            const origin = (train.origin?.name || '').toLowerCase();
-            const dest = (train.destination?.name || '').toLowerCase();
-            return line.includes(q) || origin.includes(q) || dest.includes(q);
-        });
+        const q = state.filters.searchQuery.trim().toLowerCase();
+        contextTrips = contextTrips.filter(t => matchesTripSearch(t, q));
     }
 
     if (state.layers?.data) {
