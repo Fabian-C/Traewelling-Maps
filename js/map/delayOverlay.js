@@ -76,7 +76,7 @@ export function buildDelayOverlayCache(force = false) {
 
         results.push({
             statusId: trip.id,
-            lineName: train.lineName || train.number || 'Unknown',
+            lineName: train.lineName || train.number || train.name || 'Unknown',
             category,
             delaySeconds: delays.worst,
             coordinates: coords,

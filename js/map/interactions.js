@@ -316,7 +316,7 @@ export function showPopup(lngLat, feature) {
     train = train || {};
 
     const statusId = props.statusId || 'unknown';
-    const lineName = train.lineName || train.number || 'Unknown';
+    const lineName = train.lineName || train.number || train.name || 'Unknown';
     const originData = train.origin || {};
     const destData = train.destination || {};
     const origin = originData.name || 'Unknown';

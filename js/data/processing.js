@@ -42,7 +42,7 @@ export function indexTrip(trip, currentUsername = '') {
 
     const category = normalizeCategory(train.category);
     const distance = (typeof train.totalDistance === 'number' ? train.totalDistance : train.distance) || 0;
-    const lineName = train.lineName || train.number || 'Unknown';
+    const lineName = train.lineName || train.number || train.name || 'Unknown';
     const originName = train.origin?.name || train.origin?.station?.name || '';
     const destName = train.destination?.name || train.destination?.station?.name || '';
     const bodyText = typeof trip.body === 'string' ? trip.body : '';
