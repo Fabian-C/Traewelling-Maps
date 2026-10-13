@@ -126,10 +126,10 @@ input:checked+.toggle-slider:before { transform: translateX(22px); }
 .slider-ticks span.active::before { background: #ffffff; height: 10px; }
 .delay-section { padding: 4px 0 8px; display: flex; flex-direction: column; gap: 2px; }
 .delay-summary-line { display: block; margin: 0; font-size: 12px; line-height: 1.3; }
-.stats-panel { position: absolute; top: 10px; left: -340px; background: rgba(15, 18, 26, 0.65); padding: 14px 16px;
-    border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 14px; z-index: 1005; width: 245px; box-sizing: border-box;
+.stats-panel { position: absolute; top: 10px; left: -340px; background: rgba(14, 18, 28, 0.38); padding: 14px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; z-index: 1005; width: 245px; box-sizing: border-box;
     backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%); opacity: 0; transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none;
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12); }
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12); }
 .stats-panel.active { transform: translateX(350px); opacity: 1; pointer-events: auto; }
 .stats-title { font-size: 13px; font-weight: 700; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); display: flex; align-items: center; justify-content: space-between; }
 .stats-close-btn:hover { color: var(--text-primary) !important; }
@@ -246,9 +246,13 @@ body.stats-open .active-filter-badges {
 .btn-logout { margin-left: auto; padding: 4px 8px; font-size: 12px; background: transparent;
     border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer; border-radius: 4px; }
 .btn-logout:hover { background: #ff4444; border-color: #ff4444; color: white; }
-.route-popup .mapboxgl-popup-content { padding: 8px 9px; max-width: min(240px, calc(100vw - 28px)); font-size: 11px; background: rgba(12, 15, 24, 0.58);
-    color: var(--text-primary); border: 1px solid rgba(255,255,255,0.18); border-radius: 13px; backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%); box-shadow: 0 16px 36px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18); z-index: 9999; }
+.route-popup .mapboxgl-popup-content { padding: 8px 9px; max-width: min(240px, calc(100vw - 28px)); font-size: 11px; background: rgba(12, 16, 26, 0.38);
+    color: var(--text-primary); border: 1px solid rgba(255,255,255,0.14); border-radius: 13px; backdrop-filter: blur(18px) saturate(170%);
+    -webkit-backdrop-filter: blur(18px) saturate(170%); box-shadow: 0 16px 36px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.14); z-index: 9999; }
+.route-popup.mapboxgl-popup-anchor-top .mapboxgl-popup-tip { border-bottom-color: rgba(12, 16, 26, 0.45); }
+.route-popup.mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip { border-top-color: rgba(12, 16, 26, 0.45); }
+.route-popup.mapboxgl-popup-anchor-left .mapboxgl-popup-tip { border-right-color: rgba(12, 16, 26, 0.45); }
+.route-popup.mapboxgl-popup-anchor-right .mapboxgl-popup-tip { border-left-color: rgba(12, 16, 26, 0.45); }
 .route-popup .mapboxgl-popup-close-button { font-size: 16px; padding: 4px 8px; color: var(--text-muted); line-height: 1; }
 .route-popup .mapboxgl-popup-close-button:hover { color: #ffffff; background: transparent; }
 .route-popup .popup-title { font-size: 12px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: center; gap: 5px; }
@@ -365,21 +369,21 @@ body.stats-open .active-filter-badges {
 }
 
 /* Frosted details dropdowns */
-.route-popup details { border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; overflow: hidden; margin-top: 5px;
-    background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+.route-popup details { border: 1px solid rgba(255, 255, 255, 0.10); border-radius: 8px; overflow: hidden; margin-top: 5px;
+    background: rgba(255, 255, 255, 0.025); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04); }
 .route-popup details + details { margin-top: 5px; }
 .route-popup details summary { list-style: none; cursor: pointer; padding: 6px 8px; font-weight: 600; display: flex;
     align-items: center; justify-content: space-between; font-size: 10.5px; user-select: none; }
 .route-popup details summary::-webkit-details-marker { display: none; }
-.route-popup details[open] summary { background: rgba(255, 255, 255, 0.08); }
+.route-popup details[open] summary { background: rgba(255, 255, 255, 0.05); }
 .route-popup .popup-toggle-arrow { font-size: 10px; color: var(--text-muted); transition: transform 0.2s ease; }
 .route-popup details[open] .popup-toggle-arrow { transform: rotate(180deg); }
-.route-popup .popup-body { padding: 6px 8px 7px; font-size: 9.5px; color: var(--text-secondary); background: rgba(0, 0, 0, 0.12); }
+.route-popup .popup-body { padding: 6px 8px 7px; font-size: 9.5px; color: var(--text-secondary); background: rgba(0, 0, 0, 0.08); }
 
 /* Compact Schedule & Delay Table (Frosted Glass Container) */
 .route-popup details.popup-timing-details {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.12);
 }
 .route-popup .popup-delay-summary-pill { display: flex; gap: 3px; align-items: center; }
 .route-popup .delay-tag { font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
