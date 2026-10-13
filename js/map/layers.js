@@ -352,7 +352,7 @@ export function toggleLayer(layerId) {
  */
 export function syncMapLayerOrder() {
     const state = store.get();
-    if (!state.map || typeof state.map.isStyleLoaded !== 'function' || !state.map.isStyleLoaded()) {
+    if (!state.map || typeof state.map.getStyle !== 'function' || !state.map.getStyle()) {
         return;
     }
 
