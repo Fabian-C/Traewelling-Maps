@@ -184,16 +184,55 @@ function measureFeatureDistance(feature, lngLat, clickPoint = null) {
 
 function pickClosestFeature(features, lngLat, clickPoint = null) {
     if (!Array.isArray(features) || !features.length) return null;
-    let winner = null;
-    let bestDistance = Infinity;
-    features.forEach((feature) => {
-        const distance = measureFeatureDistance(feature, lngLat, clickPoint);
-        if (distance < bestDistance) {
-            bestDistance = distance;
-            winner = feature;
-        }
+    const state = store.get();
+
+    // If clickPoint is missing but lngLat and map.project are available, resolve screen-space point
+    let resolvedClickPoint = clickPoint;
+    if (!resolvedClickPoint && state.map?.project && lngLat) {
+        try {
+            resolvedClickPoint = state.map.project([lngLat.lng, lngLat.lat]);
+        } catch (_) {}
+    }
+
+    const layerOrder = Array.isArray(state?.layers?.order) ? state.layers.order : [];
+
+    // Calculate distance and visual layer rank for each candidate feature
+    const scored = features.map((feature) => {
+        const distance = measureFeatureDistance(feature, lngLat, resolvedClickPoint);
+        const layerId = feature.layer?.id || feature.properties?.category || feature.properties?.layerId;
+        const rankIndex = layerOrder.indexOf(layerId);
+        // Rank 0 is top of the visual stack (rendered topmost); unranked layers fall to the bottom (999)
+        const rank = rankIndex !== -1 ? rankIndex : 999;
+        return { feature, distance, rank };
     });
-    return winner || features[0];
+
+    // Find the minimum distance among all candidates
+    let minDistance = Infinity;
+    scored.forEach(item => {
+        if (item.distance < minDistance) minDistance = item.distance;
+    });
+
+    if (!Number.isFinite(minDistance)) {
+        return features[0];
+    }
+
+    // Visual overlap threshold in pixels (or km if screen projection is unavailable):
+    // Lines within 6 pixels of each other visually appear overlapping/on the same corridor.
+    // In this overlap zone, the higher visible layer in state.layers.order takes priority.
+    const visualOverlapThreshold = resolvedClickPoint ? 6.0 : 0.05;
+
+    // Filter to candidates that are within the visual overlap window of the closest line
+    const nearCandidates = scored.filter(item => item.distance <= minDistance + visualOverlapThreshold);
+
+    // Sort: 1) Lowest rank (topmost visible layer in menu/canvas), 2) Smallest distance
+    nearCandidates.sort((a, b) => {
+        if (a.rank !== b.rank) {
+            return a.rank - b.rank; // Topmost visible layer wins
+        }
+        return a.distance - b.distance; // If same layer, closer line wins
+    });
+
+    return nearCandidates[0]?.feature || scored[0]?.feature || features[0];
 }
 
 function pointToSegmentDistancePx(px, py, x1, y1, x2, y2) {

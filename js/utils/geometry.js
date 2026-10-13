@@ -21,18 +21,21 @@ export function getTapTolerancePx(zoom = null) {
         } catch (_) {}
     }
 
-    // Base tolerance for touch vs pointer
-    const baseTol = isTouch ? 36 : 16;
+    // Base tolerance for touch vs pointer when zoomed out (50% smaller than before to prevent accidental clicks)
+    const baseTol = isTouch ? 18 : 8;
     if (currentZoom == null) return baseTol;
 
-    // When zoomed in (z12 to z20), lines are visually thicker or tracks are spread out,
-    // so ensure tolerance is at least 32-44px on mobile and 18-28px on desktop.
+    // When zoomed in (z10 to z20), lines and tracks are visually spread out,
+    // so provide a comfortable tapping target on mobile and precision on desktop.
     if (currentZoom >= 14) {
-        return isTouch ? 44 : 24;
+        return isTouch ? 36 : 20;
     } else if (currentZoom >= 10) {
-        return isTouch ? 38 : 20;
+        return isTouch ? 26 : 14;
+    } else if (currentZoom >= 6) {
+        return isTouch ? 18 : 8;
     }
-    return baseTol;
+    // Deep zoom out (< z6) continental scale: very compact margin
+    return isTouch ? 14 : 6;
 }
 
 /**
