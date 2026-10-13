@@ -223,34 +223,48 @@ export async function fetchStopoversForTrips(trips = [], onProgress = null) {
     if (window.RateLimitUI?.update) {
         api.onRateLimitUpdate = (stats) => window.RateLimitUI.update(stats);
     }
-    const BATCH_SIZE = 20;
-    const newlyFetched = {};
+    // 3. Dynamic batch fetch missing stopovers with adaptive splitting
+    const initialBatchSize = 60;
     const totalToFetch = stillMissing.length;
     let completedCount = targetTrips.length - totalToFetch;
+    let processedMissing = 0;
 
-    for (let i = 0; i < stillMissing.length; i += BATCH_SIZE) {
-        const batch = stillMissing.slice(i, i + BATCH_SIZE);
-        const queryIds = batch.map(t => t.train?.trip || t.id).filter(Boolean);
+    const fetchExportBatchDynamic = async (subBatch) => {
+        if (!subBatch.length) return;
+        const queryIds = subBatch.map(t => t.train?.trip || t.id).filter(Boolean);
 
         try {
             const res = await api.getStopovers(queryIds);
-            const data = res?.data || {};
-            batch.forEach(t => {
+            const data = res?.data;
+            if (!data || typeof data !== 'object') throw new Error('Invalid stopovers response');
+
+            subBatch.forEach(t => {
                 const tripId = t.train?.trip;
-                const stops = Array.isArray(data[tripId]) 
-                    ? data[tripId] 
+                const rawStops = Array.isArray(data[tripId])
+                    ? data[tripId]
                     : (Array.isArray(data[t.id]) ? data[t.id] : []);
-                newlyFetched[t.id] = stops;
-                t.train.stopovers = filterStopoversBetweenTraveledStations(stops, t.train?.origin, t.train?.destination);
+                
+                // Keep ONLY stations between origin and destination
+                const filtered = filterStopoversBetweenTraveledStations(rawStops, t.train?.origin, t.train?.destination);
+                t.train.stopovers = filtered;
+                newlyFetched[t.id] = filtered;
             });
+            processedMissing += subBatch.length;
+            completedCount += subBatch.length;
         } catch (err) {
-            console.warn('Failed to fetch stopover batch:', err);
-            batch.forEach(t => {
-                if (!Array.isArray(t.train.stopovers)) t.train.stopovers = [];
-            });
+            if (subBatch.length > 5) {
+                const mid = Math.ceil(subBatch.length / 2);
+                await fetchExportBatchDynamic(subBatch.slice(0, mid));
+                await fetchExportBatchDynamic(subBatch.slice(mid));
+            } else {
+                subBatch.forEach(t => {
+                    if (!Array.isArray(t.train.stopovers)) t.train.stopovers = [];
+                });
+                processedMissing += subBatch.length;
+                completedCount += subBatch.length;
+            }
         }
 
-        completedCount += batch.length;
         if (onProgress) {
             onProgress({
                 current: completedCount,
@@ -258,11 +272,17 @@ export async function fetchStopoversForTrips(trips = [], onProgress = null) {
                 percentage: Math.min(100, Math.round((completedCount / targetTrips.length) * 100))
             });
         }
+    };
+
+    for (let i = 0; i < stillMissing.length; i += initialBatchSize) {
+        const batch = stillMissing.slice(i, i + initialBatchSize);
+        await fetchExportBatchDynamic(batch);
     }
 
-    // 4. Save newly fetched stopovers to IndexedDB
+    // 4. Save newly fetched trimmed stopovers to IndexedDB
     if (Object.keys(newlyFetched).length > 0) {
         await SessionDB.saveStopoversBatch(newlyFetched);
+    }
         // Persist updated trip stopovers back to session in IndexedDB if active
         if (state.username && state.fetchedTrips) {
             SessionDB.save(state.username, {

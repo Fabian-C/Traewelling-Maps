@@ -407,56 +407,79 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 }
             }
 
-            // 3. Batch fetch remaining missing stopovers from Träwelling API (batch size: 20)
+            // 3. Batch fetch remaining missing stopovers from Träwelling API with dynamic adaptive split
+            // Starts with batch size 60 (3x faster than 20). If the API fails or payload is too large,
+            // dynamically splits into smaller chunks (30 -> 15 -> 5) until it succeeds.
             const stopoversToFetch = allTripsWithTrain.filter(s => !Array.isArray(s.train.stopovers));
-            const stopoverBatchSize = 20;
 
             if (stopoversToFetch.length > 0 && !state.cancelFetch) {
-                for (let j = 0; j < stopoversToFetch.length && !state.cancelFetch; j += stopoverBatchSize) {
-                    const batch = stopoversToFetch.slice(j, j + stopoverBatchSize);
-                    // Träwelling /api/v1/stopovers/{ids} expects trip IDs (s.train.trip) with fallback to status ID (s.id)
-                    const queryIds = batch.map(s => s.train?.trip || s.id).filter(Boolean);
+                let initialBatchSize = 60;
+                let fetchQueue = [stopoversToFetch];
+                let processedCount = 0;
+                const totalToFetch = stopoversToFetch.length;
 
-                    const currentBatchNum = Math.floor(j / stopoverBatchSize) + 1;
-                    const totalStopoverBatches = Math.ceil(stopoversToFetch.length / stopoverBatchSize);
-                    UI.updateFetchStats({
-                        status: `Fetching stopovers: batch ${currentBatchNum}/${totalStopoverBatches}`,
-                        stopovers: stopoverCount
-                    });
+                // Recursive fetcher that dynamically subdivides oversized or failing batches
+                const fetchBatchDynamic = async (subBatch) => {
+                    if (state.cancelFetch || !subBatch.length) return;
+                    const queryIds = subBatch.map(s => s.train?.trip || s.id).filter(Boolean);
 
                     try {
                         const stopoversData = await api.getStopovers(queryIds);
-                        const newlyFetchedStopovers = {};
-                        const dataObj = stopoversData?.data || {};
+                        const dataObj = stopoversData?.data;
+                        if (!dataObj || typeof dataObj !== 'object') {
+                            throw new Error('Empty or invalid stopovers response');
+                        }
 
-                        batch.forEach(s => {
+                        const newlyFetchedStopovers = {};
+                        subBatch.forEach(s => {
                             const tripId = s.train?.trip;
-                            // Check both trip ID and status ID in API response
-                            const rawStops = Array.isArray(dataObj[tripId]) 
-                                ? dataObj[tripId] 
+                            const rawStops = Array.isArray(dataObj[tripId])
+                                ? dataObj[tripId]
                                 : (Array.isArray(dataObj[s.id]) ? dataObj[s.id] : []);
-                            newlyFetchedStopovers[s.id] = rawStops;
+                            
+                            // ONLY keep intermediate stations between origin and destination to prevent memory bloat
                             const filtered = dataProcessing.filterStopoversBetweenTraveledStations(rawStops, s.train.origin, s.train.destination);
                             s.train.stopovers = filtered;
+                            newlyFetchedStopovers[s.id] = filtered;
                             stopoverCount += filtered.length;
                         });
 
+                        // Store only the trimmed, traveled stopovers in IndexedDB to avoid multi-MB bloat
                         if (Object.keys(newlyFetchedStopovers).length > 0) {
                             SessionDB.saveStopoversBatch(newlyFetchedStopovers).catch(() => {});
                         }
 
-                        // Dynamically update the Solari board with freshly retrieved stopovers (via stations!)
-                        UI.onSolariBatchUpdated(batch, currentBatchNum, totalStopoverBatches);
+                        processedCount += subBatch.length;
+                        UI.onSolariBatchUpdated(subBatch, Math.ceil(processedCount / initialBatchSize), Math.ceil(totalToFetch / initialBatchSize));
                     } catch (err) {
-                        console.warn('Failed to fetch stopover batch:', err);
-                        batch.forEach(s => {
-                            if (!Array.isArray(s.train.stopovers)) s.train.stopovers = [];
-                        });
+                        // If batch failed and can be divided, dynamically split in half
+                        if (subBatch.length > 5) {
+                            const mid = Math.ceil(subBatch.length / 2);
+                            console.warn(`Stopover batch size ${subBatch.length} failed (${err.message}). Dynamically splitting into ${mid} and ${subBatch.length - mid}...`);
+                            await fetchBatchDynamic(subBatch.slice(0, mid));
+                            await fetchBatchDynamic(subBatch.slice(mid));
+                        } else {
+                            // If even small chunk fails, assign empty array and continue gracefully without blocking user
+                            console.warn('Stopover sub-batch failed, skipping gracefully:', err);
+                            subBatch.forEach(s => {
+                                if (!Array.isArray(s.train.stopovers)) s.train.stopovers = [];
+                            });
+                            processedCount += subBatch.length;
+                        }
                     }
 
-                    const stopPct = stopoversToFetch.length > 0 ? ((j + batch.length) / stopoversToFetch.length) : 1;
+                    const stopPct = totalToFetch > 0 ? (processedCount / totalToFetch) : 1;
                     const overallProgress = 74 + Math.round(stopPct * 18); // 74% -> 92%
-                    UI.updateFetchStats({ stopovers: stopoverCount, progress: overallProgress });
+                    UI.updateFetchStats({
+                        status: `Fetching stopovers: ${processedCount}/${totalToFetch} routes`,
+                        stopovers: stopoverCount,
+                        progress: overallProgress
+                    });
+                };
+
+                for (let j = 0; j < stopoversToFetch.length && !state.cancelFetch; j += initialBatchSize) {
+                    const chunk = stopoversToFetch.slice(j, j + initialBatchSize);
+                    await fetchBatchDynamic(chunk);
                 }
             }
         } else {

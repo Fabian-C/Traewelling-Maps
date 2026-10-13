@@ -646,6 +646,19 @@ export const UI = {
             await new Promise(r => setTimeout(r, 400));
         }
     },
+    _extractPlatform(trip, fallbackIndex = 1) {
+        const train = trip?.train || trip?.properties?.train || {};
+        const origin = train.origin || {};
+        const rawPlat = origin.departurePlatformReal || origin.departurePlatformPlanned || origin.platform || train.platform || train.track;
+        if (rawPlat !== undefined && rawPlat !== null && String(rawPlat).trim() !== '') {
+            return String(rawPlat).replace(/[^a-zA-Z0-9]/g, '').slice(0, 4);
+        }
+        // Realistic varied track number based on trip/status ID or hash
+        const seed = trip.id || trip.properties?.statusId || (fallbackIndex * 7 + 3);
+        const trackNum = (Math.abs(seed) % 18) + 1;
+        const subLetter = (seed % 5 === 0) ? (seed % 2 === 0 ? 'a' : 'b') : '';
+        return `${trackNum}${subLetter}`;
+    },
     _formatRouteHtml(trip) {
         const origin = (trip.train?.origin?.name || 'Origin').toUpperCase();
         const dest = (trip.train?.destination?.name || 'Destination').toUpperCase();
@@ -656,8 +669,9 @@ export const UI = {
                 .map(st => (st.name || st.station?.name || '').trim())
                 .filter(n => n && n.toUpperCase() !== origin && n.toUpperCase() !== dest);
         }
+        // Focus prominently on the actual intermediate stations along this traveled segment
         const viaText = viaNames.length > 0 
-            ? `via ${viaNames.slice(0, 8).join(' • ')}`
+            ? `via ${viaNames.slice(0, 5).join(' • ')}`
             : '';
 
         return `<div class="solari-dest-lines"><span class="solari-dest-main">${origin} → ${dest}</span>${viaText ? `<span class="solari-dest-via">${viaText}</span>` : ''}</div>`;
@@ -688,7 +702,7 @@ export const UI = {
             const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
             const trainStr = (trip.train?.lineName || trip.train?.category || 'TRAIN').slice(0, 8).toUpperCase();
             const routeHtml = this._formatRouteHtml(trip);
-            const platformStr = String((idx * 3 + 2) % 14 + 1);
+            const platformStr = this._extractPlatform(trip, idx);
             const statuses = ['ON TIME', 'BOARDING', 'ON TIME', 'DEP 5M', 'ON TIME'];
             const statClasses = ['on-time', 'boarding', 'on-time', 'delayed', 'on-time'];
 
@@ -712,7 +726,7 @@ export const UI = {
         const validTrips = Array.isArray(trips) ? trips.filter(t => t && t.train) : [];
         if (validTrips.length <= 1) return;
 
-        // Randomly flip departure board rows with real station names and stopovers from user's check-ins
+        // Randomly flip departure board rows with real station names, varied track numbers, and intermediate stopovers
         this._solariTimer = setInterval(() => {
             if (!this.refs.solariRows) return;
             const rows = this.refs.solariRows.querySelectorAll('.solari-row');
@@ -726,11 +740,14 @@ export const UI = {
             const destEl = targetRow.querySelector('[data-field="dest"]');
             const trainEl = targetRow.querySelector('[data-field="train"]');
             const timeEl = targetRow.querySelector('[data-field="time"]');
+            const platEl = targetRow.querySelector('[data-field="plat"]');
+            const statEl = targetRow.querySelector('[data-field="stat"]');
 
             const nextRouteHtml = this._formatRouteHtml(randomTrip);
             const nextTrain = (randomTrip.train?.lineName || randomTrip.train?.category || 'ICE').slice(0, 8).toUpperCase();
             const d = randomTrip.createdAt ? new Date(randomTrip.createdAt) : new Date();
             const nextTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            const nextPlat = this._extractPlatform(randomTrip, randomRowIdx);
 
             if (destEl) {
                 destEl.classList.remove('flipping');
@@ -750,6 +767,22 @@ export const UI = {
                 timeEl.textContent = nextTime;
                 timeEl.classList.add('flipping');
             }
+            if (platEl) {
+                platEl.classList.remove('flipping');
+                void platEl.offsetWidth;
+                platEl.textContent = nextPlat;
+                platEl.classList.add('flipping');
+            }
+            if (statEl) {
+                const depDelay = randomTrip.train?.departureDelay;
+                if (depDelay && depDelay > 300) {
+                    statEl.textContent = `+${Math.round(depDelay / 60)}M`;
+                    statEl.className = 'solari-stat delayed';
+                } else {
+                    statEl.textContent = 'ON TIME';
+                    statEl.className = 'solari-stat on-time';
+                }
+            }
         }, 950);
     },
     onSolariBatchUpdated(tripsWithStopovers = [], batchNumber = 0, totalBatches = 0) {
@@ -763,18 +796,21 @@ export const UI = {
         if (!tripToDisplay) return;
 
         // Choose a target row to flip
-        const targetRow = rows[Math.floor(Math.random() * rows.length)];
+        const randomRowIdx = Math.floor(Math.random() * rows.length);
+        const targetRow = rows[randomRowIdx];
         if (!targetRow) return;
 
         const destEl = targetRow.querySelector('[data-field="dest"]');
         const trainEl = targetRow.querySelector('[data-field="train"]');
         const timeEl = targetRow.querySelector('[data-field="time"]');
+        const platEl = targetRow.querySelector('[data-field="plat"]');
         const statEl = targetRow.querySelector('[data-field="stat"]');
 
         const nextRouteHtml = this._formatRouteHtml(tripToDisplay);
         const nextTrain = (tripToDisplay.train?.lineName || tripToDisplay.train?.category || 'ICE').slice(0, 8).toUpperCase();
         const d = tripToDisplay.createdAt ? new Date(tripToDisplay.createdAt) : new Date();
         const nextTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        const nextPlat = this._extractPlatform(tripToDisplay, randomRowIdx);
 
         if (destEl) {
             destEl.classList.remove('flipping');
@@ -793,6 +829,12 @@ export const UI = {
             void timeEl.offsetWidth;
             timeEl.textContent = nextTime;
             timeEl.classList.add('flipping');
+        }
+        if (platEl) {
+            platEl.classList.remove('flipping');
+            void platEl.offsetWidth;
+            platEl.textContent = nextPlat;
+            platEl.classList.add('flipping');
         }
         if (statEl) {
             statEl.textContent = 'SYNCED';
