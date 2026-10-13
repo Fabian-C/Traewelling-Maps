@@ -5,7 +5,7 @@
     --bg-primary: #0f0f0f; --bg-secondary: #1a1a1a; --bg-tertiary: #252525;
     --text-primary: #ffffff; --text-secondary: #b0b0b0; --text-muted: #808080;
     --border-color: #333333; --hover-bg: #2a2a2a; --menu-bg: rgba(26, 26, 26, 0.95);
-    --popup-bg: rgba(10, 14, 22, 0.20); --shadow: rgba(0, 0, 0, 0.3);
+    --popup-bg: rgba(10, 14, 22, 0.23); --shadow: rgba(0, 0, 0, 0.3);
     --accent-color: #667eea; --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     --depot-width: 130px; --gantry-width: 136px; --gantry-depot-left: 32px; --gantry-train-left: 155px;
 }
