@@ -437,42 +437,35 @@ export function showPopup(lngLat, feature) {
     const arrivalTimestamp = buildTimestampBlock(actualArrival, plannedArrival);
 
     const timingDetails = `
-        <details>
+        <details class="popup-timing-details">
             <summary class="popup-expander-summary">
-                <span>Timing & delays</span>
-                <span>${formatDelay(departureDelay)} / ${formatDelay(arrivalDelay)}</span>
+                <span class="popup-summary-title">⏱️ Schedule & Delays</span>
+                <span class="popup-delay-summary-pill">
+                    ${departureDelay !== null ? `<span class="delay-tag ${departureDelay > 0 ? 'delay-late' : (departureDelay < 0 ? 'delay-early' : 'delay-ok')}">Dep ${formatDelay(departureDelay)}</span>` : ''}
+                    ${arrivalDelay !== null ? `<span class="delay-tag ${arrivalDelay > 0 ? 'delay-late' : (arrivalDelay < 0 ? 'delay-early' : 'delay-ok')}">Arr ${formatDelay(arrivalDelay)}</span>` : ''}
+                </span>
             </summary>
-            <div class="popup-body popup-scrollable">
-                <dl>
-                    <dt>Planned departure</dt>
-                    <dd class="popup-detail-value">
-                        <span>${formatTime(plannedDeparture)}</span>
-                        <span>${formatDate(plannedDeparture)}</span>
-                    </dd>
-                    <dt>Actual departure</dt>
-                    <dd class="popup-detail-value">
-                        <span>${formatTime(actualDeparture)}</span>
-                        <span>${formatDate(actualDeparture)}</span>
-                    </dd>
-                    <dt>Departure delay</dt>
-                    <dd class="popup-detail-value">
-                        <span>${formatDelay(departureDelay)}</span>
-                    </dd>
-                    <dt>Planned arrival</dt>
-                    <dd class="popup-detail-value">
-                        <span>${formatTime(plannedArrival)}</span>
-                        <span>${formatDate(plannedArrival)}</span>
-                    </dd>
-                    <dt>Actual arrival</dt>
-                    <dd class="popup-detail-value">
-                        <span>${formatTime(actualArrival)}</span>
-                        <span>${formatDate(actualArrival)}</span>
-                    </dd>
-                    <dt>Arrival delay</dt>
-                    <dd class="popup-detail-value">
-                        <span>${formatDelay(arrivalDelay)}</span>
-                    </dd>
-                </dl>
+            <div class="popup-body">
+                <div class="popup-sched-table">
+                    <div class="sched-row sched-header">
+                        <span>Event</span>
+                        <span>Plan</span>
+                        <span>Actual</span>
+                        <span>Delay</span>
+                    </div>
+                    <div class="sched-row">
+                        <span class="sched-label">Departure</span>
+                        <span class="sched-time plan">${formatTime(plannedDeparture)}</span>
+                        <span class="sched-time real">${formatTime(actualDeparture)}</span>
+                        <span class="sched-delay ${departureDelay > 0 ? 'late' : (departureDelay < 0 ? 'early' : 'ok')}">${formatDelay(departureDelay)}</span>
+                    </div>
+                    <div class="sched-row">
+                        <span class="sched-label">Arrival</span>
+                        <span class="sched-time plan">${formatTime(plannedArrival)}</span>
+                        <span class="sched-time real">${formatTime(actualArrival)}</span>
+                        <span class="sched-delay ${arrivalDelay > 0 ? 'late' : (arrivalDelay < 0 ? 'early' : 'ok')}">${formatDelay(arrivalDelay)}</span>
+                    </div>
+                </div>
             </div>
         </details>
     `;
@@ -486,9 +479,26 @@ export function showPopup(lngLat, feature) {
         return `<span class="popup-tag-badge"><strong>${k}:</strong> ${v}</span>`;
     }).join(' ');
 
-    const seatDetails = (seat || wagon || travelClass || coachPosition || ticketName || vehicleNumber || locomotiveClass || wagonClass || customTags.length) ? `
+    const tagsDetails = (customTags && customTags.length > 0) ? `
+        <details class="popup-tags-details">
+            <summary class="popup-expander-summary">
+                <span class="popup-summary-title">🏷️ Tags (${customTags.length})</span>
+                <span class="popup-toggle-arrow">▾</span>
+            </summary>
+            <div class="popup-body">
+                <div class="popup-tags-container">
+                    ${customTagBadges}
+                </div>
+            </div>
+        </details>
+    ` : '';
+
+    const seatDetails = (seat || wagon || travelClass || coachPosition || ticketName || vehicleNumber || locomotiveClass || wagonClass) ? `
         <details>
-            <summary>Seat, ticket & coach info</summary>
+            <summary class="popup-expander-summary">
+                <span class="popup-summary-title">Seat, ticket & coach info</span>
+                <span class="popup-toggle-arrow">▾</span>
+            </summary>
             <div class="popup-body">
                 <dl>
                     ${ticketName ? `<dt>Ticket</dt><dd>${escapeHtml(ticketName)}</dd>` : ''}
@@ -499,7 +509,6 @@ export function showPopup(lngLat, feature) {
                     ${locomotiveClass ? `<dt>Locomotive</dt><dd>${escapeHtml(locomotiveClass)}</dd>` : ''}
                     ${wagonClass ? `<dt>Wagon type</dt><dd>${escapeHtml(wagonClass)}</dd>` : ''}
                     <dt>Coach position</dt><dd>${escapeHtml(String(coachPosition || '—'))}</dd>
-                    ${customTagBadges ? `<dt>Tags</dt><dd class="popup-tags-dd">${customTagBadges}</dd>` : ''}
                 </dl>
             </div>
         </details>
@@ -609,20 +618,24 @@ export function showPopup(lngLat, feature) {
                 </div>
             </div>
         </div>
-        <div class="popup-meta">
-            <div>
+        <div class="popup-meta" id="popupMeta">
+            <div class="meta-item">
                 <label>Distance</label>
                 <span>${distance} km</span>
             </div>
-            <div>
-                <label>Operator</label>
-                <span>${operator || '—'}</span>
-            </div>
-            <div>
+            <div class="meta-item">
                 <label>Duration</label>
                 <span>${durationDisplay}</span>
             </div>
-            <div>
+            <button type="button" class="meta-item meta-toggle-btn" id="popupMetaToggle" title="Show operator & platform details" aria-expanded="false">
+                <label>Details</label>
+                <span class="meta-toggle-text">more…</span>
+            </button>
+            <div class="meta-item meta-extra">
+                <label>Operator</label>
+                <span title="${escapeHtml(operator || '—')}">${operator || '—'}</span>
+            </div>
+            <div class="meta-item meta-extra">
                 <label>Platform</label>
                 <span>${platform || '—'}</span>
             </div>
@@ -630,6 +643,7 @@ export function showPopup(lngLat, feature) {
         ${commentHtml}
         ${timingDetails}
         ${seatDetails}
+        ${tagsDetails}
         ${shareUrl ? `<div class="popup-actions"><a class="primary" href="${shareUrl}" target="_blank">View on Träwelling</a></div>` : ''}
     </div>`;
 
@@ -644,6 +658,20 @@ export function showPopup(lngLat, feature) {
             closeBtn.addEventListener('click', () => {
                 state.preserveHighlightOnPopupClose = true;
             }, { capture: true });
+        }
+
+        const metaToggle = popupEl.querySelector('#popupMetaToggle');
+        const metaContainer = popupEl.querySelector('#popupMeta');
+        if (metaToggle && metaContainer) {
+            metaToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isExpanded = metaContainer.classList.toggle('expanded');
+                metaToggle.setAttribute('aria-expanded', String(isExpanded));
+                const toggleText = metaToggle.querySelector('.meta-toggle-text');
+                if (toggleText) {
+                    toggleText.textContent = isExpanded ? 'less…' : 'more…';
+                }
+            });
         }
     }
     

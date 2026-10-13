@@ -162,11 +162,14 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         const tripLimit = !isNaN(urlLimit) && urlLimit > 0 ? urlLimit : 0;
 
         if (!skipPageFetching) {
-            // Sequential page fetching
+            // Pipelined page fetching: initiate prefetch of next page (1 page ahead) so network latency
+            // is masked behind depot container animations and UI rendering without stutter or pauses.
+            let prefetchPagePromise = api.getUserStatuses(username, page);
+
             while (hasMore && !state.cancelFetch) {
                 UI.updateFetchStats({ status: `Fetching page ${page}...` });
 
-                const res = await api.getUserStatuses(username, page);
+                const res = await prefetchPagePromise;
 
                 if (!res?.data?.length) {
                     hasMore = false;
@@ -193,7 +196,8 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
 
                 const pageProgress = Math.min(45, Math.round((page / (page + 4)) * 45));
                 UI.updateFetchStats({ trips: allStatuses.length, pages: page, progress: pageProgress });
-                UI.addPacketToDepot(page);
+                // Deliver 2 containers per page so depot stacks fill more dynamically and reflect batch size
+                UI.addPacketToDepot(page, 2);
                 FunFacts.showFactsFromTrips(res.data, Math.floor(Math.random() * 2) + 1);
 
                 if (!res.links?.next) {
@@ -202,6 +206,9 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 }
 
                 page++;
+                // Prefetch page + 1 immediately while the UI animations for current page run
+                prefetchPagePromise = api.getUserStatuses(username, page);
+
                 state.fetchProgress = {
                     page: page,
                     pagesFetchComplete: !hasMore,
@@ -297,22 +304,42 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             }
         }
 
-        // 3. Batch fetch remaining missing polylines from Träwelling API (batchSize: 25)
+        // 3. Batch fetch remaining missing polylines from Träwelling API (batchSize: 50 for faster throughput)
         const tripsToFetch = allStatuses.filter(s => s.train && !s.train.polyline);
-        const batchSize = 25;
+        const batchSize = 50;
         const startIndex = resumeFromState && state.fetchProgress ? state.fetchProgress.processedPolylines : 0;
         // Total batches should reflect the work to load onto trains — guarantee at least 1 batch if we have items
         const rawBatches = Math.ceil((tripsToFetch.length - startIndex) / batchSize);
         const totalBatches = Math.max(1, rawBatches || Math.ceil(allStatuses.length / batchSize) || 1);
         UI.startLoadingToTrain(totalBatches);
         
+        // Prefetch first batch ahead of time
+        let nextBatchPrefetchPromise = null;
+        const getBatchIds = (startIdx) => {
+            const b = tripsToFetch.slice(startIdx, startIdx + Math.min(batchSize, tripsToFetch.length - startIdx));
+            return b.map(s => s.id);
+        };
+
+        if (tripsToFetch.length > startIndex) {
+            nextBatchPrefetchPromise = api.getPolylines(getBatchIds(startIndex));
+        }
+        
         for (let i = startIndex; i < tripsToFetch.length && !state.cancelFetch; i += batchSize) {
             const batch = tripsToFetch.slice(i, i + Math.min(batchSize, tripsToFetch.length - i));
-            const statusIds = batch.map(s => s.id);
             
             UI.updateFetchStats({ status: `Fetching polylines: batch ${Math.floor(i/batchSize)+1}/${Math.ceil(tripsToFetch.length/batchSize)}` });
             
-            const polylinesData = await api.getPolylines(statusIds);
+            // Await currently prefetched batch
+            const polylinesData = nextBatchPrefetchPromise ? await nextBatchPrefetchPromise : await api.getPolylines(batch.map(s => s.id));
+            
+            // Immediately kick off prefetch for next batch (i + batchSize) in background
+            const nextIdx = i + batchSize;
+            if (nextIdx < tripsToFetch.length && !state.cancelFetch) {
+                nextBatchPrefetchPromise = api.getPolylines(getBatchIds(nextIdx));
+            } else {
+                nextBatchPrefetchPromise = null;
+            }
+
             const newlyFetched = {};
             
             if (polylinesData?.data?.features) {
@@ -337,6 +364,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             const overallProgress = 46 + Math.round(polyPct * 26); // 46% -> 72%
             UI.updateFetchStats({ routes: polylineCount, progress: overallProgress });
             UI.onPolylineBatchComplete();
+            // Train loading animation proceeds seamlessly while next batch is already traveling across network
             await UI.waitForTrainCatchUp(() => state.cancelFetch);
             if (state.cancelFetch) break;
             

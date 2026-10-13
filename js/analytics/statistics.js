@@ -145,7 +145,12 @@ export function refreshStatsDisplay(statisticsObj) {
 
         if (displayBuddy && displayCount > 0) {
             buddiesItem.style.display = 'flex';
-            buddiesEl.innerHTML = `<a href="https://traewelling.de/@${escapeHtml(displayBuddy)}" target="_blank" class="mention-link stat-top-buddy">@${escapeHtml(displayBuddy)}</a> <span class="stat-buddy-badge">${displayCount} ${displayCount === 1 ? 'trip' : 'trips'}</span>`;
+            buddiesEl.innerHTML = `
+                <div class="stat-buddy-container">
+                    <a href="https://traewelling.de/@${escapeHtml(displayBuddy)}" target="_blank" class="mention-link stat-top-buddy">@${escapeHtml(displayBuddy)}</a>
+                    <span class="stat-buddy-badge">${displayCount} ${displayCount === 1 ? 'trip' : 'trips'}</span>
+                </div>
+            `;
         } else {
             buddiesItem.style.display = 'none';
             buddiesEl.textContent = '-';

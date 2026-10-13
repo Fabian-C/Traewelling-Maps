@@ -283,16 +283,15 @@ export async function fetchStopoversForTrips(trips = [], onProgress = null) {
     if (Object.keys(newlyFetched).length > 0) {
         await SessionDB.saveStopoversBatch(newlyFetched);
     }
-        // Persist updated trip stopovers back to session in IndexedDB if active
-        if (state.username && state.fetchedTrips) {
-            SessionDB.save(state.username, {
-                trips: state.fetchedTrips,
-                tripCount: state.fetchedTrips.length,
-                displayName: state.queriedUserProfile?.displayName || state.username,
-                avatar: state.queriedUserProfile?.avatar,
-                token: state.token
-            }).catch(() => {});
-        }
+    // Persist updated trip stopovers back to session in IndexedDB if active
+    if (state.username && state.fetchedTrips) {
+        SessionDB.save(state.username, {
+            trips: state.fetchedTrips,
+            tripCount: state.fetchedTrips.length,
+            displayName: state.queriedUserProfile?.displayName || state.username,
+            avatar: state.queriedUserProfile?.avatar,
+            token: state.token
+        }).catch(() => {});
     }
 }
 

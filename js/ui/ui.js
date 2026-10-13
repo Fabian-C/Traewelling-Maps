@@ -208,25 +208,28 @@ export const UI = {
         }
         return designs[designs.length - 1];
     },
-    addPacketToDepot(pageNumber) {
+    addPacketToDepot(pageNumber, count = 1) {
         if (!this.refs.depotStack) return;
-        this.totalDepotReceived++;
-        const design = this.pickContainerDesign();
-        const designBg = this._resolveContainerBackground(design?.bg);
-        const crate = this._createCrateElement('crate', pageNumber, designBg);
-        let col = this.depotColumns[this.depotColumns.length - 1];
-        if (!col || col.count >= this._maxStack) {
-            const colEl = document.createElement('div');
-            colEl.className = 'depot-col';
-            this.refs.depotStack.appendChild(colEl);
-            col = { el: colEl, count: 0 };
-            this.depotColumns.push(col);
+        const addCount = Math.max(1, parseInt(count, 10) || 1);
+        for (let i = 0; i < addCount; i++) {
+            this.totalDepotReceived++;
+            const design = this.pickContainerDesign();
+            const designBg = this._resolveContainerBackground(design?.bg);
+            const crate = this._createCrateElement('crate', pageNumber, designBg);
+            let col = this.depotColumns[this.depotColumns.length - 1];
+            if (!col || col.count >= this._maxStack) {
+                const colEl = document.createElement('div');
+                colEl.className = 'depot-col';
+                this.refs.depotStack.appendChild(colEl);
+                col = { el: colEl, count: 0 };
+                this.depotColumns.push(col);
+            }
+            col.el.appendChild(crate);
+            col.count++;
+            const stackHeight = col.count;
+            requestAnimationFrame(() => crate.classList.add('arrive'));
+            this.depotCrates.push({ el: crate, designId: design?.id || 'default', designBg: designBg, page: pageNumber, stackHeight: stackHeight });
         }
-        col.el.appendChild(crate);
-        col.count++;
-        const stackHeight = col.count;
-        requestAnimationFrame(() => crate.classList.add('arrive'));
-        this.depotCrates.push({ el: crate, designId: design?.id || 'default', designBg: designBg, page: pageNumber, stackHeight: stackHeight });
         this._updateDepotScroll();
         if (this.refs.cargoStage) {
             this.refs.cargoStage.classList.add('visible');
