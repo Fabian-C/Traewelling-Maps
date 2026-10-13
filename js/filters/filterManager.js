@@ -50,7 +50,7 @@ export function applyAllFilters(trips, filterConfig) {
 /**
  * Filter trips by date range
  */
-function filterTripsByDateRange(trips, fromDate, toDate) {
+export function filterTripsByDateRange(trips, fromDate, toDate) {
     if (!trips.length) return [];
     if (!fromDate && !toDate) return trips.slice();
     

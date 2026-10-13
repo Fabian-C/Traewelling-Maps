@@ -27,6 +27,7 @@ export function normalizeCategory(category) {
  * Attaches _index object to the trip.
  */
 export function indexTrip(trip, currentUsername = '') {
+    if (!trip || typeof trip !== 'object') return null;
     const currentUser = (currentUsername || '').toLowerCase().trim();
     if (trip._index && trip._index.owner === currentUser) {
         return trip._index;
@@ -509,7 +510,9 @@ export function processTripsToGeoJSON(trips) {
     CONFIG.LAYER_CONFIG.forEach(([cat]) => { categories[cat] = { type: 'FeatureCollection', features: [] }; });
 
     trips.forEach(trip => {
-        const category = trip._index?.category || normalizeCategory(trip.train?.category);
+        if (!trip) return;
+        const idx = trip._index || indexTrip(trip);
+        const category = idx?.category || normalizeCategory(trip.train?.category);
         const targetCat = categories[category] ? category : 'unknown';
         const polyline = trip.train?.polyline;
         if (!polyline?.geometry?.coordinates) return;
@@ -595,24 +598,8 @@ export function filterInaccurateData(data, category, filterLevel = 0) {
     return { type: 'FeatureCollection', features: filtered };
 }
 
-/**
- * Filter trips by date range
- */
-export function filterTripsByDateRange(trips = [], fromDate, toDate) {
-    if (!trips.length) return [];
-    if (!fromDate && !toDate) return trips.slice();
-    
-    const from = fromDate ? new Date(fromDate + 'T00:00:00Z') : null;
-    const to = toDate ? new Date(toDate + 'T23:59:59Z') : null;
-    
-    return trips.filter(trip => {
-        if (!trip?.createdAt) return true;
-        const created = new Date(trip.createdAt);
-        if (from && created < from) return false;
-        if (to && created > to) return false;
-        return true;
-    });
-}
+// Re-export filterTripsByDateRange from central filterManager to prevent duplicate logic
+export { filterTripsByDateRange } from '../filters/filterManager.js';
 
 /**
  * Normalize and determine the trip business type:

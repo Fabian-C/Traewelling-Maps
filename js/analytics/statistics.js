@@ -390,18 +390,61 @@ export function updateAllStatistics() {
     });
 
     const activeList = state.activeTrips || [];
-    activeList.forEach(trip => {
-        const cat = normalizeCategory(trip.train?.category);
-        // If layer exists, check its visibility; if not tracked in layers (or legacy category), include by default
+    const stats = state.statistics;
+    const shouldIncludeNotes = !!state.filters?.includeNoteMentions;
+    const currentUsername = (state.username || '').toLowerCase().trim();
+    const buddyCounts = new Map(); // lowercase -> { name: string, count: number }
+
+    // Single-pass aggregation over activeTrips
+    for (let i = 0; i < activeList.length; i++) {
+        const trip = activeList[i];
+        if (!trip) continue;
+        const idx = trip._index || indexTrip(trip, currentUsername);
+        const cat = idx?.category || normalizeCategory(trip.train?.category);
+
         const isVisible = layerVisibility.has(cat) ? layerVisibility.get(cat) : true;
         if (isVisible) {
-            state.statistics = updateStatisticsWithTrip(trip, state.statistics);
+            stats.trips++;
+            stats.distance += idx?.distance || 0;
+            const lineName = idx?.lineName || 'Unknown';
+            stats.lineCounts[lineName] = (stats.lineCounts[lineName] || 0) + 1;
+            stats.typeCounts[cat] = (stats.typeCounts[cat] || 0) + 1;
+
+            const timestamp = idx?.timestamp;
+            if (timestamp !== null && timestamp !== undefined) {
+                const statusId = trip.id || trip.properties?.statusId;
+                if (stats.oldestTimestamp == null || timestamp < stats.oldestTimestamp) {
+                    stats.oldestTimestamp = timestamp;
+                    stats.oldestDate = new Date(timestamp);
+                    stats.oldestStatusId = statusId;
+                }
+                if (stats.newestTimestamp == null || timestamp > stats.newestTimestamp) {
+                    stats.newestTimestamp = timestamp;
+                    stats.newestDate = new Date(timestamp);
+                    stats.newestStatusId = statusId;
+                }
+            }
+
+            // Aggregate buddy stats for active visible trips in the same pass
+            const tripBuddies = shouldIncludeNotes ? idx?.buddiesWithNotes : idx?.buddiesNoNotes;
+            if (tripBuddies) {
+                tripBuddies.forEach((displayName, lowerHandle) => {
+                    const existing = buddyCounts.get(lowerHandle);
+                    if (!existing) {
+                        buddyCounts.set(lowerHandle, { name: displayName, count: 1 });
+                    } else {
+                        existing.count++;
+                    }
+                });
+            }
         }
+    }
+
+    const buddiesObj = {};
+    buddyCounts.forEach(val => {
+        buddiesObj[val.name] = val.count;
     });
+    stats.travelBuddies = buddiesObj;
 
-    // Ensure travel buddy counts in statistics align with menu buddy counts across all trips (including those without geodata)
-    const contextTrips = getFilteredContextTrips();
-    state.statistics.travelBuddies = getBuddyStats(contextTrips);
-
-    refreshStatsDisplay(state.statistics);
+    refreshStatsDisplay(stats);
 }
