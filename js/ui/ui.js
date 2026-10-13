@@ -243,15 +243,14 @@ export const UI = {
     },
     _updateAnimSpeed() {
         const queueLen = this.loadQueue ? this.loadQueue.length : 0;
-        // Natural, unhurried pace matching the API rate limit (~1.1s per request)
-        // Deliberate, majestic industrial rhythm
-        let speed = 0.85;
+        // Fast, agile pace for testing and quick loading cycles
+        let speed = 0.28;
         if (queueLen > 25) {
-            speed = 0.55;
+            speed = 0.16;
         } else if (queueLen > 10) {
-            speed = 0.70;
+            speed = 0.22;
         } else {
-            speed = 0.85;
+            speed = 0.28;
         }
         this._animSpeed = speed;
 
@@ -607,9 +606,9 @@ export const UI = {
         this._updateTrainPosition(0);
         void trainZone.offsetWidth;
         trainZone.classList.add('arriving');
-        this._triggerRollingAnimation(800);
+        this._triggerRollingAnimation(350);
 
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise(r => setTimeout(r, 350));
         trainZone.classList.remove('arriving');
 
         if (this.refs.cargoStage) {
@@ -619,7 +618,7 @@ export const UI = {
         this.craneAnimating = false;
         // Resume queue processing on the new train!
         if (this.loadQueue.length > 0) {
-            setTimeout(() => this._processQueue(), 100);
+            setTimeout(() => this._processQueue(), 50);
         }
     },
     ensureLocomotive() {
@@ -633,20 +632,20 @@ export const UI = {
         const match = currentTransform.match(/translateX\(([-\d.]+)px\)/);
         const currentX = match ? parseFloat(match[1]) : 0;
         trainZone.style.setProperty('--train-shift', `${currentX}px`);
-        this._triggerRollingAnimation(1050);
+        this._triggerRollingAnimation(450);
         trainZone.classList.add('departing');
 
         // Allow train to pick up speed across the scene
-        await new Promise(r => setTimeout(r, 650));
+        await new Promise(r => setTimeout(r, 220));
 
         // Flip the entire animation housing over to the Solari departure board ONLY on final departure
         if (isFinal && this.refs.sceneFlipper) {
             this.populateSolariBoard(trips);
             this.refs.sceneFlipper.classList.add('flipped');
             this.startSolariShuffle(trips);
-            await new Promise(r => setTimeout(r, 700));
+            await new Promise(r => setTimeout(r, 300));
         } else {
-            await new Promise(r => setTimeout(r, 400));
+            await new Promise(r => setTimeout(r, 120));
         }
     },
     _extractPlatform(trip, fallbackIndex = 1) {
@@ -926,7 +925,7 @@ export const UI = {
 
         trainZone.style.setProperty('--train-shift', `${shift}px`);
         trainZone.style.transform = `translateX(${shift}px)`;
-        const rollDuration = Math.max(250, Math.round(500 * this._animSpeed));
+        const rollDuration = Math.max(120, Math.round(350 * this._animSpeed));
         this._triggerRollingAnimation(rollDuration);
         this._updateOffscreenCars();
     },

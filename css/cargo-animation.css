@@ -675,11 +675,11 @@
     z-index: 6;
     flex-direction: row-reverse;
     align-items: flex-end;
-    transition: transform var(--train-step-dur, 0.45s) cubic-bezier(0.25, 0.1, 0.25, 1);
+    transition: transform var(--train-step-dur, 0.15s) cubic-bezier(0.25, 0.1, 0.25, 1);
     will-change: transform;
 }
 .train-zone.arriving {
-    animation: train-arrive 0.8s cubic-bezier(0.12, 0.8, 0.25, 1) forwards;
+    animation: train-arrive 0.35s cubic-bezier(0.12, 0.8, 0.25, 1) forwards;
 }
 .train-zone.arriving .train-wheel {
     animation-direction: reverse;
@@ -690,7 +690,7 @@
     100% { transform: translateX(var(--train-shift, 0px)); opacity: 1; }
 }
 .train-zone.departing {
-    animation: train-depart 1.05s cubic-bezier(0.4, 0, 0.7, 0.2) forwards;
+    animation: train-depart 0.45s cubic-bezier(0.4, 0, 0.7, 0.2) forwards;
 }
 @keyframes train-depart {
     0% { transform: translateX(var(--train-shift, 0px)); opacity: 1; }
