@@ -627,10 +627,10 @@ export function showPopup(lngLat, feature) {
                 <label>Duration</label>
                 <span>${durationDisplay}</span>
             </div>
-            <button type="button" class="meta-item meta-toggle-btn" id="popupMetaToggle" title="Show operator & platform details" aria-expanded="false">
+            <div class="meta-item meta-toggle-btn" id="popupMetaToggle" role="button" tabindex="0" title="Show operator & platform details" aria-expanded="false">
                 <label>Details</label>
                 <span class="meta-toggle-text">more…</span>
-            </button>
+            </div>
             <div class="meta-item meta-extra">
                 <label>Operator</label>
                 <span title="${escapeHtml(operator || '—')}">${operator || '—'}</span>
@@ -663,13 +663,20 @@ export function showPopup(lngLat, feature) {
         const metaToggle = popupEl.querySelector('#popupMetaToggle');
         const metaContainer = popupEl.querySelector('#popupMeta');
         if (metaToggle && metaContainer) {
-            metaToggle.addEventListener('click', (e) => {
+            const toggleHandler = (e) => {
                 e.stopPropagation();
                 const isExpanded = metaContainer.classList.toggle('expanded');
                 metaToggle.setAttribute('aria-expanded', String(isExpanded));
                 const toggleText = metaToggle.querySelector('.meta-toggle-text');
                 if (toggleText) {
                     toggleText.textContent = isExpanded ? 'less…' : 'more…';
+                }
+            };
+            metaToggle.addEventListener('click', toggleHandler);
+            metaToggle.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleHandler(e);
                 }
             });
         }

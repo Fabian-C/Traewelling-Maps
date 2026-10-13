@@ -309,11 +309,17 @@ body.stats-open .active-filter-badges {
     font: inherit;
     margin: 0;
     outline: none;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    box-shadow: none;
+    -webkit-tap-highlight-color: transparent;
+}
+.route-popup .popup-meta .meta-toggle-btn:focus,
+.route-popup .popup-meta .meta-toggle-btn:focus-visible {
+    outline: none;
+    box-shadow: none;
+    border-color: rgba(255, 255, 255, 0.09);
 }
 .route-popup .popup-meta .meta-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.09);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.08);
 }
 .route-popup .popup-meta .meta-toggle-btn:active {
     transform: scale(0.98);
