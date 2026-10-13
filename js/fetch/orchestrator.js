@@ -367,85 +367,104 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         // =========================================================================
         // STEP 3: WAYPOINT STATIONS & STOPOVERS FETCHING (73% -> 92%)
         // Solari board actively flips and displays real user train itineraries & via stations
+        // Optional: user can disable or enable via toggle option
         // =========================================================================
+        const shouldFetchStopovers = options.fetchStopovers !== undefined
+            ? !!options.fetchStopovers
+            : ((typeof document !== 'undefined' && (document.getElementById('fetchIncludeStopovers')?.checked ?? document.getElementById('menuFetchIncludeStopovers')?.checked)) ?? (localStorage.getItem('tw_fetch_stopovers') !== 'false'));
+
         let stopoverCount = 0;
         const allTripsWithTrain = allStatuses.filter(s => s && s.train);
 
-        // 1. Count stopovers already present in memory (only when resuming mid-fetch)
-        if (resumeFromState) {
-            allTripsWithTrain.forEach(s => {
-                if (Array.isArray(s.train.stopovers)) stopoverCount += s.train.stopovers.length;
-            });
-        }
-
-        // 2. Check IndexedDB batch cache for stopovers (only when NOT a fresh scrape)
-        if (!isFreshScrape) {
-            const tripsNeedingStopovers = allTripsWithTrain.filter(s => !Array.isArray(s.train.stopovers));
-            if (tripsNeedingStopovers.length > 0) {
-                UI.updateFetchStats({ status: 'Loading cached waypoint stopovers...', progress: 74, stopovers: stopoverCount });
-                const missingIds = tripsNeedingStopovers.map(s => s.id).filter(Boolean);
-                const cachedStopovers = await SessionDB.getStopoversBatch(missingIds);
-                tripsNeedingStopovers.forEach(s => {
-                    if (cachedStopovers[s.id]) {
-                        s.train.stopovers = cachedStopovers[s.id];
-                        stopoverCount += (Array.isArray(s.train.stopovers) ? s.train.stopovers.length : 0);
+        if (shouldFetchStopovers) {
+            // 1. Count stopovers already present in memory (only when resuming mid-fetch)
+            if (resumeFromState) {
+                allTripsWithTrain.forEach(s => {
+                    if (Array.isArray(s.train.stopovers)) {
+                        s.train.stopovers = dataProcessing.filterStopoversBetweenTraveledStations(s.train.stopovers, s.train.origin, s.train.destination);
+                        stopoverCount += s.train.stopovers.length;
                     }
                 });
-                // Update board with any cached stopovers
-                UI.onSolariBatchUpdated(tripsNeedingStopovers.filter(s => Array.isArray(s.train?.stopovers) && s.train.stopovers.length > 0));
             }
-        }
 
-        // 3. Batch fetch remaining missing stopovers from Träwelling API (batch size: 20)
-        const stopoversToFetch = allTripsWithTrain.filter(s => !Array.isArray(s.train.stopovers));
-        const stopoverBatchSize = 20;
-
-        if (stopoversToFetch.length > 0 && !state.cancelFetch) {
-            for (let j = 0; j < stopoversToFetch.length && !state.cancelFetch; j += stopoverBatchSize) {
-                const batch = stopoversToFetch.slice(j, j + stopoverBatchSize);
-                // Träwelling /api/v1/stopovers/{ids} expects trip IDs (s.train.trip) with fallback to status ID (s.id)
-                const queryIds = batch.map(s => s.train?.trip || s.id).filter(Boolean);
-
-                const currentBatchNum = Math.floor(j / stopoverBatchSize) + 1;
-                const totalStopoverBatches = Math.ceil(stopoversToFetch.length / stopoverBatchSize);
-                UI.updateFetchStats({
-                    status: `Fetching stopovers: batch ${currentBatchNum}/${totalStopoverBatches}`,
-                    stopovers: stopoverCount
-                });
-
-                try {
-                    const stopoversData = await api.getStopovers(queryIds);
-                    const newlyFetchedStopovers = {};
-                    const dataObj = stopoversData?.data || {};
-
-                    batch.forEach(s => {
-                        const tripId = s.train?.trip;
-                        // Check both trip ID and status ID in API response
-                        const stops = Array.isArray(dataObj[tripId]) 
-                            ? dataObj[tripId] 
-                            : (Array.isArray(dataObj[s.id]) ? dataObj[s.id] : []);
-                        s.train.stopovers = stops;
-                        newlyFetchedStopovers[s.id] = stops;
-                        stopoverCount += stops.length;
+            // 2. Check IndexedDB batch cache for stopovers (only when NOT a fresh scrape)
+            if (!isFreshScrape) {
+                const tripsNeedingStopovers = allTripsWithTrain.filter(s => !Array.isArray(s.train.stopovers));
+                if (tripsNeedingStopovers.length > 0) {
+                    UI.updateFetchStats({ status: 'Loading cached waypoint stopovers...', progress: 74, stopovers: stopoverCount });
+                    const missingIds = tripsNeedingStopovers.map(s => s.id).filter(Boolean);
+                    const cachedStopovers = await SessionDB.getStopoversBatch(missingIds);
+                    tripsNeedingStopovers.forEach(s => {
+                        if (cachedStopovers[s.id]) {
+                            const raw = cachedStopovers[s.id];
+                            const filtered = dataProcessing.filterStopoversBetweenTraveledStations(raw, s.train.origin, s.train.destination);
+                            s.train.stopovers = filtered;
+                            stopoverCount += (Array.isArray(filtered) ? filtered.length : 0);
+                        }
                     });
-
-                    if (Object.keys(newlyFetchedStopovers).length > 0) {
-                        SessionDB.saveStopoversBatch(newlyFetchedStopovers).catch(() => {});
-                    }
-
-                    // Dynamically update the Solari board with freshly retrieved stopovers (via stations!)
-                    UI.onSolariBatchUpdated(batch, currentBatchNum, totalStopoverBatches);
-                } catch (err) {
-                    console.warn('Failed to fetch stopover batch:', err);
-                    batch.forEach(s => {
-                        if (!Array.isArray(s.train.stopovers)) s.train.stopovers = [];
-                    });
+                    // Update board with any cached stopovers
+                    UI.onSolariBatchUpdated(tripsNeedingStopovers.filter(s => Array.isArray(s.train?.stopovers) && s.train.stopovers.length > 0));
                 }
-
-                const stopPct = stopoversToFetch.length > 0 ? ((j + batch.length) / stopoversToFetch.length) : 1;
-                const overallProgress = 74 + Math.round(stopPct * 18); // 74% -> 92%
-                UI.updateFetchStats({ stopovers: stopoverCount, progress: overallProgress });
             }
+
+            // 3. Batch fetch remaining missing stopovers from Träwelling API (batch size: 20)
+            const stopoversToFetch = allTripsWithTrain.filter(s => !Array.isArray(s.train.stopovers));
+            const stopoverBatchSize = 20;
+
+            if (stopoversToFetch.length > 0 && !state.cancelFetch) {
+                for (let j = 0; j < stopoversToFetch.length && !state.cancelFetch; j += stopoverBatchSize) {
+                    const batch = stopoversToFetch.slice(j, j + stopoverBatchSize);
+                    // Träwelling /api/v1/stopovers/{ids} expects trip IDs (s.train.trip) with fallback to status ID (s.id)
+                    const queryIds = batch.map(s => s.train?.trip || s.id).filter(Boolean);
+
+                    const currentBatchNum = Math.floor(j / stopoverBatchSize) + 1;
+                    const totalStopoverBatches = Math.ceil(stopoversToFetch.length / stopoverBatchSize);
+                    UI.updateFetchStats({
+                        status: `Fetching stopovers: batch ${currentBatchNum}/${totalStopoverBatches}`,
+                        stopovers: stopoverCount
+                    });
+
+                    try {
+                        const stopoversData = await api.getStopovers(queryIds);
+                        const newlyFetchedStopovers = {};
+                        const dataObj = stopoversData?.data || {};
+
+                        batch.forEach(s => {
+                            const tripId = s.train?.trip;
+                            // Check both trip ID and status ID in API response
+                            const rawStops = Array.isArray(dataObj[tripId]) 
+                                ? dataObj[tripId] 
+                                : (Array.isArray(dataObj[s.id]) ? dataObj[s.id] : []);
+                            newlyFetchedStopovers[s.id] = rawStops;
+                            const filtered = dataProcessing.filterStopoversBetweenTraveledStations(rawStops, s.train.origin, s.train.destination);
+                            s.train.stopovers = filtered;
+                            stopoverCount += filtered.length;
+                        });
+
+                        if (Object.keys(newlyFetchedStopovers).length > 0) {
+                            SessionDB.saveStopoversBatch(newlyFetchedStopovers).catch(() => {});
+                        }
+
+                        // Dynamically update the Solari board with freshly retrieved stopovers (via stations!)
+                        UI.onSolariBatchUpdated(batch, currentBatchNum, totalStopoverBatches);
+                    } catch (err) {
+                        console.warn('Failed to fetch stopover batch:', err);
+                        batch.forEach(s => {
+                            if (!Array.isArray(s.train.stopovers)) s.train.stopovers = [];
+                        });
+                    }
+
+                    const stopPct = stopoversToFetch.length > 0 ? ((j + batch.length) / stopoversToFetch.length) : 1;
+                    const overallProgress = 74 + Math.round(stopPct * 18); // 74% -> 92%
+                    UI.updateFetchStats({ stopovers: stopoverCount, progress: overallProgress });
+                }
+            }
+        } else {
+            // When stopover fetching is bypassed, set empty arrays for any trips lacking them
+            allTripsWithTrain.forEach(s => {
+                if (!Array.isArray(s.train.stopovers)) s.train.stopovers = [];
+            });
+            UI.updateFetchStats({ status: 'Skipping waypoint stopovers...', progress: 92, stopovers: 0 });
         }
 
         state.fetchedTrips = incremental && cachedTrips ? [...allStatuses, ...cachedTrips] : allStatuses;

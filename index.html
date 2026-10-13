@@ -106,6 +106,26 @@
             window.loadLayers();
             setupEventListeners();
 
+            const setupStopoversToggle = document.getElementById('fetchIncludeStopovers');
+            const menuStopoversToggle = document.getElementById('menuFetchIncludeStopovers');
+            const savedFetchStopovers = localStorage.getItem('tw_fetch_stopovers');
+            const initialFetchStopovers = savedFetchStopovers !== null ? savedFetchStopovers === 'true' : true;
+            if (setupStopoversToggle) setupStopoversToggle.checked = initialFetchStopovers;
+            if (menuStopoversToggle) menuStopoversToggle.checked = initialFetchStopovers;
+
+            const onStopoverToggleChange = (checked) => {
+                try { localStorage.setItem('tw_fetch_stopovers', checked ? 'true' : 'false'); } catch (e) {}
+                if (setupStopoversToggle) setupStopoversToggle.checked = checked;
+                if (menuStopoversToggle) menuStopoversToggle.checked = checked;
+            };
+
+            if (setupStopoversToggle) {
+                setupStopoversToggle.addEventListener('change', (e) => onStopoverToggleChange(e.target.checked));
+            }
+            if (menuStopoversToggle) {
+                menuStopoversToggle.addEventListener('change', (e) => onStopoverToggleChange(e.target.checked));
+            }
+
             const startFetchBtn = document.getElementById('startFetchBtn');
             if (startFetchBtn) {
                 startFetchBtn.onclick = () => {
@@ -124,7 +144,8 @@
                             window.UI.syncUsernameInput(target);
                         }
                     }
-                    window.startDataFetch(false, false, { forceFresh: true });
+                    const shouldFetchStopovers = setupStopoversToggle?.checked ?? true;
+                    window.startDataFetch(false, false, { forceFresh: true, fetchStopovers: shouldFetchStopovers });
                 };
             }
             const usernameInput = document.getElementById('username');
@@ -373,6 +394,18 @@
                         autocapitalize="none" autocorrect="off" autofocus>
                 </div>
 
+                <div class="fetch-option-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; margin: -4px 0 12px 0; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color); border-radius: 8px;">
+                    <div style="flex: 1; padding-right: 10px;">
+                        <span style="font-weight: 600; font-size: 12.5px; color: var(--text-primary); display: block;">Fetch waypoint stopovers</span>
+                        <p class="form-hint" style="margin: 2px 0 0 0; font-size: 11px; color: var(--text-muted); line-height: 1.35;">
+                            Retrieves intermediate stations along traveled routes
+                        </p>
+                    </div>
+                    <label class="toggle" style="flex-shrink: 0;" title="Fetch intermediate waypoint stations">
+                        <input type="checkbox" id="fetchIncludeStopovers" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
 
                 <button class="btn-primary" id="startFetchBtn">🔍 Search & Explore</button>
 
@@ -615,6 +648,16 @@
                             <div class="menu-form-group">
                                 <label for="menuUsername">Username to query</label>
                                 <input type="text" id="menuUsername" placeholder="e.g. Adriii666">
+                            </div>
+                            <div class="menu-item toggle-row" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; margin: 0; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                                <div style="flex: 1; padding-right: 8px;">
+                                    <span style="font-weight: 500; font-size: 12px;">Fetch stopovers</span>
+                                    <p class="section-sub" style="margin: 1px 0 0 0; font-size: 10px;">Waypoint stations along routes</p>
+                                </div>
+                                <label class="toggle" style="flex-shrink: 0;" title="Fetch intermediate waypoint stations">
+                                    <input type="checkbox" id="menuFetchIncludeStopovers" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
                             </div>
                             <button class="btn-primary" id="menuFetchBtn">Fetch Latest Data</button>
                         </div>

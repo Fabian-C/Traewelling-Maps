@@ -1,7 +1,7 @@
 import { store } from '../state/store.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
 import { formatDelayMinutes } from '../utils/format.js';
-import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
+import { normalizeCategory, getTripBusinessType, extractTripTags, filterStopoversBetweenTraveledStations } from '../data/processing.js';
 import { SessionDB } from '../cache/session.js';
 import { TraewellingAPI } from '../api/traewelling.js';
 
@@ -205,7 +205,8 @@ export async function fetchStopoversForTrips(trips = [], onProgress = null) {
     const stillMissing = [];
     needsLookup.forEach(t => {
         if (cachedMap[t.id]) {
-            t.train.stopovers = cachedMap[t.id];
+            const raw = cachedMap[t.id];
+            t.train.stopovers = filterStopoversBetweenTraveledStations(raw, t.train?.origin, t.train?.destination);
         } else {
             stillMissing.push(t);
         }
@@ -239,8 +240,8 @@ export async function fetchStopoversForTrips(trips = [], onProgress = null) {
                 const stops = Array.isArray(data[tripId]) 
                     ? data[tripId] 
                     : (Array.isArray(data[t.id]) ? data[t.id] : []);
-                t.train.stopovers = stops;
                 newlyFetched[t.id] = stops;
+                t.train.stopovers = filterStopoversBetweenTraveledStations(stops, t.train?.origin, t.train?.destination);
             });
         } catch (err) {
             console.warn('Failed to fetch stopover batch:', err);

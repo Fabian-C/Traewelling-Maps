@@ -627,19 +627,101 @@ export function getTripBusinessType(trip) {
     if (raw === 1 || raw === '1' || raw === 'work' || raw === 'business') return 1;
     return 0;
 }
-
 /**
- * Filter trips by business type (personal, work, commute)
+ * Filter a trip's stopovers to only include stations between the origin and destination
+ * that the user actually traveled.
+ *
+ * Träwelling API returns all stopovers for the whole train run/service (from train terminal to terminal).
+ * This function locates the user's boarding station (origin) and exit station (destination) along
+ * the stopovers list and keeps only the stopovers between them (inclusive or intermediate).
+ * If either origin or destination is not matched, returns the original stopovers list as fallback.
+ *
+ * @param {Array} stopovers Array of stopover objects
+ * @param {Object} origin Origin station object (e.g. { name: 'Berlin Hbf', ... })
+ * @param {Object} destination Destination station object (e.g. { name: 'Hamburg Hbf', ... })
+ * @param {Object} [options]
+ * @param {boolean} [options.includeEndpoints=true] Whether to keep the origin and destination in the returned list
+ * @returns {Array} Filtered stopovers array
  */
-export function filterTripsByBusiness(trips = [], businessFilters) {
-    if (!trips.length) return [];
-    if (!businessFilters) return trips.slice();
-    
-    return trips.filter(trip => {
-        const b = getTripBusinessType(trip);
-        if (b === 0 && !businessFilters.personal) return false;
-        if (b === 1 && !businessFilters.work) return false;
-        if (b === 2 && !businessFilters.commute) return false;
-        return true;
-    });
+export function filterStopoversBetweenTraveledStations(stopovers = [], origin = {}, destination = {}, options = {}) {
+    if (!Array.isArray(stopovers) || stopovers.length === 0) return [];
+    const includeEndpoints = options.includeEndpoints !== false;
+
+    const normalizeStationName = (name) => {
+        if (!name) return '';
+        return String(name)
+            .toLowerCase()
+            .replace(/\s*\(.*?\)\s*/g, ' ') // remove parentheses content like (Westf), (Breisgau)
+            .replace(/[.,\-\/]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    };
+
+    const originName = origin?.name || origin?.station?.name || '';
+    const destName = destination?.name || destination?.station?.name || '';
+    const originEva = origin?.id || origin?.evaId || origin?.station?.id || origin?.station?.evaId || null;
+    const destEva = destination?.id || destination?.evaId || destination?.station?.id || destination?.station?.evaId || null;
+
+    const normOrigin = normalizeStationName(originName);
+    const normDest = normalizeStationName(destName);
+
+    const matchesStation = (stop, targetNormName, targetEva) => {
+        if (!stop) return false;
+        const stopEva = stop.id || stop.evaId || stop.station?.id || stop.station?.evaId || null;
+        if (targetEva && stopEva && String(targetEva) === String(stopEva)) return true;
+        
+        const stopName = normalizeStationName(stop.name || stop.station?.name || '');
+        if (!stopName || !targetNormName) return false;
+        if (stopName === targetNormName) return true;
+        // Prefix/substring match if names are reasonably long
+        if (stopName.length >= 4 && targetNormName.length >= 4) {
+            if (stopName.startsWith(targetNormName) || targetNormName.startsWith(stopName)) return true;
+        }
+        return false;
+    };
+
+    let startIndex = -1;
+    let endIndex = -1;
+
+    for (let i = 0; i < stopovers.length; i++) {
+        const stop = stopovers[i];
+        if (startIndex === -1 && matchesStation(stop, normOrigin, originEva)) {
+            startIndex = i;
+        }
+        if (endIndex === -1 && matchesStation(stop, normDest, destEva)) {
+            endIndex = i;
+        }
+    }
+
+    // If both origin and destination stations were found in sequence:
+    if (startIndex !== -1 && endIndex !== -1) {
+        let fromIdx = startIndex;
+        let toIdx = endIndex;
+        // In case indices are reversed (reverse trip schedule)
+        if (fromIdx > toIdx) {
+            fromIdx = endIndex;
+            toIdx = startIndex;
+        }
+
+        const sliceStart = includeEndpoints ? fromIdx : fromIdx + 1;
+        const sliceEnd = includeEndpoints ? toIdx + 1 : toIdx;
+
+        if (sliceStart <= sliceEnd) {
+            return stopovers.slice(sliceStart, sliceEnd);
+        }
+        return [];
+    }
+
+    // If only origin was matched: slice from origin onward
+    if (startIndex !== -1 && endIndex === -1) {
+        return includeEndpoints ? stopovers.slice(startIndex) : stopovers.slice(startIndex + 1);
+    }
+
+    // If only destination was matched: slice up to destination
+    if (startIndex === -1 && endIndex !== -1) {
+        return includeEndpoints ? stopovers.slice(0, endIndex + 1) : stopovers.slice(0, endIndex);
+    }
+
+    // Fallback if neither found: return original list
+    return stopovers;
 }

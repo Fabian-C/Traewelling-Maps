@@ -356,7 +356,9 @@ export function setupEventListeners() {
             UI.syncUsernameInput(username);
             
             // Manual fetch by username should always perform a complete fresh rescrape
-            startDataFetch(false, false, { forceFresh: true });
+            const menuStopoversEl = document.getElementById('menuFetchIncludeStopovers') || document.getElementById('fetchIncludeStopovers');
+            const shouldFetchStopovers = menuStopoversEl ? menuStopoversEl.checked : (localStorage.getItem('tw_fetch_stopovers') !== 'false');
+            startDataFetch(false, false, { forceFresh: true, fetchStopovers: shouldFetchStopovers });
         };
     }
 
