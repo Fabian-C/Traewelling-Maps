@@ -517,13 +517,15 @@ export function processTripsToGeoJSON(trips) {
         const polyline = trip.train?.polyline;
         if (!polyline?.geometry?.coordinates) return;
 
+        const trainSummary = trip.train ? { ...trip.train, polyline: undefined, stopovers: undefined } : null;
+
         categories[targetCat].features.push({
             type: 'Feature',
             geometry: polyline.geometry,
             properties: { 
                 statusId: trip.id, 
                 createdAt: trip.createdAt, 
-                train: trip.train, 
+                train: trainSummary, 
                 body: typeof trip.body === 'string' ? trip.body : '',
                 bodyMentions: Array.isArray(trip.bodyMentions) ? trip.bodyMentions : [],
                 createdBy: trip.createdBy || null,

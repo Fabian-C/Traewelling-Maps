@@ -139,8 +139,9 @@ export function loadLayers() {
             console.warn('Failed to save tw_layer_order to localStorage:', e);
         }
 
-        // Reload layers with new order
-        reloadAllLayers();
+        // Instantly sync visual map rendering order and reload UI
+        syncMapLayerOrder();
+        loadLayers();
     };
 
     // Render layers in defined order
@@ -356,27 +357,64 @@ export function syncMapLayerOrder() {
     }
 
     try {
-        // Move base railway layer first if present
+        const baseOpacity = heatmap.getCurrentBaseOpacity(state);
+
+        // 1. Remove all route line layers from map (keeps GeoJSON sources intact)
+        state.layers.order.forEach((layerId) => {
+            if (state.map.getLayer(layerId)) {
+                try {
+                    state.map.removeLayer(layerId);
+                } catch (_) {}
+            }
+        });
+
+        // 2. Base railway layer stays underneath all route lines if present
         if (state.map.getLayer('open-railway-map')) {
-            state.map.moveLayer('open-railway-map');
+            try {
+                state.map.moveLayer('open-railway-map');
+            } catch (_) {}
         }
 
-        // Iterate state.layers.order in reverse (from last item in menu to first item in menu).
-        // Calling moveLayer(layerId) without beforeId puts each layer on top of preceding layers.
-        // As a result, the item at index 0 of state.layers.order ends up topmost among the route layers!
+        // 3. Re-add route line layers in reverse menu order:
+        // Bottom of menu (index N-1) is added first (bottom of stack)
+        // ...
+        // Top of menu (index 0) is added last (top of all route layers)
         for (let i = state.layers.order.length - 1; i >= 0; i--) {
             const layerId = state.layers.order[i];
-            if (state.map.getLayer(layerId)) {
-                state.map.moveLayer(layerId);
+            const layerData = state.layers.data.get(layerId);
+            const isVisible = layerData?.visible ?? true;
+            const config = CONFIG.LAYER_CONFIG.find(([id]) => id === layerId);
+            const color = layerData?.color || config?.[1] || '#888888';
+
+            if (state.map.getSource(layerId)) {
+                try {
+                    state.map.addLayer({
+                        id: layerId,
+                        type: 'line',
+                        source: layerId,
+                        layout: {
+                            'line-join': 'round',
+                            'line-cap': 'round',
+                            'visibility': (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible'
+                        },
+                        paint: {
+                            'line-color': color,
+                            'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
+                            'line-opacity': baseOpacity
+                        }
+                    });
+                } catch (e) {
+                    console.warn(`Failed to re-add layer ${layerId}:`, e);
+                }
             }
         }
 
-        // Ensure highlight layers remain at the absolute top of line layers if they exist
+        // 4. Ensure highlight layers remain on the absolute top
         if (state.map.getLayer('route-highlight-glow')) {
-            state.map.moveLayer('route-highlight-glow');
+            try { state.map.moveLayer('route-highlight-glow'); } catch (_) {}
         }
         if (state.map.getLayer('route-highlight')) {
-            state.map.moveLayer('route-highlight');
+            try { state.map.moveLayer('route-highlight'); } catch (_) {}
         }
     } catch (err) {
         console.warn('Failed to sync map layer order:', err);
@@ -408,7 +446,7 @@ export function reloadAllLayers() {
 
         state.layers.data.set(id, { data, color, visible: isVisible });
 
-        // Update map if available and loaded
+        // Update map source if available and loaded
         if (state.map && typeof state.map.isStyleLoaded === 'function' && state.map.isStyleLoaded()) {
             try {
                 const existingSource = state.map.getSource(id);
@@ -417,34 +455,8 @@ export function reloadAllLayers() {
                 } else {
                     state.map.addSource(id, { type: 'geojson', data: data });
                 }
-
-                if (!state.map.getLayer(id)) {
-                    state.map.addLayer({
-                        id: id,
-                        type: 'line',
-                        source: id,
-                        layout: {
-                            'line-join': 'round',
-                            'line-cap': 'round',
-                            'visibility': (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible'
-                        },
-                        paint: {
-                            'line-color': color,
-                            'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
-                            'line-opacity': baseOpacity
-                        }
-                    });
-                } else {
-                    state.map.setLayoutProperty(
-                        id,
-                        'visibility',
-                        (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible'
-                    );
-                    state.map.setPaintProperty(id, 'line-color', color);
-                    state.map.setPaintProperty(id, 'line-opacity', baseOpacity);
-                }
             } catch (e) {
-                console.warn(`Failed to reload map layer ${id}:`, e);
+                console.warn(`Failed to reload map source ${id}:`, e);
             }
         }
     });

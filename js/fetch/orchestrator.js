@@ -817,31 +817,9 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
                     state.map.addSource(layerId, { type: 'geojson', data });
                 }
 
-                if (!state.map.getLayer(layerId)) {
-                    state.map.addLayer({
-                        id: layerId,
-                        type: 'line',
-                        source: layerId,
-                        layout: {
-                            'line-join': 'round',
-                            'line-cap': 'round',
-                            visibility: state.heatmap.enabled ? 'none' : 'visible'
-                        },
-                        paint: {
-                            'line-color': color,
-                            'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
-                            'line-opacity': baseOpacity
-                        }
-                    });
-                } else {
-                    state.map.setLayoutProperty(layerId, 'visibility', state.heatmap.enabled ? 'none' : 'visible');
-                    state.map.setPaintProperty(layerId, 'line-color', color);
-                    state.map.setPaintProperty(layerId, 'line-opacity', baseOpacity);
-                }
-
                 state.layers.data.set(layerId, { data, color, visible: true });
             } catch (e) {
-                console.error(`Failed to add layer ${layerId}:`, e);
+                console.error(`Failed to add source ${layerId}:`, e);
             }
         }
         syncMapLayerOrder();
