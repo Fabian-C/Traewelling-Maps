@@ -3,7 +3,7 @@
    ========================================================================== */
 #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; background: var(--bg-primary); }
 .menu { position: absolute; top: 8px; right: 8px; z-index: 1000; background: var(--menu-bg);
-    border: 1px solid var(--border-color); border-radius: 8px; width: max-content; min-width: 220px; max-width: min(340px, calc(100vw - 16px));
+    border: 1px solid var(--border-color); border-radius: 8px; width: max-content; min-width: 190px; max-width: min(270px, calc(100vw - 16px));
     font-size: 13px; backdrop-filter: blur(10px); box-sizing: border-box; overflow: hidden;
     contain: paint; will-change: transform; transition: box-shadow 0.2s ease; }
 .menu:hover { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
@@ -65,15 +65,17 @@
 .inner-submenu summary { padding: 8px 10px; cursor: pointer; font-size: 12px; background: var(--bg-tertiary); list-style: none; }
 .inner-submenu summary::-webkit-details-marker { display: none; }
 .inner-submenu[open] > summary { background: var(--accent-color); color: white; }
-.layer-list { max-height: 200px; overflow-y: auto; padding: 8px; }
-.layer-item { padding: 10px 12px; margin: 3px 0; background: var(--bg-secondary); border: none; border-radius: 8px;
-    cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600;
-    color: var(--text-primary); transition: all 0.2s ease; user-select: none; position: relative; min-height: 44px; }
+.layer-list { max-height: 220px; overflow-y: auto; padding: 4px 6px; }
+.layer-item { padding: 6px 9px; margin: 2px 0; background: var(--bg-secondary); border: 1px solid transparent;
+    border-left: 3px solid transparent; border-radius: 6px; cursor: pointer; display: flex;
+    justify-content: space-between; align-items: center; font-size: 12px; font-weight: 500;
+    color: var(--text-primary); transition: all 0.18s ease; user-select: none; position: relative; min-height: 32px; }
 .layer-item:last-child { border-bottom: none; }
-.layer-item.active { background: var(--bg-tertiary); color: var(--text-primary); font-weight: 700; }
-.layer-status { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); color: var(--text-muted); letter-spacing: 0.5px; transition: all 0.2s ease; }
-.layer-item.active .layer-status { background: rgba(104, 211, 145, 0.2); color: #68d391; }
-.layer-item:not(.active) .layer-status { background: rgba(255, 107, 107, 0.15); color: #ff6b6b; }
+.layer-item.active { background: var(--bg-tertiary); color: var(--text-primary); font-weight: 600;
+    border-left-color: var(--layer-color, var(--accent-color)); }
+.layer-item:not(.active) { opacity: 0.45; background: rgba(255, 255, 255, 0.02); color: var(--text-muted); }
+.layer-item:not(.active):hover { opacity: 0.7; background: var(--bg-secondary); }
+.layer-status { display: none; }
 .layer-item.dragging { opacity: 0.5; transform: rotate(2deg) scale(1.05); }
 .layer-drag-handle { transition: opacity 0.15s ease, transform 0.15s ease; user-select: none; }
 .layer-item:hover .layer-drag-handle { opacity: 0.8 !important; }

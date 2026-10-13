@@ -10,16 +10,32 @@ import { updateAllStatistics as updateAllStats } from '../analytics/statistics.j
 import { invalidateDelayOverlayCache, updateDelayOverlay, updateDelayOverlaySummary } from '../map/delayOverlay.js';
 
 export const CATEGORY_NAMES = {
-    nationalExpress: 'High Speed (ICE/TGV)',
-    national: 'Intercity (IC/EC)',
-    regionalExp: 'Regional Express (RE)',
-    regional: 'Regional (RB)',
-    suburban: 'Suburban (S-Bahn)',
+    nationalExpress: 'ICE / TGV',
+    national: 'IC / EC',
+    regionalExp: 'RE',
+    regional: 'RB',
+    suburban: 'S-Bahn',
     bus: 'Bus',
     tram: 'Tram',
-    subway: 'Subway (U-Bahn)',
-    taxi: 'Taxi / Rideshare',
+    subway: 'U-Bahn',
+    taxi: 'Taxi',
     plane: 'Flight',
+    ferry: 'Ferry',
+    ship: 'Ferry',
+    unknown: 'Other'
+};
+
+export const CATEGORY_FULL_NAMES = {
+    nationalExpress: 'High Speed (ICE / TGV)',
+    national: 'Intercity (IC / EC)',
+    regionalExp: 'Regional-Express (RE)',
+    regional: 'Regionalbahn (RB)',
+    suburban: 'Suburban Rail (S-Bahn)',
+    bus: 'Bus Services',
+    tram: 'Tram / Streetcar',
+    subway: 'Subway / Metro (U-Bahn)',
+    taxi: 'Taxi / Rideshare',
+    plane: 'Flight / Aviation',
     ferry: 'Ferry / Ship',
     ship: 'Ferry / Ship',
     unknown: 'Other / Unknown'
@@ -161,6 +177,7 @@ export function loadLayers() {
             routeCount = layer.data?.features?.length || 0;
         }
         const displayName = CATEGORY_NAMES[layerId] || layerId;
+        const fullName = CATEGORY_FULL_NAMES[layerId] || displayName;
         const countBadge = ` <span class="layer-count" style="opacity: 0.65; font-size: 11px; margin-left: 4px;">(${routeCount})</span>`;
 
         // Create layer item element
@@ -168,13 +185,14 @@ export function loadLayers() {
         layerItem.className = 'layer-item' + (layer.visible ? ' active' : '');
         layerItem.draggable = true;
         layerItem.dataset.layerId = layerId;
+        layerItem.style.setProperty('--layer-color', color);
+        layerItem.title = `${fullName} • ${layer.visible ? 'Active (Click to hide)' : 'Hidden (Click to show)'}`;
         layerItem.innerHTML = `
-            <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">
-                <span class="layer-drag-handle" title="Drag to reorder" style="cursor:grab;display:inline-flex;align-items:center;opacity:0.4;padding:0 2px;font-size:13px;line-height:1;touch-action:none;user-select:none;">⋮⋮</span>
-                <span class="layer-color-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background-color:${color};flex-shrink:0;"></span>
-                <span class="layer-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${displayName}${countBadge}</span>
+            <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
+                <span class="layer-drag-handle" title="Drag to reorder" style="cursor:grab;display:inline-flex;align-items:center;opacity:0.35;padding:0 2px;font-size:11px;line-height:1;touch-action:none;user-select:none;">⋮⋮</span>
+                <span class="layer-color-dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background-color:${layer.visible ? color : 'transparent'};border:1.5px solid ${color};flex-shrink:0;${layer.visible ? `box-shadow:0 0 6px ${color}88;` : 'opacity:0.4;'}transition:all 0.18s ease;"></span>
+                <span class="layer-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">${displayName}${countBadge}</span>
             </div>
-            <span class="layer-status">${layer.visible ? 'ON' : 'OFF'}</span>
         `;
 
         // Click handler to toggle visibility (ignored right after drag)
