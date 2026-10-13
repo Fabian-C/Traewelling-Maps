@@ -10,7 +10,7 @@ import { UI } from '../ui/ui.js';
 import { RateLimitUI } from '../ui/rateLimit.js';
 import { RouteAnimation } from '../map/routeAnimation.js';
 import { applyAllFilters } from '../filters/filterManager.js';
-import { loadLayers } from '../map/layers.js';
+import { loadLayers, syncMapLayerOrder } from '../map/layers.js';
 import { initMap, fitMapToData, waitForMapReady, setupMapInteractions } from '../map/interactions.js';
 import { toggleDelayOverlay, updateDelayOverlay, updateDelayOverlaySummary, invalidateDelayOverlayCache } from '../map/delayOverlay.js';
 import { fetchUserProfile, saveCurrentSession, rememberToken, logout } from '../session/manager.js';
@@ -738,47 +738,43 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
             const config = CONFIG.LAYER_CONFIG.find(([id]) => id === layerId);
             if (!config) continue;
             const color = config[1];
-            let data = categories[layerId] || { type: 'FeatureCollection', features: [] };
-
-            if (state.map.getLayer(layerId)) {
-                try {
-                    state.map.removeLayer(layerId);
-                } catch (e) {
-                    console.warn(`Failed to remove layer ${layerId}:`, e);
-                }
-            }
-            if (state.map.getSource(layerId)) {
-                try {
-                    state.map.removeSource(layerId);
-                } catch (e) {
-                    console.warn(`Failed to remove source ${layerId}:`, e);
-                }
-            }
-
+            const data = categories[layerId] || { type: 'FeatureCollection', features: [] };
             try {
-                state.map.addSource(layerId, { type: 'geojson', data });
-                
-                let beforeLayer = null;
-                if (i > 0) {
-                    const prevLayerId = state.layers.order[i-1];
-                    if (state.map.getLayer(prevLayerId)) {
-                        beforeLayer = prevLayerId;
-                    }
-                } else if (state.map.getLayer('open-railway-map')) {
-                    beforeLayer = 'open-railway-map';
+                const existingSource = state.map.getSource(layerId);
+                if (existingSource) {
+                    existingSource.setData(data);
+                } else {
+                    state.map.addSource(layerId, { type: 'geojson', data });
                 }
-                
-                state.map.addLayer({
-                    id: layerId, type: 'line', source: layerId,
-                    layout: { 'line-join': 'round', 'line-cap': 'round', visibility: state.heatmap.enabled ? 'none' : 'visible' },
-                    paint: { 'line-color': color, 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16], 'line-opacity': baseOpacity }
-                }, beforeLayer);
+
+                if (!state.map.getLayer(layerId)) {
+                    state.map.addLayer({
+                        id: layerId,
+                        type: 'line',
+                        source: layerId,
+                        layout: {
+                            'line-join': 'round',
+                            'line-cap': 'round',
+                            visibility: state.heatmap.enabled ? 'none' : 'visible'
+                        },
+                        paint: {
+                            'line-color': color,
+                            'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
+                            'line-opacity': baseOpacity
+                        }
+                    });
+                } else {
+                    state.map.setLayoutProperty(layerId, 'visibility', state.heatmap.enabled ? 'none' : 'visible');
+                    state.map.setPaintProperty(layerId, 'line-color', color);
+                    state.map.setPaintProperty(layerId, 'line-opacity', baseOpacity);
+                }
 
                 state.layers.data.set(layerId, { data, color, visible: true });
             } catch (e) {
                 console.error(`Failed to add layer ${layerId}:`, e);
             }
         }
+        syncMapLayerOrder();
         analytics.updateAllStatistics();
         analytics.updateMenuBuddyList();
         loadLayers();

@@ -37,6 +37,23 @@ export function loadLayers() {
         return;
     }
 
+    // Restore persisted layer order from localStorage if available
+    try {
+        const savedOrderJson = localStorage.getItem('tw_layer_order');
+        if (savedOrderJson) {
+            const parsedOrder = JSON.parse(savedOrderJson);
+            if (Array.isArray(parsedOrder) && parsedOrder.length > 0) {
+                // Ensure unique values and valid format
+                const uniqueSaved = [...new Set(parsedOrder.filter(id => typeof id === 'string'))];
+                if (uniqueSaved.length > 0) {
+                    state.layers.order = uniqueSaved;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to parse tw_layer_order from localStorage:', e);
+    }
+
     // Migrate legacy 'ship' layer to 'ferry' if present
     if (state.layers.order.includes('ship')) {
         state.layers.order = state.layers.order.map(id => id === 'ship' ? 'ferry' : id);
@@ -186,6 +203,13 @@ export function loadLayers() {
 
                 state.layers.order.splice(insertIndex, 0, draggedLayerId);
 
+                // Persist new layer order to localStorage
+                try {
+                    localStorage.setItem('tw_layer_order', JSON.stringify(state.layers.order));
+                } catch (e) {
+                    console.warn('Failed to save tw_layer_order to localStorage:', e);
+                }
+
                 // Reload layers with new order
                 reloadAllLayers();
             }
@@ -232,6 +256,38 @@ export function toggleLayer(layerId) {
 }
 
 /**
+ * Reorder route layers on the Mapbox map so that their rendering stack matches state.layers.order.
+ * state.layers.order has index 0 as the bottom-most layer and index (length-1) as the top-most layer.
+ */
+export function syncMapLayerOrder() {
+    const state = store.get();
+    if (!state.map || typeof state.map.isStyleLoaded !== 'function' || !state.map.isStyleLoaded()) {
+        return;
+    }
+
+    try {
+        // Move layers sequentially: bottom layer first, subsequent layers on top of it.
+        // Calling moveLayer(layerId) without beforeId pushes layerId to the top of the layer stack.
+        // We iterate through state.layers.order from 0 to N-1: each subsequent layer will be moved above the previous one.
+        state.layers.order.forEach((layerId) => {
+            if (state.map.getLayer(layerId)) {
+                state.map.moveLayer(layerId);
+            }
+        });
+
+        // Ensure highlight layers remain at the absolute top of line layers if they exist
+        if (state.map.getLayer('route-highlight-glow')) {
+            state.map.moveLayer('route-highlight-glow');
+        }
+        if (state.map.getLayer('route-highlight')) {
+            state.map.moveLayer('route-highlight');
+        }
+    } catch (err) {
+        console.warn('Failed to sync map layer order:', err);
+    }
+}
+
+/**
  * Recreate and re-add all layers in current order
  */
 export function reloadAllLayers() {
@@ -248,7 +304,7 @@ export function reloadAllLayers() {
     const baseOpacity = heatmap.getCurrentBaseOpacity(state);
 
     // Populate data for every layer in state.layers.order
-    state.layers.order.forEach((id, index) => {
+    state.layers.order.forEach((id) => {
         const config = CONFIG.LAYER_CONFIG.find(([layerId]) => layerId === id);
         const color = config ? config[1] : '#888888';
         const data = categories[id] || { type: 'FeatureCollection', features: [] };
@@ -259,41 +315,46 @@ export function reloadAllLayers() {
         // Update map if available and loaded
         if (state.map && typeof state.map.isStyleLoaded === 'function' && state.map.isStyleLoaded()) {
             try {
-                if (state.map.getLayer(id)) state.map.removeLayer(id);
-                if (state.map.getSource(id)) state.map.removeSource(id);
-
-                state.map.addSource(id, { type: 'geojson', data: data });
-
-                let beforeLayer = null;
-                if (index > 0) {
-                    const prevLayerId = state.layers.order[index - 1];
-                    if (state.map.getLayer(prevLayerId)) {
-                        beforeLayer = prevLayerId;
-                    }
-                } else if (state.map.getLayer('open-railway-map')) {
-                    beforeLayer = 'open-railway-map';
+                const existingSource = state.map.getSource(id);
+                if (existingSource) {
+                    existingSource.setData(data);
+                } else {
+                    state.map.addSource(id, { type: 'geojson', data: data });
                 }
 
-                state.map.addLayer({
-                    id: id,
-                    type: 'line',
-                    source: id,
-                    layout: {
-                        'line-join': 'round',
-                        'line-cap': 'round',
-                        'visibility': (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible'
-                    },
-                    paint: {
-                        'line-color': color,
-                        'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
-                        'line-opacity': baseOpacity
-                    }
-                }, beforeLayer);
+                if (!state.map.getLayer(id)) {
+                    state.map.addLayer({
+                        id: id,
+                        type: 'line',
+                        source: id,
+                        layout: {
+                            'line-join': 'round',
+                            'line-cap': 'round',
+                            'visibility': (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible'
+                        },
+                        paint: {
+                            'line-color': color,
+                            'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
+                            'line-opacity': baseOpacity
+                        }
+                    });
+                } else {
+                    state.map.setLayoutProperty(
+                        id,
+                        'visibility',
+                        (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible'
+                    );
+                    state.map.setPaintProperty(id, 'line-color', color);
+                    state.map.setPaintProperty(id, 'line-opacity', baseOpacity);
+                }
             } catch (e) {
                 console.warn(`Failed to reload map layer ${id}:`, e);
             }
         }
     });
+
+    // Reorder layers on the map according to state.layers.order
+    syncMapLayerOrder();
 
     updateAllStats();
     if (state.heatmap.enabled) updateRouteDensity(true);
