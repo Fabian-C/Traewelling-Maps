@@ -196,8 +196,8 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
 
                 const pageProgress = Math.min(45, Math.round((page / (page + 4)) * 45));
                 UI.updateFetchStats({ trips: allStatuses.length, pages: page, progress: pageProgress });
-                // Deliver 2 containers per page so depot stacks fill more dynamically and reflect batch size
-                UI.addPacketToDepot(page, 2);
+                // Deliver 1 container per fetched page
+                UI.addPacketToDepot(page, 1);
                 FunFacts.showFactsFromTrips(res.data, Math.floor(Math.random() * 2) + 1);
 
                 if (!res.links?.next) {
