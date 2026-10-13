@@ -1,0 +1,1105 @@
+/* ==========================================================================
+   Träwelling Map Explorer - 3D Cargo Depot & Locomotive Progress Animation
+   ========================================================================== */
+/* 3D Flip Card Scene Housing */
+.scene-flip-container {
+    perspective: 1200px;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto 24px;
+}
+.scene-flipper {
+    position: relative;
+    width: 100%;
+    height: 200px;
+    transition: transform 0.85s cubic-bezier(0.34, 1.4, 0.64, 1);
+    transform-style: preserve-3d;
+}
+.scene-flipper.flipped {
+    transform: rotateY(180deg);
+}
+.scene-face {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: 12px;
+}
+.scene-front {
+    z-index: 2;
+    transform: rotateY(0deg);
+}
+.scene-back {
+    transform: rotateY(180deg);
+    z-index: 1;
+}
+
+/* Cinematic Cargo Terminal Scene */
+.cargo-scene {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    user-select: none;
+    contain: layout paint style;
+    background: radial-gradient(circle at 65% 20%, #17263c 0%, #0d1522 55%, #070a10 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.7), 0 16px 36px -10px rgba(0, 0, 0, 0.5);
+}
+
+/* Back Face: Solari Split-Flap Departure Board */
+.departure-board-card {
+    width: 100%;
+    height: 100%;
+    background: #090e17;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 12px;
+    padding: 6px 10px;
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8), 0 16px 36px -10px rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-sizing: border-box;
+    font-family: 'Consolas', 'Menlo', 'Monaco', monospace;
+    overflow: hidden;
+    user-select: none;
+}
+.solari-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+    padding-bottom: 4px;
+    margin-bottom: 2px;
+}
+.solari-title-box {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.solari-board-title {
+    font-size: 9.5px;
+    font-weight: 800;
+    letter-spacing: 1.1px;
+    color: #f8fafc;
+    text-transform: uppercase;
+}
+.solari-telemetry {
+    font-size: 8px;
+}
+.solari-live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    padding: 1px 5px;
+    border-radius: 8px;
+    font-size: 7.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.solari-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 5px #10b981;
+    animation: solari-pulse 1s ease-in-out infinite alternate;
+}
+@keyframes solari-pulse {
+    from { opacity: 0.5; }
+    to { opacity: 1; transform: scale(1.2); }
+}
+.solari-grid-header {
+    display: grid;
+    grid-template-columns: 32px 42px 1fr 24px 44px;
+    gap: 4px;
+    font-size: 7px;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.6px;
+    padding: 0 3px 2px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.solari-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    justify-content: space-evenly;
+    padding: 1px 0;
+    min-height: 0;
+}
+.solari-row {
+    display: grid;
+    grid-template-columns: 32px 42px 1fr 24px 44px;
+    gap: 4px;
+    align-items: center;
+    background: #0d1524;
+    padding: 2px 4px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.solari-time {
+    color: #94a3b8;
+    font-size: 8px;
+    font-weight: 700;
+}
+.solari-train {
+    background: #1e293b;
+    color: #38bdf8;
+    font-size: 7.5px;
+    font-weight: 800;
+    padding: 1px 2px;
+    border-radius: 2px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    letter-spacing: 0.2px;
+}
+.solari-dest {
+    color: #f1f5f9;
+    font-size: 8.5px;
+    font-weight: 600;
+    overflow: hidden;
+    letter-spacing: 0.2px;
+    min-width: 0;
+}
+.solari-dest-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+.solari-dest-main {
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.solari-dest-via {
+    color: #93c5fd;
+    font-size: 7px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.95;
+    letter-spacing: 0.1px;
+}
+.solari-dest.flipping,
+.solari-train.flipping,
+.solari-time.flipping {
+    animation: flap-flip 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.solari-plat {
+    color: #f59e0b;
+    font-size: 8.5px;
+    font-weight: 700;
+    text-align: center;
+}
+.solari-stat {
+    font-size: 7px;
+    font-weight: 800;
+    padding: 0 2px;
+    border-radius: 2px;
+    text-align: center;
+    white-space: nowrap;
+    letter-spacing: 0.2px;
+}
+.solari-stat.on-time {
+    color: #34d399;
+    background: rgba(16, 185, 129, 0.12);
+}
+.solari-stat.delayed {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.12);
+}
+.solari-stat.boarding {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+}
+.solari-footer {
+    display: flex;
+    align-items: center;
+    padding-top: 3px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+}
+.solari-ticker {
+    font-size: 7.5px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: #64748b;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Atmospheric terminal floodlight */
+.cargo-floodlight {
+    position: absolute;
+    top: -20px;
+    left: 20%;
+    width: 240px;
+    height: 180px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(147, 197, 253, 0.16) 0%, rgba(147, 197, 253, 0.04) 50%, transparent 80%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Status HUD Badge */
+.cargo-stage {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    font-size: 11px;
+    color: #38bdf8;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+    white-space: nowrap;
+    z-index: 25;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    padding: 3px 14px;
+    border-radius: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.cargo-stage:empty {
+    display: none !important;
+}
+.cargo-stage.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Depot platform & hazard stripes */
+.depot-platform {
+    position: absolute;
+    left: 0;
+    bottom: 22px;
+    width: var(--depot-width);
+    height: 6px;
+    background: linear-gradient(180deg, #475569 0%, #334155 100%);
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    z-index: 4;
+}
+.depot-platform .hazard-stripe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: repeating-linear-gradient(45deg, #f59e0b 0px, #f59e0b 4px, #1e293b 4px, #1e293b 8px);
+    opacity: 0.85;
+}
+.depot-zone {
+    position: absolute;
+    left: 6px;
+    bottom: 28px;
+    width: calc(var(--depot-width) - 12px);
+    height: 105px;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    z-index: 4;
+}
+.depot-stack {
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
+    will-change: transform;
+}
+.depot-col {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 2px;
+    transition: width 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.25s ease, margin 0.3s ease;
+}
+.depot-col.emptying {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Intermodal Shipping Containers */
+.crate {
+    width: 28px;
+    height: 18px;
+    border-radius: 2px;
+    position: relative;
+    flex-shrink: 0;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    opacity: 0;
+}
+.crate.arrive {
+    animation: crate-drop 0.32s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+}
+@keyframes crate-drop {
+    0% { opacity: 0; transform: translateY(-28px) scale(0.9); }
+    70% { opacity: 1; transform: translateY(1px) scale(1.02); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.crate.pickup {
+    animation: crate-lift 0.22s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+}
+@keyframes crate-lift {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-26px) scale(0.94); }
+}
+.crate-ribs {
+    position: absolute;
+    inset: 2px 2px;
+    pointer-events: none;
+    border-radius: 1px;
+    background: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.14) 0px, rgba(0, 0, 0, 0.14) 1px, transparent 1px, transparent 4px);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+.crate-corners {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.crate-corners::before,
+.crate-corners::after {
+    content: '';
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.35);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+.crate-corners::before { top: 0; left: 0; box-shadow: 25px 0 0 rgba(255, 255, 255, 0.35); }
+.crate-corners::after { bottom: 0; left: 0; box-shadow: 25px 0 0 rgba(255, 255, 255, 0.35); }
+.crate-lbl {
+    position: absolute;
+    bottom: 1px;
+    right: 2px;
+    font-size: 6px;
+    font-weight: 800;
+    font-family: monospace;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1;
+    pointer-events: none;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* Railway Track & Ballast */
+.cargo-rails {
+    position: absolute;
+    bottom: 14px;
+    left: var(--depot-width);
+    right: 0;
+    height: 16px;
+    z-index: 2;
+}
+.cargo-ballast {
+    position: absolute;
+    inset: 2px 0 0 0;
+    background: repeating-linear-gradient(45deg, #1f242e 0px, #1f242e 3px, #262c38 3px, #262c38 6px);
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+.cargo-sleepers {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 1px;
+    height: 7px;
+    background: repeating-linear-gradient(90deg,
+        transparent 0px,
+        transparent 5px,
+        #453526 5px,
+        #453526 11px,
+        #2d2217 11px,
+        #2d2217 13px,
+        transparent 13px,
+        transparent 20px);
+    box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.cargo-rail-steel {
+    position: absolute;
+    top: 1px;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(180deg, #f1f5f9 0%, #cbd5e1 35%, #64748b 70%, #334155 100%);
+    border-radius: 1px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.8), 0 0 6px rgba(203, 213, 225, 0.3);
+}
+.buffer-stop {
+    position: absolute;
+    left: 2px;
+    bottom: 7px;
+    width: 20px;
+    height: 20px;
+    z-index: 8;
+    pointer-events: none;
+    background: center bottom / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg transform='translate(32 0) scale(-1 1)'%3E%3Cpath fill='none' stroke='%23646464' stroke-width='6.81511784' d='M12.160561 8.4267H3.921841'/%3E%3Cpath fill='none' stroke='%23000' stroke-width='5.80712891' d='M4.34043 13.8788V2.9746'/%3E%3Cpath fill='%23b90000' stroke='%23b90000' stroke-width='5' d='M14.46743 25.5937V5.8964h6.499883l6.824514 19.6973z'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Crane Runway Ground Rails */
+.crane-runway {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 17px;
+    height: 3px;
+    z-index: 13;
+    pointer-events: none;
+}
+.crane-rail-front {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, #94a3b8 0%, #475569 50%, #1e293b 100%);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+    border-radius: 1px;
+}
+
+/* Intermodal Gantry Crane */
+.gantry {
+    position: absolute;
+    left: 160px;
+    bottom: 20px;
+    width: var(--gantry-width);
+    height: 145px;
+    z-index: 10;
+    transition: left var(--gantry-move-dur, 0.38s) cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: left;
+    pointer-events: none;
+}
+.gantry.at-depot { left: var(--gantry-depot-left); }
+.gantry.at-train { left: var(--gantry-train-left); }
+
+/* Dual Portal Crane Framing */
+.gantry-portal {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.gantry-portal.gantry-back {
+    z-index: 2; /* Behind train */
+    opacity: 0.65;
+    filter: brightness(0.65);
+}
+.gantry-portal.gantry-front {
+    z-index: 14; /* In front of train rails */
+}
+.gantry-leg {
+    position: absolute;
+    bottom: 0;
+    width: 6px;
+    height: 98px;
+    background: repeating-linear-gradient(180deg, #f59e0b 0px, #f59e0b 8px, #d97706 8px, #d97706 10px);
+    border-radius: 1px;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+}
+.gantry-portal.gantry-back .gantry-leg {
+    background: repeating-linear-gradient(180deg, #94a3b8 0px, #94a3b8 8px, #475569 8px, #475569 10px);
+}
+.gantry-leg.l { left: 8px; }
+.gantry-leg.r { right: 8px; }
+
+.gantry-truck {
+    position: absolute;
+    bottom: -2px;
+    left: -4px;
+    width: 14px;
+    height: 6px;
+    background: #1e293b;
+    border: 1px solid #475569;
+    border-radius: 2px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.gantry-truck::before,
+.gantry-truck::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #64748b;
+    border: 1px solid #0f172a;
+}
+.gantry-truck::before { left: 1px; }
+.gantry-truck::after { right: 1px; }
+
+/* Overhead Beam & Cabin */
+.gantry-beam {
+    position: absolute;
+    bottom: 98px;
+    left: 2px;
+    right: 2px;
+    height: 12px;
+    background: linear-gradient(180deg, #f59e0b 0%, #b45309 100%);
+    border-radius: 2px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    z-index: 15;
+}
+.gantry-truss-pattern {
+    position: absolute;
+    inset: 2px 4px;
+    background: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.25) 0px, rgba(0, 0, 0, 0.25) 2px, transparent 2px, transparent 6px);
+    opacity: 0.8;
+}
+.gantry-cabin {
+    position: absolute;
+    bottom: -14px;
+    left: 16px;
+    width: 14px;
+    height: 14px;
+    background: #1e293b;
+    border: 1px solid #475569;
+    border-radius: 2px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.gantry-cabin::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    right: 2px;
+    height: 6px;
+    background: #38bdf8;
+    opacity: 0.75;
+    border-radius: 1px;
+    box-shadow: 0 0 4px #38bdf8;
+}
+
+/* Hoist Trolley, Braided Cables & Spreader */
+.gantry-trolley {
+    position: absolute;
+    top: -4px;
+    left: var(--trolley-pos, 50%);
+    transform: translateX(-50%);
+    width: 20px;
+    height: 8px;
+    background: #334155;
+    border: 1px solid #64748b;
+    border-radius: 2px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    z-index: 16;
+    transition: left var(--trolley-move-dur, 0.35s) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.gantry-hoist {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12px;
+    background: transparent;
+    transition: height var(--hoist-move-dur, 0.26s) cubic-bezier(0.34, 1.25, 0.64, 1);
+    height: 12px;
+    will-change: height;
+}
+.gantry-cables {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 2px;
+    right: 2px;
+    box-shadow: -3px 0 0 -1px #94a3b8, 3px 0 0 -1px #94a3b8;
+    background: transparent;
+}
+.gantry-spreader {
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 26px;
+    height: 6px;
+    background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+    border: 1px solid #b45309;
+    border-radius: 2px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+.spreader-twistlock {
+    position: absolute;
+    bottom: -3px;
+    width: 3px;
+    height: 4px;
+    background: #0f172a;
+    border-radius: 1px;
+}
+.spreader-twistlock.tl { left: 1px; }
+.spreader-twistlock.tr { right: 1px; }
+
+.gantry-payload {
+    position: absolute;
+    bottom: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 28px;
+    height: 18px;
+    border-radius: 2px;
+    opacity: 0;
+    transition: opacity 0.05s ease;
+    will-change: opacity;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.gantry-payload.visible { opacity: 1; }
+.gantry-payload .crate-ribs {
+    position: absolute;
+    inset: 2px 2px;
+    border-radius: 1px;
+    background: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.14) 0px, rgba(0, 0, 0, 0.14) 1px, transparent 1px, transparent 4px);
+}
+
+/* Freight Train Zone */
+.train-zone {
+    position: absolute;
+    right: 0;
+    bottom: 29px;
+    display: flex;
+    gap: 2px;
+    z-index: 6;
+    flex-direction: row-reverse;
+    align-items: flex-end;
+    transition: transform var(--train-step-dur, 0.45s) cubic-bezier(0.25, 0.1, 0.25, 1);
+    will-change: transform;
+}
+.train-zone.arriving {
+    animation: train-arrive 0.8s cubic-bezier(0.12, 0.8, 0.25, 1) forwards;
+}
+.train-zone.arriving .train-wheel {
+    animation-direction: reverse;
+}
+@keyframes train-arrive {
+    0% { transform: translateX(calc(var(--train-shift, 0px) + 180px)); opacity: 0; }
+    20% { opacity: 1; }
+    100% { transform: translateX(var(--train-shift, 0px)); opacity: 1; }
+}
+.train-zone.departing {
+    animation: train-depart 1.05s cubic-bezier(0.4, 0, 0.7, 0.2) forwards;
+}
+@keyframes train-depart {
+    0% { transform: translateX(var(--train-shift, 0px)); opacity: 1; }
+    85% { opacity: 1; }
+    100% { transform: translateX(calc(var(--train-shift, 0px) + 520px)); opacity: 0; }
+}
+
+/* Heavy Industrial Diesel Shunter Locomotive - Heading Right */
+.locomotive {
+    width: 48px;
+    height: 25px;
+    flex-shrink: 0;
+    position: relative;
+}
+.loco-body {
+    width: 100%;
+    height: 18px;
+    position: relative;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+/* Short rear equipment hood (left) */
+.loco-hood-short {
+    position: absolute;
+    left: 0;
+    top: 5px;
+    width: 12px;
+    height: 13px;
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid #334155;
+    border-radius: 2px 0 0 1px;
+}
+/* Center/offset elevated operator cab */
+.loco-cab {
+    position: absolute;
+    left: 11px;
+    top: 0;
+    width: 17px;
+    height: 18px;
+    background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+    border: 1px solid #475569;
+    border-radius: 2px 2px 0 0;
+    z-index: 2;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.loco-cab .loco-window.front {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 5px;
+    height: 7px;
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.6) 0%, rgba(56, 189, 248, 0.5) 100%);
+    border-radius: 1px;
+    box-shadow: 0 0 4px rgba(56, 189, 248, 0.3);
+}
+.loco-cab .loco-window.side {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 6px;
+    height: 6px;
+    background: rgba(56, 189, 248, 0.3);
+    border-radius: 1px;
+}
+/* Long forward diesel engine hood (right) */
+.loco-hood-long {
+    position: absolute;
+    left: 27px;
+    top: 3px;
+    width: 21px;
+    height: 15px;
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid #334155;
+    border-radius: 0 3px 2px 0;
+    z-index: 1;
+}
+.loco-radiator {
+    position: absolute;
+    top: 2px;
+    right: 3px;
+    width: 4px;
+    height: 8px;
+    background: repeating-linear-gradient(180deg, #475569 0px, #475569 1px, #0f172a 1px, #0f172a 2px);
+}
+/* Diesel Exhaust Stack */
+.loco-exhaust {
+    position: absolute;
+    top: -5px;
+    left: 4px;
+    width: 4px;
+    height: 6px;
+    background: #0f172a;
+    border: 1px solid #475569;
+    border-radius: 1px 1px 0 0;
+}
+.exhaust-smoke {
+    position: absolute;
+    top: -5px;
+    left: 0;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(148, 163, 184, 0.35);
+    animation: diesel-puff 1.2s infinite ease-out;
+    pointer-events: none;
+}
+@keyframes diesel-puff {
+    0% { transform: translateY(0) scale(0.6); opacity: 0.6; }
+    50% { opacity: 0.4; }
+    100% { transform: translateY(-8px) scale(1.6); opacity: 0; }
+}
+/* Heavy Walkway Footplate */
+.loco-walkway {
+    position: absolute;
+    bottom: 0;
+    left: -2px;
+    right: -2px;
+    height: 3px;
+    background: linear-gradient(180deg, #475569 0%, #334155 100%);
+    border-radius: 1px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    z-index: 3;
+}
+/* Side Railing / Safety Grab Irons */
+.loco-railing {
+    position: absolute;
+    bottom: 2px;
+    left: 0;
+    right: 0;
+    height: 6px;
+    border-top: 1px solid rgba(245, 158, 11, 0.6);
+    pointer-events: none;
+    z-index: 4;
+}
+/* High-Visibility Warning Chevrons on Front Pilot */
+.loco-stripe {
+    position: absolute;
+    bottom: 2px;
+    right: 0;
+    width: 21px;
+    height: 2px;
+    background: repeating-linear-gradient(45deg, #f59e0b 0px, #f59e0b 3px, #1e293b 3px, #1e293b 6px);
+    z-index: 3;
+}
+/* Headlights & Ditch Lights on Nose */
+.loco-headlight {
+    position: absolute;
+    right: -2px;
+    top: 6px;
+    width: 4px;
+    height: 4px;
+    background: #fef08a;
+    border-radius: 50%;
+    box-shadow: 0 0 10px 3px rgba(254, 240, 138, 0.9);
+    z-index: 5;
+}
+.loco-ditchlights {
+    position: absolute;
+    right: 0;
+    bottom: 3px;
+    width: 3px;
+    height: 3px;
+    background: #fef08a;
+    border-radius: 50%;
+    box-shadow: 0 0 6px 2px rgba(254, 240, 138, 0.8);
+    z-index: 5;
+}
+.loco-headlight-cone {
+    position: absolute;
+    left: 100%;
+    top: -2px;
+    width: 85px;
+    height: 24px;
+    pointer-events: none;
+    background: linear-gradient(to right, rgba(254, 240, 138, 0.35) 0%, rgba(254, 240, 138, 0.08) 65%, transparent 100%);
+    clip-path: polygon(0% 35%, 100% 0%, 100% 100%, 0% 65%);
+    z-index: 4;
+}
+.loco-coupler {
+    position: absolute;
+    left: -4px;
+    bottom: 1px;
+    width: 5px;
+    height: 4px;
+    background: #475569;
+    border-radius: 1px;
+    z-index: 5;
+}
+.loco-taillight {
+    position: absolute;
+    left: 1px;
+    top: 8px;
+    width: 2px;
+    height: 2px;
+    background: #ef4444;
+    border-radius: 50%;
+    box-shadow: 0 0 4px #ef4444;
+}
+/* Underslung Fuel Tank */
+.loco-underbody {
+    position: absolute;
+    bottom: 0;
+    left: 18px;
+    right: 14px;
+    height: 4px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 1px;
+}
+.loco-bogie {
+    position: absolute;
+    bottom: 0;
+    display: flex;
+    gap: 4px;
+    z-index: 5;
+}
+.loco-bogie.bl { left: 4px; }
+.loco-bogie.br { right: 3px; }
+
+/* 2-Axle Container Flatcars (Snug Intermodal Spacing) */
+.flatcar {
+    width: 32px;
+    height: 25px;
+    flex-shrink: 0;
+    position: relative;
+    opacity: 1;
+}
+.flatcar.offscreen,
+.locomotive.offscreen {
+    visibility: hidden;
+    pointer-events: none;
+}
+.rolling .flatcar.offscreen .train-wheel,
+.rolling .locomotive.offscreen .train-wheel {
+    animation: none !important;
+}
+.flatcar.settling {
+    animation: flatcar-spring 0.32s cubic-bezier(0.25, 1.4, 0.5, 1);
+}
+@keyframes flatcar-spring {
+    0% { transform: translateY(0); }
+    30% { transform: translateY(2.5px); }
+    60% { transform: translateY(-0.8px); }
+    80% { transform: translateY(0.3px); }
+    100% { transform: translateY(0); }
+}
+.flatcar-deck {
+    position: absolute;
+    bottom: 5px;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: linear-gradient(180deg, #475569 0%, #1e293b 100%);
+    border: 1px solid #334155;
+    border-radius: 1px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.flatcar-deck .flatcar-chassis {
+    position: absolute;
+    inset: 1px 2px;
+    background: repeating-linear-gradient(90deg, #334155 0px, #334155 2px, transparent 2px, transparent 6px);
+}
+.flatcar-deck .flatcar-pin {
+    position: absolute;
+    top: -2px;
+    width: 2px;
+    height: 3px;
+    background: #94a3b8;
+    border-radius: 1px;
+}
+.flatcar-deck .flatcar-pin.tl { left: 3px; }
+.flatcar-deck .flatcar-pin.tr { right: 3px; }
+.flatcar-deck .flatcar-coupler {
+    position: absolute;
+    left: -3px;
+    top: 1px;
+    width: 4px;
+    height: 3px;
+    background: #475569;
+    border-radius: 1px;
+}
+
+/* 2-Axle Suspension & Axlebox Mounts */
+.flatcar-axle {
+    position: absolute;
+    bottom: 0;
+    width: 8px;
+    display: flex;
+    justify-content: center;
+}
+.flatcar-axle.al { left: 4px; }
+.flatcar-axle.ar { right: 4px; }
+.flatcar-axle .axle-guard {
+    position: absolute;
+    top: -2px;
+    width: 8px;
+    height: 3px;
+    background: #1e293b;
+    border-radius: 1px;
+    border-top: 1px solid #475569;
+}
+
+/* Wheel Animation - Clockwise Forward */
+.train-wheel {
+    width: 6px;
+    height: 6px;
+    background: radial-gradient(circle at 50% 50%, #64748b 0%, #334155 50%, #0f172a 100%);
+    border-radius: 50%;
+    border: 1px solid #475569;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.wheel-spoke {
+    position: absolute;
+    inset: 1px;
+    border-radius: 50%;
+    border-top: 1px solid #cbd5e1;
+}
+.rolling .train-wheel {
+    animation: wheel-spin 0.35s linear infinite;
+}
+@keyframes wheel-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Train Loaded Container Placement */
+.train-crate {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 28px;
+    height: 18px;
+    border-radius: 2px;
+    opacity: 1;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.train-crate.placed {
+    opacity: 1;
+}
+.train-crate .crate-ribs {
+    position: absolute;
+    inset: 2px 2px;
+    border-radius: 1px;
+    background: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.14) 0px, rgba(0, 0, 0, 0.14) 1px, transparent 1px, transparent 4px);
+}
+
+.cargo-scene.has-error .gantry { left: var(--gantry-depot-left) !important; transition: left 0.5s ease; }
+.cargo-scene.has-error .gantry-hoist { height: 12px !important; transition: height 0.35s ease; }
+.cargo-scene.has-error .gantry-payload { opacity: 0 !important; }
+.fetch-title { font-size: 24px; margin: 0 0 10px; }
+.fetch-status { color: var(--text-secondary); margin: 0 0 30px; font-size: 14px; }
+.fetch-progress-bar { height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
+.fetch-progress-fill { height: 100%; background: var(--accent-gradient); border-radius: 4px; transition: width 0.3s; width: 0%; }
+.fetch-stats { display: flex; justify-content: center; gap: 20px; color: var(--text-secondary); font-size: 14px; flex-wrap: wrap; }
+.fetch-stat { display: flex; flex-direction: column; align-items: center; min-width: 55px; }
+.fetch-stat-value { font-size: 24px; font-weight: 600; color: var(--text-primary); }
+.fetch-stat-label { font-size: 12px; color: var(--text-muted); }
+
+/* Split-flap flip keyframes */
+@keyframes flap-flip {
+    0% { transform: rotateX(0deg); opacity: 1; }
+    45% { transform: rotateX(-80deg); opacity: 0.3; }
+    55% { transform: rotateX(80deg); opacity: 0.3; }
+    100% { transform: rotateX(0deg); opacity: 1; }
+}
+.rate-limit-card { margin-top: 16px; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px;
+    background: var(--bg-tertiary); text-align: left; box-shadow: 0 8px 20px rgba(0,0,0,0.12); }
+.rate-limit-header { display: flex; justify-content: space-between; align-items: flex-start; font-size: 12px;
+    font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; gap: 6px; }
+.rate-limit-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.rate-limit-limit { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
+.rate-limit-label { font-size: 12px; color: var(--text-primary); }
+.rate-limit-bar { position: relative; height: 12px; border-radius: 999px; overflow: hidden; background: #1c1c1c;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
+.rate-limit-bar span { position: absolute; top: 0; bottom: 0; transition: width 0.25s ease; }
+.rate-limit-used { left: 0; background: linear-gradient(90deg, #ff6b6b, #ffa726); width: 0%; }
+.rate-limit-available { right: 0; background: linear-gradient(90deg, #00c853, #81c784); width: 100%; opacity: 0.9; mix-blend-mode: screen; }
+.rate-limit-status { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+.rate-limit-card.waiting .rate-limit-status { color: #ffb74d; }
+.fetch-cancel { margin-top: 20px; padding: 10px 20px; background: transparent; border: 1px solid var(--border-color);
+    border-radius: 6px; color: var(--text-secondary); cursor: pointer; font-size: 14px; }
+.fetch-retry { margin-top: 15px; padding: 10px 20px; background: var(--accent-gradient); border: none;
+    border-radius: 6px; color: white; cursor: pointer; font-size: 14px; font-weight: 600; }
+.fetch-retry:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4); }
+.fetch-error { margin-top: 20px; text-align: left; border-radius: 12px; padding: 16px 18px;
+    background: rgba(36, 18, 24, 0.95); border: 1px solid rgba(248, 81, 73, 0.4);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); color: var(--text-primary); backdrop-filter: blur(10px); }
+.fetch-error-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.fetch-error-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
+.fetch-error-title { margin: 0; font-size: 15px; font-weight: 700; color: #ff7b72; }
+.fetch-error-desc { margin: 0 0 10px; font-size: 13px; color: var(--text-secondary); line-height: 1.45; }
+.fetch-error-tip { font-size: 12px; color: var(--text-muted); background: rgba(255, 255, 255, 0.04);
+    border-left: 3px solid #ff7b72; padding: 6px 10px; border-radius: 0 6px 6px 0; margin-bottom: 12px; line-height: 1.4; }
+.fetch-error-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.fetch-error-btn-primary { background: var(--accent-gradient); color: white; border: none;
+    border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+.fetch-error-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); }
+.fetch-error-btn-secondary { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border-color);
+    border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.fetch-error-btn-secondary:hover { background: var(--hover-bg); color: var(--text-primary); }
+.status-banner { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1200;
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px;
+    background: rgba(255, 196, 0, 0.15); border: 1px solid rgba(255, 196, 0, 0.45); box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    color: #ffe6a0; backdrop-filter: blur(12px); max-width: min(640px, 92vw); font-size: 13px; line-height: 1.4; }
+.status-banner strong { color: #ffdf5c; }
+.status-banner a { color: #ffd36d; font-weight: 600; text-decoration: underline; }
+.status-banner button { background: transparent; border: none; color: #ffd36d; font-size: 18px; cursor: pointer;
+    padding: 0 4px; line-height: 1; border-radius: 4px; }
+.status-banner button:hover { color: #ffffff; background: rgba(255,255,255,0.1); }
+.status-banner.inline { position: relative; top: auto; left: auto; transform: none; width: 100%; max-width: 100%;
+    margin-bottom: 20px; }
