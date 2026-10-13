@@ -89,6 +89,7 @@ export function loadLayers() {
 
     // Drag-and-drop state
     let draggedItem = null;
+    let suppressClickUntil = 0;
 
     const clearDropIndicators = () => {
         layerList.querySelectorAll('.layer-item').forEach(item => {
@@ -109,13 +110,40 @@ export function loadLayers() {
         }
     };
 
-    const computeDropPosition = (event, item) => {
+    const computeDropPosition = (clientY, item) => {
         const rect = item.getBoundingClientRect();
-        const offset = event.clientY - rect.top;
+        const offset = clientY - rect.top;
         return offset < rect.height / 2 ? 'before' : 'after';
     };
 
-    // Render layers in defined order (bottom to top)
+    const performReorder = (draggedLayerId, targetLayerId, dropPosition) => {
+        if (!draggedLayerId || !targetLayerId || draggedLayerId === targetLayerId) return;
+
+        const draggedIndex = state.layers.order.indexOf(draggedLayerId);
+        const targetIndex = state.layers.order.indexOf(targetLayerId);
+        if (draggedIndex === -1 || targetIndex === -1) return;
+
+        let insertIndex = dropPosition === 'after' ? targetIndex + 1 : targetIndex;
+
+        state.layers.order.splice(draggedIndex, 1);
+        if (draggedIndex < insertIndex) insertIndex--;
+        if (insertIndex < 0) insertIndex = 0;
+        if (insertIndex > state.layers.order.length) insertIndex = state.layers.order.length;
+
+        state.layers.order.splice(insertIndex, 0, draggedLayerId);
+
+        // Persist new layer order to localStorage
+        try {
+            localStorage.setItem('tw_layer_order', JSON.stringify(state.layers.order));
+        } catch (e) {
+            console.warn('Failed to save tw_layer_order to localStorage:', e);
+        }
+
+        // Reload layers with new order
+        reloadAllLayers();
+    };
+
+    // Render layers in defined order
     state.layers.order.forEach((layerId) => {
         const layer = state.layers.data.get(layerId);
         if (!layer) return;
@@ -141,22 +169,28 @@ export function loadLayers() {
         layerItem.dataset.layerId = layerId;
         layerItem.innerHTML = `
             <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">
+                <span class="layer-drag-handle" title="Drag to reorder" style="cursor:grab;display:inline-flex;align-items:center;opacity:0.4;padding:0 2px;font-size:13px;line-height:1;touch-action:none;user-select:none;">⋮⋮</span>
                 <span class="layer-color-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background-color:${color};flex-shrink:0;"></span>
                 <span class="layer-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${displayName}${countBadge}</span>
             </div>
             <span class="layer-status">${layer.visible ? 'ON' : 'OFF'}</span>
         `;
 
-        // Click handler to toggle visibility
+        // Click handler to toggle visibility (ignored right after drag)
         layerItem.addEventListener('click', (e) => {
-            if (layerItem.classList.contains('dragging')) return;
+            if (Date.now() < suppressClickUntil || layerItem.classList.contains('dragging')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
             toggleLayer(layerId);
         });
 
-        // Drag and drop handlers
+        // HTML5 Drag and drop handlers (desktop)
         layerItem.addEventListener('dragstart', (e) => {
             draggedItem = layerItem;
             layerItem.classList.add('dragging');
+            suppressClickUntil = Date.now() + 600;
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', layerId);
         });
@@ -165,13 +199,14 @@ export function loadLayers() {
             layerItem.classList.remove('dragging');
             draggedItem = null;
             clearDropIndicators();
+            suppressClickUntil = Date.now() + 400;
         });
 
         layerItem.addEventListener('dragover', (e) => {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
             if (draggedItem && draggedItem !== layerItem) {
-                const position = computeDropPosition(e, layerItem);
+                const position = computeDropPosition(e.clientY, layerItem);
                 applyDropIndicator(layerItem, position);
             }
         });
@@ -185,35 +220,87 @@ export function loadLayers() {
 
         layerItem.addEventListener('drop', (e) => {
             e.preventDefault();
-            const dropPosition = layerItem.dataset.dropPosition || computeDropPosition(e, layerItem);
+            const dropPosition = layerItem.dataset.dropPosition || computeDropPosition(e.clientY, layerItem);
             clearDropIndicators();
+            suppressClickUntil = Date.now() + 400;
 
             if (draggedItem && draggedItem !== layerItem) {
                 const draggedLayerId = draggedItem.dataset.layerId;
                 const targetLayerId = layerItem.dataset.layerId;
-
-                const draggedIndex = state.layers.order.indexOf(draggedLayerId);
-                const targetIndex = state.layers.order.indexOf(targetLayerId);
-                let insertIndex = dropPosition === 'after' ? targetIndex + 1 : targetIndex;
-
-                state.layers.order.splice(draggedIndex, 1);
-                if (draggedIndex < insertIndex) insertIndex--;
-                if (insertIndex < 0) insertIndex = 0;
-                if (insertIndex > state.layers.order.length) insertIndex = state.layers.order.length;
-
-                state.layers.order.splice(insertIndex, 0, draggedLayerId);
-
-                // Persist new layer order to localStorage
-                try {
-                    localStorage.setItem('tw_layer_order', JSON.stringify(state.layers.order));
-                } catch (e) {
-                    console.warn('Failed to save tw_layer_order to localStorage:', e);
-                }
-
-                // Reload layers with new order
-                reloadAllLayers();
+                performReorder(draggedLayerId, targetLayerId, dropPosition);
             }
         });
+
+        // Touch & pointer support for mobile devices
+        const handle = layerItem.querySelector('.layer-drag-handle');
+        if (handle) {
+            handle.addEventListener('pointerdown', (e) => {
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
+                const targetHandle = e.currentTarget;
+                const currentItem = layerItem;
+                const pointerId = e.pointerId;
+                
+                let isDraggingPointer = false;
+                let activeTargetItem = null;
+                const startY = e.clientY;
+
+                const onPointerMove = (ev) => {
+                    if (ev.pointerId !== pointerId) return;
+                    const deltaY = Math.abs(ev.clientY - startY);
+                    if (!isDraggingPointer && deltaY > 6) {
+                        isDraggingPointer = true;
+                        draggedItem = currentItem;
+                        currentItem.classList.add('dragging');
+                        suppressClickUntil = Date.now() + 600;
+                        try { targetHandle.setPointerCapture(pointerId); } catch (_) {}
+                    }
+
+                    if (isDraggingPointer) {
+                        ev.preventDefault();
+                        const elementBelow = document.elementFromPoint(ev.clientX, ev.clientY);
+                        const hoverItem = elementBelow?.closest('.layer-item');
+                        if (hoverItem && hoverItem !== currentItem && layerList.contains(hoverItem)) {
+                            activeTargetItem = hoverItem;
+                            const pos = computeDropPosition(ev.clientY, hoverItem);
+                            applyDropIndicator(hoverItem, pos);
+                        } else if (!hoverItem || hoverItem === currentItem) {
+                            clearDropIndicators();
+                            activeTargetItem = null;
+                        }
+                    }
+                };
+
+                const onPointerUp = (ev) => {
+                    if (ev.pointerId !== pointerId) return;
+                    window.removeEventListener('pointermove', onPointerMove);
+                    window.removeEventListener('pointerup', onPointerUp);
+                    window.removeEventListener('pointercancel', onPointerUp);
+                    try { targetHandle.releasePointerCapture(pointerId); } catch (_) {}
+
+                    if (isDraggingPointer) {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        suppressClickUntil = Date.now() + 500;
+                        currentItem.classList.remove('dragging');
+                        draggedItem = null;
+
+                        if (activeTargetItem && activeTargetItem !== currentItem) {
+                            const dropPosition = activeTargetItem.dataset.dropPosition || computeDropPosition(ev.clientY, activeTargetItem);
+                            clearDropIndicators();
+                            const draggedLayerId = currentItem.dataset.layerId;
+                            const targetLayerId = activeTargetItem.dataset.layerId;
+                            performReorder(draggedLayerId, targetLayerId, dropPosition);
+                        } else {
+                            clearDropIndicators();
+                        }
+                    }
+                };
+
+                window.addEventListener('pointermove', onPointerMove, { passive: false });
+                window.addEventListener('pointerup', onPointerUp);
+                window.addEventListener('pointercancel', onPointerUp);
+            });
+        }
 
         layerList.appendChild(layerItem);
     });
@@ -257,7 +344,10 @@ export function toggleLayer(layerId) {
 
 /**
  * Reorder route layers on the Mapbox map so that their rendering stack matches state.layers.order.
- * state.layers.order has index 0 as the bottom-most layer and index (length-1) as the top-most layer.
+ * state.layers.order is rendered from top-to-bottom in the UI menu list (index 0 = top of menu).
+ * The user expects the top item of the list to be rendered on top of the other routes.
+ * Therefore, in Mapbox's bottom-to-top rendering stack, we move layers from bottom of menu (index N-1)
+ * to top of menu (index 0), so index 0 is on top of all route layers.
  */
 export function syncMapLayerOrder() {
     const state = store.get();
@@ -266,14 +356,20 @@ export function syncMapLayerOrder() {
     }
 
     try {
-        // Move layers sequentially: bottom layer first, subsequent layers on top of it.
-        // Calling moveLayer(layerId) without beforeId pushes layerId to the top of the layer stack.
-        // We iterate through state.layers.order from 0 to N-1: each subsequent layer will be moved above the previous one.
-        state.layers.order.forEach((layerId) => {
+        // Move base railway layer first if present
+        if (state.map.getLayer('open-railway-map')) {
+            state.map.moveLayer('open-railway-map');
+        }
+
+        // Iterate state.layers.order in reverse (from last item in menu to first item in menu).
+        // Calling moveLayer(layerId) without beforeId puts each layer on top of preceding layers.
+        // As a result, the item at index 0 of state.layers.order ends up topmost among the route layers!
+        for (let i = state.layers.order.length - 1; i >= 0; i--) {
+            const layerId = state.layers.order[i];
             if (state.map.getLayer(layerId)) {
                 state.map.moveLayer(layerId);
             }
-        });
+        }
 
         // Ensure highlight layers remain at the absolute top of line layers if they exist
         if (state.map.getLayer('route-highlight-glow')) {

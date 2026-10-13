@@ -75,6 +75,8 @@
 .layer-item.active .layer-status { background: rgba(104, 211, 145, 0.2); color: #68d391; }
 .layer-item:not(.active) .layer-status { background: rgba(255, 107, 107, 0.15); color: #ff6b6b; }
 .layer-item.dragging { opacity: 0.5; transform: rotate(2deg) scale(1.05); }
+.layer-drag-handle { transition: opacity 0.15s ease, transform 0.15s ease; user-select: none; }
+.layer-item:hover .layer-drag-handle { opacity: 0.8 !important; }
 .layer-item.drag-over { background: rgba(102, 126, 234, 0.15); }
 .layer-item.drag-over::before,
 .layer-item.drag-over::after {
