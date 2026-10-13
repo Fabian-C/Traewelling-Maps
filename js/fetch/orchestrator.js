@@ -805,10 +805,30 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
         const baseOpacity = heatmap.getCurrentBaseOpacity(state);
         for (let i = 0; i < state.layers.order.length; i++) {
             const layerId = state.layers.order[i];
+            if (state.map.getLayer(layerId)) {
+                try {
+                    state.map.removeLayer(layerId);
+                } catch (e) {
+                    console.warn(`Failed to remove layer ${layerId}:`, e);
+                }
+            }
+            if (state.map.getSource(layerId)) {
+                try {
+                    state.map.removeSource(layerId);
+                } catch (e) {
+                    console.warn(`Failed to remove source ${layerId}:`, e);
+                }
+            }
+        }
+
+        // Add from bottom of menu (index N-1) to top of menu (index 0) so index 0 is topmost
+        for (let i = state.layers.order.length - 1; i >= 0; i--) {
+            const layerId = state.layers.order[i];
             const config = CONFIG.LAYER_CONFIG.find(([id]) => id === layerId);
             if (!config) continue;
             const color = config[1];
             const data = categories[layerId] || { type: 'FeatureCollection', features: [] };
+
             try {
                 const existingSource = state.map.getSource(layerId);
                 if (existingSource) {
@@ -817,34 +837,34 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
                     state.map.addSource(layerId, { type: 'geojson', data });
                 }
 
-                if (!state.map.getLayer(layerId)) {
-                    state.map.addLayer({
-                        id: layerId,
-                        type: 'line',
-                        source: layerId,
-                        layout: {
-                            'line-join': 'round',
-                            'line-cap': 'round',
-                            visibility: state.heatmap.enabled ? 'none' : 'visible'
-                        },
-                        paint: {
-                            'line-color': color,
-                            'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
-                            'line-opacity': baseOpacity
-                        }
-                    });
-                } else {
-                    state.map.setLayoutProperty(layerId, 'visibility', state.heatmap.enabled ? 'none' : 'visible');
-                    state.map.setPaintProperty(layerId, 'line-color', color);
-                    state.map.setPaintProperty(layerId, 'line-opacity', baseOpacity);
-                }
+                state.map.addLayer({
+                    id: layerId,
+                    type: 'line',
+                    source: layerId,
+                    layout: {
+                        'line-join': 'round',
+                        'line-cap': 'round',
+                        visibility: state.heatmap.enabled ? 'none' : 'visible'
+                    },
+                    paint: {
+                        'line-color': color,
+                        'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
+                        'line-opacity': baseOpacity
+                    }
+                });
 
                 state.layers.data.set(layerId, { data, color, visible: true });
             } catch (e) {
                 console.error(`Failed to add layer ${layerId}:`, e);
             }
         }
-        syncMapLayerOrder();
+
+        if (state.map.getLayer('route-highlight-glow')) {
+            try { state.map.moveLayer('route-highlight-glow'); } catch (_) {}
+        }
+        if (state.map.getLayer('route-highlight')) {
+            try { state.map.moveLayer('route-highlight'); } catch (_) {}
+        }
         analytics.updateAllStatistics();
         analytics.updateMenuBuddyList();
         loadLayers();
