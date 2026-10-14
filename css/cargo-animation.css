@@ -484,7 +484,9 @@
     height: 145px;
     z-index: 10;
     transition: left var(--gantry-move-dur, 0.38s) cubic-bezier(0.22, 1, 0.36, 1);
-    will-change: left;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: left, transform;
     pointer-events: none;
 }
 .gantry.at-depot { left: var(--gantry-depot-left); }

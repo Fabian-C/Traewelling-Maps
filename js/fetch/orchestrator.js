@@ -90,9 +90,10 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         const tripSearchClear = document.getElementById('tripSearchClearBtn');
         if (tripSearchClear) tripSearchClear.style.display = 'none';
         updateFilterBadges();
-        state.fetchProgress = { page: 1, pagesFetchComplete: false, allStatuses: [], polylineCount: 0, processedPolylines: 0 };
+        state.fetchProgress = { page: 1, pagesFetchComplete: false, allStatuses: [], polylineCount: 0, processedPolylines: 0, containersDelivered: 0 };
         UI.resetCargoAnimation();
     } else {
+        UI.clearFetchError();
         console.log('Resuming fetch from progress:', {
             page: state.fetchProgress?.page,
             trips: state.fetchProgress?.allStatuses?.length,
@@ -166,6 +167,12 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             // is masked behind depot container animations and UI rendering without stutter or pauses.
             let prefetchPagePromise = api.getUserStatuses(username, page);
 
+            const PAGES_PER_CONTAINER = 2;
+            let containerIndex = resumeFromState && state.fetchProgress?.containersDelivered
+                ? state.fetchProgress.containersDelivered
+                : Math.floor((page - 1) / PAGES_PER_CONTAINER);
+            let pagesInContainerBatch = (page - 1) % PAGES_PER_CONTAINER;
+
             while (hasMore && !state.cancelFetch) {
                 UI.updateFetchStats({ status: `Fetching page ${page}...` });
 
@@ -179,7 +186,10 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 if (incremental && newestCachedTripId) {
                     const foundIdx = res.data.findIndex(s => s.id === newestCachedTripId);
                     if (foundIdx !== -1) {
-                        if (foundIdx > 0) allStatuses.push(...res.data.slice(0, foundIdx));
+                        if (foundIdx > 0) {
+                            allStatuses.push(...res.data.slice(0, foundIdx));
+                            pagesInContainerBatch++;
+                        }
                         console.log(`Found newest cached trip at index ${foundIdx} on page ${page}, stopping incremental fetch`);
                         hasMore = false;
                         break;
@@ -187,6 +197,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 }
 
                 allStatuses.push(...res.data);
+                pagesInContainerBatch++;
 
                 if (tripLimit > 0 && allStatuses.length >= tripLimit) {
                     if (allStatuses.length > tripLimit) allStatuses.length = tripLimit;
@@ -196,8 +207,13 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
 
                 const pageProgress = Math.min(45, Math.round((page / (page + 4)) * 45));
                 UI.updateFetchStats({ trips: allStatuses.length, pages: page, progress: pageProgress });
-                // Deliver 1 container per fetched page
-                UI.addPacketToDepot(page, 1);
+
+                // Deliver 1 container per 2 fetched pages
+                if (pagesInContainerBatch >= PAGES_PER_CONTAINER) {
+                    containerIndex++;
+                    UI.addPacketToDepot(containerIndex, 1);
+                    pagesInContainerBatch = 0;
+                }
                 FunFacts.showFactsFromTrips(res.data, Math.floor(Math.random() * 2) + 1);
 
                 if (!res.links?.next) {
@@ -214,13 +230,22 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                     pagesFetchComplete: !hasMore,
                     allStatuses: allStatuses,
                     polylineCount: 0,
-                    processedPolylines: 0
+                    processedPolylines: 0,
+                    containersDelivered: containerIndex
                 };
                 if (page > 1500) break;
             }
 
+            // Deliver any remaining partial batch as a container (e.g. if total pages was not a multiple of 2)
+            if (!state.cancelFetch && pagesInContainerBatch > 0 && allStatuses.length > 0) {
+                containerIndex++;
+                UI.addPacketToDepot(containerIndex, 1);
+                pagesInContainerBatch = 0;
+            }
+
             if (state.fetchProgress) {
                 state.fetchProgress.pagesFetchComplete = true;
+                state.fetchProgress.containersDelivered = containerIndex;
             }
         } else {
             UI.updateFetchStats({ trips: allStatuses.length, pages: page - 1, progress: 45 });

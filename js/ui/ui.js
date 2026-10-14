@@ -375,8 +375,33 @@ export const UI = {
         gantry.style.left = `${targetGantryLeft}px`;
         gantry.style.setProperty('--trolley-pos', trolleyPos);
 
-        setTimeout(() => { hoist.style.height = hoistDepot + 'px'; }, t(380));
-        setTimeout(() => {
+        if (!Array.isArray(this._craneTimeouts)) this._craneTimeouts = [];
+        this._craneTimeouts.forEach(id => clearTimeout(id));
+        this._craneTimeouts = [];
+
+        const registerTimeout = (fn, delay) => {
+            const id = setTimeout(() => {
+                const idx = this._craneTimeouts.indexOf(id);
+                if (idx !== -1) this._craneTimeouts.splice(idx, 1);
+                fn();
+            }, delay);
+            this._craneTimeouts.push(id);
+            return id;
+        };
+
+        // Safety watchdog: ensure crane never stays permanently locked if an error or stall happens
+        registerTimeout(() => {
+            if (this.craneAnimating) {
+                console.warn('Crane animation watchdog timeout triggered, resetting lock');
+                this.craneAnimating = false;
+                if (this.loadQueue.length > 0) {
+                    this._processQueue();
+                }
+            }
+        }, Math.max(2500, t(2800)));
+
+        registerTimeout(() => { hoist.style.height = hoistDepot + 'px'; }, t(380));
+        registerTimeout(() => {
             // Container is hooked by the spreader: transfer visually to hoist payload
             if (item.el) {
                 item.el.style.visibility = 'hidden';
@@ -388,7 +413,7 @@ export const UI = {
             hoist.style.height = baseHeight + 'px';
         }, t(600));
 
-        setTimeout(() => {
+        registerTimeout(() => {
             // Crane begins carrying the container over to the train
             gantry.classList.remove('at-depot');
             gantry.classList.add('at-train');
@@ -406,7 +431,7 @@ export const UI = {
                     col.count = colEl.children.length;
                     if (col.count === 0) {
                         colEl.classList.add('emptying');
-                        setTimeout(() => {
+                        registerTimeout(() => {
                             colEl.remove();
                             const idx = this.depotColumns.indexOf(col);
                             if (idx !== -1) this.depotColumns.splice(idx, 1);
@@ -420,14 +445,14 @@ export const UI = {
                 }
             }
         }, t(850));
-        setTimeout(() => { hoist.style.height = hoistTrain + 'px'; }, t(1100));
-        setTimeout(() => {
+        registerTimeout(() => { hoist.style.height = hoistTrain + 'px'; }, t(1100));
+        registerTimeout(() => {
             payload.classList.remove('visible');
             if (targetCar) {
                 const crate = this._createCrateElement('train-crate', item.page, item.designBg);
                 targetCar.appendChild(crate);
                 targetCar.classList.add('settling');
-                setTimeout(() => targetCar.classList.remove('settling'), Math.max(120, t(280)));
+                registerTimeout(() => targetCar.classList.remove('settling'), Math.max(120, t(280)));
             }
             this.loadedCarsCount = (this.loadedCarsCount || 0) + 1;
             this.trainCarsCount = this.loadedCarsCount;
@@ -447,11 +472,11 @@ export const UI = {
 
             if (this.refs.cargoStage) {
                 if (this.trainCarsCount >= this.totalDepotReceived && this.loadQueue.length === 0) {
-                    setTimeout(() => { if (this.refs.cargoStage) this.refs.cargoStage.classList.remove('visible'); }, 2000);
+                    registerTimeout(() => { if (this.refs.cargoStage) this.refs.cargoStage.classList.remove('visible'); }, 2000);
                 }
             }
             this.craneAnimating = false;
-            if (this.loadQueue.length > 0) setTimeout(() => this._processQueue(), t(50));
+            if (this.loadQueue.length > 0) registerTimeout(() => this._processQueue(), t(50));
         }, t(1350));
     },
     _updateDepotScroll() {
@@ -855,9 +880,14 @@ export const UI = {
             clearInterval(this._solariTimer);
             this._solariTimer = null;
         }
+        this._craneTimeouts = [];
     },
     onFetchError() {
         if (!this.refs) return;
+        if (Array.isArray(this._craneTimeouts)) {
+            this._craneTimeouts.forEach(id => clearTimeout(id));
+            this._craneTimeouts = [];
+        }
         if (this.refs.cargoScene) {
             this.refs.cargoScene.classList.add('has-error');
         }
@@ -875,6 +905,28 @@ export const UI = {
         }
         this.craneAnimating = false;
         this.loadQueue = [];
+    },
+    clearFetchError() {
+        if (!this.refs) return;
+        if (this.refs.cargoScene) {
+            this.refs.cargoScene.classList.remove('has-error');
+        }
+        if (this.refs.gantry) {
+            this.refs.gantry.classList.remove('at-depot', 'at-train');
+            this.refs.gantry.style.left = '';
+            this.refs.gantry.style.setProperty('--trolley-pos', '50%');
+        }
+        if (this.refs.gantryHoist) {
+            this.refs.gantryHoist.style.height = '12px';
+        }
+        if (this.refs.gantryPayload) {
+            this.refs.gantryPayload.classList.remove('visible');
+        }
+        if (Array.isArray(this._craneTimeouts)) {
+            this._craneTimeouts.forEach(id => clearTimeout(id));
+            this._craneTimeouts = [];
+        }
+        this.craneAnimating = false;
     },
     _updateOffscreenCars() {
         if (!this.refs.trainZone || !this.flatcars) return;
