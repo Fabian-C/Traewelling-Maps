@@ -62,11 +62,11 @@
                         autocapitalize="none" autocorrect="off" autofocus>
                 </div>
 
-                <div class="fetch-option-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; margin: -4px 0 12px 0; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color); border-radius: 8px;">
-                    <div style="flex: 1; padding-right: 10px;">
-                        <span style="font-weight: 600; font-size: 12.5px; color: var(--text-primary); display: block;">Fetch waypoint stopovers</span>
-                        <p class="form-hint" style="margin: 2px 0 0 0; font-size: 11px; color: var(--text-muted); line-height: 1.35;">
-                            Retrieves intermediate stations along traveled routes
+                <div class="fetch-option-row" style="display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; margin: 0; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 8px;">
+                    <div style="flex: 1; padding-right: 8px;">
+                        <span style="font-weight: 600; font-size: 12px; color: var(--text-primary); display: block;">Fetch waypoint stopovers</span>
+                        <p class="form-hint" style="margin: 1px 0 0 0; font-size: 10.5px; color: var(--text-muted); line-height: 1.25;">
+                            Intermediate stations along traveled routes
                         </p>
                     </div>
                     <label class="toggle" style="flex-shrink: 0;" title="Fetch intermediate waypoint stations">
@@ -77,7 +77,21 @@
 
                 <button class="btn-primary" id="startFetchBtn">🔍 Search & Explore</button>
 
-                <details class="token-dropdown" id="tokenDropdown">
+                <details class="setup-dropdown" id="importDropdown">
+                    <summary class="setup-dropdown-summary">
+                        <span>📂 Load exported GeoJSON file</span>
+                    </summary>
+                    <div class="setup-dropdown-content">
+                        <div class="import-dropzone" id="setupFileDropzone" tabindex="0" role="button" aria-label="Upload GeoJSON file">
+                            <input type="file" id="setupFileInput" accept=".geojson,.json,application/geo+json,application/json" style="display: none;">
+                            <div class="import-dropzone-icon">📂</div>
+                            <div class="import-dropzone-title">Upload GeoJSON / JSON</div>
+                            <div class="import-dropzone-hint">Click to browse or drop file here</div>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="setup-dropdown token-dropdown" id="tokenDropdown">
                     <summary class="token-dropdown-summary">
                         <span>🔑 Advanced: Use Personal API Token instead</span>
                     </summary>
@@ -507,10 +521,10 @@
                 <span>🛤️ Railway Map</span>
             </div>
             <details class="menu-submenu" id="exportSubmenu">
-                <summary>📤 Export GeoJSON</summary>
+                <summary>📤 Export &amp; Import</summary>
                 <div class="menu-submenu-content export-section">
                     <p class="section-sub" style="margin: 0 16px 10px;">Export your travel routes and polylines as a
-                        standardized GeoJSON FeatureCollection.</p>
+                        standardized GeoJSON FeatureCollection, or upload a saved file.</p>
 
                     <div class="menu-item toggle-row"
                         style="display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; margin: 0 0 10px 0; background: rgba(255, 255, 255, 0.03); border-radius: 8px;">
@@ -539,13 +553,20 @@
                         </div>
                     </div>
 
-                    <div style="padding: 0 16px 14px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="padding: 0 16px 10px; display: flex; flex-direction: column; gap: 8px;">
                         <button class="btn-primary" id="exportActiveGeoJsonBtn"
                             style="font-size: 13px; padding: 10px 14px;">💾 Download Filtered Trips</button>
                         <button class="btn-secondary" id="exportAllGeoJsonBtn"
                             style="font-size: 13px; padding: 10px 14px;">📦 Download All Loaded Trips</button>
                         <button class="btn-outline" id="copyGeoJsonBtn" style="font-size: 13px; padding: 10px 14px;">📋
                             Copy GeoJSON to Clipboard</button>
+                    </div>
+
+                    <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 4px 16px 14px; padding-top: 12px;">
+                        <input type="file" id="menuFileInput" accept=".geojson,.json,application/geo+json,application/json" style="display: none;">
+                        <button class="btn-secondary" id="menuImportBtn" style="font-size: 13px; padding: 10px 14px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                            <span>📂</span> <span>Upload &amp; Load GeoJSON</span>
+                        </button>
                     </div>
                 </div>
                 <!-- Share functionality temporarily disabled for future reimplementation

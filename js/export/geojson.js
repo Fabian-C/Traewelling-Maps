@@ -4,6 +4,8 @@ import { formatDelayMinutes } from '../utils/format.js';
 import { normalizeCategory, getTripBusinessType, extractTripTags, filterStopoversBetweenTraveledStations } from '../data/processing.js';
 import { SessionDB } from '../cache/session.js';
 import { TraewellingAPI } from '../api/traewelling.js';
+import { processAndDisplayData } from '../fetch/orchestrator.js';
+import { UI } from '../ui/ui.js';
 
 /**
  * Convert an array of Träwelling trips into a standard GeoJSON FeatureCollection
@@ -457,4 +459,176 @@ export function showExportToast(message) {
         toast.classList.remove('visible');
         setTimeout(() => toast.remove(), 300);
     }, 3000);
+}
+
+/**
+ * Parse an uploaded GeoJSON FeatureCollection or JSON trips file back into internal trip objects.
+ * Handles:
+ * - Träwelling Map Explorer GeoJSON exports
+ * - Standard GeoJSON FeatureCollections / Features with route geometries
+ * - Direct JSON trip arrays
+ *
+ * @param {Object|Array} data Parsed JSON object or array
+ * @returns {{ trips: Array, username: string|null }}
+ */
+export function parseGeoJSONToTrips(data) {
+    if (!data) return { trips: [], username: null };
+
+    let features = [];
+    let username = data.username || null;
+
+    if (data.type === 'FeatureCollection' && Array.isArray(data.features)) {
+        features = data.features;
+    } else if (data.type === 'Feature') {
+        features = [data];
+    } else if (Array.isArray(data)) {
+        if (data.length > 0 && data[0]?.type === 'Feature') {
+            features = data;
+        } else {
+            return {
+                trips: data.filter(t => t && (t.train?.polyline || t.polyline || t.id)),
+                username: username || 'Exported Trips'
+            };
+        }
+    } else if (data.data && Array.isArray(data.data)) {
+        return {
+            trips: data.data.filter(t => t && (t.train?.polyline || t.polyline || t.id)),
+            username: username || 'Exported Trips'
+        };
+    }
+
+    const trips = [];
+    features.forEach((feature, idx) => {
+        if (!feature) return;
+        const geom = feature.geometry;
+        const p = feature.properties || {};
+
+        if (!geom?.coordinates || !Array.isArray(geom.coordinates) || geom.coordinates.length < 2) {
+            return;
+        }
+
+        const statusId = p.statusId || p.id || (Date.now() + idx);
+        const distanceMeters = typeof p.distanceKm === 'number'
+            ? Math.round(p.distanceKm * 1000)
+            : (typeof p.totalDistance === 'number' ? p.totalDistance : (p.distance || 0));
+
+        let businessType = 0;
+        if (p.business === 'work' || p.business === 1 || p.business === '1') businessType = 1;
+        else if (p.business === 'commute' || p.business === 2 || p.business === '2') businessType = 2;
+
+        const originName = typeof p.origin === 'string'
+            ? p.origin
+            : (p.origin?.name || p.origin?.station?.name || 'Unknown');
+        const destName = typeof p.destination === 'string'
+            ? p.destination
+            : (p.destination?.name || p.destination?.station?.name || 'Unknown');
+
+        const trip = {
+            id: statusId,
+            body: p.message || p.body || '',
+            createdAt: p.createdAt || p.actualDeparture || p.plannedDeparture || new Date().toISOString(),
+            business: businessType,
+            ticket: p.ticket || null,
+            tags: Array.isArray(p.tags) ? p.tags : [],
+            train: {
+                category: normalizeCategory(p.category || p.train?.category),
+                lineName: p.lineName || p.train?.lineName || p.line || p.name || '',
+                totalDistance: distanceMeters,
+                distance: distanceMeters,
+                origin: {
+                    name: originName,
+                    departurePlanned: p.plannedDeparture || null,
+                    departureReal: p.actualDeparture || null,
+                    platform: p.platform || null
+                },
+                destination: {
+                    name: destName,
+                    arrivalPlanned: p.plannedArrival || null,
+                    arrivalReal: p.actualArrival || null
+                },
+                operator: p.operator ? (typeof p.operator === 'string' ? { name: p.operator } : p.operator) : null,
+                seat: p.seat ? (typeof p.seat === 'object' ? p.seat : { number: p.seat, wagon: p.wagon }) : null,
+                wagon: p.wagon || null,
+                class: p.class || null,
+                travelClass: p.class || null,
+                ticket: p.ticket ? (typeof p.ticket === 'object' ? p.ticket : { name: p.ticket }) : null,
+                polyline: {
+                    type: 'Feature',
+                    geometry: geom,
+                    properties: { statusId }
+                },
+                stopovers: Array.isArray(p.stopovers) ? p.stopovers.map(s => ({
+                    name: s.station || s.name || 'Station',
+                    station: {
+                        name: s.station || s.name || 'Station',
+                        latitude: s.latitude,
+                        longitude: s.longitude
+                    },
+                    arrivalPlanned: s.plannedArrival || null,
+                    arrivalReal: s.actualArrival || null,
+                    departurePlanned: s.plannedDeparture || null,
+                    departureReal: s.actualDeparture || null,
+                    platform: s.actualPlatform || s.plannedPlatform || null,
+                    cancelled: !!s.cancelled
+                })) : []
+            }
+        };
+
+        if (p.vehicleNumber) trip._index = { ...trip._index, vehicleNumber: p.vehicleNumber };
+        if (p.locomotiveClass) trip._index = { ...trip._index, locomotiveClass: p.locomotiveClass };
+        if (p.wagonClass) trip._index = { ...trip._index, wagonClass: p.wagonClass };
+
+        trips.push(trip);
+    });
+
+    return {
+        trips,
+        username: username || (trips.length > 0 ? 'Exported Trips' : null)
+    };
+}
+
+/**
+ * Handle user uploading or dropping a GeoJSON / JSON file.
+ * Automatically converts routes, switches screens, and displays trips on map.
+ * @param {File} file The selected file object
+ */
+export async function handleGeoJSONUpload(file) {
+    if (!file) return;
+
+    try {
+        const text = await file.text();
+        let parsed;
+        try {
+            parsed = JSON.parse(text);
+        } catch (jsonErr) {
+            throw new Error('The selected file is not valid JSON.');
+        }
+
+        const { trips, username } = parseGeoJSONToTrips(parsed);
+        if (!trips || !trips.length) {
+            alert('No valid travel routes or polyline features were found in this file.');
+            return;
+        }
+
+        const state = store.get();
+        const displayUser = username || file.name.replace(/\.(geojson|json)$/i, '') || 'Imported Travels';
+        state.username = displayUser;
+        state.queriedUserProfile = {
+            username: displayUser,
+            displayName: displayUser,
+            avatar: null
+        };
+
+        // Transition from setup screen
+        UI.toggleSetup(false);
+        UI.toggleFetch(false);
+
+        // Process, populate layers, and display data on the map
+        await processAndDisplayData(trips, { hideFetchUI: true });
+
+        showExportToast(`Loaded ${trips.length} routes from ${file.name}!`);
+    } catch (err) {
+        console.error('Error importing GeoJSON file:', err);
+        alert(`Failed to import file: ${err.message || 'Unknown error'}`);
+    }
 }

@@ -13,7 +13,7 @@ import * as dataProcessing from '../data/processing.js';
 import * as analytics from '../analytics/statistics.js';
 import { updateAllStatistics as updateAllStats } from '../analytics/statistics.js';
 import { reloadAllLayers, loadLayers, syncMapLayerOrder } from '../map/layers.js';
-import { exportTripsGeoJSON, handleStopoverToggleChange } from '../export/geojson.js';
+import { exportTripsGeoJSON, handleStopoverToggleChange, handleGeoJSONUpload } from '../export/geojson.js';
 
 export function setupEventListeners() {
     const state = store.get();
@@ -436,6 +436,79 @@ export function setupEventListeners() {
     if (exportIncludeStopovers) {
         exportIncludeStopovers.addEventListener('change', handleStopoverToggleChange);
     }
+
+    // Setup Screen GeoJSON file upload & dropzone
+    const setupFileInput = document.getElementById('setupFileInput');
+    const setupFileDropzone = document.getElementById('setupFileDropzone');
+    if (setupFileInput && setupFileDropzone) {
+        setupFileDropzone.onclick = () => setupFileInput.click();
+        setupFileDropzone.onkeydown = (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setupFileInput.click();
+            }
+        };
+        setupFileInput.onchange = (e) => {
+            const file = e.target.files?.[0];
+            if (file) handleGeoJSONUpload(file);
+            e.target.value = '';
+        };
+        setupFileDropzone.ondragover = (e) => {
+            e.preventDefault();
+            setupFileDropzone.classList.add('drag-active');
+        };
+        setupFileDropzone.ondragleave = () => {
+            setupFileDropzone.classList.remove('drag-active');
+        };
+        setupFileDropzone.ondrop = (e) => {
+            e.preventDefault();
+            setupFileDropzone.classList.remove('drag-active');
+            const file = e.dataTransfer?.files?.[0];
+            if (file) handleGeoJSONUpload(file);
+        };
+    }
+
+    // Menu GeoJSON file upload
+    const menuFileInput = document.getElementById('menuFileInput');
+    const menuImportBtn = document.getElementById('menuImportBtn');
+    if (menuFileInput && menuImportBtn) {
+        menuImportBtn.onclick = () => menuFileInput.click();
+        menuFileInput.onchange = (e) => {
+            const file = e.target.files?.[0];
+            if (file) handleGeoJSONUpload(file);
+            e.target.value = '';
+        };
+    }
+
+    // Global drag & drop on window
+    let windowDragDepth = 0;
+    window.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        windowDragDepth++;
+        if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+            document.body.classList.add('drag-over');
+        }
+    });
+    window.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        windowDragDepth--;
+        if (windowDragDepth <= 0) {
+            windowDragDepth = 0;
+            document.body.classList.remove('drag-over');
+        }
+    });
+    window.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+    window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        windowDragDepth = 0;
+        document.body.classList.remove('drag-over');
+        const file = e.dataTransfer?.files?.[0];
+        if (file && (file.name.endsWith('.geojson') || file.name.endsWith('.json') || file.type?.includes('json'))) {
+            handleGeoJSONUpload(file);
+        }
+    });
 }
 
 let pendingFilterRaf = null;
