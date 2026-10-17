@@ -23,6 +23,14 @@ export function applyBaseLayerOpacity(opacity) {
                 console.warn(`Failed to set opacity for ${id}:`, error);
             }
         }
+        const approxId = `${id}-approximated`;
+        if (state.map?.getLayer(approxId)) {
+            try {
+                state.map.setPaintProperty(approxId, 'line-opacity', opacity * 0.85);
+            } catch (error) {
+                console.warn(`Failed to set opacity for ${approxId}:`, error);
+            }
+        }
     });
 }
 
@@ -32,6 +40,10 @@ export function setBaseLayerVisibility(state, visible) {
     state.layers.data.forEach((layer, id) => {
         if (state.map.getLayer(id)) {
             state.map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+        }
+        const approxId = `${id}-approximated`;
+        if (state.map.getLayer(approxId)) {
+            state.map.setLayoutProperty(approxId, 'visibility', (visible && layer.visible) ? 'visible' : 'none');
         }
     });
 }
@@ -88,6 +100,10 @@ export function toggleHeatmap(enabled) {
         state.layers.data.forEach((layer, id) => { 
             if (layer.visible && state.map?.getLayer(id)) {
                 state.map.setLayoutProperty(id, 'visibility', 'visible');
+            }
+            const approxId = `${id}-approximated`;
+            if (layer.visible && state.map?.getLayer(approxId)) {
+                state.map.setLayoutProperty(approxId, 'visibility', 'visible');
             }
         });
         applyBaseLayerOpacity(state.delays.enabled ? 0.25 : 0.8);

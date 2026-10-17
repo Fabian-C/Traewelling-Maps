@@ -347,6 +347,18 @@ export function toggleLayer(layerId) {
             console.warn(`Failed to update visibility for layer ${layerId}:`, e);
         }
     }
+    const approxId = `${layerId}-approximated`;
+    if (state.map && state.map.getLayer(approxId)) {
+        try {
+            state.map.setLayoutProperty(
+                approxId,
+                'visibility',
+                (state.heatmap.enabled || !layer.visible) ? 'none' : 'visible'
+            );
+        } catch (e) {
+            console.warn(`Failed to update visibility for layer ${approxId}:`, e);
+        }
+    }
 
     // Refresh UI item states
     loadLayers();
@@ -384,6 +396,12 @@ export function syncMapLayerOrder() {
                     state.map.removeLayer(layerId);
                 } catch (_) {}
             }
+            const approxLayerId = `${layerId}-approximated`;
+            if (state.map.getLayer(approxLayerId)) {
+                try {
+                    state.map.removeLayer(approxLayerId);
+                } catch (_) {}
+            }
         });
 
         // 2. Base railway layer stays underneath all route lines if present
@@ -405,11 +423,13 @@ export function syncMapLayerOrder() {
             const color = layerData?.color || config?.[1] || '#888888';
 
             if (state.map.getSource(layerId)) {
+                // Solid line layer (for accurate track polylines)
                 try {
                     state.map.addLayer({
                         id: layerId,
                         type: 'line',
                         source: layerId,
+                        filter: ['!=', ['get', 'isApproximated'], true],
                         layout: {
                             'line-join': 'round',
                             'line-cap': 'round',
@@ -423,6 +443,30 @@ export function syncMapLayerOrder() {
                     });
                 } catch (e) {
                     console.warn(`Failed to re-add layer ${layerId}:`, e);
+                }
+
+                // Dashed line layer (for approximated straight-line routes)
+                try {
+                    const approxLayerId = `${layerId}-approximated`;
+                    state.map.addLayer({
+                        id: approxLayerId,
+                        type: 'line',
+                        source: layerId,
+                        filter: ['==', ['get', 'isApproximated'], true],
+                        layout: {
+                            'line-join': 'round',
+                            'line-cap': 'butt',
+                            'visibility': (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible'
+                        },
+                        paint: {
+                            'line-color': color,
+                            'line-dasharray': [2, 2],
+                            'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
+                            'line-opacity': baseOpacity * 0.85
+                        }
+                    });
+                } catch (e) {
+                    console.warn(`Failed to re-add approx layer ${layerId}:`, e);
                 }
             }
         }

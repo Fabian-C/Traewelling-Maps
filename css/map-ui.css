@@ -505,11 +505,37 @@ input:checked+.toggle-slider:before {
     background: var(--hover-bg);
 }
 
+/* Popup Badge for Approximated routes */
+.popup-approx-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: rgba(255, 179, 71, 0.15);
+    color: #ffb347;
+    border: 1px dashed rgba(255, 179, 71, 0.45);
+    letter-spacing: 0.2px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.popup-approx-badge .dashed-preview-pill {
+    display: inline-block;
+    width: 10px;
+    border-top: 1.5px dashed currentColor;
+}
+
 .time-filter {
     padding: 16px;
 }
 
 .slider-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     font-size: 12px;
     font-weight: 600;
     margin-bottom: 8px;
@@ -517,11 +543,46 @@ input:checked+.toggle-slider:before {
 }
 
 .slider-label .slider-state {
-    margin-left: 6px;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border-radius: 999px;
     font-size: 11px;
-    color: var(--text-muted);
-    text-transform: uppercase;
+    font-weight: 700;
     letter-spacing: 0.6px;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slider-label .slider-state[data-level="0"] {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.35);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+
+.slider-label .slider-state[data-level="1"] {
+    background: rgba(6, 182, 212, 0.16);
+    color: #38bdf8;
+    border-color: rgba(6, 182, 212, 0.35);
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+}
+
+.slider-label .slider-state[data-level="2"] {
+    background: rgba(168, 85, 247, 0.16);
+    color: #c084fc;
+    border-color: rgba(168, 85, 247, 0.35);
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
+}
+
+.stepped-slider-wrap {
+    position: relative;
+    width: 100%;
+    padding: 6px 0;
+    user-select: none;
 }
 
 .slider {
@@ -532,8 +593,14 @@ input:checked+.toggle-slider:before {
     -webkit-appearance: none;
     appearance: none;
     cursor: pointer;
-    background: var(--bg-tertiary);
-    transition: background 0.2s ease;
+    background: linear-gradient(to right, #06b6d4 0%, #38bdf8 var(--slider-progress, 0%), rgba(255, 255, 255, 0.12) var(--slider-progress, 0%), rgba(255, 255, 255, 0.12) 100%);
+    transition: background 0.15s ease, box-shadow 0.2s ease;
+    position: relative;
+    z-index: 2;
+}
+
+.slider:focus-visible {
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.6);
 }
 
 .slider::-webkit-slider-thumb {
@@ -542,18 +609,42 @@ input:checked+.toggle-slider:before {
     height: 20px;
     border-radius: 50%;
     background: var(--accent-gradient);
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    cursor: grab;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(255, 255, 255, 0.25);
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease;
+}
+
+.slider::-webkit-slider-thumb:hover {
+    transform: scale(1.18);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6), 0 0 0 3px rgba(255, 255, 255, 0.45);
+}
+
+.slider:active::-webkit-slider-thumb {
+    cursor: grabbing;
+    transform: scale(1.28);
+    box-shadow: 0 3px 14px rgba(0, 0, 0, 0.7), 0 0 14px rgba(56, 189, 248, 0.7), 0 0 0 3px rgba(255, 255, 255, 0.7);
 }
 
 .slider::-moz-range-thumb {
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    border: none;
+    border: 2px solid rgba(255, 255, 255, 0.25);
     background: var(--accent-gradient);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    cursor: grab;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease;
+}
+
+.slider::-moz-range-thumb:hover {
+    transform: scale(1.18);
+    border-color: rgba(255, 255, 255, 0.45);
+}
+
+.slider:active::-moz-range-thumb {
+    cursor: grabbing;
+    transform: scale(1.28);
+    box-shadow: 0 3px 14px rgba(0, 0, 0, 0.7), 0 0 14px rgba(56, 189, 248, 0.7);
 }
 
 .slider-help {
@@ -566,41 +657,54 @@ input:checked+.toggle-slider:before {
 .slider-ticks {
     display: flex;
     justify-content: space-between;
-    font-size: 11px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    margin-top: 6px;
-    gap: 4px;
+    align-items: center;
+    position: absolute;
+    top: 50%;
+    left: 9px;
+    right: 9px;
+    transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 1;
+    height: 0;
 }
 
-.slider-ticks span {
-    flex: 1;
-    text-align: center;
+.slider-ticks .tick-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: auto;
+    cursor: pointer;
     position: relative;
-    padding-top: 10px;
-    font-weight: 600;
 }
 
-.slider-ticks span::before {
+.slider-ticks .tick-dot::after {
     content: "";
     position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 2px;
-    height: 8px;
-    border-radius: 2px;
-    background: var(--border-color);
+    top: -10px;
+    bottom: -10px;
+    left: -12px;
+    right: -12px;
 }
 
-.slider-ticks span.active {
-    color: var(--text-primary);
-}
-
-.slider-ticks span.active::before {
+.slider-ticks .tick-dot:hover {
+    transform: scale(1.7);
     background: #ffffff;
-    height: 10px;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+}
+
+.slider-ticks .tick-dot.active {
+    background: #ffffff;
+    transform: scale(1.4);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.9);
+}
+
+.slider-ticks .tick-dot.highlight {
+    background: #38bdf8;
+    transform: scale(1.8);
+    box-shadow: 0 0 12px #38bdf8;
 }
 
 .delay-section {

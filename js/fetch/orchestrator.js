@@ -827,23 +827,8 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
             return;
         }
         
-        const baseOpacity = heatmap.getCurrentBaseOpacity(state);
-
-        // 1. Remove any existing route layers first
+        // 1. Setup or update sources and layer data
         for (let i = 0; i < state.layers.order.length; i++) {
-            const layerId = state.layers.order[i];
-            if (state.map.getLayer(layerId)) {
-                try { state.map.removeLayer(layerId); } catch (_) {}
-            }
-        }
-
-        // 2. Base railway layer stays underneath all route lines if present
-        if (state.map.getLayer('open-railway-map')) {
-            try { state.map.moveLayer('open-railway-map'); } catch (_) {}
-        }
-
-        // 3. Add sources and layers in reverse menu order (index N-1 bottom to index 0 topmost)
-        for (let i = state.layers.order.length - 1; i >= 0; i--) {
             const layerId = state.layers.order[i];
             const config = CONFIG.LAYER_CONFIG.find(([id]) => id === layerId);
             if (!config) continue;
@@ -859,36 +844,14 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
                 } else {
                     state.map.addSource(layerId, { type: 'geojson', data });
                 }
-
-                state.map.addLayer({
-                    id: layerId,
-                    type: 'line',
-                    source: layerId,
-                    layout: {
-                        'line-join': 'round',
-                        'line-cap': 'round',
-                        visibility: (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible'
-                    },
-                    paint: {
-                        'line-color': color,
-                        'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
-                        'line-opacity': baseOpacity
-                    }
-                });
-
                 state.layers.data.set(layerId, { data, color, visible: isVisible });
             } catch (e) {
-                console.error(`Failed to add layer ${layerId}:`, e);
+                console.error(`Failed to setup source for layer ${layerId}:`, e);
             }
         }
 
-        // 4. Ensure highlight layers remain on top
-        if (state.map.getLayer('route-highlight-glow')) {
-            try { state.map.moveLayer('route-highlight-glow'); } catch (_) {}
-        }
-        if (state.map.getLayer('route-highlight')) {
-            try { state.map.moveLayer('route-highlight'); } catch (_) {}
-        }
+        // 2. Synchronize all route line layers (both solid and dotted approximated layers)
+        syncMapLayerOrder();
 
         analytics.updateAllStatistics();
         analytics.updateMenuBuddyList();

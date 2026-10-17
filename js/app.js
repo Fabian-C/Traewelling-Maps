@@ -321,6 +321,27 @@ function handlePreviewMode() {
                     properties: { statusId: 9309802 }
                 }
             }
+        },
+        {
+            id: 8877665,
+            body: "Regional connection (fallback straight section)",
+            createdAt: "2026-10-12T10:00:00+00:00",
+            train: {
+                category: "regional",
+                lineName: "RE 1",
+                totalDistance: 280000,
+                departureDelay: 0,
+                origin: { name: "Hamburg Hbf" },
+                destination: { name: "Berlin Hbf" },
+                polyline: {
+                    type: "Feature",
+                    geometry: {
+                        type: "LineString",
+                        coordinates: [[10.0069, 53.5533], [13.3695, 52.5255]]
+                    },
+                    properties: { statusId: 8877665 }
+                }
+            }
         }
     ];
 

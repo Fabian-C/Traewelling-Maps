@@ -12,7 +12,7 @@ import { startDataFetch, refreshActiveTrips, processAndDisplayData } from '../fe
 import * as dataProcessing from '../data/processing.js';
 import * as analytics from '../analytics/statistics.js';
 import { updateAllStatistics as updateAllStats } from '../analytics/statistics.js';
-import { reloadAllLayers, loadLayers } from '../map/layers.js';
+import { reloadAllLayers, loadLayers, syncMapLayerOrder } from '../map/layers.js';
 import { exportTripsGeoJSON, handleStopoverToggleChange } from '../export/geojson.js';
 
 export function setupEventListeners() {
@@ -88,24 +88,81 @@ export function setupEventListeners() {
     // Initialize filter level from slider
     const filterSlider = document.getElementById('filterSlider');
     const filterState = document.getElementById('filterState');
-    const filterTicks = document.getElementById('filterTicks').querySelectorAll('span');
-    
-    state.filters.filterLevel = parseInt(filterSlider.value);
-    
-    filterSlider.oninput = (e) => {
-        const val = parseInt(e.target.value);
-        state.filters.filterLevel = val;
-        
-        const labels = ['Off', 'Normal', 'Strict'];
-        filterState.textContent = labels[val];
-        
-        filterTicks.forEach((span, i) => {
-            span.classList.toggle('active', i <= val);
+    const filterTicks = document.getElementById('filterTicks')?.querySelectorAll('.tick-dot, span') || [];
+    const labels = ['Off', 'Normal', 'Strict'];
+
+    const setAccuracyFilterUI = (level) => {
+        const clamped = Math.max(0, Math.min(2, Math.round(level)));
+        if (filterSlider) {
+            filterSlider.value = clamped;
+            filterSlider.style.setProperty('--slider-progress', `${clamped * 50}%`);
+        }
+        if (filterState) {
+            filterState.textContent = labels[clamped] || 'Normal';
+            filterState.setAttribute('data-level', String(clamped));
+        }
+        filterTicks.forEach((dot, idx) => {
+            dot.classList.toggle('active', idx === clamped);
+            dot.classList.toggle('passed', idx <= clamped);
         });
-        
-        // Throttled refresh: immediate slider label feedback, debounced map update
-        applyFiltersAndRefresh({ debounceMs: 75 });
     };
+
+    const applyAccuracyLevel = (level) => {
+        const target = Math.max(0, Math.min(2, Math.round(level)));
+        const changed = state.filters.filterLevel !== target;
+        state.filters.filterLevel = target;
+        try {
+            localStorage.setItem('tw_filter_level', target);
+        } catch (_) {}
+        setAccuracyFilterUI(target);
+        if (changed) {
+            applyFiltersAndRefresh({ debounceMs: 75 });
+        }
+    };
+
+    if (filterSlider) {
+        const savedLevel = typeof localStorage !== 'undefined' && localStorage.getItem('tw_filter_level') !== null 
+            ? parseInt(localStorage.getItem('tw_filter_level'), 10) 
+            : 1;
+        state.filters.filterLevel = savedLevel;
+        setAccuracyFilterUI(savedLevel);
+
+        // Continuous dragging feedback: thumb moves freely and updates progress & label in real time
+        filterSlider.oninput = () => {
+            const raw = parseFloat(filterSlider.value);
+            const nearest = Math.max(0, Math.min(2, Math.round(raw)));
+            filterSlider.style.setProperty('--slider-progress', `${(raw / 2) * 100}%`);
+            if (filterState) {
+                filterState.textContent = labels[nearest] || 'Normal';
+                filterState.setAttribute('data-level', String(nearest));
+            }
+            filterTicks.forEach((dot, idx) => {
+                dot.classList.toggle('active', idx === nearest);
+                dot.classList.toggle('passed', idx <= nearest);
+            });
+        };
+
+        // When let go: dynamically snap directly to the nearest discrete position (0, 1, or 2)
+        const snapToNearest = () => {
+            const nearest = Math.max(0, Math.min(2, Math.round(parseFloat(filterSlider.value))));
+            applyAccuracyLevel(nearest);
+        };
+
+        filterSlider.onchange = snapToNearest;
+        filterSlider.addEventListener('pointerup', snapToNearest);
+        filterSlider.addEventListener('touchend', snapToNearest);
+
+        // Clicking on any tick dot directly snaps to that position
+        filterTicks.forEach((dot) => {
+            dot.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const step = parseInt(dot.getAttribute('data-step'), 10);
+                if (!isNaN(step)) {
+                    applyAccuracyLevel(step);
+                }
+            });
+        });
+    }
 
     document.getElementById('heatmapToggle').onchange = (e) => toggleHeatmap(e.target.checked);
 
@@ -407,13 +464,21 @@ export function applyFiltersAndRefresh({ immediate = false, debounceMs = 0, upda
         state.heatmap.cacheKey = null;
 
         const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
+        let missingApproxLayer = false;
         state.layers.order.forEach(layerId => {
             const data = categories[layerId] || { type: 'FeatureCollection', features: [] };
             const source = state.map?.getSource(layerId);
             if (source) source.setData(data);
             const layer = state.layers.data.get(layerId);
             if (layer) layer.data = data;
+            if (state.map && !state.map.getLayer(`${layerId}-approximated`)) {
+                missingApproxLayer = true;
+            }
         });
+
+        if (missingApproxLayer && state.map) {
+            syncMapLayerOrder();
+        }
 
         loadLayers();
         updateAllStats();
@@ -522,9 +587,28 @@ export function resetAllActiveFilters() {
     state.filters.buddy = null;
     state.filters.searchQuery = '';
     state.filters.business = { personal: true, work: true, commute: true };
+    state.filters.filterLevel = 1;
+    try {
+        localStorage.setItem('tw_filter_level', '1');
+    } catch (_) {}
 
     // Reset UI inputs
     analytics.initializeDateInputs(state.fetchedTrips);
+    const filterSlider = document.getElementById('filterSlider');
+    const filterState = document.getElementById('filterState');
+    const filterTicks = document.getElementById('filterTicks')?.querySelectorAll('.tick-dot, span') || [];
+    if (filterSlider) {
+        filterSlider.value = 1;
+        filterSlider.style.setProperty('--slider-progress', '50%');
+        if (filterState) {
+            filterState.textContent = 'Normal';
+            filterState.setAttribute('data-level', '1');
+        }
+        filterTicks.forEach((dot, i) => {
+            dot.classList.toggle('active', i === 1);
+            dot.classList.toggle('passed', i <= 1);
+        });
+    }
     const p = document.getElementById('businessPersonal');
     const w = document.getElementById('businessWork');
     const c = document.getElementById('businessCommute');
@@ -589,6 +673,8 @@ export function updateFilterBadges() {
             }
         });
     }
+
+
 
     // Business type filter badge (if not all checked)
     const b = state.filters.business;

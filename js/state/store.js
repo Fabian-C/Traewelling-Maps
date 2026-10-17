@@ -26,7 +26,7 @@ class StateStore {
                 fromDate: null, 
                 toDate: null, 
                 searchQuery: '', 
-                filterLevel: 1, 
+                filterLevel: typeof localStorage !== 'undefined' && localStorage.getItem('tw_filter_level') !== null ? parseInt(localStorage.getItem('tw_filter_level'), 10) : 1,
                 buddies: [],
                 get buddy() { return this.buddies?.[0] || null; },
                 set buddy(val) { this.buddies = val ? (Array.isArray(val) ? val : [val]) : []; },

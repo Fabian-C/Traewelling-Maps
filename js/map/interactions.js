@@ -199,7 +199,8 @@ function pickClosestFeature(features, lngLat, clickPoint = null) {
     // Calculate distance and visual layer rank for each candidate feature
     const scored = features.map((feature) => {
         const distance = measureFeatureDistance(feature, lngLat, resolvedClickPoint);
-        const layerId = feature.layer?.id || feature.properties?.category || feature.properties?.layerId;
+        const rawLayerId = (feature.layer?.id || feature.properties?.category || feature.properties?.layerId || '').toString();
+        const layerId = rawLayerId.replace('-approximated', '');
         const rankIndex = layerOrder.indexOf(layerId);
         // Rank 0 is top of the visual stack (rendered topmost); unranked layers fall to the bottom (999)
         const rank = rankIndex !== -1 ? rankIndex : 999;
@@ -305,9 +306,17 @@ export function findOverlayFeatureAtPoint(featureCollection, lngLat, options = {
 
 export function setupMapInteractions() {
     const state = store.get();
-    const getActiveLayers = () => CONFIG.LAYER_CONFIG
-        .map(([id]) => id)
-        .filter(id => state.map.getLayer(id));
+    const getActiveLayers = () => {
+        const layers = [];
+        CONFIG.LAYER_CONFIG.forEach(([id]) => {
+            if (state.map.getLayer(id)) layers.push(id);
+            const approxId = `${id}-approximated`;
+            if (state.map.getLayer(approxId) && state.map.getLayoutProperty(approxId, 'visibility') !== 'none') {
+                layers.push(approxId);
+            }
+        });
+        return layers;
+    };
     
     let lastTapTimestamp = 0;
     const handleMapTap = (e) => {
@@ -462,7 +471,9 @@ export function showPopup(lngLat, feature) {
     const arrivalLabel = actualArrival || plannedArrival;
     const durationDisplay = formatDuration(durationActual || durationPlanned);
 
-    const rawCategory = normalizeCategory(props.category || train.category || feature.layer?.id);
+    const isApproximated = Boolean(props.isApproximated || feature.layer?.id?.endsWith('-approximated'));
+
+    const rawCategory = normalizeCategory(props.category || train.category || feature.layer?.id?.replace('-approximated', ''));
     const category = CATEGORY_NAMES[rawCategory] || rawCategory || 'Unknown';
 
     highlightRoute(feature, statusId);
@@ -638,6 +649,7 @@ export function showPopup(lngLat, feature) {
         <div class="popup-title">
             <span class="popup-badge">${category}</span>
             <span>${lineName}</span>
+            ${isApproximated ? `<span class="popup-approx-badge" title="Approximated track (straight-line fallback)"><span class="dashed-preview-pill"></span>Approx.</span>` : ''}
         </div>
         ${matchBannerHtml}
         <div class="popup-route">
@@ -777,16 +789,19 @@ export function highlightRoute(feature, statusId) {
         topLayer = layers.length > 0 ? layers[layers.length - 1].id : null;
     }
     
+    const isApproximated = Boolean(feature?.properties?.isApproximated || feature?.layer?.id?.endsWith('-approximated'));
+
     state.map.addLayer({
         id: 'route-highlight-glow',
         type: 'line',
         source: 'route-highlight',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        layout: { 'line-join': 'round', 'line-cap': isApproximated ? 'butt' : 'round' },
         paint: {
             'line-color': '#ffffff',
             'line-width': 12,
             'line-opacity': 0.4,
-            'line-blur': 3
+            'line-blur': 3,
+            ...(isApproximated ? { 'line-dasharray': [2, 2] } : {})
         }
     }, topLayer);
     
@@ -794,11 +809,12 @@ export function highlightRoute(feature, statusId) {
         id: 'route-highlight',
         type: 'line',
         source: 'route-highlight',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        layout: { 'line-join': 'round', 'line-cap': isApproximated ? 'butt' : 'round' },
         paint: {
             'line-color': '#ffff00',
             'line-width': 5,
-            'line-opacity': 1
+            'line-opacity': 1,
+            ...(isApproximated ? { 'line-dasharray': [2, 2] } : {})
         }
     });
 

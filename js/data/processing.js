@@ -518,6 +518,7 @@ export function processTripsToGeoJSON(trips) {
         if (!polyline?.geometry?.coordinates) return;
 
         const trainSummary = trip.train ? { ...trip.train, polyline: undefined, stopovers: undefined } : null;
+        const isApproximated = isApproximatedPolyline(polyline.geometry.coordinates, category);
 
         categories[targetCat].features.push({
             type: 'Feature',
@@ -526,6 +527,7 @@ export function processTripsToGeoJSON(trips) {
                 statusId: trip.id, 
                 createdAt: trip.createdAt, 
                 train: trainSummary, 
+                isApproximated: isApproximated,
                 body: typeof trip.body === 'string' ? trip.body : '',
                 bodyMentions: Array.isArray(trip.bodyMentions) ? trip.bodyMentions : [],
                 createdBy: trip.createdBy || null,
@@ -541,6 +543,16 @@ export function processTripsToGeoJSON(trips) {
         });
     });
     return categories;
+}
+
+/**
+ * Detect if polyline coordinates are an approximated straight line fallback
+ */
+export function isApproximatedPolyline(coords, category) {
+    if (!coords || coords.length < 2) return false;
+    const normCat = normalizeCategory(category);
+    if (normCat === 'plane' || normCat === 'ferry') return false;
+    return !isAccuratePolyline(coords, category, 1);
 }
 
 /**

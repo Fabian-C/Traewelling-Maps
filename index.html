@@ -441,12 +441,14 @@
                 <summary>🚦 Transport Layers</summary>
                 <div class="menu-submenu-content">
                     <div class="time-filter">
-                        <div class="slider-label">Filter <span class="slider-state" id="filterState">Normal</span></div>
-                        <input type="range" id="filterSlider" class="slider" min="0" max="2" step="1" value="1">
-                        <div class="slider-ticks" id="filterTicks">
-                            <span class="active">Off</span>
-                            <span class="active">Normal</span>
-                            <span>Strict</span>
+                        <div class="slider-label">Filter: <span class="slider-state" id="filterState" data-level="1">Normal</span></div>
+                        <div class="stepped-slider-wrap">
+                            <input type="range" id="filterSlider" class="slider" min="0" max="2" step="0.01" value="1" aria-label="Route accuracy filter">
+                            <div class="slider-ticks" id="filterTicks">
+                                <span class="tick-dot" data-step="0" title="Off"></span>
+                                <span class="tick-dot active" data-step="1" title="Normal"></span>
+                                <span class="tick-dot" data-step="2" title="Strict"></span>
+                            </div>
                         </div>
                     </div>
                     <div class="layer-list" id="layerList">

@@ -87,7 +87,7 @@ function filterTripsByBusiness(trips, businessFilters) {
  * Filter trips by accuracy at trip level
  * This is more efficient than filtering at GeoJSON level
  */
-function filterTripsByAccuracy(trips, filterLevel) {
+function filterTripsByAccuracy(trips, filterLevel = 1) {
     if (!trips.length) return [];
     if (filterLevel === 0) return trips.slice();
     
