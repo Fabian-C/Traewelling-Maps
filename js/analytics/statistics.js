@@ -40,7 +40,7 @@ export function updateStatisticsWithTrip(trip, statisticsObj) {
         category = idx.category;
         timestamp = idx.timestamp;
     } else {
-        let train = trip.train || trip.properties?.train;
+        let train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin;
         if (typeof train === 'string') try { train = JSON.parse(train); } catch (e) { train = {}; }
         train = train || {};
         distance = (typeof train.totalDistance === 'number' ? train.totalDistance : train.distance) || 0;
@@ -309,7 +309,7 @@ export function getFilteredContextTrips() {
         });
         if (anyHidden) {
             contextTrips = contextTrips.filter(t => {
-                const cat = normalizeCategory(t.train?.category);
+                const cat = t._index?.category || normalizeCategory(t.train?.category || t.checkin?.category);
                 return layerVisibility.has(cat) ? layerVisibility.get(cat) : true;
             });
         }
@@ -405,7 +405,7 @@ export function updateAllStatistics() {
         const trip = activeList[i];
         if (!trip) continue;
         const idx = trip._index || indexTrip(trip, currentUsername);
-        const cat = idx?.category || normalizeCategory(trip.train?.category);
+        const cat = idx?.category || normalizeCategory(trip.train?.category || trip.checkin?.category);
 
         const isVisible = layerVisibility.has(cat) ? layerVisibility.get(cat) : true;
         if (isVisible) {

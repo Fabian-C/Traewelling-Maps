@@ -170,7 +170,7 @@ export function loadLayers() {
         // Count from active trips in category (fallback to GeoJSON features length)
         let routeCount = 0;
         if (state.activeTrips && state.activeTrips.length) {
-            routeCount = state.activeTrips.filter(t => normalizeCategory(t.train?.category) === layerId).length;
+            routeCount = state.activeTrips.filter(t => (t._index?.category || normalizeCategory(t.train?.category || t.checkin?.category)) === layerId).length;
         } else if (state.statistics?.typeCounts?.[layerId] !== undefined) {
             routeCount = state.statistics.typeCounts[layerId];
         } else {

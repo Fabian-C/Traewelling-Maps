@@ -154,7 +154,7 @@ export const RouteAnimation = {
         const routeGroupMap = new Map();  // endpoint key -> Map(lineId -> route)
         const buildRouteKey = (feature, categoryId) => {
             const props = feature.properties || {};
-            const train = props.train || {};
+            const train = props.train || props.checkin || {};
             const originName = train.origin?.name || train.origin?.station?.name || '';
             const destName = train.destination?.name || train.destination?.station?.name || '';
             const lineName = (train.lineName || train.number || props.statusId || categoryId || 'unknown').toString();
@@ -184,7 +184,7 @@ export const RouteAnimation = {
                 const [lineId] = routeKey.split('|');
                 
                 const lengthKm = computeRouteLengthKm(coords);
-                const train = feature.properties?.train || {};
+                const train = feature.properties?.train || feature.properties?.checkin || {};
                 const durationMinutes = computeTripDurationMinutes(train);
                 const baseCategorySpeed = this.config.speeds[categoryId] || 0.9;
                 const lengthFactor = lengthKm ? clamp(250 / lengthKm, 0.4, 1.2) : 1;

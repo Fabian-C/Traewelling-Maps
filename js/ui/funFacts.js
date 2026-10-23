@@ -69,8 +69,9 @@ export const FunFacts = {
         const randomTrip = trips[Math.floor(Math.random() * trips.length)];
         if (!randomTrip) return null;
         
-        const origin = randomTrip.train?.origin?.station?.name || randomTrip.train?.origin?.name;
-        const destination = randomTrip.train?.destination?.station?.name || randomTrip.train?.destination?.name;
+        const train = randomTrip.train || randomTrip.checkin;
+        const origin = train?.origin?.station?.name || train?.origin?.name;
+        const destination = train?.destination?.station?.name || train?.destination?.name;
         const date = randomTrip.createdAt ? new Date(randomTrip.createdAt).toLocaleDateString('de-DE') : '';
         
         if (!origin || !destination || origin === 'unknown' || destination === 'unknown') return null;

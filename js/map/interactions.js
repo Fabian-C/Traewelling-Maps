@@ -377,7 +377,7 @@ export function showPopup(lngLat, feature) {
     clearRouteHighlight();
     
     const props = feature.properties || {};
-    let train = props.train;
+    let train = props.train || props.checkin;
     if (typeof train === 'string') try { train = JSON.parse(train); } catch (e) { train = {}; }
     train = train || {};
 
@@ -748,8 +748,9 @@ export function highlightRoute(feature, statusId) {
     
     if (statusId && statusId !== 'unknown') {
         const trip = state.fetchedTrips?.find(t => t.id === parseInt(statusId) || t.id === statusId);
-        if (trip?.train?.polyline?.geometry?.coordinates) {
-            coordinates = trip.train.polyline.geometry.coordinates;
+        const train = trip?.train || trip?.checkin;
+        if (train?.polyline?.geometry?.coordinates) {
+            coordinates = train.polyline.geometry.coordinates;
         }
     }
     

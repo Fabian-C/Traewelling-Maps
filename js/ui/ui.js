@@ -675,7 +675,7 @@ export const UI = {
         }
     },
     _extractPlatform(trip, fallbackIndex = 1) {
-        const train = trip?.train || trip?.properties?.train || {};
+        const train = trip?.train || trip?.checkin || trip?.properties?.train || trip?.properties?.checkin || {};
         const origin = train.origin || {};
         const rawPlat = origin.departurePlatformReal || origin.departurePlatformPlanned || origin.platform || train.platform || train.track;
         if (rawPlat !== undefined && rawPlat !== null && String(rawPlat).trim() !== '') {
@@ -688,9 +688,10 @@ export const UI = {
         return `${trackNum}${subLetter}`;
     },
     _formatRouteHtml(trip) {
-        const origin = (trip.train?.origin?.name || 'Origin').toUpperCase();
-        const dest = (trip.train?.destination?.name || 'Destination').toUpperCase();
-        const stopovers = Array.isArray(trip.train?.stopovers) ? trip.train.stopovers : [];
+        const train = trip.train || trip.checkin || {};
+        const origin = (train.origin?.name || 'Origin').toUpperCase();
+        const dest = (train.destination?.name || 'Destination').toUpperCase();
+        const stopovers = Array.isArray(train.stopovers) ? train.stopovers : [];
         let viaNames = [];
         if (stopovers.length > 0) {
             viaNames = stopovers
@@ -710,7 +711,7 @@ export const UI = {
         container.innerHTML = '';
 
         // Extract real journey segments from fetched trips
-        const validTrips = Array.isArray(trips) ? trips.filter(t => t && t.train) : [];
+        const validTrips = Array.isArray(trips) ? trips.filter(t => t && (t.train || t.checkin)) : [];
         const pool = validTrips.length > 0 ? validTrips : [
             { train: { lineName: 'ICE 726', origin: { name: 'München Hbf' }, destination: { name: 'Köln Hbf' }, stopovers: [{ name: 'Nürnberg Hbf' }, { name: 'Würzburg Hbf' }, { name: 'Frankfurt Hbf' }, { name: 'Bonn Hbf' }], category: 'ICE' }, createdAt: new Date().toISOString() },
             { train: { lineName: 'RE 1', origin: { name: 'Hamm(Westf)' }, destination: { name: 'Aachen Hbf' }, stopovers: [{ name: 'Dortmund Hbf' }, { name: 'Bochum Hbf' }, { name: 'Essen Hbf' }, { name: 'Düsseldorf Hbf' }], category: 'RE' }, createdAt: new Date().toISOString() },
@@ -728,7 +729,8 @@ export const UI = {
 
             const d = trip.createdAt ? new Date(trip.createdAt) : new Date();
             const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-            const trainStr = (trip.train?.lineName || trip.train?.category || 'TRAIN').slice(0, 8).toUpperCase();
+            const trainObj = trip.train || trip.checkin || {};
+            const trainStr = (trainObj.lineName || trainObj.category || 'TRAIN').slice(0, 8).toUpperCase();
             const routeHtml = this._formatRouteHtml(trip);
             const platformStr = this._extractPlatform(trip, idx);
             const statuses = ['ON TIME', 'BOARDING', 'ON TIME', 'DEP 5M', 'ON TIME'];

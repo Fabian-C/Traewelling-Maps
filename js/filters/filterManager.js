@@ -92,8 +92,9 @@ function filterTripsByAccuracy(trips, filterLevel = 1) {
     if (filterLevel === 0) return trips.slice();
     
     return trips.filter(trip => {
-        const category = trip._index?.category || normalizeCategory(trip.train?.category);
-        const coords = trip.train?.polyline?.geometry?.coordinates;
+        const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin;
+        const category = trip._index?.category || normalizeCategory(train?.category);
+        const coords = train?.polyline?.geometry?.coordinates;
         // Check-ins without geodata do not disrupt the map and must still be counted in statistics
         if (!coords || coords.length < 2) return true;
         return isAccuratePolyline(coords, category, filterLevel);

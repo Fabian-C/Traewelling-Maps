@@ -185,7 +185,7 @@ export function buildRouteDensityLines(state, force = false) {
     
     for (let t = 0; t < trips.length; t++) {
         const trip = trips[t];
-        const train = trip.train || {};
+        const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
         const coords = train.polyline?.geometry?.coordinates;
         if (!coords || coords.length < 2) continue;
 

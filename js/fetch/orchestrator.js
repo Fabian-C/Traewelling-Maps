@@ -66,6 +66,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             const session = await SessionDB.get(username);
             if (session?.trips && session.trips.length > 0) {
                 cachedTrips = session.trips;
+                cachedTrips.forEach(s => dataProcessing.normalizeTripStatus(s));
                 // Get the newest cached trip ID (page 1 is newest in API)
                 newestCachedTripId = cachedTrips[0]?.id;
                 console.log(`Found ${cachedTrips.length} cached trips, newest ID: ${newestCachedTripId}`);
@@ -156,6 +157,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         let page = resumeFromState && state.fetchProgress ? state.fetchProgress.page : 1;
         let hasMore = true;
         const allStatuses = resumeFromState && state.fetchProgress ? [...state.fetchProgress.allStatuses] : [];
+        allStatuses.forEach(s => dataProcessing.normalizeTripStatus(s));
 
         const skipPageFetching = resumeFromState && state.fetchProgress && state.fetchProgress.pagesFetchComplete;
         
@@ -182,6 +184,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                     hasMore = false;
                     break;
                 }
+                res.data.forEach(s => dataProcessing.normalizeTripStatus(s));
 
                 if (incremental && newestCachedTripId) {
                     const foundIdx = res.data.findIndex(s => s.id === newestCachedTripId);
@@ -322,7 +325,9 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 const cachedPolylines = await SessionDB.getPolylinesBatch(missingIds);
                 tripsNeedingPolyline.forEach(s => {
                     if (cachedPolylines[s.id]) {
+                        dataProcessing.normalizeTripStatus(s);
                         s.train.polyline = cachedPolylines[s.id];
+                        if (s.checkin) s.checkin.polyline = cachedPolylines[s.id];
                         polylineCount++;
                     }
                 });
@@ -372,8 +377,10 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                     const statusId = feature?.properties?.statusId;
                     if (statusId) {
                         const status = statusMap.get(statusId);
-                        if (status && status.train) {
-                            status.train.polyline = feature;
+                        if (status) {
+                            dataProcessing.normalizeTripStatus(status);
+                            if (status.train) status.train.polyline = feature;
+                            if (status.checkin) status.checkin.polyline = feature;
                             newlyFetched[statusId] = feature;
                             polylineCount++;
                         }
@@ -491,8 +498,9 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                                 : (Array.isArray(dataObj[s.id]) ? dataObj[s.id] : []);
                             
                             // ONLY keep intermediate stations between origin and destination to prevent memory bloat
-                            const filtered = dataProcessing.filterStopoversBetweenTraveledStations(rawStops, s.train.origin, s.train.destination);
-                            s.train.stopovers = filtered;
+                            const filtered = dataProcessing.filterStopoversBetweenTraveledStations(rawStops, s.train?.origin, s.train?.destination);
+                            if (s.train) s.train.stopovers = filtered;
+                            if (s.checkin) s.checkin.stopovers = filtered;
                             newlyFetchedStopovers[s.id] = filtered;
                             stopoverCount += filtered.length;
                         });
@@ -778,6 +786,7 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
     invalidateDelayOverlayCache();
 
     state.fetchedTrips = Array.isArray(trips) ? trips.slice() : [];
+    state.fetchedTrips.forEach(s => dataProcessing.normalizeTripStatus(s));
     dataProcessing.indexTrips(state.fetchedTrips, state.username);
     // Reset buddy and time filters for fresh dataset, and prefill dates from travel data
     state.filters.buddies = [];

@@ -19,7 +19,7 @@ export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
     const includeStopovers = options.includeStopovers ?? ((typeof document !== 'undefined' ? document.getElementById('exportIncludeStopovers')?.checked : false) || false);
 
     trips.forEach(trip => {
-        const train = trip.train || {};
+        const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
         const polyline = train.polyline;
         if (!polyline?.geometry?.coordinates || polyline.geometry.coordinates.length < 2) {
             return;
@@ -373,7 +373,7 @@ export async function exportTripsGeoJSON(scope = 'active', action = 'download') 
             layerVisibility.set(id, layer.visible);
         });
         trips = trips.filter(trip => {
-            const cat = normalizeCategory(trip.train?.category);
+            const cat = normalizeCategory(trip.train?.category || trip.checkin?.category);
             return layerVisibility.has(cat) ? layerVisibility.get(cat) : true;
         });
     }
@@ -577,6 +577,7 @@ export function parseGeoJSONToTrips(data) {
         if (p.vehicleNumber) trip._index = { ...trip._index, vehicleNumber: p.vehicleNumber };
         if (p.locomotiveClass) trip._index = { ...trip._index, locomotiveClass: p.locomotiveClass };
         if (p.wagonClass) trip._index = { ...trip._index, wagonClass: p.wagonClass };
+        trip.checkin = trip.train;
 
         trips.push(trip);
     });

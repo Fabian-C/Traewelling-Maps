@@ -23,17 +23,32 @@ export function normalizeCategory(category) {
 }
 
 /**
+ * Normalize trip/status object so both s.train and s.checkin are always available,
+ * handling API differences where Träwelling returns 'checkin' instead of 'train'.
+ */
+export function normalizeTripStatus(trip) {
+    if (!trip || typeof trip !== 'object') return trip;
+    const trainData = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin;
+    if (trainData) {
+        if (!trip.train) trip.train = trainData;
+        if (!trip.checkin) trip.checkin = trainData;
+    }
+    return trip;
+}
+
+/**
  * Pre-indexes a trip for ultra-fast filtering and analytics.
  * Attaches _index object to the trip.
  */
 export function indexTrip(trip, currentUsername = '') {
     if (!trip || typeof trip !== 'object') return null;
+    normalizeTripStatus(trip);
     const currentUser = (currentUsername || '').toLowerCase().trim();
     if (trip._index && trip._index.owner === currentUser) {
         return trip._index;
     }
 
-    const train = trip.train || trip.properties?.train || {};
+    const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
     const rawDate = trip.createdAt || trip.properties?.createdAt || train.origin?.departure || train.origin?.plannedDeparture;
     let timestamp = null;
     if (rawDate) {
@@ -184,7 +199,7 @@ export function indexTrip(trip, currentUsername = '') {
  */
 export function extractTripTags(trip) {
     if (!trip) return [];
-    let rawTags = trip.tags ?? trip.properties?.tags ?? trip.train?.tags ?? trip.customTags ?? trip.labels ?? trip.properties?.labels ?? null;
+    let rawTags = trip.tags ?? trip.properties?.tags ?? trip.train?.tags ?? trip.checkin?.tags ?? trip.customTags ?? trip.labels ?? trip.properties?.labels ?? null;
     if (typeof rawTags === 'string') {
         try {
             rawTags = JSON.parse(rawTags);
@@ -241,7 +256,7 @@ export function buildTripSearchCorpus(trip) {
     const bodyText = typeof trip.body === 'string' ? trip.body : '';
     const noteText = typeof trip.notes === 'string' ? trip.notes : (typeof trip.comment === 'string' ? trip.comment : '');
 
-    const train = trip.train || trip.properties?.train || {};
+    const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
     const lineName = train.lineName || train.number || train.name || '';
 
     const originData = train.origin || {};
@@ -415,7 +430,7 @@ export function matchesTripSearch(trip, query) {
 export function getTripSearchMatchReason(trip, query) {
     if (!query || !query.trim()) return [];
     const q = query.trim().toLowerCase();
-    const train = trip.train || trip.properties?.train || {};
+    const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
     const reasons = [];
 
     // 1. Origin & Destination
@@ -511,13 +526,15 @@ export function processTripsToGeoJSON(trips) {
 
     trips.forEach(trip => {
         if (!trip) return;
+        normalizeTripStatus(trip);
         const idx = trip._index || indexTrip(trip);
-        const category = idx?.category || normalizeCategory(trip.train?.category);
+        const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
+        const category = idx?.category || normalizeCategory(train.category);
         const targetCat = categories[category] ? category : 'unknown';
-        const polyline = trip.train?.polyline;
+        const polyline = train.polyline;
         if (!polyline?.geometry?.coordinates) return;
 
-        const trainSummary = trip.train ? { ...trip.train, polyline: undefined, stopovers: undefined } : null;
+        const trainSummary = train ? { ...train, polyline: undefined, stopovers: undefined } : null;
         const isApproximated = isApproximatedPolyline(polyline.geometry.coordinates, category);
 
         categories[targetCat].features.push({
@@ -531,11 +548,11 @@ export function processTripsToGeoJSON(trips) {
                 body: typeof trip.body === 'string' ? trip.body : '',
                 bodyMentions: Array.isArray(trip.bodyMentions) ? trip.bodyMentions : [],
                 createdBy: trip.createdBy || null,
-                ticket: trip._index?.ticket || trip.ticket || trip.properties?.ticket || trip.train?.ticket || null,
-                tags: trip._index?.tags || trip.tags || trip.properties?.tags || trip.train?.tags || trip.customTags || trip.labels || null,
-                wagon: trip._index?.wagon || trip.train?.seat?.wagon || trip.train?.wagon || trip.train?.coach || trip.wagon || trip.properties?.wagon || null,
-                seat: trip._index?.seat || trip.train?.seat?.number || (typeof trip.train?.seat === 'string' ? trip.train.seat : null) || trip.seat?.number || (typeof trip.seat === 'string' ? trip.seat : null) || trip.properties?.seat || null,
-                travelClass: trip._index?.travelClass || trip.train?.class || trip.train?.travelClass || trip.class || null,
+                ticket: trip._index?.ticket || trip.ticket || trip.properties?.ticket || train.ticket || null,
+                tags: trip._index?.tags || trip.tags || trip.properties?.tags || train.tags || trip.customTags || trip.labels || null,
+                wagon: trip._index?.wagon || train.seat?.wagon || train.wagon || train.coach || trip.wagon || trip.properties?.wagon || null,
+                seat: trip._index?.seat || train.seat?.number || (typeof train.seat === 'string' ? train.seat : null) || trip.seat?.number || (typeof trip.seat === 'string' ? trip.seat : null) || trip.properties?.seat || null,
+                travelClass: trip._index?.travelClass || train.class || train.travelClass || trip.class || null,
                 vehicleNumber: trip._index?.vehicleNumber || null,
                 locomotiveClass: trip._index?.locomotiveClass || null,
                 wagonClass: trip._index?.wagonClass || null
