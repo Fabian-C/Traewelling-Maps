@@ -648,24 +648,6 @@ body {
     color: var(--text-secondary);
 }
 
-.rights-callout {
-    padding: 16px;
-    background: rgba(46, 204, 113, 0.08);
-    border: 1px solid rgba(46, 204, 113, 0.2);
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
-.rights-amount {
-    font-family: var(--font-heading);
-    font-size: 1.8rem;
-    font-weight: 800;
-    color: var(--accent-green);
-}
 
 /* ==========================================================================
    Side-by-Side Duel Mode (Hidden by default)

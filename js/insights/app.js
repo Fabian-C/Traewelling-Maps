@@ -386,14 +386,18 @@ function renderHighlights(records, punctuality) {
         longestEl.textContent = records.longestTrip ? `${records.longestTrip.origin} ➔ ${records.longestTrip.destination}` : 'None';
     }
     if (longestSub) {
-        longestSub.textContent = records.longestTrip ? `${Math.round(records.longestTrip.distance)} km · ${records.longestTrip.lineName}` : '0 km';
+        if (records.longestTrip) {
+            const dist = records.longestTrip.distance;
+            const distStr = dist >= 10 ? Math.round(dist).toLocaleString() : (Math.round(dist * 10) / 10).toLocaleString();
+            longestSub.textContent = `${distStr} km · ${records.longestTrip.lineName}`;
+        } else {
+            longestSub.textContent = '0 km';
+        }
     }
 
     // Delay Hall of Fame
     const worstDelayEl = document.getElementById('worstDelayMinutes');
     const worstDelayRoute = document.getElementById('worstDelayRoute');
-    const rightsAmountEl = document.getElementById('rightsRefundEstimate');
-    const rightsCountEl = document.getElementById('rightsEligibleCount');
 
     if (punctuality.worstDelay) {
         if (worstDelayEl) worstDelayEl.textContent = `+${punctuality.worstDelay.delayMinutes} min`;
@@ -402,9 +406,6 @@ function renderHighlights(records, punctuality) {
         if (worstDelayEl) worstDelayEl.textContent = 'None';
         if (worstDelayRoute) worstDelayRoute.textContent = 'Zero significant delays recorded!';
     }
-
-    if (rightsAmountEl) rightsAmountEl.textContent = `~€${punctuality.estimatedCompensationEur}`;
-    if (rightsCountEl) rightsCountEl.textContent = `${punctuality.compensationEligibleCount} journey(s) delayed 60m+ eligible for compensation under EU 1371/2007.`;
 
     // Top Companions
     const buddiesContainer = document.getElementById('topBuddiesList');

@@ -81,7 +81,6 @@ export function calculateWrappedInsights(trips = [], username = '') {
     let totalDelayMinutes = 0;
     let onTimeCount = 0;
     let delayedCount = 0;
-    let compensationEligibleCount = 0;
 
     let worstDelay = null;
     let longestTrip = null;
@@ -104,12 +103,15 @@ export function calculateWrappedInsights(trips = [], username = '') {
 
     validTrips.forEach(trip => {
         const train = trip.train || trip.checkin || {};
-        
-        // Distance
-        const dist = (typeof train.totalDistance === 'number' ? train.totalDistance : train.distance) || 0;
+
+        // Distance: Träwelling API records distances in meters (e.g. 280000 = 280 km)
+        const rawDist = (typeof train.totalDistance === 'number' ? train.totalDistance :
+                        (typeof train.distance === 'number' ? train.distance :
+                        (typeof trip.distance === 'number' ? trip.distance : 0))) || 0;
+        const dist = rawDist > 0 ? (rawDist / 1000) : 0;
         totalKm += dist;
 
-        // Longest Trip
+        // Longest Trip (distance stored in km)
         if (!longestTrip || dist > longestTrip.distance) {
             longestTrip = {
                 id: trip.id,
@@ -172,10 +174,6 @@ export function calculateWrappedInsights(trips = [], username = '') {
             onTimeCount++;
         } else {
             delayedCount++;
-        }
-
-        if (arrDelay >= 60) {
-            compensationEligibleCount++;
         }
 
         if (!worstDelay || delay > worstDelay.delayMinutes) {
@@ -297,9 +295,6 @@ export function calculateWrappedInsights(trips = [], username = '') {
         ? Math.round((onTimeCount / validTrips.length) * 100)
         : 100;
 
-    // Estimated EU/DB Compensation (Average €35 per journey: €8.75 for 60m+ delays, €17.50 for 120m+ delays)
-    const estimatedCompensationEur = Math.round(compensationEligibleCount * 14.5);
-
     // CO2 savings vs car (approx 120g net saving per passenger-km)
     const co2SavedKg = Math.round(totalKm * 0.12);
 
@@ -315,9 +310,7 @@ export function calculateWrappedInsights(trips = [], username = '') {
             onTimeCount,
             delayedCount,
             totalDelayMinutes,
-            worstDelay,
-            compensationEligibleCount,
-            estimatedCompensationEur
+            worstDelay
         },
         habits: {
             dayHourMatrix,
