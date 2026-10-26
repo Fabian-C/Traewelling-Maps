@@ -399,6 +399,9 @@ function renderHighlights(records, punctuality) {
     // Delay Hall of Fame
     const worstDelayEl = document.getElementById('worstDelayMinutes');
     const worstDelayRoute = document.getElementById('worstDelayRoute');
+    const delayTotalEl = document.getElementById('delayTotalMinutes');
+    const delayCountEl = document.getElementById('delayDelayedCount');
+    const delayRateEl = document.getElementById('delayPunctualityRate');
 
     if (punctuality.worstDelay) {
         if (worstDelayEl) worstDelayEl.textContent = `+${punctuality.worstDelay.delayMinutes} min`;
@@ -407,6 +410,10 @@ function renderHighlights(records, punctuality) {
         if (worstDelayEl) worstDelayEl.textContent = 'None';
         if (worstDelayRoute) worstDelayRoute.textContent = 'Zero significant delays recorded!';
     }
+
+    if (delayTotalEl) delayTotalEl.textContent = `${punctuality.totalDelayMinutes.toLocaleString()} min`;
+    if (delayCountEl) delayCountEl.textContent = `${punctuality.delayedCount} / ${records.uniqueStationsCount ? punctuality.onTimeCount + punctuality.delayedCount : 0}`;
+    if (delayRateEl) delayRateEl.textContent = `${punctuality.rate}%`;
 
     // Top Companions
     const buddiesContainer = document.getElementById('topBuddiesList');
@@ -430,9 +437,10 @@ function renderHighlights(records, punctuality) {
 function renderDuelSection() {
     const duelSelect = document.getElementById('duelOpponentSelect');
     if (duelSelect) {
+        const curUser = (activeSession?.username || '').toLowerCase();
         duelSelect.innerHTML = allSessions
-            .filter(s => s.username !== activeSession.username)
-            .map(s => `<option value="${s.username}" ${(duelOpponentSession && s.username === duelOpponentSession.username) ? 'selected' : ''}>${s.displayName || s.username} (@${s.username})</option>`)
+            .filter(s => s.username?.toLowerCase() !== curUser)
+            .map(s => `<option value="${s.username}" ${(duelOpponentSession && s.username?.toLowerCase() === duelOpponentSession.username?.toLowerCase()) ? 'selected' : ''}>${s.displayName || s.username} (@${s.username})</option>`)
             .join('');
     }
 
@@ -456,7 +464,7 @@ function renderDuelSection() {
             { label: 'Journeys Recorded', a: `${comparison.userA.trips.toLocaleString()} trips`, b: `${comparison.userB.trips.toLocaleString()} trips`, win: comparison.winners.trips },
             { label: 'Hours on Tracks', a: `~${comparison.userA.hours} hrs`, b: `~${comparison.userB.hours} hrs`, win: comparison.winners.hours },
             { label: 'Punctuality Rate', a: `${comparison.userA.punctuality}%`, b: `${comparison.userB.punctuality}%`, win: comparison.winners.punctuality },
-            { label: 'Unique Stations Visited', a: `${comparison.userA.stations} stations`, b: `${comparison.userB.stations} stations`, win: comparison.winners.stations }
+            { label: 'Unique Arrival Stations', a: `${comparison.userA.stations} stations`, b: `${comparison.userB.stations} stations`, win: comparison.winners.stations }
         ];
 
         tbody.innerHTML = rows.map(r => `

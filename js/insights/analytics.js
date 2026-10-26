@@ -217,8 +217,8 @@ export function calculateWrappedInsights(trips = [], username = '') {
             }
         }
 
-        // Stations: ONLY record origin and destination stations (exclude intermediate stopovers along the line)
-        const recordStation = (stn) => {
+        // Stations: ONLY record arrival stations (destination stations)
+        const recordArrivalStation = (stn) => {
             if (!stn) return;
             const name = (stn.name || stn.station?.name || '').trim();
             if (!name) return;
@@ -226,30 +226,30 @@ export function calculateWrappedInsights(trips = [], username = '') {
             const lat = typeof stn.latitude === 'number' ? stn.latitude : stn.station?.latitude;
             const lon = typeof stn.longitude === 'number' ? stn.longitude : stn.station?.longitude;
             const coords = (typeof lat === 'number' && typeof lon === 'number') ? [lon, lat] : null;
+            const stnDate = arrStr || depStr;
 
             if (!stationStats[name]) {
                 stationStats[name] = {
                     name,
                     visits: 0,
-                    firstDate: depStr,
-                    lastDate: depStr,
+                    firstDate: stnDate,
+                    lastDate: stnDate,
                     coords
                 };
             }
             stationStats[name].visits++;
-            if (depStr && (!stationStats[name].lastDate || depStr > stationStats[name].lastDate)) {
-                stationStats[name].lastDate = depStr;
+            if (stnDate && (!stationStats[name].lastDate || stnDate > stationStats[name].lastDate)) {
+                stationStats[name].lastDate = stnDate;
             }
-            if (depStr && (!stationStats[name].firstDate || depStr < stationStats[name].firstDate)) {
-                stationStats[name].firstDate = depStr;
+            if (stnDate && (!stationStats[name].firstDate || stnDate < stationStats[name].firstDate)) {
+                stationStats[name].firstDate = stnDate;
             }
             if (!stationStats[name].coords && coords) {
                 stationStats[name].coords = coords;
             }
         };
 
-        if (train.origin) recordStation(train.origin);
-        if (train.destination) recordStation(train.destination);
+        if (train.destination) recordArrivalStation(train.destination);
 
         // Travel Buddies (aggregate from buddies, bodyMentions, fellowPassengers, createdBy, and @notes)
         const buddyUsers = new Set();

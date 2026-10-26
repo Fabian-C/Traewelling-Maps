@@ -222,14 +222,14 @@
             </section>
         </div>
 
-        <!-- Analytics Row 2: Top Hub Stations & Delay Hall of Fame -->
+        <!-- Analytics Row 2: Top Arrival Stations, Delay Hall of Fame & Travel Companions -->
         <div class="analytics-grid-two">
-            <!-- Top Stations Ranking -->
-            <section class="panel-card" aria-label="Most Visited Stations">
+            <!-- Top Arrival Stations Ranking -->
+            <section class="panel-card" aria-label="Most Visited Arrival Stations">
                 <div class="panel-header">
                     <div>
-                        <h2 class="panel-title"><span>🚉</span> Top Hub Stations</h2>
-                        <p class="panel-desc">Most visited origins, destinations, and waypoints</p>
+                        <h2 class="panel-title"><span>🚉</span> Top Arrival Stations</h2>
+                        <p class="panel-desc">Most visited destinations and terminal stations</p>
                     </div>
                 </div>
 
@@ -257,14 +257,34 @@
                     <div class="delay-box-route" id="worstDelayRoute">No significant delay recorded</div>
                 </div>
 
-                <!-- Travel Buddies -->
-                <div style="margin-top: 6px;">
-                    <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">
-                        Top Travel Companions
+                <!-- Delay Telemetry Summary -->
+                <div class="delay-summary-grid">
+                    <div class="delay-summary-item">
+                        <span class="delay-summary-label">Total Delay</span>
+                        <span class="delay-summary-val" id="delayTotalMinutes">0 min</span>
                     </div>
-                    <div class="top-items-list" id="topBuddiesList">
-                        <!-- Dynamic buddy rows -->
+                    <div class="delay-summary-item">
+                        <span class="delay-summary-label">Delayed Trips</span>
+                        <span class="delay-summary-val" id="delayDelayedCount">0</span>
                     </div>
+                    <div class="delay-summary-item">
+                        <span class="delay-summary-label">Punctuality</span>
+                        <span class="delay-summary-val" id="delayPunctualityRate">100%</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Top Travel Companions (Separated Card) -->
+            <section class="panel-card" aria-label="Top Travel Companions">
+                <div class="panel-header">
+                    <div>
+                        <h2 class="panel-title"><span>👥</span> Top Travel Companions</h2>
+                        <p class="panel-desc">Fellow travelers and check-in buddies</p>
+                    </div>
+                </div>
+
+                <div class="top-items-list" id="topBuddiesList">
+                    <!-- Dynamic buddy rows -->
                 </div>
             </section>
         </div>

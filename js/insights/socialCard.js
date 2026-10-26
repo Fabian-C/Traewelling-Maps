@@ -154,14 +154,14 @@ export async function generateWrappedCardCanvas(insights, user = {}, year = 'All
     roundRect(80, listY, width - 160, 110, 18, 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0.08)');
     ctx.font = '600 20px sans-serif';
     ctx.fillStyle = '#66e0ff';
-    ctx.fillText('🚉 TOP HUB STATION', 110, listY + 40);
+    ctx.fillText('🚉 TOP ARRIVAL STATION', 110, listY + 40);
     ctx.font = '700 28px -apple-system, BlinkMacSystemFont, sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.fillText(topStationName, 110, listY + 82);
     ctx.textAlign = 'right';
     ctx.font = '600 22px sans-serif';
     ctx.fillStyle = '#a1a4ba';
-    ctx.fillText(`${topStationVisits} visits`, width - 110, listY + 68);
+    ctx.fillText(`${topStationVisits} arrivals`, width - 110, listY + 68);
     ctx.textAlign = 'left';
 
     // Highlight 2: Favorite Line
