@@ -14,6 +14,7 @@ import * as analytics from '../analytics/statistics.js';
 import { updateAllStatistics as updateAllStats } from '../analytics/statistics.js';
 import { reloadAllLayers, loadLayers, syncMapLayerOrder } from '../map/layers.js';
 import { exportTripsGeoJSON, handleStopoverToggleChange, handleGeoJSONUpload } from '../export/geojson.js';
+import { clearRouteHighlight } from '../map/interactions.js';
 
 export function setupEventListeners() {
     const state = store.get();
@@ -63,6 +64,7 @@ export function setupEventListeners() {
     if (railwayToggle) {
         const toggleRailway = (e) => {
             if (e) e.stopPropagation();
+            clearRouteHighlight();
             state.railway.enabled = !state.railway.enabled;
             railwayToggle.classList.toggle('active', state.railway.enabled);
             railwayToggle.blur();
@@ -400,7 +402,7 @@ export function setupEventListeners() {
     }
     
     if (menuFetchBtn) {
-        menuFetchBtn.onclick = async () => {
+        menuFetchBtn.onclick = async (e) => {
             const token = menuApiToken.value.trim();
             const username = menuUsername.value.trim();
             if (!username) {
@@ -412,10 +414,10 @@ export function setupEventListeners() {
             UI.syncTokenInputs(token);
             UI.syncUsernameInput(username);
             
-            // Manual fetch by username should always perform a complete fresh rescrape
+            // Incremental fetch by default if cached user data exists, Shift+click for fresh re-scrape
             const menuStopoversEl = document.getElementById('menuFetchIncludeStopovers') || document.getElementById('fetchIncludeStopovers');
             const shouldFetchStopovers = menuStopoversEl ? menuStopoversEl.checked : (localStorage.getItem('tw_fetch_stopovers') !== 'false');
-            startDataFetch(false, false, { forceFresh: true, fetchStopovers: shouldFetchStopovers });
+            startDataFetch(false, false, { forceFresh: Boolean(e?.shiftKey), fetchStopovers: shouldFetchStopovers });
         };
     }
 
@@ -520,6 +522,7 @@ let pendingFilterTimer = null;
  * to prevent frame drops and redundant GPU buffer re-uploads during rapid user interactions.
  */
 export function applyFiltersAndRefresh({ immediate = false, debounceMs = 0, updateOverlay = true } = {}) {
+    clearRouteHighlight();
     if (pendingFilterTimer) {
         clearTimeout(pendingFilterTimer);
         pendingFilterTimer = null;

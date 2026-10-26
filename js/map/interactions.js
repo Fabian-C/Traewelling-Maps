@@ -843,19 +843,32 @@ export function highlightRoute(feature, statusId) {
 
 export function clearRouteHighlight() {
     const state = store.get();
-    if (state.map?.getLayer('route-highlight')) {
-        state.map.removeLayer('route-highlight');
+    if (state.currentPopup) {
+        const popup = state.currentPopup;
+        state.currentPopup = null;
+        try {
+            popup.remove();
+        } catch (_) {}
     }
-    if (state.map?.getLayer('route-highlight-glow')) {
-        state.map.removeLayer('route-highlight-glow');
-    }
-    if (state.map?.getSource('route-highlight')) {
-        state.map.removeSource('route-highlight');
+    if (state.map) {
+        try {
+            if (state.map.getLayer('route-highlight')) {
+                state.map.removeLayer('route-highlight');
+            }
+            if (state.map.getLayer('route-highlight-glow')) {
+                state.map.removeLayer('route-highlight-glow');
+            }
+            if (state.map.getSource('route-highlight')) {
+                state.map.removeSource('route-highlight');
+            }
+        } catch (_) {}
     }
     if (state.useDeckGL && state.deck) {
-        state.deckLayers = state.deckLayers.filter(l => l.id !== 'deck-route-highlight');
+        state.deckLayers = (state.deckLayers || []).filter(l => l.id !== 'deck-route-highlight');
         if (state.deck.setProps) {
-            state.deck.setProps({ layers: state.deckLayers });
+            try {
+                state.deck.setProps({ layers: state.deckLayers });
+            } catch (_) {}
         }
     }
 }

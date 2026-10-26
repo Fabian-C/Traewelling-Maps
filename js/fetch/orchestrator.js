@@ -11,7 +11,7 @@ import { RateLimitUI } from '../ui/rateLimit.js';
 import { RouteAnimation } from '../map/routeAnimation.js';
 import { applyAllFilters } from '../filters/filterManager.js';
 import { loadLayers, syncMapLayerOrder } from '../map/layers.js';
-import { initMap, fitMapToData, waitForMapReady, setupMapInteractions } from '../map/interactions.js';
+import { initMap, fitMapToData, waitForMapReady, setupMapInteractions, clearRouteHighlight } from '../map/interactions.js';
 import { toggleDelayOverlay, updateDelayOverlay, updateDelayOverlaySummary, invalidateDelayOverlayCache } from '../map/delayOverlay.js';
 import { fetchUserProfile, saveCurrentSession, rememberToken, logout } from '../session/manager.js';
 import { FunFacts } from '../ui/funFacts.js';
@@ -39,11 +39,48 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
     const username = targetUsername.toLowerCase();
     if (!username) return alert('Please enter a username to explore');
 
-    // Force fresh scrape if requested or if exploring a username directly without explicit incremental request
-    const isFreshScrape = options.forceFresh || (!resumeFromState && !incremental);
+    // Automatically detect if we already have data for this user to fetch only new check-ins
+    let cachedTrips = null;
+    let newestCachedTripId = null;
+    let cachedTripIdSet = null;
+
+    if (!options.forceFresh && !resumeFromState) {
+        // 1. Check in-memory store if user matches
+        if (state.username && state.username.toLowerCase() === username && Array.isArray(state.fetchedTrips) && state.fetchedTrips.length > 0) {
+            cachedTrips = [...state.fetchedTrips];
+        } else {
+            // 2. Check cached session in IndexedDB
+            try {
+                const session = await SessionDB.get(username);
+                if (session?.trips && session.trips.length > 0) {
+                    cachedTrips = session.trips;
+                }
+            } catch (e) {
+                console.warn('Failed to check cached session for user:', e);
+            }
+        }
+
+        if (cachedTrips && cachedTrips.length > 0) {
+            incremental = true;
+            cachedTrips.forEach(s => dataProcessing.normalizeTripStatus(s));
+            // Ensure cached trips are sorted newest first
+            cachedTrips.sort((a, b) => {
+                const timeA = new Date(a.createdAt || a.checkin?.createdAt || a.train?.origin?.departure || 0).getTime();
+                const timeB = new Date(b.createdAt || b.checkin?.createdAt || b.train?.origin?.departure || 0).getTime();
+                if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+                return (b.id || 0) - (a.id || 0);
+            });
+            newestCachedTripId = cachedTrips[0]?.id;
+            cachedTripIdSet = new Set(cachedTrips.map(s => s.id));
+            console.log(`Auto-incremental fetch active for @${username}: ${cachedTrips.length} cached trips, newest ID: ${newestCachedTripId}`);
+        }
+    }
+
+    // Force fresh scrape only if requested or if exploring without existing user data
+    const isFreshScrape = Boolean(options.forceFresh) || (!resumeFromState && !incremental);
 
     // If fresh scrape or exploring a different profile than the one previously loaded, clear out old state & progress
-    if (isFreshScrape || (state.username && state.username.toLowerCase() !== username)) {
+    if (isFreshScrape || (state.username && state.username.toLowerCase() !== username && !incremental)) {
         state.fetchProgress = null;
         state.queriedUserProfile = null;
         state.fetchedTrips = [];
@@ -57,24 +94,6 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         rememberToken(token, { autoValidate: false, authMethod });
     }
     state.cancelFetch = false;
-    
-    // Check for cached data for incremental fetch
-    let cachedTrips = null;
-    let newestCachedTripId = null;
-    if (incremental && !isFreshScrape) {
-        try {
-            const session = await SessionDB.get(username);
-            if (session?.trips && session.trips.length > 0) {
-                cachedTrips = session.trips;
-                cachedTrips.forEach(s => dataProcessing.normalizeTripStatus(s));
-                // Get the newest cached trip ID (page 1 is newest in API)
-                newestCachedTripId = cachedTrips[0]?.id;
-                console.log(`Found ${cachedTrips.length} cached trips, newest ID: ${newestCachedTripId}`);
-            }
-        } catch (e) {
-            console.warn('Failed to check cached data:', e);
-        }
-    }
     
     if (!resumeFromState) {
         state.fetchedTrips = cachedTrips || [];
@@ -186,14 +205,16 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 }
                 res.data.forEach(s => dataProcessing.normalizeTripStatus(s));
 
-                if (incremental && newestCachedTripId) {
-                    const foundIdx = res.data.findIndex(s => s.id === newestCachedTripId);
+                if (incremental && ((cachedTripIdSet && cachedTripIdSet.size > 0) || newestCachedTripId)) {
+                    const foundIdx = cachedTripIdSet
+                        ? res.data.findIndex(s => cachedTripIdSet.has(s.id))
+                        : res.data.findIndex(s => s.id === newestCachedTripId);
                     if (foundIdx !== -1) {
                         if (foundIdx > 0) {
                             allStatuses.push(...res.data.slice(0, foundIdx));
                             pagesInContainerBatch++;
                         }
-                        console.log(`Found newest cached trip at index ${foundIdx} on page ${page}, stopping incremental fetch`);
+                        console.log(`Found cached trip (ID: ${res.data[foundIdx].id}) at index ${foundIdx} on page ${page}, stopping incremental fetch`);
                         hasMore = false;
                         break;
                     }
@@ -209,7 +230,8 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 }
 
                 const pageProgress = Math.min(45, Math.round((page / (page + 4)) * 45));
-                UI.updateFetchStats({ trips: allStatuses.length, pages: page, progress: pageProgress });
+                const totalDisplayTrips = (incremental && cachedTrips ? cachedTrips.length : 0) + allStatuses.length;
+                UI.updateFetchStats({ trips: totalDisplayTrips, pages: page, progress: pageProgress });
 
                 // Deliver 1 container per 2 fetched pages
                 if (pagesInContainerBatch >= PAGES_PER_CONTAINER) {
@@ -551,7 +573,13 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             UI.updateFetchStats({ status: 'Skipping waypoint stopovers...', progress: 92, stopovers: 0 });
         }
 
-        state.fetchedTrips = incremental && cachedTrips ? [...allStatuses, ...cachedTrips] : allStatuses;
+        if (incremental && cachedTrips) {
+            const seenIds = new Set(allStatuses.map(s => s.id));
+            const uniqueCached = cachedTrips.filter(s => !seenIds.has(s.id));
+            state.fetchedTrips = [...allStatuses, ...uniqueCached];
+        } else {
+            state.fetchedTrips = allStatuses;
+        }
         state.activeTrips = state.fetchedTrips;
         saveCurrentSession(incremental); // Pass incremental flag to merge data and update timestamp
 
@@ -770,6 +798,7 @@ export function refreshActiveTrips() {
 }
 
 export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) {
+    clearRouteHighlight();
     const state = store.get();
     state.statistics = analytics.resetStatistics(state.statistics);
     analytics.refreshStatsDisplay(state.statistics);

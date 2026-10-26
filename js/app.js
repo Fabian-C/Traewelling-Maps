@@ -171,7 +171,7 @@ export async function initApp() {
                 }
             }
             const shouldFetchStopovers = setupStopoversToggle?.checked ?? true;
-            startDataFetch(false, false, { forceFresh: true, fetchStopovers: shouldFetchStopovers });
+            startDataFetch(false, false, { forceFresh: Boolean(e?.shiftKey), fetchStopovers: shouldFetchStopovers });
         };
     }
 

@@ -4,6 +4,7 @@ import { toggleDelayOverlay } from './delayOverlay.js';
 import { RouteAnimation } from './routeAnimation.js';
 import { refreshActiveTrips } from '../fetch/orchestrator.js';
 import { normalizeCategory } from '../data/processing.js';
+import { clearRouteHighlight } from './interactions.js';
 
 export function getCurrentBaseOpacity(state) {
     if (!state) state = store.get();
@@ -80,6 +81,7 @@ export function getDensityWidth() {
 }
 
 export function toggleHeatmap(enabled) {
+    clearRouteHighlight();
     const state = store.get();
     state.heatmap.enabled = enabled;
     if (enabled) {
@@ -144,6 +146,7 @@ export function updateRouteDensity(force = false) {
 }
 
 export function removeRouteDensityOverlay() {
+    clearRouteHighlight();
     const state = store.get();
     state.deckLayers = state.deckLayers.filter(l => l.id !== state.heatmap.layerId);
     if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });

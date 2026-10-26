@@ -6,10 +6,11 @@ import * as time from '../utils/time.js';
 import * as color from '../utils/color.js';
 import * as math from '../utils/math.js';
 import * as format from '../utils/format.js';
-import { findOverlayFeatureAtPoint } from './interactions.js';
+import { findOverlayFeatureAtPoint, clearRouteHighlight } from './interactions.js';
 import { updateRouteDensity, toggleHeatmap, applyBaseLayerOpacity, setBaseLayerVisibility } from './heatmap.js';
 
 export function toggleDelayOverlay(enabled) {
+    clearRouteHighlight();
     const state = store.get();
     state.delays.enabled = enabled;
     if (enabled) {
@@ -31,6 +32,7 @@ export function toggleDelayOverlay(enabled) {
 }
 
 export function removeDelayOverlay() {
+    clearRouteHighlight();
     const state = store.get();
     if (state.useDeckGL) {
         state.deckLayers = state.deckLayers.filter(l => !l.id.startsWith(state.delays.layerId));

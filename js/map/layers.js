@@ -8,6 +8,7 @@ import * as heatmap from '../map/heatmap.js';
 import { updateRouteDensity } from '../map/heatmap.js';
 import { updateAllStatistics as updateAllStats } from '../analytics/statistics.js';
 import { invalidateDelayOverlayCache, updateDelayOverlay, updateDelayOverlaySummary } from '../map/delayOverlay.js';
+import { clearRouteHighlight } from './interactions.js';
 
 export const CATEGORY_NAMES = {
     nationalExpress: 'ICE / TGV',
@@ -329,6 +330,7 @@ export function loadLayers() {
  * Toggle visibility of a specific transport layer
  */
 export function toggleLayer(layerId) {
+    clearRouteHighlight();
     const state = store.get();
     const layer = state.layers.data.get(layerId);
     if (!layer) return;
