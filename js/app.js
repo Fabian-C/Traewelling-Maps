@@ -270,7 +270,8 @@ export async function initApp() {
 
     // Handle visibility change for wake lock
     document.addEventListener('visibilitychange', async () => {
-        if (UI.wakeLock !== null && document.visibilityState === 'visible') {
+        const state = store ? store.get() : null;
+        if (state?.isFetching && document.visibilityState === 'visible' && !UI.wakeLock) {
             await UI.acquireWakeLock();
         }
     });

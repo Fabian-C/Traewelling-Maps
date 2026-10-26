@@ -505,7 +505,8 @@ export function setupEventListeners() {
         windowDragDepth = 0;
         document.body.classList.remove('drag-over');
         const file = e.dataTransfer?.files?.[0];
-        if (file && (file.name.endsWith('.geojson') || file.name.endsWith('.json') || file.type?.includes('json'))) {
+        const fileName = (file?.name || '').toLowerCase();
+        if (file && (fileName.endsWith('.geojson') || fileName.endsWith('.json') || file.type?.includes('json'))) {
             handleGeoJSONUpload(file);
         }
     });

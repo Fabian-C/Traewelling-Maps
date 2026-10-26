@@ -102,6 +102,7 @@ export const UI = {
             this.wakeLock = await navigator.wakeLock.request('screen');
             this.wakeLock.addEventListener('release', () => {
                 console.log('Wake Lock was released');
+                this.wakeLock = null;
             });
             console.log('Wake Lock is active');
         } catch (err) {
@@ -112,10 +113,13 @@ export const UI = {
     async releaseWakeLock() {
         if (!this.wakeLock) return;
         try {
-            await this.wakeLock.release();
-            this.wakeLock = null;
+            if (!this.wakeLock.released) {
+                await this.wakeLock.release();
+            }
         } catch (err) {
             console.error(`${err.name}, ${err.message}`);
+        } finally {
+            this.wakeLock = null;
         }
     },
     _containerDesigns: [

@@ -152,8 +152,13 @@ export function downloadGeoJSONFile(geojsonData, filename = 'traewelling-trips.g
 export async function copyGeoJSONToClipboard(geojsonData) {
     const jsonString = JSON.stringify(geojsonData, null, 2);
     if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(jsonString);
-        return true;
+        try {
+            await navigator.clipboard.writeText(jsonString);
+            return true;
+        } catch (err) {
+            console.warn('Clipboard writeText failed:', err);
+            return false;
+        }
     }
     return false;
 }

@@ -8,6 +8,7 @@
     max-width: 420px;
     height: auto;
     max-height: calc(100vh - 40px);
+    max-height: calc(100dvh - 40px);
     pointer-events: none;
     z-index: 10000;
     overflow: hidden;
