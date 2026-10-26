@@ -1,0 +1,19 @@
+# Temporary scratch directories & scratchpads
+scratch/
+scratchpad*
+*.tmp
+*.log
+
+# Test screenshots & image captures
+screenshot*.png
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+
+# System & environment files
+.DS_Store
+Thumbs.db
+node_modules/
+.system_generated/
