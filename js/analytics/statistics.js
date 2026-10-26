@@ -160,11 +160,11 @@ export function refreshStatsDisplay(statisticsObj) {
     updateMenuBuddyList();
 
     const state = store.get();
-    const targetUrl = state?.username ? `insights.html?user=${encodeURIComponent(state.username)}` : 'insights.html';
+    const targetUrl = state?.username ? `wrapped.html?user=${encodeURIComponent(state.username)}` : 'wrapped.html';
     const statsWrappedLink = document.getElementById('statsWrappedLink');
     if (statsWrappedLink) statsWrappedLink.href = targetUrl;
-    const menuInsightsBtn = document.getElementById('menuInsightsBtn');
-    if (menuInsightsBtn) menuInsightsBtn.href = targetUrl;
+    const menuWrappedBtn = document.getElementById('menuWrappedBtn') || document.getElementById('menuInsightsBtn');
+    if (menuWrappedBtn) menuWrappedBtn.href = targetUrl;
 }
 
 /**

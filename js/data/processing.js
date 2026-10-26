@@ -541,12 +541,19 @@ export function processTripsToGeoJSON(trips) {
             const origLat = parseFloat(train.origin?.station?.latitude ?? train.origin?.latitude);
             const destLng = parseFloat(train.destination?.station?.longitude ?? train.destination?.longitude);
             const destLat = parseFloat(train.destination?.station?.latitude ?? train.destination?.latitude);
-            if (!isNaN(origLng) && !isNaN(origLat) && !isNaN(destLng) && !isNaN(destLat) && (origLng !== destLng || origLat !== destLat)) {
+            if (!isNaN(origLng) && !isNaN(origLat) && !isNaN(destLng) && !isNaN(destLat)) {
                 geometry = {
                     type: 'LineString',
-                    coordinates: [[origLng, origLat], [destLng, destLat]]
+                    coordinates: (origLng === destLng && origLat === destLat)
+                        ? [[origLng, origLat], [destLng + 0.00001, destLat + 0.00001]]
+                        : [[origLng, origLat], [destLng, destLat]]
                 };
                 isApproximated = true;
+                train.polyline = {
+                    type: 'Feature',
+                    geometry,
+                    properties: { statusId: trip.id, isApproximated: true }
+                };
             } else {
                 return;
             }

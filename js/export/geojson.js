@@ -20,9 +20,26 @@ export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
 
     trips.forEach(trip => {
         const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
-        const polyline = train.polyline;
+        let polyline = train.polyline;
         if (!polyline?.geometry?.coordinates || polyline.geometry.coordinates.length < 2) {
-            return;
+            const origLng = parseFloat(train.origin?.station?.longitude ?? train.origin?.longitude);
+            const origLat = parseFloat(train.origin?.station?.latitude ?? train.origin?.latitude);
+            const destLng = parseFloat(train.destination?.station?.longitude ?? train.destination?.longitude);
+            const destLat = parseFloat(train.destination?.station?.latitude ?? train.destination?.latitude);
+            if (!isNaN(origLng) && !isNaN(origLat) && !isNaN(destLng) && !isNaN(destLat)) {
+                polyline = {
+                    type: 'Feature',
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: (origLng === destLng && origLat === destLat)
+                            ? [[origLng, origLat], [destLng + 0.00001, destLat + 0.00001]]
+                            : [[origLng, origLat], [destLng, destLat]]
+                    },
+                    properties: { statusId: trip.id, isApproximated: true }
+                };
+            } else {
+                return;
+            }
         }
 
         const originData = train.origin || {};
@@ -94,6 +111,7 @@ export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
                 arrivalDelayMinutes: arrivalDelayMin,
                 durationMinutes: durationMin,
                 distanceKm: distanceKm,
+                totalDistance: rawDistance,
                 operator: train.operator?.name || train.operator?.identifier || train.provider?.name || train.provider || null,
                 platform: originData.departurePlatformReal || originData.platform || train.platform || train.track || null,
                 seat: trip._index?.seat || train.seat?.number || (typeof train.seat === 'string' || typeof train.seat === 'number' ? train.seat : null) || trip.seat?.number || trip.properties?.seat || seatTag || null,
@@ -106,6 +124,12 @@ export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
                 tags: parsedTags.length ? parsedTags : null,
                 business: businessLabel,
                 message: trip.body || null,
+                originLatitude: originData.station?.latitude ?? originData.latitude ?? (Array.isArray(polyline.geometry.coordinates?.[0]) ? polyline.geometry.coordinates[0][1] : null),
+                originLongitude: originData.station?.longitude ?? originData.longitude ?? (Array.isArray(polyline.geometry.coordinates?.[0]) ? polyline.geometry.coordinates[0][0] : null),
+                destLatitude: destData.station?.latitude ?? destData.latitude ?? (Array.isArray(polyline.geometry.coordinates?.[polyline.geometry.coordinates.length - 1]) ? polyline.geometry.coordinates[polyline.geometry.coordinates.length - 1][1] : null),
+                destLongitude: destData.station?.longitude ?? destData.longitude ?? (Array.isArray(polyline.geometry.coordinates?.[polyline.geometry.coordinates.length - 1]) ? polyline.geometry.coordinates[polyline.geometry.coordinates.length - 1][0] : null),
+                buddies: Array.isArray(trip.buddies) ? trip.buddies : (Array.isArray(trip.fellowPassengers) ? trip.fellowPassengers : null),
+                isApproximated: !!polyline.properties?.isApproximated,
                 createdAt: trip.createdAt || null,
                 traewellingUrl: trip.id ? `https://traewelling.de/status/${trip.id}` : null,
                 ...(includeStopovers ? { stopovers: stopoversList } : {})
@@ -513,9 +537,9 @@ export function parseGeoJSONToTrips(data) {
         }
 
         const statusId = p.statusId || p.id || (Date.now() + idx);
-        const distanceMeters = typeof p.distanceKm === 'number'
-            ? Math.round(p.distanceKm * 1000)
-            : (typeof p.totalDistance === 'number' ? p.totalDistance : (p.distance || 0));
+        const distanceMeters = typeof p.totalDistance === 'number'
+            ? p.totalDistance
+            : (typeof p.distanceKm === 'number' ? Math.round(p.distanceKm * 1000) : (p.distance || 0));
 
         let businessType = 0;
         if (p.business === 'work' || p.business === 1 || p.business === '1') businessType = 1;
@@ -528,6 +552,13 @@ export function parseGeoJSONToTrips(data) {
             ? p.destination
             : (p.destination?.name || p.destination?.station?.name || 'Unknown');
 
+        const originCoords = geom.coordinates[0];
+        const destCoords = geom.coordinates[geom.coordinates.length - 1];
+        const originLat = typeof p.originLatitude === 'number' ? p.originLatitude : (originCoords ? originCoords[1] : null);
+        const originLon = typeof p.originLongitude === 'number' ? p.originLongitude : (originCoords ? originCoords[0] : null);
+        const destLat = typeof p.destLatitude === 'number' ? p.destLatitude : (destCoords ? destCoords[1] : null);
+        const destLon = typeof p.destLongitude === 'number' ? p.destLongitude : (destCoords ? destCoords[0] : null);
+
         const trip = {
             id: statusId,
             body: p.message || p.body || '',
@@ -535,6 +566,7 @@ export function parseGeoJSONToTrips(data) {
             business: businessType,
             ticket: p.ticket || null,
             tags: Array.isArray(p.tags) ? p.tags : [],
+            buddies: Array.isArray(p.buddies) ? p.buddies : [],
             train: {
                 category: normalizeCategory(p.category || p.train?.category),
                 lineName: p.lineName || p.train?.lineName || p.line || p.name || '',
@@ -544,12 +576,22 @@ export function parseGeoJSONToTrips(data) {
                     name: originName,
                     departurePlanned: p.plannedDeparture || null,
                     departureReal: p.actualDeparture || null,
-                    platform: p.platform || null
+                    platform: p.platform || null,
+                    station: {
+                        name: originName,
+                        latitude: originLat,
+                        longitude: originLon
+                    }
                 },
                 destination: {
                     name: destName,
                     arrivalPlanned: p.plannedArrival || null,
-                    arrivalReal: p.actualArrival || null
+                    arrivalReal: p.actualArrival || null,
+                    station: {
+                        name: destName,
+                        latitude: destLat,
+                        longitude: destLon
+                    }
                 },
                 operator: p.operator ? (typeof p.operator === 'string' ? { name: p.operator } : p.operator) : null,
                 seat: p.seat ? (typeof p.seat === 'object' ? p.seat : { number: p.seat, wagon: p.wagon }) : null,

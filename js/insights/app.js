@@ -35,6 +35,7 @@ export async function initInsights() {
     const urlParams = new URLSearchParams(window.location.search);
     const requestedUser = urlParams.get('user')?.toLowerCase().trim();
     const requestedYear = urlParams.get('year') || 'all';
+    const fixtureUrl = urlParams.get('fixture');
     // Synchronous localStorage session fallback (for instant loading and offline/test setups)
     if (allSessions.length === 0) {
         try {
