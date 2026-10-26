@@ -533,14 +533,32 @@ export function processTripsToGeoJSON(trips) {
         const category = idx?.category || normalizeCategory(train.category);
         const targetCat = categories[category] ? category : 'unknown';
         const polyline = train.polyline;
-        if (!polyline?.geometry?.coordinates) return;
+        let geometry = polyline?.geometry;
+        let isApproximated = false;
+
+        if (!geometry?.coordinates || !Array.isArray(geometry.coordinates) || geometry.coordinates.length < 2) {
+            const origLng = parseFloat(train.origin?.station?.longitude ?? train.origin?.longitude);
+            const origLat = parseFloat(train.origin?.station?.latitude ?? train.origin?.latitude);
+            const destLng = parseFloat(train.destination?.station?.longitude ?? train.destination?.longitude);
+            const destLat = parseFloat(train.destination?.station?.latitude ?? train.destination?.latitude);
+            if (!isNaN(origLng) && !isNaN(origLat) && !isNaN(destLng) && !isNaN(destLat) && (origLng !== destLng || origLat !== destLat)) {
+                geometry = {
+                    type: 'LineString',
+                    coordinates: [[origLng, origLat], [destLng, destLat]]
+                };
+                isApproximated = true;
+            } else {
+                return;
+            }
+        } else {
+            isApproximated = isApproximatedPolyline(geometry.coordinates, category);
+        }
 
         const trainSummary = train ? { ...train, polyline: undefined, stopovers: undefined } : null;
-        const isApproximated = isApproximatedPolyline(polyline.geometry.coordinates, category);
 
         categories[targetCat].features.push({
             type: 'Feature',
-            geometry: polyline.geometry,
+            geometry: geometry,
             properties: { 
                 statusId: trip.id, 
                 createdAt: trip.createdAt, 

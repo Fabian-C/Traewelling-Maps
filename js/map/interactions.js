@@ -79,20 +79,44 @@ export function initMap() {
     setupEventListeners();
 }
 
+function extendBoundsRecursively(coords, bounds) {
+    if (!Array.isArray(coords) || !coords.length) return false;
+    if (typeof coords[0] === 'number' && typeof coords[1] === 'number' && !isNaN(coords[0]) && !isNaN(coords[1])) {
+        bounds.extend([coords[0], coords[1]]);
+        return true;
+    }
+    let extended = false;
+    for (let i = 0; i < coords.length; i++) {
+        if (extendBoundsRecursively(coords[i], bounds)) extended = true;
+    }
+    return extended;
+}
+
 export function fitMapToData(force = false) {
     if (!force && typeof window !== 'undefined' && window.location.hash?.startsWith('#map=')) {
         return;
     }
     const state = store.get();
+    if (!state.map) return;
     const bounds = new mapboxgl.LngLatBounds();
     let hasPoints = false;
     state.layers.data.forEach(layer => {
-        if (!layer.visible) return;
+        if (!layer.visible || !layer.data?.features) return;
         layer.data.features.forEach(f => {
-            f.geometry?.coordinates?.forEach(c => { if (c?.length >= 2) { bounds.extend(c); hasPoints = true; } });
+            if (f.geometry?.coordinates) {
+                if (extendBoundsRecursively(f.geometry.coordinates, bounds)) {
+                    hasPoints = true;
+                }
+            }
         });
     });
-    if (hasPoints) state.map.fitBounds(bounds, { padding: 50, maxZoom: 12 });
+    if (hasPoints && !bounds.isEmpty()) {
+        try {
+            state.map.fitBounds(bounds, { padding: 50, maxZoom: 14 });
+        } catch (e) {
+            console.warn('fitBounds error:', e);
+        }
+    }
 }
 
 export function waitForMapReady(timeoutMs = 4000) {

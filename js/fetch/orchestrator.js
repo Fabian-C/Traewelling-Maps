@@ -302,11 +302,13 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                     document.body.classList.add('stats-open');
                     document.getElementById('statsToggle')?.classList.add('active');
                 }
+                state.isFetching = false;
                 FunFacts.stop();
                 UI.releaseWakeLock();
                 return;
             }
 
+            state.isFetching = false;
             FunFacts.stop();
             UI.releaseWakeLock();
             return showFetchError({
@@ -601,9 +603,11 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             document.body.classList.add('stats-open');
             document.getElementById('statsToggle')?.classList.add('active');
         }
+        state.isFetching = false;
         FunFacts.stop(); // Stop fun facts when complete
         UI.releaseWakeLock();
     } catch (error) {
+        state.isFetching = false;
         console.error('Fetch error:', error);
         FunFacts.stop(); // Stop fun facts on error
         UI.releaseWakeLock();
@@ -840,6 +844,10 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
         });
     });
 
+    analytics.updateAllStatistics();
+    analytics.updateMenuBuddyList();
+    analytics.refreshStatsDisplay(state.statistics);
+
     if (!state.map) {
         if (!window.mapboxgl || !window.deck) {
             await new Promise(resolve => {
@@ -858,11 +866,11 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
 
     await waitForMapReady();
 
-    const addRouteLayers = () => {
-        if (!state.map.isStyleLoaded()) {
-            console.warn('Map style not loaded yet, waiting...');
-            setTimeout(addRouteLayers, 100);
-            return;
+    const addRouteLayers = async () => {
+        let waitCount = 0;
+        while ((!state.map || !state.map.isStyleLoaded()) && waitCount < 50) {
+            await new Promise(r => setTimeout(r, 100));
+            waitCount++;
         }
         
         // 1. Setup or update sources and layer data
@@ -900,12 +908,9 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
     loadLayers();
 
     if (RouteAnimation.isMobile()) {
-        setTimeout(() => {
-            addRouteLayers();
-        }, 200);
-    } else {
-        addRouteLayers();
+        await new Promise(r => setTimeout(r, 200));
     }
+    await addRouteLayers();
     
     setTimeout(() => analytics.refreshStatsDisplay(state.statistics), 100);
 

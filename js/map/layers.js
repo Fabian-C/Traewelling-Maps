@@ -439,7 +439,7 @@ export function syncMapLayerOrder() {
                         },
                         paint: {
                             'line-color': color,
-                            'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
+                            'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.75, 8, 2.5, 12, 4, 16, 10, 18, 16],
                             'line-opacity': baseOpacity
                         }
                     });
@@ -463,7 +463,7 @@ export function syncMapLayerOrder() {
                         paint: {
                             'line-color': color,
                             'line-dasharray': [2, 2],
-                            'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 16],
+                            'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.75, 8, 2.5, 12, 4, 16, 10, 18, 16],
                             'line-opacity': baseOpacity * 0.85
                         }
                     });
