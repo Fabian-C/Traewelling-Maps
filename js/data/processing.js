@@ -49,7 +49,8 @@ export function indexTrip(trip, currentUsername = '') {
     }
 
     const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
-    const rawDate = trip.createdAt || trip.properties?.createdAt || train.origin?.departure || train.origin?.plannedDeparture;
+    const rawDate = trip.createdAt || trip.properties?.createdAt ||
+        train.origin?.departureReal || train.origin?.departurePlanned || train.origin?.departure || train.origin?.plannedDeparture;
     let timestamp = null;
     if (rawDate) {
         const parsed = Date.parse(rawDate);

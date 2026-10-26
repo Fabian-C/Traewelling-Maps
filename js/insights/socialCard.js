@@ -83,7 +83,8 @@ export async function generateWrappedCardCanvas(insights, user = {}, year = 'All
     // 5. User Title Banner
     const username = user.displayName || user.username || 'Explorer';
     const handle = user.username ? `@${user.username}` : '';
-    ctx.font = '800 52px -apple-system, BlinkMacSystemFont, "Space Grotesk", sans-serif';
+    const fontSize = username.length > 28 ? 34 : (username.length > 20 ? 40 : 52);
+    ctx.font = `800 ${fontSize}px -apple-system, BlinkMacSystemFont, "Space Grotesk", sans-serif`;
     ctx.fillStyle = '#ffffff';
     ctx.fillText(username, 80, 205);
 

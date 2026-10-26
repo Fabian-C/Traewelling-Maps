@@ -248,10 +248,12 @@ export async function initApp() {
         const parts = window.location.hash.substring(5).split('/');
         if (parts.length === 3) {
             const [zoom, lat, lng] = parts.map(parseFloat);
-            setTimeout(() => {
-                const map = store?.get()?.map || window.state?.map;
-                if (map) map.jumpTo({ center: [lng, lat], zoom });
-            }, 1000);
+            if (!isNaN(zoom) && !isNaN(lat) && !isNaN(lng)) {
+                waitForMapReady().then(() => {
+                    const map = store?.get()?.map || window.state?.map;
+                    if (map) map.jumpTo({ center: [lng, lat], zoom });
+                });
+            }
         }
     }
 

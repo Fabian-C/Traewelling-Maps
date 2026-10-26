@@ -46,9 +46,9 @@ export function updateStatisticsWithTrip(trip, statisticsObj) {
         distance = (typeof train.totalDistance === 'number' ? train.totalDistance : train.distance) || 0;
         lineName = train.lineName || train.number || 'Unknown';
         category = normalizeCategory(train.category);
-        const createdAt = trip.createdAt || trip.properties?.createdAt;
-        if (createdAt) {
-            const d = Date.parse(createdAt);
+        const dateStr = trip.createdAt || trip.properties?.createdAt || train.origin?.departureReal || train.origin?.departurePlanned || train.origin?.departure;
+        if (dateStr) {
+            const d = Date.parse(dateStr);
             if (!isNaN(d)) timestamp = d;
         }
     }

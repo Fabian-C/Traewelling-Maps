@@ -43,7 +43,9 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 export function extractAvailableYears(trips = []) {
     const years = new Set();
     trips.forEach(t => {
-        const dateStr = t?.createdAt || t?.checkin?.createdAt || t?.train?.origin?.departure;
+        const train = t?.train || t?.checkin || {};
+        const dateStr = t?.createdAt || t?.checkin?.createdAt ||
+            train.origin?.departureReal || train.origin?.departurePlanned || train.origin?.departure;
         if (dateStr) {
             const date = new Date(dateStr);
             if (!isNaN(date.getTime())) {
@@ -63,7 +65,9 @@ export function filterTripsByYear(trips = [], selectedYear = 'all') {
     }
     const targetYear = parseInt(selectedYear, 10);
     return trips.filter(t => {
-        const dateStr = t?.createdAt || t?.checkin?.createdAt || t?.train?.origin?.departure;
+        const train = t?.train || t?.checkin || {};
+        const dateStr = t?.createdAt || t?.checkin?.createdAt ||
+            train.origin?.departureReal || train.origin?.departurePlanned || train.origin?.departure;
         if (!dateStr) return false;
         const date = new Date(dateStr);
         return !isNaN(date.getTime()) && date.getFullYear() === targetYear;
@@ -139,8 +143,8 @@ export function calculateWrappedInsights(trips = [], username = '') {
         }
 
         // Dates & Timing
-        const depStr = train.origin?.departure || trip.createdAt;
-        const arrStr = train.destination?.arrival;
+        const depStr = train.origin?.departureReal || train.origin?.departurePlanned || train.origin?.departure || trip.createdAt;
+        const arrStr = train.destination?.arrivalReal || train.destination?.arrivalPlanned || train.destination?.arrival;
         if (depStr) {
             const depDate = new Date(depStr);
             if (!isNaN(depDate.getTime())) {
@@ -152,18 +156,41 @@ export function calculateWrappedInsights(trips = [], username = '') {
                 hourTotals[hour]++;
                 monthTotals[month]++;
 
+                let tripDurationMs = 0;
                 if (arrStr) {
                     const arrDate = new Date(arrStr);
                     if (!isNaN(arrDate.getTime()) && arrDate > depDate) {
-                        totalDurationMs += (arrDate.getTime() - depDate.getTime());
+                        tripDurationMs = (arrDate.getTime() - depDate.getTime());
                     }
                 }
+                // Fallback to train.duration (minutes in Träwelling API)
+                if (tripDurationMs === 0 && typeof train.duration === 'number' && train.duration > 0) {
+                    tripDurationMs = train.duration * 60 * 1000;
+                }
+                totalDurationMs += tripDurationMs;
             }
         }
 
-        // Delays
-        const arrDelay = typeof train.arrivalDelay === 'number' ? train.arrivalDelay : 0;
-        const depDelay = typeof train.departureDelay === 'number' ? train.departureDelay : 0;
+        // Delays: evaluate explicit delay numbers or calculate from planned vs real telemetry
+        let derivedArrDelay = null;
+        if (train.destination?.arrivalReal && train.destination?.arrivalPlanned) {
+            const p = new Date(train.destination.arrivalPlanned).getTime();
+            const r = new Date(train.destination.arrivalReal).getTime();
+            if (!isNaN(p) && !isNaN(r)) {
+                derivedArrDelay = Math.round((r - p) / 60000);
+            }
+        }
+        let derivedDepDelay = null;
+        if (train.origin?.departureReal && train.origin?.departurePlanned) {
+            const p = new Date(train.origin.departurePlanned).getTime();
+            const r = new Date(train.origin.departureReal).getTime();
+            if (!isNaN(p) && !isNaN(r)) {
+                derivedDepDelay = Math.round((r - p) / 60000);
+            }
+        }
+
+        const arrDelay = typeof train.arrivalDelay === 'number' ? train.arrivalDelay : (derivedArrDelay ?? 0);
+        const depDelay = typeof train.departureDelay === 'number' ? train.departureDelay : (derivedDepDelay ?? 0);
         const delay = Math.max(arrDelay, depDelay);
 
         if (delay > 0) {
@@ -183,24 +210,30 @@ export function calculateWrappedInsights(trips = [], username = '') {
                     delayMinutes: delay,
                     lineName: train.lineName || train.number || 'Train',
                     category: cat,
-                    origin: train.origin?.name || 'Unknown',
-                    destination: train.destination?.name || 'Unknown',
+                    origin: train.origin?.name || train.origin?.station?.name || 'Unknown',
+                    destination: train.destination?.name || train.destination?.station?.name || 'Unknown',
                     date: depStr
                 };
             }
         }
 
-        // Stations
+        // Stations: ONLY record origin and destination stations (exclude intermediate stopovers along the line)
         const recordStation = (stn) => {
-            if (!stn || !stn.name) return;
-            const name = stn.name.trim();
+            if (!stn) return;
+            const name = (stn.name || stn.station?.name || '').trim();
+            if (!name) return;
+
+            const lat = typeof stn.latitude === 'number' ? stn.latitude : stn.station?.latitude;
+            const lon = typeof stn.longitude === 'number' ? stn.longitude : stn.station?.longitude;
+            const coords = (typeof lat === 'number' && typeof lon === 'number') ? [lon, lat] : null;
+
             if (!stationStats[name]) {
                 stationStats[name] = {
                     name,
                     visits: 0,
                     firstDate: depStr,
                     lastDate: depStr,
-                    coords: (stn.latitude && stn.longitude) ? [stn.longitude, stn.latitude] : null
+                    coords
                 };
             }
             stationStats[name].visits++;
@@ -210,35 +243,52 @@ export function calculateWrappedInsights(trips = [], username = '') {
             if (depStr && (!stationStats[name].firstDate || depStr < stationStats[name].firstDate)) {
                 stationStats[name].firstDate = depStr;
             }
-            if (!stationStats[name].coords && stn.latitude && stn.longitude) {
-                stationStats[name].coords = [stn.longitude, stn.latitude];
+            if (!stationStats[name].coords && coords) {
+                stationStats[name].coords = coords;
             }
         };
 
         if (train.origin) recordStation(train.origin);
         if (train.destination) recordStation(train.destination);
-        if (Array.isArray(train.stopovers)) {
-            train.stopovers.forEach(so => recordStation(so.station || so));
-        }
 
-        // Travel Buddies
-        const buddies = Array.isArray(trip.buddies) ? trip.buddies : [];
-        buddies.forEach(buddy => {
-            const bUser = (buddy.username || buddy.displayName || '').toLowerCase().trim();
-            if (bUser && bUser !== username.toLowerCase()) {
-                if (!buddyStats[bUser]) {
-                    buddyStats[bUser] = {
-                        username: buddy.username || bUser,
-                        displayName: buddy.displayName || buddy.username || bUser,
-                        avatar: buddy.profilePicture || null,
-                        sharedTrips: 0,
-                        sharedKm: 0
-                    };
-                }
-                buddyStats[bUser].sharedTrips++;
-                buddyStats[bUser].sharedKm += dist;
+        // Travel Buddies (aggregate from buddies, bodyMentions, fellowPassengers, createdBy, and @notes)
+        const buddyUsers = new Set();
+        const recordBuddy = (usernameCandidate, displayCandidate, avatarCandidate) => {
+            const bUser = (usernameCandidate || displayCandidate || '').toLowerCase().trim();
+            if (!bUser || bUser === username.toLowerCase() || buddyUsers.has(bUser)) return;
+            buddyUsers.add(bUser);
+
+            if (!buddyStats[bUser]) {
+                buddyStats[bUser] = {
+                    username: usernameCandidate || bUser,
+                    displayName: displayCandidate || usernameCandidate || bUser,
+                    avatar: avatarCandidate || null,
+                    sharedTrips: 0,
+                    sharedKm: 0
+                };
             }
-        });
+            buddyStats[bUser].sharedTrips++;
+            buddyStats[bUser].sharedKm += dist;
+        };
+
+        if (Array.isArray(trip.buddies)) {
+            trip.buddies.forEach(b => recordBuddy(b.username, b.displayName, b.profilePicture));
+        }
+        if (Array.isArray(trip.bodyMentions)) {
+            trip.bodyMentions.forEach(m => recordBuddy(m.user?.username || m.username, m.user?.displayName, m.user?.profilePicture));
+        }
+        if (Array.isArray(trip.fellowPassengers)) {
+            trip.fellowPassengers.forEach(fp => recordBuddy(fp.user?.username || fp.username, fp.user?.displayName, fp.user?.profilePicture));
+        }
+        if (trip.createdBy?.username) {
+            recordBuddy(trip.createdBy.username, trip.createdBy.displayName, trip.createdBy.profilePicture);
+        }
+        if (typeof trip.body === 'string' && trip.body.includes('@')) {
+            const matches = trip.body.match(/@([a-zA-Z0-9_-]+)/g);
+            if (matches) {
+                matches.forEach(m => recordBuddy(m.substring(1)));
+            }
+        }
     });
 
     // Fallback duration estimation if arrival times weren't recorded: avg rail speed 80 km/h
@@ -338,15 +388,21 @@ export function calculateWrappedInsights(trips = [], username = '') {
 export function compareUsers(insightsA, insightsB, userA = 'Player 1', userB = 'Player 2') {
     if (!insightsA || !insightsB) return null;
 
+    const judgeWinner = (valA, valB) => {
+        if (valA > valB) return 'userA';
+        if (valB > valA) return 'userB';
+        return 'tie';
+    };
+
     return {
         userA: { name: userA, km: insightsA.totalKm, trips: insightsA.totalTrips, hours: insightsA.totalDurationHours, punctuality: insightsA.punctuality.rate, stations: insightsA.records.uniqueStationsCount },
         userB: { name: userB, km: insightsB.totalKm, trips: insightsB.totalTrips, hours: insightsB.totalDurationHours, punctuality: insightsB.punctuality.rate, stations: insightsB.records.uniqueStationsCount },
         winners: {
-            km: insightsA.totalKm >= insightsB.totalKm ? 'userA' : 'userB',
-            trips: insightsA.totalTrips >= insightsB.totalTrips ? 'userA' : 'userB',
-            hours: insightsA.totalDurationHours >= insightsB.totalDurationHours ? 'userA' : 'userB',
-            punctuality: insightsA.punctuality.rate >= insightsB.punctuality.rate ? 'userA' : 'userB',
-            stations: insightsA.records.uniqueStationsCount >= insightsB.records.uniqueStationsCount ? 'userA' : 'userB'
+            km: judgeWinner(insightsA.totalKm, insightsB.totalKm),
+            trips: judgeWinner(insightsA.totalTrips, insightsB.totalTrips),
+            hours: judgeWinner(insightsA.totalDurationHours, insightsB.totalDurationHours),
+            punctuality: judgeWinner(insightsA.punctuality.rate, insightsB.punctuality.rate),
+            stations: judgeWinner(insightsA.records.uniqueStationsCount, insightsB.records.uniqueStationsCount)
         }
     };
 }

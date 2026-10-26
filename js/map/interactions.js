@@ -79,7 +79,10 @@ export function initMap() {
     setupEventListeners();
 }
 
-export function fitMapToData() {
+export function fitMapToData(force = false) {
+    if (!force && typeof window !== 'undefined' && window.location.hash?.startsWith('#map=')) {
+        return;
+    }
     const state = store.get();
     const bounds = new mapboxgl.LngLatBounds();
     let hasPoints = false;

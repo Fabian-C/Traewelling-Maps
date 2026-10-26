@@ -61,8 +61,8 @@ function setupEventListeners() {
     const profileSelect = document.getElementById('profileSelect');
     if (profileSelect) {
         profileSelect.addEventListener('change', (e) => {
-            const user = e.target.value;
-            const found = allSessions.find(s => s.username === user);
+            const user = (e.target.value || '').toLowerCase().trim();
+            const found = allSessions.find(s => s.username?.toLowerCase() === user);
             if (found) {
                 activeSession = found;
                 activeYear = 'all';
@@ -80,7 +80,8 @@ function setupEventListeners() {
             const isActive = container.classList.toggle('active');
             duelToggleBtn.classList.toggle('active', isActive);
             if (isActive && !duelOpponentSession && allSessions.length > 1) {
-                duelOpponentSession = allSessions.find(s => s.username !== activeSession.username) || allSessions[1];
+                const currentLower = (activeSession?.username || '').toLowerCase();
+                duelOpponentSession = allSessions.find(s => s.username?.toLowerCase() !== currentLower) || allSessions[1];
                 renderDuelSection();
             }
         });
@@ -90,8 +91,8 @@ function setupEventListeners() {
     const duelSelect = document.getElementById('duelOpponentSelect');
     if (duelSelect) {
         duelSelect.addEventListener('change', (e) => {
-            const user = e.target.value;
-            duelOpponentSession = allSessions.find(s => s.username === user);
+            const user = (e.target.value || '').toLowerCase().trim();
+            duelOpponentSession = allSessions.find(s => s.username?.toLowerCase() === user);
             renderDuelSection();
         });
     }
@@ -182,7 +183,7 @@ function renderProfileDropdown() {
     }
 
     profileSelect.innerHTML = allSessions.map(s => {
-        const selected = (activeSession && s.username === activeSession.username) ? 'selected' : '';
+        const selected = (activeSession && s.username?.toLowerCase() === activeSession.username?.toLowerCase()) ? 'selected' : '';
         const name = s.displayName ? `${s.displayName} (@${s.username})` : `@${s.username}`;
         return `<option value="${s.username}" ${selected}>${name}</option>`;
     }).join('');
