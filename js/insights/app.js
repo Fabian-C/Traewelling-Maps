@@ -35,6 +35,38 @@ export async function initInsights() {
     const urlParams = new URLSearchParams(window.location.search);
     const requestedUser = urlParams.get('user')?.toLowerCase().trim();
     const requestedYear = urlParams.get('year') || 'all';
+    // Synchronous localStorage session fallback (for instant loading and offline/test setups)
+    if (allSessions.length === 0) {
+        try {
+            const cachedRaw = localStorage.getItem('tw_cached_sessions_data');
+            if (cachedRaw) {
+                const parsed = JSON.parse(cachedRaw);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    allSessions = parsed;
+                }
+            }
+        } catch (e) {}
+    }
+
+    // Fixture fallback for testing / previews
+    if (allSessions.length === 0 && fixtureUrl) {
+        try {
+            const res = await fetch(fixtureUrl);
+            const trips = await res.json();
+            if (Array.isArray(trips) && trips.length > 0) {
+                const u = requestedUser || 'resu';
+                allSessions = [{
+                    username: u,
+                    displayName: u.charAt(0).toUpperCase() + u.slice(1),
+                    trips: trips,
+                    tripCount: trips.length,
+                    timestamp: Date.now()
+                }];
+            }
+        } catch (err) {
+            console.warn('Failed to load fixture data:', err);
+        }
+    }
 
     if (allSessions.length > 0) {
         if (requestedUser) {
@@ -125,8 +157,21 @@ function setupEventListeners() {
         });
     }
 
-    if (modalCloseBtn && shareModal) {
-        modalCloseBtn.addEventListener('click', () => shareModal.close());
+    if (shareModal) {
+        if (modalCloseBtn) {
+            modalCloseBtn.addEventListener('click', () => shareModal.close());
+        }
+        // Light dismiss when clicking outside modal (on native <dialog> backdrop)
+        shareModal.addEventListener('click', (e) => {
+            const rect = shareModal.getBoundingClientRect();
+            const isInDialog = (
+                rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+                rect.left <= e.clientX && e.clientX <= rect.left + rect.width
+            );
+            if (!isInDialog) {
+                shareModal.close();
+            }
+        });
     }
 
     if (downloadCardBtn) {
@@ -350,10 +395,6 @@ function renderTopStations(stations = []) {
     }
 
     container.innerHTML = stations.slice(0, 8).map((stn, idx) => {
-        const deepLink = stn.coords
-            ? `<a class="map-deep-link" href="index.html?user=${encodeURIComponent(activeSession.username)}#map=12/${stn.coords[1].toFixed(4)}/${stn.coords[0].toFixed(4)}" title="View on map">📍 Map</a>`
-            : '';
-
         return `
             <div class="top-item-row">
                 <div class="top-item-left">
@@ -362,7 +403,6 @@ function renderTopStations(stations = []) {
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <span class="top-item-badge">${stn.visits} visits</span>
-                    ${deepLink}
                 </div>
             </div>
         `;
@@ -396,24 +436,101 @@ function renderHighlights(records, punctuality) {
         }
     }
 
-    // Delay Hall of Fame
+    // Delay Hall of Fame (Redesigned)
     const worstDelayEl = document.getElementById('worstDelayMinutes');
     const worstDelayRoute = document.getElementById('worstDelayRoute');
-    const delayTotalEl = document.getElementById('delayTotalMinutes');
-    const delayCountEl = document.getElementById('delayDelayedCount');
-    const delayRateEl = document.getElementById('delayPunctualityRate');
+    const worstDelayTrain = document.getElementById('worstDelayTrain');
+    const worstDelayDate = document.getElementById('worstDelayDate');
+
+    const totalTrips = (punctuality.onTimeCount || 0) + (punctuality.delayedCount || 0);
 
     if (punctuality.worstDelay) {
         if (worstDelayEl) worstDelayEl.textContent = `+${punctuality.worstDelay.delayMinutes} min`;
-        if (worstDelayRoute) worstDelayRoute.textContent = `${punctuality.worstDelay.lineName}: ${punctuality.worstDelay.origin} ➔ ${punctuality.worstDelay.destination}`;
+        if (worstDelayRoute) worstDelayRoute.textContent = `${punctuality.worstDelay.origin} ➔ ${punctuality.worstDelay.destination}`;
+        if (worstDelayTrain) worstDelayTrain.textContent = `🚆 ${punctuality.worstDelay.lineName}`;
+        if (worstDelayDate) {
+            const d = punctuality.worstDelay.date ? new Date(punctuality.worstDelay.date) : null;
+            worstDelayDate.textContent = (d && !isNaN(d.getTime()))
+                ? `📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+                : '';
+        }
     } else {
-        if (worstDelayEl) worstDelayEl.textContent = 'None';
+        if (worstDelayEl) worstDelayEl.textContent = '0 min';
         if (worstDelayRoute) worstDelayRoute.textContent = 'Zero significant delays recorded!';
+        if (worstDelayTrain) worstDelayTrain.textContent = '🎉 Fully on-time';
+        if (worstDelayDate) worstDelayDate.textContent = '';
     }
 
+    // 4-Tier Spectrum Bar & Legend
+    const tiers = punctuality.tiers || {
+        onTimePct: punctuality.rate,
+        minorPct: 0,
+        moderatePct: 0,
+        severePct: 0,
+        onTime: punctuality.onTimeCount,
+        minor: 0,
+        moderate: 0,
+        severe: 0
+    };
+
+    const pBadge = document.getElementById('delayPunctualityBadge');
+    if (pBadge) {
+        pBadge.textContent = `${punctuality.rate}% on-time`;
+        pBadge.style.color = punctuality.rate >= 80 ? '#2ecc71' : (punctuality.rate >= 60 ? '#f1c40f' : '#ff4757');
+    }
+
+    const tOnTimeBar = document.getElementById('tierOnTimeBar');
+    const tMinorBar = document.getElementById('tierMinorBar');
+    const tModerateBar = document.getElementById('tierModerateBar');
+    const tSevereBar = document.getElementById('tierSevereBar');
+    if (tOnTimeBar) tOnTimeBar.style.width = `${tiers.onTimePct}%`;
+    if (tMinorBar) tMinorBar.style.width = `${tiers.minorPct}%`;
+    if (tModerateBar) tModerateBar.style.width = `${tiers.moderatePct}%`;
+    if (tSevereBar) tSevereBar.style.width = `${tiers.severePct}%`;
+
+    const lOnTime = document.getElementById('tierOnTimeLegend');
+    const lMinor = document.getElementById('tierMinorLegend');
+    const lModerate = document.getElementById('tierModerateLegend');
+    const lSevere = document.getElementById('tierSevereLegend');
+    if (lOnTime) lOnTime.textContent = `≤5m: ${tiers.onTimePct}%`;
+    if (lMinor) lMinor.textContent = `6-15m: ${tiers.minorPct}%`;
+    if (lModerate) lModerate.textContent = `16-30m: ${tiers.moderatePct}%`;
+    if (lSevere) lSevere.textContent = `>30m: ${tiers.severePct}%`;
+
+    // 3 Telemetry Metrics
+    const delayTotalEl = document.getElementById('delayTotalMinutes');
+    const delayHoursSub = document.getElementById('delayTotalHoursSub');
+    const delayCountEl = document.getElementById('delayDelayedCount');
+    const delayFractionSub = document.getElementById('delayDelayedFractionSub');
+    const delayRateEl = document.getElementById('delayPunctualityRate');
+    const delayStatus = document.getElementById('delayPunctualityStatus');
+
     if (delayTotalEl) delayTotalEl.textContent = `${punctuality.totalDelayMinutes.toLocaleString()} min`;
-    if (delayCountEl) delayCountEl.textContent = `${punctuality.delayedCount} / ${records.uniqueStationsCount ? punctuality.onTimeCount + punctuality.delayedCount : 0}`;
+    if (delayHoursSub) {
+        const hrs = Math.floor(punctuality.totalDelayMinutes / 60);
+        const mins = punctuality.totalDelayMinutes % 60;
+        delayHoursSub.textContent = hrs > 0 ? `~${hrs}h ${mins}m lost` : `${mins}m total lost`;
+    }
+
+    if (delayCountEl) delayCountEl.textContent = `${punctuality.delayedCount}`;
+    if (delayFractionSub) delayFractionSub.textContent = `of ${totalTrips} check-in${totalTrips === 1 ? '' : 's'}`;
+
     if (delayRateEl) delayRateEl.textContent = `${punctuality.rate}%`;
+    if (delayStatus) {
+        if (punctuality.rate >= 90) {
+            delayStatus.textContent = 'Excellent';
+            delayStatus.style.color = '#2ecc71';
+        } else if (punctuality.rate >= 75) {
+            delayStatus.textContent = 'Good';
+            delayStatus.style.color = '#2ecc71';
+        } else if (punctuality.rate >= 55) {
+            delayStatus.textContent = 'Moderate';
+            delayStatus.style.color = '#f1c40f';
+        } else {
+            delayStatus.textContent = 'High Delays';
+            delayStatus.style.color = '#ff4757';
+        }
+    }
 
     // Top Companions
     const buddiesContainer = document.getElementById('topBuddiesList');

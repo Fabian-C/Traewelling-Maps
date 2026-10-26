@@ -145,66 +145,117 @@ export async function generateWrappedCardCanvas(insights, user = {}, year = 'All
     ctx.fillStyle = '#a1a4ba';
     ctx.fillText(`🌱 vs equivalent car travel`, 80 + cardW + 30 + 30, startY + cardH + 24 + 160);
 
-    // 7. Highlights Section (Full width cards)
-    const listY = startY + (cardH * 2) + 50;
+    // 7. Highlights Section (Clean full-width cards with smart collision avoidance)
+    const listY = 740;
 
-    // Highlight 1: Top Stations
-    const topStationName = insights.records.topStations[0]?.name || 'None';
+    const drawHighlightCard = (y, icon, label, title, badge, accentColor) => {
+        const cardH = 98;
+        roundRect(80, y, width - 160, cardH, 16, 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0.08)');
+        
+        // Label header
+        ctx.font = '700 17px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillStyle = accentColor;
+        ctx.textAlign = 'left';
+        ctx.fillText(`${icon}  ${label}`, 108, y + 33);
+
+        // Right badge measurement
+        ctx.font = '600 19px -apple-system, BlinkMacSystemFont, sans-serif';
+        const badgeText = String(badge || '').trim();
+        const badgeW = badgeText ? ctx.measureText(badgeText).width : 0;
+        const badgeBoxW = badgeText ? Math.max(badgeW + 28, 90) : 0;
+        const badgeBoxH = 34;
+
+        if (badgeText) {
+            const badgeX = width - 108 - badgeBoxW;
+            const badgeY = y + 46;
+            roundRect(badgeX, badgeY, badgeBoxW, badgeBoxH, 17, 'rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.15)');
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText(badgeText, badgeX + badgeBoxW / 2, badgeY + 23);
+        }
+
+        // Title with smart truncation against right badge boundary
+        const maxTitleW = width - 160 - 40 - (badgeBoxW > 0 ? (badgeBoxW + 20) : 0);
+        ctx.font = '700 24px -apple-system, BlinkMacSystemFont, "Space Grotesk", sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+
+        let displayTitle = String(title || 'None');
+        if (ctx.measureText(displayTitle).width > maxTitleW) {
+            while (displayTitle.length > 3 && ctx.measureText(displayTitle + '...').width > maxTitleW) {
+                displayTitle = displayTitle.slice(0, -1);
+            }
+            displayTitle += '...';
+        }
+        ctx.fillText(displayTitle, 108, y + 72);
+    };
+
+    // Highlight 1: Top Arrival Station
+    const topStationName = insights.records.topStations[0]?.name || 'None recorded';
     const topStationVisits = insights.records.topStations[0]?.visits || 0;
-    roundRect(80, listY, width - 160, 110, 18, 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0.08)');
-    ctx.font = '600 20px sans-serif';
-    ctx.fillStyle = '#66e0ff';
-    ctx.fillText('🚉 TOP ARRIVAL STATION', 110, listY + 40);
-    ctx.font = '700 28px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(topStationName, 110, listY + 82);
-    ctx.textAlign = 'right';
-    ctx.font = '600 22px sans-serif';
-    ctx.fillStyle = '#a1a4ba';
-    ctx.fillText(`${topStationVisits} arrivals`, width - 110, listY + 68);
-    ctx.textAlign = 'left';
+    drawHighlightCard(
+        listY,
+        '🚉',
+        'TOP ARRIVAL STATION',
+        topStationName,
+        topStationVisits > 0 ? `${topStationVisits} arrivals` : '',
+        '#66e0ff'
+    );
 
     // Highlight 2: Favorite Line
     const favLine = insights.records.favoriteLine?.line || 'Various Lines';
     const favLineCount = insights.records.favoriteLine?.count || 0;
-    roundRect(80, listY + 126, width - 160, 110, 18, 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0.08)');
-    ctx.font = '600 20px sans-serif';
-    ctx.fillStyle = '#a78bfa';
-    ctx.fillText('🚆 FAVORITE LINE', 110, listY + 126 + 40);
-    ctx.font = '700 28px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(favLine, 110, listY + 126 + 82);
-    ctx.textAlign = 'right';
-    ctx.font = '600 22px sans-serif';
-    ctx.fillStyle = '#a1a4ba';
-    ctx.fillText(`${favLineCount} check-ins`, width - 110, listY + 126 + 68);
-    ctx.textAlign = 'left';
+    drawHighlightCard(
+        listY + 118,
+        '🚆',
+        'FAVORITE LINE',
+        favLine,
+        favLineCount > 0 ? `${favLineCount} check-ins` : '',
+        '#a78bfa'
+    );
 
     // Highlight 3: Longest Journey
     const longest = insights.records.longestTrip;
     const longestRoute = longest ? `${longest.origin} ➔ ${longest.destination}` : 'Not available';
     const longestDist = longest ? `${Math.round(longest.distance)} km` : '';
-    roundRect(80, listY + 252, width - 160, 110, 18, 'rgba(255, 255, 255, 0.04)', 'rgba(255, 255, 255, 0.08)');
-    ctx.font = '600 20px sans-serif';
-    ctx.fillStyle = '#ff6b9c';
-    ctx.fillText('🗺️ LONGEST SINGLE JOURNEY', 110, listY + 252 + 40);
-    ctx.font = '700 26px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillStyle = '#ffffff';
-    // Truncate long route text
-    const maxRouteLen = 42;
-    const displayRoute = longestRoute.length > maxRouteLen ? longestRoute.substring(0, maxRouteLen) + '...' : longestRoute;
-    ctx.fillText(displayRoute, 110, listY + 252 + 82);
-    ctx.textAlign = 'right';
-    ctx.font = '600 22px sans-serif';
-    ctx.fillStyle = '#a1a4ba';
-    ctx.fillText(longestDist, width - 110, listY + 252 + 68);
-    ctx.textAlign = 'left';
+    drawHighlightCard(
+        listY + 236,
+        '🗺️',
+        'LONGEST SINGLE JOURNEY',
+        longestRoute,
+        longestDist,
+        '#ff6b9c'
+    );
+
+    // Highlight 4: Peak Travel Habit or Top Companion
+    if (insights.records.topBuddies && insights.records.topBuddies.length > 0) {
+        const topBuddy = insights.records.topBuddies[0];
+        drawHighlightCard(
+            listY + 354,
+            '👥',
+            'TOP TRAVEL COMPANION',
+            `@${topBuddy.username}`,
+            `${topBuddy.sharedTrips} shared trips`,
+            '#2ecc71'
+        );
+    } else {
+        const busiestDay = insights.habits?.busiestDayName || 'Weekend';
+        const busiestHour = insights.habits?.busiestHourLabel || '17:00';
+        drawHighlightCard(
+            listY + 354,
+            '⏰',
+            'PRIME TRANSIT HABIT',
+            `${busiestDay}s around ${busiestHour}`,
+            'Peak Time',
+            '#ffd32a'
+        );
+    }
 
     // 8. Footer Watermark
-    ctx.font = '500 20px sans-serif';
+    ctx.font = '500 18px -apple-system, BlinkMacSystemFont, sans-serif';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
     ctx.textAlign = 'center';
-    ctx.fillText('Generated with Träwelling Map Explorer · traewelling.de', width / 2, height - 60);
+    ctx.fillText('Generated with Träwelling Map Explorer · traewelling.de', width / 2, height - 44);
 
     return canvas;
 }

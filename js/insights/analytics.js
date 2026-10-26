@@ -75,6 +75,69 @@ export function filterTripsByYear(trips = [], selectedYear = 'all') {
 }
 
 /**
+ * Haversine formula to compute geodesic distance (in kilometers) between two coordinates.
+ */
+export function calculateHaversineKm(lat1, lon1, lat2, lon2) {
+    if (typeof lat1 !== 'number' || typeof lon1 !== 'number' ||
+        typeof lat2 !== 'number' || typeof lon2 !== 'number') return null;
+    if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) return null;
+    // Reject Null Island or out-of-bounds coordinates
+    if (Math.abs(lat1) < 0.1 && Math.abs(lon1) < 0.1) return null;
+    if (Math.abs(lat2) < 0.1 && Math.abs(lon2) < 0.1) return null;
+    if (lat1 < -90 || lat1 > 90 || lat2 < -90 || lat2 > 90) return null;
+    if (lon1 < -180 || lon1 > 180 || lon2 < -180 || lon2 > 180) return null;
+
+    const R = 6371; // Earth radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+/**
+ * Sanitize trip distance in kilometers to avoid Hafas coordinate loop glitches (e.g. 5,000+ km ICE trips).
+ */
+export function sanitizeTripDistanceKm(rawKm, originLat, originLon, destLat, destLon, category) {
+    if (typeof rawKm !== 'number' || isNaN(rawKm) || rawKm < 0) {
+        rawKm = 0;
+    }
+
+    const haversineKm = calculateHaversineKm(originLat, originLon, destLat, destLon);
+
+    // Realistic physical maximum single trip distances by transit mode
+    const MAX_BY_CATEGORY = {
+        highspeed: 1400, // ICE/TGV single trip max in Central Europe
+        regional: 600,   // RE/IC regional max
+        suburban: 160,   // S-Bahn max
+        subway: 80,      // U-Bahn max
+        tram: 80,        // Tram / Strab
+        bus: 200,        // Bus
+        ferry: 800,      // Ferry
+        cablecar: 30,    // Seilbahn
+        other: 1500
+    };
+    const maxAllowedKm = MAX_BY_CATEGORY[category] || 1500;
+
+    if (haversineKm !== null && haversineKm > 0) {
+        // If raw distance is missing or zero, estimate track distance as ~1.25x straight line
+        if (rawKm === 0) {
+            return Math.min(Math.round(haversineKm * 1.25 * 10) / 10, maxAllowedKm);
+        }
+        // If raw distance exceeds 3x the straight-line distance + 50km or exceeds category max, it's an upstream coordinate loop / Null Island glitch!
+        if (rawKm > (haversineKm * 3 + 50) || rawKm > maxAllowedKm) {
+            return Math.min(Math.round(haversineKm * 1.25 * 10) / 10, maxAllowedKm);
+        }
+        return Math.min(rawKm, maxAllowedKm);
+    }
+
+    // No valid coordinates: clamp to physical category ceiling
+    return Math.min(rawKm, maxAllowedKm);
+}
+
+/**
  * Compute comprehensive analytics and Wrapped insights for a list of trips.
  */
 export function calculateWrappedInsights(trips = [], username = '') {
@@ -85,6 +148,12 @@ export function calculateWrappedInsights(trips = [], username = '') {
     let totalDelayMinutes = 0;
     let onTimeCount = 0;
     let delayedCount = 0;
+
+    // Delay tiers (4-tier spectrum)
+    let tierOnTime = 0;   // <= 5 min
+    let tierMinor = 0;    // 6 - 15 min
+    let tierModerate = 0; // 16 - 30 min
+    let tierSevere = 0;   // > 30 min
 
     let worstDelay = null;
     let longestTrip = null;
@@ -107,12 +176,20 @@ export function calculateWrappedInsights(trips = [], username = '') {
 
     validTrips.forEach(trip => {
         const train = trip.train || trip.checkin || {};
+        const cat = normalizeCategory(train.category);
 
         // Distance: Träwelling API records distances in meters (e.g. 280000 = 280 km)
         const rawDist = (typeof train.totalDistance === 'number' ? train.totalDistance :
                         (typeof train.distance === 'number' ? train.distance :
                         (typeof trip.distance === 'number' ? trip.distance : 0))) || 0;
-        const dist = rawDist > 0 ? (rawDist / 1000) : 0;
+        const rawKm = rawDist > 0 ? (rawDist / 1000) : 0;
+
+        const originLat = typeof train.origin?.latitude === 'number' ? train.origin.latitude : train.origin?.station?.latitude;
+        const originLon = typeof train.origin?.longitude === 'number' ? train.origin.longitude : train.origin?.station?.longitude;
+        const destLat = typeof train.destination?.latitude === 'number' ? train.destination.latitude : train.destination?.station?.latitude;
+        const destLon = typeof train.destination?.longitude === 'number' ? train.destination.longitude : train.destination?.station?.longitude;
+
+        const dist = sanitizeTripDistanceKm(rawKm, originLat, originLon, destLat, destLon, cat);
         totalKm += dist;
 
         // Longest Trip (distance stored in km)
@@ -121,15 +198,14 @@ export function calculateWrappedInsights(trips = [], username = '') {
                 id: trip.id,
                 distance: dist,
                 lineName: train.lineName || train.number || 'Train',
-                category: normalizeCategory(train.category),
-                origin: train.origin?.name || 'Unknown',
-                destination: train.destination?.name || 'Unknown',
+                category: cat,
+                origin: train.origin?.name || train.origin?.station?.name || 'Unknown',
+                destination: train.destination?.name || train.destination?.station?.name || 'Unknown',
                 date: trip.createdAt || train.origin?.departure || null
             };
         }
 
         // Category
-        const cat = normalizeCategory(train.category);
         if (!categoryStats[cat]) {
             categoryStats[cat] = { trips: 0, distance: 0 };
         }
@@ -199,8 +275,16 @@ export function calculateWrappedInsights(trips = [], username = '') {
 
         if (delay <= 5) {
             onTimeCount++;
+            tierOnTime++;
         } else {
             delayedCount++;
+            if (delay <= 15) {
+                tierMinor++;
+            } else if (delay <= 30) {
+                tierModerate++;
+            } else {
+                tierSevere++;
+            }
         }
 
         if (!worstDelay || delay > worstDelay.delayMinutes) {
@@ -360,7 +444,17 @@ export function calculateWrappedInsights(trips = [], username = '') {
             onTimeCount,
             delayedCount,
             totalDelayMinutes,
-            worstDelay
+            worstDelay,
+            tiers: {
+                onTime: tierOnTime,
+                minor: tierMinor,
+                moderate: tierModerate,
+                severe: tierSevere,
+                onTimePct: validTrips.length > 0 ? Math.round((tierOnTime / validTrips.length) * 100) : 100,
+                minorPct: validTrips.length > 0 ? Math.round((tierMinor / validTrips.length) * 100) : 0,
+                moderatePct: validTrips.length > 0 ? Math.round((tierModerate / validTrips.length) * 100) : 0,
+                severePct: validTrips.length > 0 ? Math.round((tierSevere / validTrips.length) * 100) : 0
+            }
         },
         habits: {
             dayHourMatrix,

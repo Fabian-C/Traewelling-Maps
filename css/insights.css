@@ -454,19 +454,20 @@ body {
 .heatmap-container {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 8px;
+    gap: 5px;
+    width: 100%;
+    overflow: hidden; /* Guaranteed no scrollbars */
 }
 
 .heatmap-row {
     display: flex;
     align-items: center;
     gap: 6px;
+    width: 100%;
 }
 
 .heatmap-day-label {
-    width: 34px;
+    width: 28px;
     font-size: 11px;
     font-weight: 600;
     color: var(--text-muted);
@@ -475,19 +476,24 @@ body {
 }
 
 .heatmap-cells {
-    display: flex;
-    gap: 4px;
-    flex-grow: 1;
+    display: grid;
+    grid-template-columns: repeat(24, minmax(0, 1fr));
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+    width: 100%;
 }
 
 .heatmap-cell {
-    width: 14px;
-    height: 14px;
-    border-radius: 3px;
+    width: 100%;
+    aspect-ratio: 1;
+    min-width: 0;
+    max-height: 16px;
+    border-radius: 2px;
     background: rgba(255, 255, 255, 0.04);
     position: relative;
     cursor: default;
-    transition: transform 0.15s ease;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .heatmap-cell:hover {
@@ -510,6 +516,18 @@ body {
     color: var(--text-muted);
     margin-top: 8px;
 }
+
+.heatmap-legend-swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    flex-shrink: 0;
+}
+.heatmap-legend-swatch[data-intensity="1"] { background: rgba(102, 224, 255, 0.25); }
+.heatmap-legend-swatch[data-intensity="2"] { background: rgba(102, 224, 255, 0.5); }
+.heatmap-legend-swatch[data-intensity="3"] { background: rgba(102, 224, 255, 0.75); }
+.heatmap-legend-swatch[data-intensity="4"] { background: #66e0ff; box-shadow: 0 0 6px rgba(102, 224, 255, 0.5); }
 
 /* Category Progress Bars */
 .category-bars {
@@ -611,61 +629,174 @@ body {
 }
 
 /* ==========================================================================
-   Delay Hall of Fame & Passenger Rights
+   Delay Hall of Fame (Completely Redesigned)
    ========================================================================== */
 
-.delay-box {
-    background: linear-gradient(135deg, rgba(231, 76, 60, 0.1), rgba(16, 20, 36, 0.7));
-    border: 1px solid rgba(231, 76, 60, 0.25);
-    border-radius: var(--radius-md);
-    padding: 20px;
+.delay-panel-content {
     display: flex;
     flex-direction: column;
+    gap: 16px;
+}
+
+.delay-hero-card {
+    background: linear-gradient(135deg, rgba(255, 71, 87, 0.12), rgba(16, 20, 36, 0.75));
+    border: 1px solid rgba(255, 71, 87, 0.3);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+}
+
+.delay-hero-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(to bottom, #ff4757, #ff6b81);
+}
+
+.delay-hero-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     gap: 12px;
 }
 
-.delay-box-title {
+.delay-hero-label {
+    font-size: 11px;
     font-weight: 700;
-    font-size: 14px;
-    color: #ff7675;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    color: #ff6b81;
     display: flex;
     align-items: center;
+    gap: 6px;
+}
+
+.delay-hero-badge {
+    font-family: var(--font-heading);
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #ffffff;
+    background: rgba(255, 71, 87, 0.25);
+    border: 1px solid rgba(255, 71, 87, 0.45);
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.2;
+}
+
+.delay-hero-route {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.delay-hero-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Punctuality Spectrum Bar (4 Tiers) */
+.delay-spectrum-section {
+    display: flex;
+    flex-direction: column;
     gap: 8px;
 }
 
-.delay-box-highlight {
-    font-family: var(--font-heading);
-    font-size: 2.2rem;
-    font-weight: 800;
-    color: #ffffff;
-    line-height: 1;
+.delay-spectrum-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
 }
 
-.delay-box-route {
-    font-size: 14px;
+.delay-spectrum-bar {
+    display: flex;
+    height: 10px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+    gap: 1px;
+}
+
+.spectrum-tier {
+    height: 100%;
+    transition: width 0.4s ease;
+}
+
+.spectrum-tier.tier-on-time { background: #2ecc71; }
+.spectrum-tier.tier-minor { background: #f1c40f; }
+.spectrum-tier.tier-moderate { background: #e67e22; }
+.spectrum-tier.tier-severe { background: #ff4757; }
+
+.delay-spectrum-legend {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    font-size: 10px;
+}
+
+.spectrum-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
     color: var(--text-secondary);
+    white-space: nowrap;
 }
 
-.delay-summary-grid {
+.spectrum-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.spectrum-dot.tier-on-time { background: #2ecc71; }
+.spectrum-dot.tier-minor { background: #f1c40f; }
+.spectrum-dot.tier-moderate { background: #e67e22; }
+.spectrum-dot.tier-severe { background: #ff4757; }
+
+/* 3-Metric Telemetry Grid */
+.delay-telemetry-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
-    margin-top: 4px;
+    margin-top: 2px;
 }
 
-.delay-summary-item {
+.delay-telemetry-card {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
-    padding: 10px;
+    padding: 12px 10px;
     display: flex;
     flex-direction: column;
     gap: 4px;
+    transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.delay-summary-label {
+.delay-telemetry-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.delay-telemetry-label {
     font-size: 10px;
     font-weight: 700;
     color: var(--text-muted);
@@ -673,11 +804,17 @@ body {
     letter-spacing: 0.04em;
 }
 
-.delay-summary-val {
+.delay-telemetry-val {
     font-family: var(--font-heading);
-    font-size: 1rem;
+    font-size: 1.15rem;
     font-weight: 700;
     color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.delay-telemetry-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
 }
 
 
@@ -764,17 +901,25 @@ body {
    ========================================================================== */
 
 .share-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
     border: 1px solid var(--border-glow);
     border-radius: var(--radius-lg);
-    background: rgba(16, 20, 36, 0.95);
+    background: rgba(16, 20, 36, 0.98);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     color: var(--text-primary);
-    padding: 32px;
-    max-width: 580px;
+    padding: 24px 28px;
+    max-width: 540px;
     width: 90%;
-    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7);
-    margin: auto;
+    max-height: min(90vh, 760px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.85);
+    z-index: 10000;
 }
 
 .share-modal::backdrop {
@@ -786,12 +931,12 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 
 .share-modal-title {
     font-family: var(--font-heading);
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     font-weight: 700;
     margin: 0;
 }
@@ -814,18 +959,21 @@ body {
     width: 100%;
     display: flex;
     justify-content: center;
-    margin: 16px 0 24px;
-    background: rgba(0, 0, 0, 0.3);
+    margin: 14px 0 20px;
+    background: rgba(0, 0, 0, 0.35);
     border-radius: var(--radius-md);
-    padding: 16px;
+    padding: 12px;
     border: 1px solid var(--border-subtle);
 }
 
 .card-preview-img {
     max-width: 100%;
-    max-height: 480px;
-    border-radius: 12px;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+    max-height: min(44vh, 440px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 10px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
 }
 
 .share-modal-actions {

@@ -185,11 +185,11 @@
 
                 <div class="heatmap-legend">
                     <span>Fewer</span>
-                    <div class="heatmap-cell" data-intensity="0" style="width: 12px; height: 12px;"></div>
-                    <div class="heatmap-cell" data-intensity="1" style="width: 12px; height: 12px;"></div>
-                    <div class="heatmap-cell" data-intensity="2" style="width: 12px; height: 12px;"></div>
-                    <div class="heatmap-cell" data-intensity="3" style="width: 12px; height: 12px;"></div>
-                    <div class="heatmap-cell" data-intensity="4" style="width: 12px; height: 12px;"></div>
+                    <div class="heatmap-legend-swatch" data-intensity="0"></div>
+                    <div class="heatmap-legend-swatch" data-intensity="1"></div>
+                    <div class="heatmap-legend-swatch" data-intensity="2"></div>
+                    <div class="heatmap-legend-swatch" data-intensity="3"></div>
+                    <div class="heatmap-legend-swatch" data-intensity="4"></div>
                     <span>More Trips</span>
                 </div>
             </section>
@@ -234,7 +234,7 @@
                 </div>
 
                 <div class="top-items-list" id="topStationsList">
-                    <!-- Dynamic station rank rows with map deep links -->
+                    <!-- Dynamic station rank rows -->
                 </div>
             </section>
 
@@ -247,29 +247,69 @@
                     </div>
                 </div>
 
-                <!-- Single Worst Delay Card -->
-                <div class="delay-box">
-                    <div class="delay-box-title">
-                        <span>⚠️</span>
-                        <span>Biggest Single Delay</span>
+                <div class="delay-panel-content">
+                    <!-- Hero Worst Delay Card -->
+                    <div class="delay-hero-card">
+                        <div class="delay-hero-header">
+                            <span class="delay-hero-label"><span>⚠️</span> Worst Single Delay</span>
+                            <span class="delay-hero-badge" id="worstDelayMinutes">+0 min</span>
+                        </div>
+                        <div class="delay-hero-route" id="worstDelayRoute">No significant delay recorded</div>
+                        <div class="delay-hero-meta" id="worstDelayMeta">
+                            <span id="worstDelayTrain">—</span>
+                            <span id="worstDelayDate">—</span>
+                        </div>
                     </div>
-                    <div class="delay-box-highlight" id="worstDelayMinutes">+0 min</div>
-                    <div class="delay-box-route" id="worstDelayRoute">No significant delay recorded</div>
-                </div>
 
-                <!-- Delay Telemetry Summary -->
-                <div class="delay-summary-grid">
-                    <div class="delay-summary-item">
-                        <span class="delay-summary-label">Total Delay</span>
-                        <span class="delay-summary-val" id="delayTotalMinutes">0 min</span>
+                    <!-- 4-Tier Punctuality Spectrum Bar -->
+                    <div class="delay-spectrum-section">
+                        <div class="delay-spectrum-header">
+                            <span>Punctuality Distribution</span>
+                            <span id="delayPunctualityBadge" style="color: #2ecc71; font-weight: 800;">100% on-time</span>
+                        </div>
+                        <div class="delay-spectrum-bar" id="delaySpectrumBar" role="progressbar" aria-label="Delay Distribution">
+                            <div class="spectrum-tier tier-on-time" id="tierOnTimeBar" style="width: 100%;" title="On-time (≤5 min)"></div>
+                            <div class="spectrum-tier tier-minor" id="tierMinorBar" style="width: 0%;" title="Minor (6-15 min)"></div>
+                            <div class="spectrum-tier tier-moderate" id="tierModerateBar" style="width: 0%;" title="Moderate (16-30 min)"></div>
+                            <div class="spectrum-tier tier-severe" id="tierSevereBar" style="width: 0%;" title="Severe (>30 min)"></div>
+                        </div>
+                        <div class="delay-spectrum-legend">
+                            <div class="spectrum-legend-item">
+                                <span class="spectrum-dot tier-on-time"></span>
+                                <span id="tierOnTimeLegend">≤5m: 100%</span>
+                            </div>
+                            <div class="spectrum-legend-item">
+                                <span class="spectrum-dot tier-minor"></span>
+                                <span id="tierMinorLegend">6-15m: 0%</span>
+                            </div>
+                            <div class="spectrum-legend-item">
+                                <span class="spectrum-dot tier-moderate"></span>
+                                <span id="tierModerateLegend">16-30m: 0%</span>
+                            </div>
+                            <div class="spectrum-legend-item">
+                                <span class="spectrum-dot tier-severe"></span>
+                                <span id="tierSevereLegend">&gt;30m: 0%</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="delay-summary-item">
-                        <span class="delay-summary-label">Delayed Trips</span>
-                        <span class="delay-summary-val" id="delayDelayedCount">0</span>
-                    </div>
-                    <div class="delay-summary-item">
-                        <span class="delay-summary-label">Punctuality</span>
-                        <span class="delay-summary-val" id="delayPunctualityRate">100%</span>
+
+                    <!-- 3-Metric Telemetry Grid -->
+                    <div class="delay-telemetry-grid">
+                        <div class="delay-telemetry-card">
+                            <span class="delay-telemetry-label">Time Lost</span>
+                            <span class="delay-telemetry-val" id="delayTotalMinutes">0 min</span>
+                            <span class="delay-telemetry-sub" id="delayTotalHoursSub">~0 hrs</span>
+                        </div>
+                        <div class="delay-telemetry-card">
+                            <span class="delay-telemetry-label">Delayed Trips</span>
+                            <span class="delay-telemetry-val" id="delayDelayedCount">0</span>
+                            <span class="delay-telemetry-sub" id="delayDelayedFractionSub">of 0 total</span>
+                        </div>
+                        <div class="delay-telemetry-card">
+                            <span class="delay-telemetry-label">Punctuality</span>
+                            <span class="delay-telemetry-val" id="delayPunctualityRate">100%</span>
+                            <span class="delay-telemetry-sub" id="delayPunctualityStatus">Excellent</span>
+                        </div>
                     </div>
                 </div>
             </section>
