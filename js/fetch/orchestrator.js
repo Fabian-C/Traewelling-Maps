@@ -17,6 +17,7 @@ import { fetchUserProfile, saveCurrentSession, rememberToken, logout } from '../
 import { FunFacts } from '../ui/funFacts.js';
 import { updateFilterBadges } from '../events/listeners.js';
 import { escapeHtml } from '../utils/format.js';
+import { updateTripCycler, focusTripOnMap } from '../map/tripCycler.js';
 
 export async function startDataFetch(resumeFromState = false, incremental = false, options = {}) {
     const state = store.get();
@@ -934,5 +935,15 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
     } else {
         updateDelayOverlaySummary();
     }
+    updateTripCycler();
+
+    const deepTripId = new URLSearchParams(window.location.search).get('trip');
+    if (deepTripId && Array.isArray(state.fetchedTrips)) {
+        const foundTrip = state.fetchedTrips.find(t => String(t.id) === String(deepTripId));
+        if (foundTrip) {
+            setTimeout(() => focusTripOnMap(foundTrip), 400);
+        }
+    }
+
     document.body.dataset.mapReady = 'true';
 }

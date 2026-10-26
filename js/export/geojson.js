@@ -674,6 +674,13 @@ export async function handleGeoJSONUpload(file) {
         // Process, populate layers, and display data on the map
         await processAndDisplayData(trips, { hideFetchUI: true });
 
+        // Save imported trips into SessionDB cache so Rail Wrapped and persistence work immediately
+        try {
+            await SessionDB.save(displayUser, trips);
+        } catch (dbErr) {
+            console.warn('Could not cache imported trips in SessionDB:', dbErr);
+        }
+
         showExportToast(`Loaded ${trips.length} routes from ${file.name}!`);
     } catch (err) {
         console.error('Error importing GeoJSON file:', err);

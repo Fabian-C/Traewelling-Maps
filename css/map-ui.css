@@ -2288,3 +2288,181 @@ body.drag-over::after {
     box-shadow: inset 0 0 40px rgba(56, 189, 248, 0.2);
     pointer-events: none;
 }
+
+/* ==========================================================================
+   Stacked Check-ins Popup Stepper & Floating Trip Navigator
+   ========================================================================== */
+
+.popup-stack-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 3px 6px;
+    margin-bottom: 6px;
+    gap: 6px;
+    user-select: none;
+}
+
+.popup-stack-nav .stack-nav-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-primary);
+    border-radius: 5px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+}
+
+.popup-stack-nav .stack-nav-btn:hover {
+    background: var(--accent-cyan, #38bdf8);
+    color: #080a10;
+    border-color: var(--accent-cyan, #38bdf8);
+}
+
+.popup-stack-nav .stack-nav-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+.popup-stack-nav .stack-nav-badge {
+    background: rgba(56, 189, 248, 0.2);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 10px;
+    padding: 1px 5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 9px;
+    letter-spacing: 0.05em;
+}
+
+.popup-stack-nav .stack-nav-count strong {
+    color: #ffffff;
+}
+
+.floating-trip-cycler {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 500;
+    background: rgba(10, 14, 22, 0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.15);
+    border-radius: 30px;
+    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: min(560px, calc(100vw - 32px));
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: cyclerSlideUp 0.3s ease-out;
+}
+
+@keyframes cyclerSlideUp {
+    from { opacity: 0; transform: translate(-50%, 20px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.floating-trip-cycler.hidden {
+    display: none !important;
+}
+
+.cycler-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.cycler-btn:hover {
+    background: #38bdf8;
+    color: #080a10;
+    border-color: #38bdf8;
+}
+
+.cycler-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    text-align: center;
+    flex: 1;
+}
+
+.cycler-route {
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cycler-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.cycler-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.cycler-close-btn:hover {
+    color: #ffffff;
+}
+
+@media (max-width: 768px) {
+    .floating-trip-cycler {
+        bottom: 80px;
+        padding: 5px 10px;
+        gap: 8px;
+    }
+    .cycler-route {
+        font-size: 11px;
+    }
+    .cycler-sub {
+        font-size: 10px;
+    }
+    .cycler-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 10px;
+    }
+}

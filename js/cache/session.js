@@ -77,27 +77,31 @@ export const SessionDB = {
     },
     
     // Save a session (including trip data)
-    async save(username, data) {
+    async save(username, data, options = {}) {
         const db = await this.open();
         return new Promise((resolve, reject) => {
             const tx = db.transaction([this.STORE_NAME], 'readwrite');
             const store = tx.objectStore(this.STORE_NAME);
             
+            const isArray = Array.isArray(data);
+            const trips = isArray ? data : (data?.trips || null);
+            const meta = isArray ? (options || {}) : (data || {});
+
             const session = {
                 username: username,
-                displayName: data.displayName || username,
-                avatar: data.avatar || null,
-                tripCount: data.tripCount || 0,
-                token: data.token || null,
-                trips: data.trips || null, // Store trip data for caching
-                timestamp: data.timestamp !== undefined ? data.timestamp : Date.now()
+                displayName: meta.displayName || username,
+                avatar: meta.avatar || null,
+                tripCount: meta.tripCount || (trips ? trips.length : 0),
+                token: meta.token || null,
+                trips: trips, // Store trip data for caching
+                timestamp: meta.timestamp !== undefined ? meta.timestamp : Date.now()
             };
             
             store.put(session);
             tx.oncomplete = () => {
-                if (Array.isArray(data.trips)) {
+                if (Array.isArray(trips)) {
                     const polyMap = {};
-                    data.trips.forEach(t => {
+                    trips.forEach(t => {
                         if (t?.id && t.train?.polyline) {
                             polyMap[t.id] = t.train.polyline;
                         }

@@ -161,10 +161,13 @@ export function refreshStatsDisplay(statisticsObj) {
 
     const state = store.get();
     const targetUrl = state?.username ? `wrapped.html?user=${encodeURIComponent(state.username)}` : 'wrapped.html';
+    const tripsUrl = state?.username ? `trips.html?user=${encodeURIComponent(state.username)}` : 'trips.html';
     const statsWrappedLink = document.getElementById('statsWrappedLink');
     if (statsWrappedLink) statsWrappedLink.href = targetUrl;
     const menuWrappedBtn = document.getElementById('menuWrappedBtn') || document.getElementById('menuInsightsBtn');
     if (menuWrappedBtn) menuWrappedBtn.href = targetUrl;
+    const menuTripsBtn = document.getElementById('menuTripsBtn');
+    if (menuTripsBtn) menuTripsBtn.href = tripsUrl;
 }
 
 /**

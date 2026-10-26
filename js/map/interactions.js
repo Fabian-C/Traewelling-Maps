@@ -383,10 +383,26 @@ export function setupMapInteractions() {
             }
         }
         if (!features.length) return;
-        const feature = pickClosestFeature(features, e.lngLat, e.point) || features[0];
-        const snapped = snapLngLatToLine(e.lngLat, feature);
+
+        // Deduplicate and collect all distinct stacked check-ins intersecting the tap area
+        const seenStatusIds = new Set();
+        const stackedFeatures = [];
+        for (const feat of features) {
+            const sid = feat.properties?.statusId || feat.id;
+            if (sid && !seenStatusIds.has(sid)) {
+                seenStatusIds.add(sid);
+                stackedFeatures.push(feat);
+            } else if (!sid) {
+                stackedFeatures.push(feat);
+            }
+        }
+
+        const featureStack = stackedFeatures.length > 0 ? stackedFeatures : features;
+        const initialFeature = pickClosestFeature(featureStack, e.lngLat, e.point) || featureStack[0];
+        const initialIndex = Math.max(0, featureStack.indexOf(initialFeature));
+        const snapped = snapLngLatToLine(e.lngLat, initialFeature);
         const anchor = snapped || e.lngLat;
-        showPopup(anchor, feature);
+        showPopup(anchor, initialFeature, { stack: featureStack, stackIndex: initialIndex });
     };
 
     state.map.on('click', handleMapTap);
@@ -398,7 +414,7 @@ export function setupMapInteractions() {
     });
 }
 
-export function showPopup(lngLat, feature) {
+export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}) {
     const state = store.get();
     if (state.currentPopup) state.currentPopup.remove();
     clearRouteHighlight();
@@ -672,7 +688,22 @@ export function showPopup(lngLat, feature) {
         }
     }
 
+    let stackNavHtml = '';
+    if (stack && stack.length > 1) {
+        stackNavHtml = `
+            <div class="popup-stack-nav" role="toolbar" aria-label="Stacked check-ins navigation">
+                <button type="button" class="stack-nav-btn prev" id="stackNavPrevBtn" aria-label="Previous check-in" title="Previous check-in (Left Arrow or [)">◀</button>
+                <div class="stack-nav-info">
+                    <span class="stack-nav-badge">Stacked</span>
+                    <span class="stack-nav-count">Trip <strong>${stackIndex + 1}</strong> of <strong>${stack.length}</strong></span>
+                </div>
+                <button type="button" class="stack-nav-btn next" id="stackNavNextBtn" aria-label="Next check-in" title="Next check-in (Right Arrow or ])">▶</button>
+            </div>
+        `;
+    }
+
     const html = `<div class="popup-content">
+        ${stackNavHtml}
         <div class="popup-title">
             <span class="popup-badge">${category}</span>
             <span>${lineName}</span>
@@ -736,6 +767,50 @@ export function showPopup(lngLat, feature) {
             closeBtn.addEventListener('click', () => {
                 state.preserveHighlightOnPopupClose = true;
             }, { capture: true });
+        }
+
+        if (stack && stack.length > 1) {
+            const prevBtn = popupEl.querySelector('#stackNavPrevBtn');
+            const nextBtn = popupEl.querySelector('#stackNavNextBtn');
+
+            const goToStackedIndex = (newIdx) => {
+                const targetIdx = (newIdx + stack.length) % stack.length;
+                const targetFeature = stack[targetIdx];
+                const tripId = targetFeature?.properties?.statusId || targetFeature?.properties?.id;
+                if (tripId) {
+                    highlightRoute(targetFeature, tripId);
+                }
+                showPopup(lngLat, targetFeature, { stack, stackIndex: targetIdx });
+            };
+
+            if (prevBtn) {
+                prevBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    goToStackedIndex(stackIndex - 1);
+                });
+            }
+            if (nextBtn) {
+                nextBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    goToStackedIndex(stackIndex + 1);
+                });
+            }
+
+            const handleStackKeyNav = (e) => {
+                // Only handle if popup is currently open and not typing into an input
+                if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+                if (e.key === 'ArrowLeft' || e.key === '[') {
+                    e.preventDefault();
+                    goToStackedIndex(stackIndex - 1);
+                } else if (e.key === 'ArrowRight' || e.key === ']') {
+                    e.preventDefault();
+                    goToStackedIndex(stackIndex + 1);
+                }
+            };
+            window.addEventListener('keydown', handleStackKeyNav);
+            state.currentPopup.once('close', () => {
+                window.removeEventListener('keydown', handleStackKeyNav);
+            });
         }
 
         const metaToggle = popupEl.querySelector('#popupMetaToggle');

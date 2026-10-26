@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Trip Database Explorer — Träwelling</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="dark">
+    <meta name="description" content="Search, filter, sort, and inspect your entire Träwelling train journey database.">
+
+    <!-- Inline critical styles -->
+    <style>
+        :root { color-scheme: dark; }
+        html, body {
+            background-color: #080a10;
+            color: #f6f7fb;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100dvh;
+        }
+    </style>
+
+    <!-- Stylesheet -->
+    <link href="css/trips.css" rel="stylesheet">
+
+    <!-- Application Script -->
+    <script type="module" src="./js/trips/app.js"></script>
+</head>
+
+<body>
+    <!-- Global Header -->
+    <header class="trips-header" role="banner">
+        <a href="index.html" class="trips-brand" aria-label="Träwelling Map Explorer Home">
+            <span class="trips-brand-icon">🗂️</span>
+            <div>
+                <span class="trips-brand-title">Träwelling</span>
+                <span class="trips-brand-badge">Trip Database</span>
+            </div>
+        </a>
+
+        <!-- Profile & Navigation Actions -->
+        <div class="trips-nav-actions">
+            <!-- Profile Switcher -->
+            <label for="profileSelect" style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary);">
+                <span>User:</span>
+                <select id="profileSelect" class="profile-select" aria-label="Select User Profile"></select>
+            </label>
+
+            <!-- Main Map Link -->
+            <a href="index.html" class="nav-link-btn" title="View interactive route map">
+                <span>🗺️</span>
+                <span>Map</span>
+            </a>
+
+            <!-- Rail Wrapped Link -->
+            <a href="wrapped.html" class="nav-link-btn" id="navWrappedLink" title="View annual rail wrapped">
+                <span>✨</span>
+                <span>Rail Wrapped</span>
+            </a>
+
+            <!-- Documentation Link -->
+            <a href="docs.html" class="nav-link-btn" title="View documentation">
+                <span>📖</span>
+                <span>Docs</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="trips-container">
+        <!-- Telemetry Summary Bar -->
+        <section class="trips-telemetry-bar" aria-label="Search Results Summary">
+            <div class="telemetry-chip cyan">
+                <span class="telemetry-label"><span>🎫</span> Journeys Matched</span>
+                <span class="telemetry-val" id="telemetryCount">0</span>
+                <span class="telemetry-sub" id="telemetryCountSub">of 0 total journeys</span>
+            </div>
+            <div class="telemetry-chip purple">
+                <span class="telemetry-label"><span>📏</span> Total Distance</span>
+                <span class="telemetry-val" id="telemetryDistance">0 km</span>
+                <span class="telemetry-sub" id="telemetryDistanceSub">rail journeys</span>
+            </div>
+            <div class="telemetry-chip green">
+                <span class="telemetry-label"><span>⚡</span> Punctuality Rate</span>
+                <span class="telemetry-val" id="telemetryPunctuality">100%</span>
+                <span class="telemetry-sub" id="telemetryPunctualitySub">on-time journeys</span>
+            </div>
+            <div class="telemetry-chip amber">
+                <span class="telemetry-label"><span>⏰</span> Total Travel Time</span>
+                <span class="telemetry-val" id="telemetryDuration">0 hrs</span>
+                <span class="telemetry-sub" id="telemetryDurationSub">time on tracks</span>
+            </div>
+        </section>
+
+        <!-- Multi-Criteria Filter Panel -->
+        <section class="trips-filter-panel" aria-label="Trip Search and Filters">
+            <!-- Search & Actions Row -->
+            <div class="filter-row-top">
+                <div class="search-input-wrapper">
+                    <span class="search-icon">🔍</span>
+                    <input type="search" id="tripsSearchInput" class="search-input" placeholder="Search line, station, train number, buddy (@name), notes, tags..." aria-label="Search check-ins">
+                    <button type="button" id="searchClearBtn" class="search-clear-btn" aria-label="Clear search">✕</button>
+                </div>
+
+                <div class="filter-toolbar-actions">
+                    <button type="button" class="nav-link-btn" id="resetFiltersBtn" title="Reset all active filters">
+                        <span>🔄 Reset Filters</span>
+                    </button>
+                    <button type="button" class="nav-link-btn primary" id="exportFilteredBtn" title="Export filtered trips as GeoJSON">
+                        <span>📤 Export Filtered</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Transport Category Chips (Multi-Select) -->
+            <div class="filter-pills-row">
+                <span class="filter-pill-label">Category:</span>
+                <div class="filter-pill-group" id="categoryChipsGroup" role="group" aria-label="Transport categories">
+                    <button type="button" class="filter-chip active" data-cat="all">All Modes</button>
+                    <button type="button" class="filter-chip" data-cat="highspeed"><span class="filter-chip-dot" style="background: #ef4444;"></span>High-Speed</button>
+                    <button type="button" class="filter-chip" data-cat="regional"><span class="filter-chip-dot" style="background: #38bdf8;"></span>Regional</button>
+                    <button type="button" class="filter-chip" data-cat="suburban"><span class="filter-chip-dot" style="background: #34d399;"></span>Suburban (S-Bahn)</button>
+                    <button type="button" class="filter-chip" data-cat="subway"><span class="filter-chip-dot" style="background: #a78bfa;"></span>Subway (U-Bahn)</button>
+                    <button type="button" class="filter-chip" data-cat="tram"><span class="filter-chip-dot" style="background: #fb923c;"></span>Tram</button>
+                    <button type="button" class="filter-chip" data-cat="bus"><span class="filter-chip-dot" style="background: #facc15;"></span>Bus</button>
+                    <button type="button" class="filter-chip" data-cat="ferry"><span class="filter-chip-dot" style="background: #2dd4bf;"></span>Ferry</button>
+                </div>
+            </div>
+
+            <!-- Year / Timeframe Selector Pills -->
+            <div class="filter-pills-row">
+                <span class="filter-pill-label">Timeframe:</span>
+                <div class="filter-pill-group" id="yearPillsGroup" role="tablist" aria-label="Timeframe selection">
+                    <button type="button" class="filter-pill active" data-year="all">All-Time</button>
+                </div>
+            </div>
+
+            <!-- Delay Tiers Selector -->
+            <div class="filter-pills-row">
+                <span class="filter-pill-label">Delay:</span>
+                <div class="filter-pill-group" id="delayPillsGroup" role="radiogroup" aria-label="Delay status filter">
+                    <button type="button" class="filter-pill active" data-delay="all">All</button>
+                    <button type="button" class="filter-pill" data-delay="ontime">≤5m (On-time)</button>
+                    <button type="button" class="filter-pill" data-delay="minor">6-15m (Minor)</button>
+                    <button type="button" class="filter-pill" data-delay="moderate">16-30m (Moderate)</button>
+                    <button type="button" class="filter-pill" data-delay="severe">&gt;30m (Severe)</button>
+                    <button type="button" class="filter-pill" data-delay="delayed">Delayed (&gt;0m)</button>
+                </div>
+            </div>
+
+            <!-- Secondary Controls Row (Buddy, Purpose, Sorting) -->
+            <div class="filter-row-secondary">
+                <div class="filter-select-group">
+                    <!-- Companion Filter -->
+                    <label for="buddySelect" class="filter-label-inline">
+                        <span>👥 Companion:</span>
+                        <select id="buddySelect" class="profile-select" aria-label="Filter by travel companion">
+                            <option value="all">All Companions</option>
+                        </select>
+                    </label>
+
+                    <!-- Journey Purpose Filter -->
+                    <label for="purposeSelect" class="filter-label-inline">
+                        <span>💼 Purpose:</span>
+                        <select id="purposeSelect" class="profile-select" aria-label="Filter by journey purpose">
+                            <option value="all">All Purposes</option>
+                            <option value="personal">Personal / Leisure</option>
+                            <option value="commute">Commute</option>
+                            <option value="work">Business / Work</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="filter-select-group">
+                    <!-- Sorting Select -->
+                    <label for="sortSelect" class="filter-label-inline">
+                        <span>🔃 Sort by:</span>
+                        <select id="sortSelect" class="profile-select" aria-label="Sort trips">
+                            <option value="date-desc">Departure (Newest first)</option>
+                            <option value="date-asc">Departure (Oldest first)</option>
+                            <option value="dist-desc">Distance (Longest first)</option>
+                            <option value="dist-asc">Distance (Shortest first)</option>
+                            <option value="delay-desc">Delay (Highest first)</option>
+                            <option value="dur-desc">Duration (Longest first)</option>
+                        </select>
+                    </label>
+
+                    <!-- View Mode Toggle -->
+                    <div class="view-mode-toggle" role="group" aria-label="View layout switch">
+                        <button type="button" class="view-btn active" id="viewTableBtn" title="Table View">📋 Table</button>
+                        <button type="button" class="view-btn" id="viewCardsBtn" title="Cards View">🎴 Cards</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Header & Pagination -->
+        <section class="results-header-bar">
+            <div class="results-count-text" id="resultsCountText">
+                Showing journeys...
+            </div>
+            <div class="results-actions-group">
+                <label for="pageSizeSelect" style="font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
+                    <span>Per page:</span>
+                    <select id="pageSizeSelect" class="profile-select" style="padding: 4px 8px;">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="200">200</option>
+                        <option value="500">500</option>
+                    </select>
+                </label>
+            </div>
+        </section>
+
+        <!-- Results Display: Table View (adhering to modern-web-guidance responsive-table) -->
+        <section class="table-wrapper" id="tableViewContainer" tabindex="0" role="region" aria-label="Trip database table">
+            <table class="trips-table">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort="date">Departure</th>
+                        <th>Line / Mode</th>
+                        <th>Origin</th>
+                        <th>Destination</th>
+                        <th class="sortable" data-sort="dist">Distance</th>
+                        <th class="sortable" data-sort="dur">Duration</th>
+                        <th class="sortable" data-sort="delay">Delay</th>
+                        <th>Companions</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tripsTableBody">
+                    <!-- Populated dynamically by app.js -->
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Results Display: Card View (Hidden by default, used on toggle) -->
+        <section class="cards-grid" id="cardViewContainer" style="display: none;" aria-label="Trip database cards">
+            <!-- Populated dynamically by app.js -->
+        </section>
+
+        <!-- Pagination Bar -->
+        <nav class="pagination-bar" aria-label="Pagination Navigation">
+            <div style="font-size: 13px; color: var(--text-secondary);" id="paginationSummary">
+                Page 1 of 1
+            </div>
+            <div class="pagination-nav">
+                <button type="button" class="page-btn" id="prevPageBtn" aria-label="Previous Page">◀ Previous</button>
+                <button type="button" class="page-btn" id="nextPageBtn" aria-label="Next Page">Next ▶</button>
+            </div>
+        </nav>
+    </main>
+
+    <!-- Trip Detail Inspector Modal (<dialog>) -->
+    <dialog id="tripDetailModal" class="trip-modal" aria-labelledby="modalTripTitle">
+        <div class="trip-modal-header">
+            <div>
+                <span class="line-badge" id="modalLineBadge">ICE</span>
+                <h2 style="margin: 6px 0 0 0; font-size: 1.4rem;" id="modalTripTitle">Trip Details</h2>
+            </div>
+            <button type="button" class="trip-modal-close" id="closeModalBtn" aria-label="Close dialog">✕</button>
+        </div>
+
+        <div class="trip-timeline">
+            <div class="timeline-stop">
+                <div class="timeline-dot"></div>
+                <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Departure</div>
+                <div style="font-size: 15px; font-weight: 700;" id="modalOrigin">Berlin Hbf</div>
+                <div style="font-size: 13px; color: var(--text-secondary);" id="modalDepartureTime">10:30 (Real: 10:32)</div>
+                <div style="font-size: 12px; color: var(--text-muted);" id="modalOriginPlatform">Platform 7</div>
+            </div>
+
+            <div class="timeline-stop">
+                <div class="timeline-dot dest"></div>
+                <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Arrival</div>
+                <div style="font-size: 15px; font-weight: 700;" id="modalDest">Frankfurt(Main)Hbf</div>
+                <div style="font-size: 13px; color: var(--text-secondary);" id="modalArrivalTime">14:45 (Real: 14:52)</div>
+                <div style="font-size: 12px; color: var(--text-muted);" id="modalDestPlatform">Platform 9</div>
+            </div>
+        </div>
+
+        <div class="modal-details-grid">
+            <div class="modal-detail-item">
+                <label>Distance</label>
+                <span id="modalDistance">540 km</span>
+            </div>
+            <div class="modal-detail-item">
+                <label>Duration</label>
+                <span id="modalDuration">4h 15m</span>
+            </div>
+            <div class="modal-detail-item">
+                <label>Punctuality & Delay</label>
+                <span id="modalDelay">+7 min</span>
+            </div>
+            <div class="modal-detail-item">
+                <label>Operator</label>
+                <span id="modalOperator">DB Fernverkehr AG</span>
+            </div>
+            <div class="modal-detail-item">
+                <label>Seat / Wagon</label>
+                <span id="modalSeat">Wagon 28, Seat 84</span>
+            </div>
+            <div class="modal-detail-item">
+                <label>Ticket</label>
+                <span id="modalTicket">Bahncard 50</span>
+            </div>
+        </div>
+
+        <div id="modalBuddiesSection" style="margin: 12px 0; font-size: 13px; display: none;">
+            <div style="font-weight: 600; color: var(--text-muted); font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Travel Companions</div>
+            <div id="modalBuddiesList" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
+        </div>
+
+        <div id="modalNotesSection" style="margin: 12px 0; font-size: 13px; display: none;">
+            <div style="font-weight: 600; color: var(--text-muted); font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Notes & Check-in Comment</div>
+            <div id="modalNotesText" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; border-left: 3px solid var(--accent-cyan);"></div>
+        </div>
+
+        <div class="modal-actions">
+            <a href="#" target="_blank" class="nav-link-btn" id="modalTraewellingLink">
+                <span>🔗 View on Träwelling</span>
+            </a>
+            <a href="#" class="nav-link-btn primary" id="modalMapLink">
+                <span>🗺️ View on Map</span>
+            </a>
+        </div>
+    </dialog>
+</body>
+
+</html>

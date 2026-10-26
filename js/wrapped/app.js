@@ -87,6 +87,7 @@ export async function initWrapped() {
     }
 
     activeYear = requestedYear;
+    updateUrlParams();
     renderWrapped();
 }
 
@@ -218,6 +219,16 @@ function updateUrlParams() {
         url.searchParams.delete('year');
     }
     window.history.replaceState({}, '', url);
+
+    const userParam = activeSession?.username ? `?user=${encodeURIComponent(activeSession.username)}` : '';
+    const navTripsLink = document.getElementById('navTripsLink');
+    if (navTripsLink) {
+        navTripsLink.href = `trips.html${userParam}`;
+    }
+    const navMapLink = document.querySelector('a.nav-link-btn.primary[href*="index.html"]');
+    if (navMapLink) {
+        navMapLink.href = `index.html${userParam}`;
+    }
 }
 
 function renderProfileDropdown() {

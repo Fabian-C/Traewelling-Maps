@@ -1,0 +1,926 @@
+/* ==========================================================================
+   Träwelling Trip Database Explorer - Stylesheet
+   Modern, responsive, dark cosmic UI adhering to modern-web-guidance
+   ========================================================================== */
+
+:root {
+    color-scheme: dark;
+    --bg-page: #080a10;
+    --bg-surface: #0f131d;
+    --bg-panel: rgba(17, 24, 39, 0.75);
+    --bg-card: rgba(26, 34, 52, 0.65);
+    --bg-card-hover: rgba(35, 46, 70, 0.85);
+
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-glow: rgba(56, 189, 248, 0.25);
+    --border-focus: #38bdf8;
+
+    --text-primary: #f6f7fb;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+
+    --accent-cyan: #38bdf8;
+    --accent-purple: #a78bfa;
+    --accent-pink: #f472b6;
+    --accent-green: #34d399;
+    --accent-amber: #fbbf24;
+    --accent-red: #f87171;
+
+    --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.45);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+html {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    background: radial-gradient(circle at 10% 15%, rgba(56, 189, 248, 0.1), transparent 45%),
+                radial-gradient(circle at 85% 20%, rgba(167, 139, 250, 0.12), transparent 50%),
+                radial-gradient(circle at 50% 90%, rgba(52, 211, 153, 0.08), transparent 45%),
+                var(--bg-page);
+    background-attachment: fixed;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   Header Navigation
+   ========================================================================== */
+
+.trips-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(8, 10, 16, 0.88);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    box-sizing: border-box;
+    max-width: 100vw;
+}
+
+.trips-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: var(--text-primary);
+}
+
+.trips-brand-icon {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.trips-brand-title {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.25rem;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.trips-brand-badge {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 3px 8px;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(167, 139, 250, 0.2));
+    border: 1px solid var(--border-glow);
+    border-radius: 12px;
+    color: var(--accent-cyan);
+}
+
+.trips-nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.profile-select {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+}
+
+.profile-select:focus {
+    border-color: var(--border-focus);
+}
+
+.nav-link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.nav-link-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.nav-link-btn.primary {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.nav-link-btn.primary:hover {
+    filter: brightness(1.15);
+}
+
+/* ==========================================================================
+   Main Container Layout
+   ========================================================================== */
+
+.trips-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* ==========================================================================
+   Telemetry Summary Bar
+   ========================================================================== */
+
+.trips-telemetry-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+}
+
+.telemetry-chip {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.telemetry-chip:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-glow);
+}
+
+.telemetry-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.telemetry-val {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-family: var(--font-heading);
+    color: var(--text-primary);
+}
+
+.telemetry-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Color Accents for Chips */
+.telemetry-chip.cyan .telemetry-val { color: var(--accent-cyan); }
+.telemetry-chip.purple .telemetry-val { color: var(--accent-purple); }
+.telemetry-chip.green .telemetry-val { color: var(--accent-green); }
+.telemetry-chip.amber .telemetry-val { color: var(--accent-amber); }
+
+/* ==========================================================================
+   Filter Panel
+   ========================================================================== */
+
+.trips-filter-panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: var(--shadow-card);
+}
+
+.filter-row-top {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.search-input-wrapper {
+    flex: 1;
+    min-width: 260px;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-icon {
+    position: absolute;
+    left: 14px;
+    color: var(--text-muted);
+    pointer-events: none;
+    font-size: 14px;
+}
+
+.search-input {
+    width: 100%;
+    padding: 10px 36px 10px 38px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--border-subtle);
+    border-radius: 24px;
+    color: var(--text-primary);
+    font-size: 14px;
+    outline: none;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.search-input:focus {
+    border-color: var(--border-focus);
+    background: rgba(0, 0, 0, 0.55);
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.2);
+}
+
+.search-clear-btn {
+    position: absolute;
+    right: 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    display: none;
+    padding: 4px;
+    line-height: 1;
+}
+
+.search-clear-btn:hover {
+    color: #ffffff;
+}
+
+.filter-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Pill groups for filters */
+.filter-pills-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.filter-pill-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    min-width: 65px;
+}
+
+.filter-pill-group {
+    display: flex;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-subtle);
+    border-radius: 20px;
+    padding: 2px;
+    gap: 2px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    max-width: 100%;
+}
+
+.filter-pill-group::-webkit-scrollbar {
+    display: none;
+}
+
+.filter-pill {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 16px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.filter-pill:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.filter-pill.active {
+    background: var(--accent-cyan);
+    color: #080a10;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+/* Multi-select filter chips (categories) */
+.filter-chip {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 16px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+.filter-chip:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.filter-chip.active {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: var(--accent-cyan);
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.filter-chip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+/* Secondary filter options row */
+.filter-row-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.filter-select-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.filter-label-inline {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ==========================================================================
+   Results Controls (View Mode & Sorting)
+   ========================================================================== */
+
+.results-header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.results-count-text {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.results-count-text strong {
+    color: var(--text-primary);
+}
+
+.results-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.view-mode-toggle {
+    display: flex;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+}
+
+.view-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 6px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+
+.view-btn.active {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    font-weight: 600;
+}
+
+/* ==========================================================================
+   Data Table (Adhering to modern-web-guidance: responsive-table)
+   ========================================================================== */
+
+.table-wrapper {
+    overflow: auto;
+    max-inline-size: 100%;
+    max-height: 70vh;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-panel);
+    box-shadow: var(--shadow-card);
+    container-type: inline-size;
+}
+
+.trips-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+    text-align: left;
+}
+
+.trips-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #0f1422;
+}
+
+.trips-table th {
+    padding: 12px 14px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+    background: #0f1422;
+}
+
+.trips-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.trips-table th.sortable:hover {
+    color: var(--accent-cyan);
+}
+
+.trips-table tbody tr {
+    transition: background 0.15s ease;
+    cursor: pointer;
+}
+
+.trips-table tbody tr:hover {
+    background: rgba(56, 189, 248, 0.06);
+}
+
+.trips-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.trips-table tbody tr:nth-child(even):hover {
+    background: rgba(56, 189, 248, 0.06);
+}
+
+.trips-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+/* Category Badge in Table */
+.line-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.line-badge.highspeed { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+.line-badge.regional { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+.line-badge.suburban { background: rgba(52, 211, 153, 0.2); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.4); }
+.line-badge.subway { background: rgba(167, 139, 250, 0.2); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.4); }
+.line-badge.tram { background: rgba(251, 146, 60, 0.2); color: #fb923c; border: 1px solid rgba(251, 146, 60, 0.4); }
+.line-badge.bus { background: rgba(250, 204, 21, 0.2); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.4); }
+
+/* Delay Pills in Table */
+.delay-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.delay-pill.on-time { background: rgba(52, 211, 153, 0.15); color: #34d399; }
+.delay-pill.minor { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+.delay-pill.moderate { background: rgba(249, 115, 22, 0.15); color: #f97316; }
+.delay-pill.severe { background: rgba(239, 68, 68, 0.2); color: #f87171; font-weight: 800; }
+
+/* Responsive Container Query Table Transformation (< 720px) */
+@container (width < 720px) {
+    .trips-table,
+    .trips-table thead,
+    .trips-table tbody,
+    .trips-table tr,
+    .trips-table th,
+    .trips-table td {
+        display: block;
+    }
+
+    .trips-table thead {
+        display: none;
+    }
+
+    .trips-table tbody tr {
+        margin-bottom: 14px;
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-sm);
+        padding: 10px 14px;
+        background: var(--bg-card);
+    }
+
+    .trips-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        font-size: 12px;
+    }
+
+    .trips-table td:last-child {
+        border-bottom: none;
+    }
+
+    .trips-table td::before {
+        content: attr(data-label);
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        margin-right: 12px;
+    }
+}
+
+/* ==========================================================================
+   Card View Grid
+   ========================================================================== */
+
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.trip-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: var(--shadow-card);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+    cursor: pointer;
+}
+
+.trip-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-glow);
+    background: var(--bg-card-hover);
+}
+
+.trip-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.trip-card-date {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.trip-card-route {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.trip-card-station {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.trip-card-arrow {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-left: 4px;
+}
+
+.trip-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   Pagination Bar
+   ========================================================================== */
+
+.pagination-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 12px 0;
+}
+
+.pagination-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.page-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.page-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Trip Detail Inspector Modal (<dialog>)
+   ========================================================================== */
+
+.trip-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #0f1422;
+    border: 1px solid var(--border-glow);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+    color: var(--text-primary);
+    padding: 24px;
+    max-width: min(600px, calc(100vw - 32px));
+    width: 100%;
+    max-height: 88vh;
+    max-height: 88dvh;
+    overflow-y: auto;
+    z-index: 1000;
+    box-sizing: border-box;
+}
+
+.trip-modal::backdrop {
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+}
+
+.trip-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.trip-modal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+}
+
+.trip-modal-close:hover {
+    color: #ffffff;
+}
+
+.trip-timeline {
+    position: relative;
+    padding-left: 24px;
+    margin: 18px 0;
+}
+
+.trip-timeline::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    background: var(--border-glow);
+}
+
+.timeline-stop {
+    position: relative;
+    margin-bottom: 18px;
+}
+
+.timeline-stop:last-child {
+    margin-bottom: 0;
+}
+
+.timeline-dot {
+    position: absolute;
+    left: -24px;
+    top: 4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    border: 2px solid #0f1422;
+}
+
+.timeline-dot.dest {
+    background: var(--accent-purple);
+}
+
+.modal-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 14px;
+    border-radius: var(--radius-sm);
+    margin: 16px 0;
+    font-size: 13px;
+}
+
+.modal-detail-item label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+/* ==========================================================================
+   Mobile Responsive Adjustments
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .trips-header {
+        padding: 10px 14px;
+    }
+
+    .trips-container {
+        padding: 14px 12px 60px;
+        gap: 16px;
+    }
+
+    .trips-filter-panel {
+        padding: 16px 14px;
+        gap: 12px;
+    }
+
+    .filter-pills-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .filter-pill-label {
+        min-width: unset;
+    }
+
+    .filter-row-secondary {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .modal-details-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-actions {
+        flex-direction: column;
+    }
+
+    .modal-actions .nav-link-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
