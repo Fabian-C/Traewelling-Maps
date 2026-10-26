@@ -15,7 +15,6 @@ import { updateAllStatistics as updateAllStats } from '../analytics/statistics.j
 import { reloadAllLayers, loadLayers, syncMapLayerOrder } from '../map/layers.js';
 import { exportTripsGeoJSON, handleStopoverToggleChange, handleGeoJSONUpload } from '../export/geojson.js';
 import { clearRouteHighlight } from '../map/interactions.js';
-import { updateTripCycler, resetTripCyclerDismissed } from '../map/tripCycler.js';
 
 export function setupEventListeners() {
     const state = store.get();
@@ -301,7 +300,6 @@ export function setupEventListeners() {
     const searchClearBtn = document.getElementById('tripSearchClearBtn');
     if (searchInput) {
         searchInput.oninput = () => {
-            resetTripCyclerDismissed();
             if (searchClearBtn) {
                 searchClearBtn.style.display = searchInput.value ? 'inline-block' : 'none';
             }
@@ -574,7 +572,6 @@ export function applyFiltersAndRefresh({ immediate = false, debounceMs = 0, upda
 
         analytics.updateMenuBuddyList(applyBuddyFilter);
         updateFilterBadges();
-        updateTripCycler();
     };
 
     if (immediate) {

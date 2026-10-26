@@ -1,14 +1,31 @@
-// Main application logic for Trip Database Explorer
 import { SessionDB } from '../cache/session.js';
 import { tripsToGeoJSON } from '../export/geojson.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
 import { formatDelayMinutes } from '../utils/format.js';
 import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
+import {
+    TRIP_COLUMNS,
+    QUERY_RECIPES,
+    flattenTripRecord,
+    executeTripQuery,
+    visualFilterToSQL,
+    exportRowsToCSV
+} from './sqlEngine.js';
 
 let allSessions = [];
 let activeSession = null;
 let allTrips = [];
 let filteredTrips = [];
+let flattenedTrips = [];
+
+// Studio state
+let appMode = 'standard'; // 'standard' | 'studio'
+let studioTab = 'visual'; // 'visual' | 'sql'
+let visualRules = [
+    { column: 'delay_dep', operator: 'greater_than', value: '15' }
+];
+let visualLogicMode = 'AND';
+let sqlQueryResult = null;
 
 // Filter state
 const filterState = {
@@ -55,12 +72,46 @@ export async function initTripExplorer() {
     const urlParams = new URLSearchParams(window.location.search);
     const requestedUser = urlParams.get('user')?.toLowerCase().trim();
     const requestedTripId = urlParams.get('trip');
+    const fixtureUrl = urlParams.get('fixture');
 
     if (allSessions.length > 0) {
         if (requestedUser) {
             activeSession = allSessions.find(s => s.username?.toLowerCase() === requestedUser) || allSessions[0];
         } else {
             activeSession = allSessions[0];
+        }
+    }
+
+    if (requestedUser && (!activeSession || activeSession.username?.toLowerCase() !== requestedUser || !activeSession.trips?.length)) {
+        try {
+            const direct = await SessionDB.get(requestedUser);
+            if (direct && Array.isArray(direct.trips) && direct.trips.length > 0) {
+                activeSession = direct;
+                if (!allSessions.some(s => s.username?.toLowerCase() === requestedUser)) {
+                    allSessions.unshift(direct);
+                }
+            }
+        } catch (e) {}
+    }
+
+    // Fixture fallback for testing/previews
+    if ((!activeSession || !activeSession.trips?.length) && fixtureUrl) {
+        try {
+            const res = await fetch(fixtureUrl);
+            const trips = await res.json();
+            if (Array.isArray(trips) && trips.length > 0) {
+                const u = requestedUser || 'hash';
+                activeSession = {
+                    username: u,
+                    displayName: u.charAt(0).toUpperCase() + u.slice(1),
+                    trips: trips,
+                    tripCount: trips.length,
+                    timestamp: Date.now()
+                };
+                allSessions.unshift(activeSession);
+            }
+        } catch (err) {
+            console.warn('Failed to load fixture in trips explorer:', err);
         }
     }
 
@@ -73,10 +124,12 @@ export async function initTripExplorer() {
     }
 
     allTrips = activeSession.trips.slice();
+    flattenedTrips = allTrips.map(flattenTripRecord);
 
-    // Populate Year pills and Companion dropdown from dataset
+    // Populate Year pills, Companion dropdown, and Studio Recipes
     populateYearPills(allTrips);
     populateBuddyDropdown(allTrips);
+    initStudioWorkbench();
 
     // Apply URL parameters if present
     if (urlParams.get('search')) filterState.searchQuery = urlParams.get('search');
@@ -369,6 +422,17 @@ function setupEventListeners() {
         });
     }
 
+    // Modal Close
+    const modalCloseBtn = document.getElementById('closeModalBtn');
+    const modal = document.getElementById('tripDetailModal');
+    if (modalCloseBtn && modal) {
+        modalCloseBtn.addEventListener('click', () => modal.close());
+    }
+
+    // Setup Studio Database Workbench Listeners
+    setupStudioEventListeners();
+}
+
 export function getFilteredGeoJSON() {
     return tripsToGeoJSON(filteredTrips, {
         title: `Träwelling Filtered Export (${activeSession?.username || 'user'})`,
@@ -376,14 +440,6 @@ export function getFilteredGeoJSON() {
     });
 }
 window.getFilteredGeoJSON = getFilteredGeoJSON;
-
-    // Modal Close
-    const modalCloseBtn = document.getElementById('closeModalBtn');
-    const modal = document.getElementById('tripDetailModal');
-    if (modalCloseBtn && modal) {
-        modalCloseBtn.addEventListener('click', () => modal.close());
-    }
-}
 
 /**
  * Populate Year pills from journey timestamps
@@ -458,6 +514,355 @@ function updateCategoryChipsUI() {
             chip.classList.remove('active');
         }
     });
+}
+
+/**
+ * Initialize Database Studio workbench controls and recipes
+ */
+function initStudioWorkbench() {
+    // Populate Recipes dropdown
+    const recipeSelect = document.getElementById('sqlRecipeSelect');
+    if (recipeSelect) {
+        recipeSelect.innerHTML = '<option value="">⚡ Quick Recipes...</option>' +
+            QUERY_RECIPES.map((r, i) => `<option value="${i}">${escapeHtml(r.title)}</option>`).join('');
+    }
+
+    // Default SQL query if empty
+    const sqlInput = document.getElementById('sqlQueryInput');
+    if (sqlInput && !sqlInput.value.trim()) {
+        sqlInput.value = QUERY_RECIPES[0].sql;
+    }
+
+    // Render initial visual rules
+    renderVisualRules();
+}
+
+/**
+ * Setup Event Listeners for Database Studio Mode
+ */
+function setupStudioEventListeners() {
+    // 1. Mode Switcher (Standard Explorer vs Database Studio)
+    const modeStandardBtn = document.getElementById('modeStandardBtn');
+    const modeStudioBtn = document.getElementById('modeStudioBtn');
+    const filterPanel = document.getElementById('tripsFilterPanel');
+    const studioPanel = document.getElementById('tripsStudioPanel');
+
+    if (modeStandardBtn && modeStudioBtn) {
+        modeStandardBtn.addEventListener('click', () => {
+            appMode = 'standard';
+            modeStandardBtn.classList.add('active');
+            modeStudioBtn.classList.remove('active');
+            if (filterPanel) filterPanel.style.display = 'flex';
+            if (studioPanel) studioPanel.style.display = 'none';
+            applyFiltersAndRender();
+        });
+
+        modeStudioBtn.addEventListener('click', () => {
+            appMode = 'studio';
+            modeStudioBtn.classList.add('active');
+            modeStandardBtn.classList.remove('active');
+            if (filterPanel) filterPanel.style.display = 'none';
+            if (studioPanel) studioPanel.style.display = 'flex';
+
+            if (!sqlQueryResult) {
+                const currentSql = document.getElementById('sqlQueryInput')?.value || QUERY_RECIPES[0].sql;
+                runSqlQuery(currentSql);
+            } else {
+                renderResults();
+            }
+        });
+    }
+
+    // 2. Studio Sub-tabs (Visual Builder vs SQL Console)
+    const tabVisualBtn = document.getElementById('studioTabVisualBtn');
+    const tabSqlBtn = document.getElementById('studioTabSqlBtn');
+    const visualPane = document.getElementById('studioVisualPane');
+    const sqlPane = document.getElementById('studioSqlPane');
+
+    if (tabVisualBtn && tabSqlBtn) {
+        tabVisualBtn.addEventListener('click', () => {
+            studioTab = 'visual';
+            tabVisualBtn.classList.add('active');
+            tabSqlBtn.classList.remove('active');
+            if (visualPane) visualPane.style.display = 'block';
+            if (sqlPane) sqlPane.style.display = 'none';
+        });
+
+        tabSqlBtn.addEventListener('click', () => {
+            studioTab = 'sql';
+            tabSqlBtn.classList.add('active');
+            tabVisualBtn.classList.remove('active');
+            if (visualPane) visualPane.style.display = 'none';
+            if (sqlPane) sqlPane.style.display = 'block';
+        });
+    }
+
+    // 3. Quick Recipe Selector
+    const recipeSelect = document.getElementById('sqlRecipeSelect');
+    if (recipeSelect) {
+        recipeSelect.addEventListener('change', (e) => {
+            const idx = parseInt(e.target.value, 10);
+            if (!isNaN(idx) && QUERY_RECIPES[idx]) {
+                const sql = QUERY_RECIPES[idx].sql;
+                const sqlInput = document.getElementById('sqlQueryInput');
+                if (sqlInput) sqlInput.value = sql;
+                runSqlQuery(sql);
+            }
+        });
+    }
+
+    // 4. SQL Console Run and Keyboard Shortcut
+    const runSqlBtn = document.getElementById('runSqlQueryBtn');
+    const sqlInput = document.getElementById('sqlQueryInput');
+    if (runSqlBtn && sqlInput) {
+        runSqlBtn.addEventListener('click', () => {
+            runSqlQuery(sqlInput.value);
+        });
+
+        sqlInput.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                runSqlQuery(sqlInput.value);
+            }
+        });
+    }
+
+    // 5. SQL Reference Chips
+    document.querySelectorAll('.sql-chip-tag').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const snippet = chip.dataset.insert;
+            if (snippet && sqlInput) {
+                if (snippet.startsWith('SELECT *')) {
+                    sqlInput.value = snippet;
+                } else if (sqlInput.value.includes('WHERE')) {
+                    sqlInput.value += ` AND ${snippet.replace(/^WHERE /, '')}`;
+                } else {
+                    sqlInput.value += ` ${snippet}`;
+                }
+                sqlInput.focus();
+            }
+        });
+    });
+
+    // 6. Visual Query Builder Controls
+    const addRuleBtn = document.getElementById('addRuleBtn');
+    const clearRulesBtn = document.getElementById('clearRulesBtn');
+    const applyRulesBtn = document.getElementById('applyVisualRulesBtn');
+    const logicSelect = document.getElementById('visualLogicMode');
+
+    if (addRuleBtn) {
+        addRuleBtn.addEventListener('click', () => {
+            visualRules.push({ column: 'line', operator: 'contains', value: '' });
+            renderVisualRules();
+        });
+    }
+
+    if (clearRulesBtn) {
+        clearRulesBtn.addEventListener('click', () => {
+            visualRules = [];
+            renderVisualRules();
+        });
+    }
+
+    if (logicSelect) {
+        logicSelect.addEventListener('change', (e) => {
+            visualLogicMode = e.target.value;
+        });
+    }
+
+    if (applyRulesBtn) {
+        applyRulesBtn.addEventListener('click', () => {
+            const generatedSql = visualFilterToSQL(visualRules, visualLogicMode);
+            if (sqlInput) sqlInput.value = generatedSql;
+            runSqlQuery(generatedSql);
+        });
+    }
+
+    // 7. Studio Result Exports (CSV, JSON, GeoJSON)
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+    const exportJsonBtn = document.getElementById('exportJsonBtn');
+    const exportSqlGeoBtn = document.getElementById('exportSqlGeoJsonBtn');
+
+    if (exportCsvBtn) {
+        exportCsvBtn.addEventListener('click', () => {
+            if (!sqlQueryResult || !sqlQueryResult.rows?.length) {
+                alert('No active query results to export.');
+                return;
+            }
+            const csv = exportRowsToCSV(sqlQueryResult.rows, sqlQueryResult.columns);
+            downloadFile(csv, `traewelling-query-${Date.now()}.csv`, 'text/csv');
+        });
+    }
+
+    if (exportJsonBtn) {
+        exportJsonBtn.addEventListener('click', () => {
+            if (!sqlQueryResult || !sqlQueryResult.rows?.length) {
+                alert('No active query results to export.');
+                return;
+            }
+            const json = JSON.stringify(sqlQueryResult.rows, null, 2);
+            downloadFile(json, `traewelling-query-${Date.now()}.json`, 'application/json');
+        });
+    }
+
+    if (exportSqlGeoBtn) {
+        exportSqlGeoBtn.addEventListener('click', () => {
+            const trips = (sqlQueryResult?.rawTrips?.length ? sqlQueryResult.rawTrips : filteredTrips);
+            if (!trips.length) {
+                alert('No geo-referenced trips in current result.');
+                return;
+            }
+            const geojson = tripsToGeoJSON(trips, {
+                title: 'SQL Query Export',
+                exportDate: new Date().toISOString()
+            });
+            downloadFile(JSON.stringify(geojson, null, 2), `traewelling-query-${Date.now()}.geojson`, 'application/geo+json');
+        });
+    }
+}
+
+/**
+ * Execute an arbitrary SQL query on the dataset
+ */
+export function runSqlQuery(sql) {
+    if (!sql || !flattenedTrips.length) return;
+
+    try {
+        const result = executeTripQuery(sql, flattenedTrips);
+        sqlQueryResult = result;
+
+        // Update benchmark badge
+        const badge = document.getElementById('sqlBenchmarkBadge');
+        if (badge) {
+            badge.textContent = `⏱️ ${result.executionTimeMs}ms • ${result.totalRows.toLocaleString()} rows`;
+            badge.style.color = '#34d399';
+            badge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+        }
+
+        // Update main telemetry chips
+        if (result.rawTrips?.length) {
+            updateTelemetry(result.rawTrips);
+        }
+
+        // Set page to 1 and render
+        filterState.page = 1;
+        renderResults();
+    } catch (err) {
+        console.error('SQL execution error:', err);
+        const badge = document.getElementById('sqlBenchmarkBadge');
+        if (badge) {
+            badge.textContent = `❌ ${err.message}`;
+            badge.style.color = '#ef4444';
+            badge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+        }
+    }
+}
+window.runSqlQuery = runSqlQuery;
+window.executeTripQuery = executeTripQuery;
+window.visualFilterToSQL = visualFilterToSQL;
+
+/**
+ * Render visual filter rule rows
+ */
+function renderVisualRules() {
+    const container = document.getElementById('visualRulesContainer');
+    if (!container) return;
+
+    if (!visualRules.length) {
+        container.innerHTML = `<div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px;">No conditions set. All journeys match. Click <strong>+ Add Condition</strong> above.</div>`;
+        return;
+    }
+
+    container.innerHTML = visualRules.map((rule, idx) => {
+        const colOptions = TRIP_COLUMNS.map(c => `
+            <option value="${c.name}" ${c.name === rule.column ? 'selected' : ''}>${c.label} (${c.name})</option>
+        `).join('');
+
+        const selectedCol = TRIP_COLUMNS.find(c => c.name === rule.column);
+        const isNum = selectedCol?.type === 'number';
+
+        const operators = isNum
+            ? [
+                { id: 'equals', label: '=' },
+                { id: 'not_equals', label: '!=' },
+                { id: 'greater_than', label: '>' },
+                { id: 'less_than', label: '<' },
+                { id: 'greater_equal', label: '>=' },
+                { id: 'less_equal', label: '<=' },
+                { id: 'is_empty', label: 'is empty' },
+                { id: 'is_not_empty', label: 'is not empty' }
+            ]
+            : [
+                { id: 'contains', label: 'contains' },
+                { id: 'starts_with', label: 'starts with' },
+                { id: 'equals', label: 'equals' },
+                { id: 'not_equals', label: 'does not equal' },
+                { id: 'is_empty', label: 'is empty' },
+                { id: 'is_not_empty', label: 'is not empty' }
+            ];
+
+        const opOptions = operators.map(o => `
+            <option value="${o.id}" ${o.id === rule.operator ? 'selected' : ''}>${o.label}</option>
+        `).join('');
+
+        const hideValue = rule.operator === 'is_empty' || rule.operator === 'is_not_empty';
+
+        return `
+            <div class="visual-rule-row" data-rule-index="${idx}">
+                <select class="rule-select rule-col-select" aria-label="Select Column">${colOptions}</select>
+                <select class="rule-select rule-op-select" aria-label="Select Operator">${opOptions}</select>
+                ${hideValue ? '' : `<input type="${isNum ? 'number' : 'text'}" class="rule-input" value="${escapeHtml(rule.value || '')}" placeholder="Value..." aria-label="Rule Value">`}
+                <button type="button" class="rule-delete-btn" title="Remove condition" aria-label="Remove condition">✕</button>
+            </div>
+        `;
+    }).join('');
+
+    // Attach listeners
+    container.querySelectorAll('.visual-rule-row').forEach(rowEl => {
+        const idx = parseInt(rowEl.dataset.ruleIndex, 10);
+        const colSelect = rowEl.querySelector('.rule-col-select');
+        const opSelect = rowEl.querySelector('.rule-op-select');
+        const valInput = rowEl.querySelector('.rule-input');
+        const delBtn = rowEl.querySelector('.rule-delete-btn');
+
+        if (colSelect) {
+            colSelect.addEventListener('change', (e) => {
+                visualRules[idx].column = e.target.value;
+                const colDef = TRIP_COLUMNS.find(c => c.name === e.target.value);
+                visualRules[idx].operator = colDef?.type === 'number' ? 'greater_than' : 'contains';
+                renderVisualRules();
+            });
+        }
+        if (opSelect) {
+            opSelect.addEventListener('change', (e) => {
+                visualRules[idx].operator = e.target.value;
+                renderVisualRules();
+            });
+        }
+        if (valInput) {
+            valInput.addEventListener('input', (e) => {
+                visualRules[idx].value = e.target.value;
+            });
+        }
+        if (delBtn) {
+            delBtn.addEventListener('click', () => {
+                visualRules.splice(idx, 1);
+                renderVisualRules();
+            });
+        }
+    });
+}
+
+function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 /**
@@ -657,13 +1062,16 @@ function renderResults() {
     const prevBtn = document.getElementById('prevPageBtn');
     const nextBtn = document.getElementById('nextPageBtn');
 
-    const total = filteredTrips.length;
+    const isStudioCustom = (appMode === 'studio' && sqlQueryResult && !sqlQueryResult.isSelectAll);
+    const total = isStudioCustom ? sqlQueryResult.rows.length : filteredTrips.length;
     const totalPages = Math.max(1, Math.ceil(total / filterState.pageSize));
     if (filterState.page > totalPages) filterState.page = totalPages;
 
     const startIdx = (filterState.page - 1) * filterState.pageSize;
     const endIdx = Math.min(total, startIdx + filterState.pageSize);
-    const pageItems = filteredTrips.slice(startIdx, endIdx);
+    const pageItems = isStudioCustom
+        ? sqlQueryResult.rows.slice(startIdx, endIdx)
+        : filteredTrips.slice(startIdx, endIdx);
 
     if (countText) {
         countText.innerHTML = total > 0
@@ -676,10 +1084,82 @@ function renderResults() {
     if (nextBtn) nextBtn.disabled = (filterState.page >= totalPages);
 
     // 1. Render Table
+    const thead = document.querySelector('.trips-table thead');
+    if (thead) {
+        if (isStudioCustom) {
+            thead.innerHTML = `
+                <tr>
+                    ${sqlQueryResult.columns.map(c => {
+                        const colDef = TRIP_COLUMNS.find(col => col.name === c);
+                        return `<th>${escapeHtml(colDef?.label || c)}</th>`;
+                    }).join('')}
+                    <th>Actions</th>
+                </tr>
+            `;
+        } else {
+            thead.innerHTML = `
+                <tr>
+                    <th class="sortable" data-sort="date">Departure</th>
+                    <th>Line / Mode</th>
+                    <th>Origin</th>
+                    <th>Destination</th>
+                    <th class="sortable" data-sort="dist">Distance</th>
+                    <th class="sortable" data-sort="dur">Duration</th>
+                    <th class="sortable" data-sort="delay">Delay</th>
+                    <th>Companions</th>
+                    <th>Actions</th>
+                </tr>
+            `;
+        }
+    }
+
     const tbody = document.getElementById('tripsTableBody');
     if (tbody) {
         if (pageItems.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--text-muted);">No journeys found matching your search.</td></tr>`;
+            const colSpan = isStudioCustom ? sqlQueryResult.columns.length + 1 : 9;
+            tbody.innerHTML = `<tr><td colspan="${colSpan}" style="text-align: center; padding: 40px; color: var(--text-muted);">No journeys found matching your search.</td></tr>`;
+        } else if (isStudioCustom) {
+            tbody.innerHTML = pageItems.map(row => {
+                const cells = sqlQueryResult.columns.map(col => {
+                    const val = row[col];
+                    if (col === 'line') {
+                        return `<td data-label="${escapeHtml(col)}"><span class="line-badge ${row.category || 'regional'}">${escapeHtml(val || 'Train')}</span></td>`;
+                    }
+                    if (col === 'delay_dep' || col === 'delay_arr') {
+                        const min = Number(val) || 0;
+                        let delayPillClass = 'on-time';
+                        if (min > 30) delayPillClass = 'severe';
+                        else if (min > 15) delayPillClass = 'moderate';
+                        else if (min > 5) delayPillClass = 'minor';
+                        const text = min > 0 ? `+${min}m` : (min < 0 ? `${min}m` : 'On-time');
+                        return `<td data-label="${escapeHtml(col)}"><span class="delay-pill ${delayPillClass}">${text}</span></td>`;
+                    }
+                    if (col === 'distance_km') {
+                        return `<td data-label="${escapeHtml(col)}">${val} km</td>`;
+                    }
+                    if (col === 'duration_min') {
+                        const durStr = val > 0 ? `${Math.floor(val / 60)}h ${val % 60}m` : '—';
+                        return `<td data-label="${escapeHtml(col)}">${durStr}</td>`;
+                    }
+                    if (col === 'departure' || col === 'arrival') {
+                        const dateStr = val ? new Date(val).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+                        const timeStr = val ? new Date(val).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '';
+                        return `<td data-label="${escapeHtml(col)}">${dateStr} <span style="color: var(--text-muted); font-size: 11px;">${timeStr}</span></td>`;
+                    }
+                    return `<td data-label="${escapeHtml(col)}">${val !== null && val !== undefined ? escapeHtml(val) : '—'}</td>`;
+                }).join('');
+
+                return `
+                    <tr data-trip-id="${row.id}">
+                        ${cells}
+                        <td data-label="Actions">
+                            <button type="button" class="nav-link-btn inspect-trip-btn" data-trip-id="${row.id}" style="padding: 4px 8px; font-size: 11px;">
+                                🔍 Inspect
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         } else {
             tbody.innerHTML = pageItems.map(trip => {
                 const train = trip.train || trip.checkin || {};

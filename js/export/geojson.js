@@ -6,6 +6,7 @@ import { SessionDB } from '../cache/session.js';
 import { TraewellingAPI } from '../api/traewelling.js';
 import { processAndDisplayData } from '../fetch/orchestrator.js';
 import { UI } from '../ui/ui.js';
+import { updateMenuAccountList } from '../session/manager.js';
 
 /**
  * Convert an array of Träwelling trips into a standard GeoJSON FeatureCollection
@@ -659,11 +660,23 @@ export async function handleGeoJSONUpload(file) {
         }
 
         const state = store.get();
-        const displayUser = username || file.name.replace(/\.(geojson|json)$/i, '') || 'Imported Travels';
-        state.username = displayUser;
+        // Determine clean username from parsed metadata, filename, or fallback
+        let rawName = username;
+        if (!rawName) {
+            const match = file.name.match(/traewelling-([a-zA-Z0-9_\-]+?)-(?:all|filtered|full|trips)/i);
+            if (match && match[1]) {
+                rawName = match[1];
+            } else {
+                rawName = file.name.replace(/\.(geojson|json)$/i, '').replace(/[^a-zA-Z0-9_\-]/g, '_');
+            }
+        }
+        const usernameKey = (rawName || 'imported_travels').toLowerCase().trim();
+        const displayName = rawName ? (rawName.charAt(0).toUpperCase() + rawName.slice(1)) : 'Imported Travels';
+
+        state.username = usernameKey;
         state.queriedUserProfile = {
-            username: displayUser,
-            displayName: displayUser,
+            username: usernameKey,
+            displayName: displayName,
             avatar: null
         };
 
@@ -674,9 +687,17 @@ export async function handleGeoJSONUpload(file) {
         // Process, populate layers, and display data on the map
         await processAndDisplayData(trips, { hideFetchUI: true });
 
-        // Save imported trips into SessionDB cache so Rail Wrapped and persistence work immediately
+        // Save imported trips into SessionDB cache so Rail Wrapped, Trips Database, and persistence work immediately
         try {
-            await SessionDB.save(displayUser, trips);
+            await SessionDB.save(usernameKey, {
+                username: usernameKey,
+                displayName: displayName,
+                avatar: null,
+                tripCount: trips.length,
+                trips: trips,
+                timestamp: Date.now()
+            });
+            updateMenuAccountList();
         } catch (dbErr) {
             console.warn('Could not cache imported trips in SessionDB:', dbErr);
         }

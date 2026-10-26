@@ -15,7 +15,7 @@ export const SessionDB = {
         if (!session) return false;
         const maxAge = CONFIG.SESSION_MAX_AGE_MS;
         if (!maxAge) return false;
-        if (!session.timestamp) return true;
+        if (!session.timestamp) return false;
         return now - session.timestamp > maxAge;
     },
 

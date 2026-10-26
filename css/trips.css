@@ -878,6 +878,378 @@ body {
 }
 
 /* ==========================================================================
+   Database Studio Mode & Workbench Styles
+   ========================================================================== */
+
+.studio-mode-bar {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 4px;
+    gap: 4px;
+    backdrop-filter: blur(12px);
+    width: fit-content;
+}
+
+.mode-tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 7px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.mode-tab-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.mode-tab-btn.active {
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent-cyan);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.studio-badge {
+    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+}
+
+.trips-studio-panel {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4), 0 0 24px rgba(56, 189, 248, 0.08);
+}
+
+.studio-subnav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.studio-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(2, 6, 23, 0.6);
+    padding: 3px;
+    border-radius: 10px;
+    border: 1px solid var(--border-subtle);
+}
+
+.studio-tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.studio-tab-btn:hover {
+    color: #ffffff;
+}
+
+.studio-tab-btn.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.studio-actions-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.studio-recipe-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.studio-select {
+    padding: 6px 12px;
+    font-size: 12px;
+    background: rgba(2, 6, 23, 0.8);
+    border-color: rgba(56, 189, 248, 0.3);
+}
+
+.export-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Visual Query Builder */
+.visual-builder-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.visual-logic-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.studio-action-btn {
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: var(--accent-cyan);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+.studio-action-btn:hover {
+    background: rgba(56, 189, 248, 0.22);
+    color: #ffffff;
+}
+
+.studio-action-btn.secondary {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--border-subtle);
+    color: var(--text-secondary);
+}
+
+.studio-action-btn.secondary:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.studio-action-btn.primary {
+    background: linear-gradient(135deg, #0284c7, #0ea5e9);
+    border-color: transparent;
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+}
+
+.studio-action-btn.primary:hover {
+    background: linear-gradient(135deg, #0369a1, #0284c7);
+}
+
+.visual-rules-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.visual-rule-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(2, 6, 23, 0.5);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    flex-wrap: wrap;
+    transition: border-color 0.15s ease;
+}
+
+.visual-rule-row:hover {
+    border-color: rgba(56, 189, 248, 0.3);
+}
+
+.rule-select {
+    padding: 6px 10px;
+    font-size: 12px;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    color: var(--text-primary);
+}
+
+.rule-input {
+    flex: 1;
+    min-width: 140px;
+    padding: 6px 12px;
+    font-size: 12px;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    color: var(--text-primary);
+}
+
+.rule-input:focus, .rule-select:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+}
+
+.rule-delete-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+
+.rule-delete-btn:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+/* SQL Query Console */
+.sql-editor-container {
+    display: flex;
+    flex-direction: column;
+    background: #090d16;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.sql-editor-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: rgba(2, 6, 23, 0.7);
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.sql-editor-title {
+    font-weight: 600;
+    color: var(--accent-cyan);
+}
+
+.sql-editor-title code {
+    background: rgba(56, 189, 248, 0.15);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.sql-editor-hint {
+    font-size: 11px;
+}
+
+.sql-editor-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent;
+    border: none;
+    padding: 14px;
+    color: #38bdf8;
+    font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+}
+
+.sql-editor-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: rgba(2, 6, 23, 0.85);
+    border-top: 1px solid var(--border-subtle);
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.sql-chips-reference {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.sql-chip-tag {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.sql-chip-tag:hover {
+    color: #ffffff;
+    background: rgba(56, 189, 248, 0.15);
+    border-color: var(--accent-cyan);
+}
+
+.sql-exec-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+.studio-benchmark-badge {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #34d399;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+/* Dynamic SQL table header and cell formatting */
+.sql-cell-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* ==========================================================================
    Mobile Responsive Adjustments
    ========================================================================== */
 
@@ -889,6 +1261,41 @@ body {
     .trips-container {
         padding: 14px 12px 60px;
         gap: 16px;
+    }
+
+    .studio-mode-bar {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .mode-tab-btn {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .trips-studio-panel {
+        padding: 14px;
+    }
+
+    .studio-subnav {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .studio-tabs {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .studio-actions-right {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .export-btn-group {
+        width: 100%;
+        justify-content: space-between;
     }
 
     .trips-filter-panel {
@@ -924,3 +1331,4 @@ body {
         justify-content: center;
     }
 }
+

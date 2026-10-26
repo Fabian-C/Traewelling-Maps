@@ -93,8 +93,113 @@
             </div>
         </section>
 
-        <!-- Multi-Criteria Filter Panel -->
-        <section class="trips-filter-panel" aria-label="Trip Search and Filters">
+        <!-- Mode Switcher: Standard Explorer vs Database Studio -->
+        <div class="studio-mode-bar" role="tablist" aria-label="Explorer Display Mode">
+            <button type="button" class="mode-tab-btn active" id="modeStandardBtn" role="tab" aria-selected="true">
+                <span class="mode-tab-icon">🎛️</span>
+                <span>Standard Explorer</span>
+            </button>
+            <button type="button" class="mode-tab-btn" id="modeStudioBtn" role="tab" aria-selected="false">
+                <span class="mode-tab-icon">⚡</span>
+                <span>Database Studio</span>
+                <span class="studio-badge">SQL</span>
+            </button>
+        </div>
+
+        <!-- DATABASE STUDIO WORKBENCH PANEL (Hidden in standard mode) -->
+        <section class="trips-studio-panel" id="tripsStudioPanel" style="display: none;" aria-label="Database Studio Workbench">
+            <!-- Studio Sub-Navigation (Visual Rules vs SQL Console) -->
+            <div class="studio-subnav">
+                <div class="studio-tabs" role="tablist">
+                    <button type="button" class="studio-tab-btn active" id="studioTabVisualBtn" role="tab" aria-selected="true">
+                        <span>🧩 Visual Query Builder</span>
+                    </button>
+                    <button type="button" class="studio-tab-btn" id="studioTabSqlBtn" role="tab" aria-selected="false">
+                        <span>⌨️ SQL Console</span>
+                    </button>
+                </div>
+
+                <div class="studio-actions-right">
+                    <!-- Quick Recipe Selector -->
+                    <label for="sqlRecipeSelect" class="studio-recipe-label">
+                        <span>⚡ Recipe:</span>
+                        <select id="sqlRecipeSelect" class="profile-select studio-select" aria-label="Load pre-built SQL query recipe">
+                            <option value="">Choose a recipe...</option>
+                        </select>
+                    </label>
+
+                    <!-- Export Result Formats -->
+                    <div class="export-btn-group">
+                        <button type="button" class="nav-link-btn" id="exportCsvBtn" title="Export current query result as CSV">
+                            <span>📄 CSV</span>
+                        </button>
+                        <button type="button" class="nav-link-btn" id="exportJsonBtn" title="Export current query result as JSON">
+                            <span>📦 JSON</span>
+                        </button>
+                        <button type="button" class="nav-link-btn primary" id="exportSqlGeoJsonBtn" title="Export query result as GeoJSON">
+                            <span>🗺️ GeoJSON</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISUAL QUERY BUILDER TAB -->
+            <div class="studio-view-pane" id="studioVisualPane">
+                <div class="visual-builder-controls">
+                    <div class="visual-logic-select">
+                        <span>Match</span>
+                        <select id="visualLogicMode" class="profile-select studio-select" aria-label="Rule combination logic">
+                            <option value="AND">ALL conditions (AND)</option>
+                            <option value="OR">ANY condition (OR)</option>
+                        </select>
+                    </div>
+                    <button type="button" class="studio-action-btn" id="addRuleBtn">
+                        <span>➕ Add Condition</span>
+                    </button>
+                    <button type="button" class="studio-action-btn secondary" id="clearRulesBtn">
+                        <span>🗑️ Clear All</span>
+                    </button>
+                    <button type="button" class="studio-action-btn primary" id="applyVisualRulesBtn" style="margin-left: auto;">
+                        <span>▶ Run Query</span>
+                    </button>
+                </div>
+
+                <!-- Visual Rule Rows Container -->
+                <div class="visual-rules-container" id="visualRulesContainer">
+                    <!-- Rule rows injected dynamically by app.js -->
+                </div>
+            </div>
+
+            <!-- SQL QUERY CONSOLE TAB -->
+            <div class="studio-view-pane" id="studioSqlPane" style="display: none;">
+                <div class="sql-editor-container">
+                    <div class="sql-editor-toolbar">
+                        <span class="sql-editor-title">Query Editor (Target: <code>trips</code>)</span>
+                        <span class="sql-editor-hint">Press <strong>Ctrl+Enter</strong> / <strong>Cmd+Enter</strong> to execute</span>
+                    </div>
+                    <textarea id="sqlQueryInput" class="sql-editor-textarea" spellcheck="false" rows="4" aria-label="SQL Query Input" placeholder="SELECT line, origin, destination, distance_km, delay_dep FROM trips WHERE delay_dep > 15 ORDER BY delay_dep DESC LIMIT 50"></textarea>
+                    
+                    <div class="sql-editor-footer">
+                        <div class="sql-chips-reference">
+                            <span class="sql-chip-tag" data-insert="SELECT * FROM trips">SELECT *</span>
+                            <span class="sql-chip-tag" data-insert="WHERE category = 'nationalExpress'">category</span>
+                            <span class="sql-chip-tag" data-insert="WHERE delay_dep > 15">delay_dep</span>
+                            <span class="sql-chip-tag" data-insert="WHERE distance_km > 300">distance_km</span>
+                            <span class="sql-chip-tag" data-insert="ORDER BY delay_dep DESC">ORDER BY</span>
+                        </div>
+                        <div class="sql-exec-group">
+                            <span class="studio-benchmark-badge" id="sqlBenchmarkBadge">⏱️ 0.0ms • 0 rows</span>
+                            <button type="button" class="studio-action-btn primary" id="runSqlQueryBtn">
+                                <span>▶ Run SQL</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Multi-Criteria Filter Panel (Standard Mode) -->
+        <section class="trips-filter-panel" id="tripsFilterPanel" aria-label="Trip Search and Filters">
             <!-- Search & Actions Row -->
             <div class="filter-row-top">
                 <div class="search-input-wrapper">
