@@ -6,16 +6,44 @@
     <title>Träwelling Map Explorer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="dark">
+    <!-- Critical inline styles to prevent Flash of Unstyled Content (FOUC) -->
+    <style>
+        :root { color-scheme: dark; }
+        html, body {
+            background-color: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            height: 100%;
+        }
+        .setup-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            height: 100dvh;
+            background: #121212;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .setup-screen.hidden { opacity: 0; pointer-events: none; }
+    </style>
+    <!-- Local stylesheets loaded first with zero roundtrip latency -->
+    <link href="css/base.css" rel="stylesheet">
+    <link href="css/cargo-animation.css" rel="stylesheet">
+    <link href="css/map-ui.css" rel="stylesheet">
+    <link href="css/fun-facts.css" rel="stylesheet">
+    <!-- External vendor CDN dependencies -->
     <link rel="preconnect" href="https://api.mapbox.com">
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.11.0/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.11.0/mapbox-gl.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/deck.gl@9.0.16/dist.min.js" defer></script>
-    <link href="css/base.css" rel="stylesheet">
-    <link href="css/cargo-animation.css" rel="stylesheet">
-    <link href="css/map-ui.css" rel="stylesheet">
-    <link href="css/fun-facts.css" rel="stylesheet">
     <!-- Application Entrypoint -->
     <script type="module" src="./js/app.js"></script>
 </head>
