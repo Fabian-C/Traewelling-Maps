@@ -154,7 +154,7 @@ export async function initApp() {
     // Setup screen fetch action
     const startFetchBtn = document.getElementById('startFetchBtn');
     if (startFetchBtn) {
-        startFetchBtn.onclick = () => {
+        startFetchBtn.onclick = (e) => {
             const userField = document.getElementById('username');
             const target = userField?.value?.trim();
             if (target) {
