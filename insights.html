@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Träwelling Wrapped & Travel Insights</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="dark">
+    <meta name="description" content="Explore your personal railway travel Wrapped, journey analytics, punctuality records, and station habits on Träwelling.">
+
+    <!-- Critical inline styles to prevent FOUC -->
+    <style>
+        :root { color-scheme: dark; }
+        html, body {
+            background-color: #080a10;
+            color: #f6f7fb;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            height: 100%;
+        }
+    </style>
+
+    <!-- Stylesheet -->
+    <link href="css/insights.css" rel="stylesheet">
+
+    <!-- Application Script -->
+    <script type="module" src="./js/insights/app.js"></script>
+</head>
+
+<body>
+    <!-- Global Header -->
+    <header class="insights-header" role="banner">
+        <a href="index.html" class="insights-brand" aria-label="Träwelling Map Home">
+            <span class="insights-brand-icon">🚂</span>
+            <div>
+                <span class="insights-brand-title">Träwelling</span>
+                <span class="insights-brand-badge">Wrapped & Insights</span>
+            </div>
+        </a>
+
+        <!-- Profile & Navigation Actions -->
+        <div class="insights-nav-actions">
+            <!-- Profile Switcher -->
+            <label for="profileSelect" style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary);">
+                <span>User:</span>
+                <select id="profileSelect" class="profile-select" aria-label="Select User Profile"></select>
+            </label>
+
+            <!-- Year Selector Group -->
+            <div class="control-pill-group" id="yearPillsContainer" role="tablist" aria-label="Timeframe selection">
+                <button type="button" class="control-pill active" data-year="all">All-Time</button>
+            </div>
+
+            <!-- Main Map Link -->
+            <a href="index.html" class="nav-link-btn primary" title="Return to Interactive Map">
+                <span>🗺️</span>
+                <span>Interactive Map</span>
+            </a>
+
+            <!-- Documentation Link -->
+            <a href="docs.html" class="nav-link-btn" title="View Documentation">
+                <span>📖</span>
+                <span>Docs</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="insights-container">
+        <!-- Hero Profile Banner -->
+        <section class="hero-profile-banner" aria-label="Traveler Overview">
+            <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                <div class="profile-avatar-large" id="heroAvatar">T</div>
+                <div class="profile-text-info">
+                    <h1 class="profile-title" id="heroName">Traveler</h1>
+                    <p class="profile-subtitle" id="heroSubtitle">Loading check-in history...</p>
+                </div>
+            </div>
+
+            <div class="hero-actions">
+                <button type="button" class="btn-share-wrapped" id="shareWrappedBtn" aria-haspopup="dialog">
+                    <span>✨</span>
+                    <span>Share My Year</span>
+                </button>
+                <button type="button" class="btn-duel-toggle" id="duelToggleBtn" aria-expanded="false">
+                    <span>⚔️</span>
+                    <span>Traveler Duel</span>
+                </button>
+                <a href="index.html" class="nav-link-btn" id="viewOnMapLink" title="Inspect on Map">
+                    <span>📍 View On Map</span>
+                </a>
+            </div>
+        </section>
+
+        <!-- KPI Summary Cards (2x2 Grid) -->
+        <section class="kpi-grid" aria-label="Key Performance Indicators">
+            <article class="kpi-card cyan">
+                <div class="kpi-card-header">
+                    <span class="kpi-label">Total Distance</span>
+                    <span class="kpi-icon">🚆</span>
+                </div>
+                <div class="kpi-value" id="kpiDistance">0 km</div>
+                <div class="kpi-subtext" id="kpiDistanceSub">Calculating orbital distance...</div>
+            </article>
+
+            <article class="kpi-card purple">
+                <div class="kpi-card-header">
+                    <span class="kpi-label">Journeys Recorded</span>
+                    <span class="kpi-icon">🎫</span>
+                </div>
+                <div class="kpi-value" id="kpiTrips">0</div>
+                <div class="kpi-subtext" id="kpiTripsSub">Calculating time on tracks...</div>
+            </article>
+
+            <article class="kpi-card green">
+                <div class="kpi-card-header">
+                    <span class="kpi-label">Punctuality Rate</span>
+                    <span class="kpi-icon">⚡</span>
+                </div>
+                <div class="kpi-value" id="kpiPunctuality">100%</div>
+                <div class="kpi-subtext" id="kpiPunctualitySub">Tracking delays and on-time consistency...</div>
+            </article>
+
+            <article class="kpi-card pink">
+                <div class="kpi-card-header">
+                    <span class="kpi-label">CO₂ Emissions Saved</span>
+                    <span class="kpi-icon">🌱</span>
+                </div>
+                <div class="kpi-value" id="kpiCo2">0 kg</div>
+                <div class="kpi-subtext" id="kpiCo2Sub">vs equivalent car and air travel</div>
+            </article>
+        </section>
+
+        <!-- Side-by-Side Duel Mode (Revealed on click) -->
+        <section class="duel-container" id="duelContainer" aria-label="Traveler Comparison Mode">
+            <div class="duel-versus-header">
+                <div class="duel-player">
+                    <div class="duel-player-avatar" style="background: var(--accent-cyan); color: #080a10;">1</div>
+                    <div>
+                        <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Player 1</div>
+                        <div style="font-weight: 700; font-size: 1.1rem;" id="duelPlayerAName">User A</div>
+                    </div>
+                </div>
+
+                <div class="duel-vs-badge">VS</div>
+
+                <div class="duel-player" style="flex-direction: row-reverse; text-align: right;">
+                    <div class="duel-player-avatar" style="background: var(--accent-purple); color: #080a10;">2</div>
+                    <div>
+                        <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Opponent</div>
+                        <select id="duelOpponentSelect" class="profile-select" aria-label="Select Opponent"></select>
+                    </div>
+                </div>
+            </div>
+
+            <table class="duel-comparison-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Primary Traveler</th>
+                        <th style="width: 20%;">Metric</th>
+                        <th style="width: 40%;">Opponent</th>
+                    </tr>
+                </thead>
+                <tbody id="duelTableBody">
+                    <!-- Dynamic duel rows populated by app.js -->
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Analytics Row 1: Habits Heatmap & Category Breakdown -->
+        <div class="analytics-grid-two">
+            <!-- Transit Habits (Day x Hour Matrix) -->
+            <section class="panel-card" aria-label="Transit Habits">
+                <div class="panel-header">
+                    <div>
+                        <h2 class="panel-title"><span>⏰</span> Transit Habits & Heatmap</h2>
+                        <p class="panel-desc" id="habitsSummaryText">Check-in distribution by day of week and departure hour</p>
+                    </div>
+                </div>
+
+                <div class="heatmap-container" id="habitsHeatmap">
+                    <!-- Dynamic 7x24 heatmap rows -->
+                </div>
+
+                <div class="heatmap-legend">
+                    <span>Fewer</span>
+                    <div class="heatmap-cell" data-intensity="0" style="width: 12px; height: 12px;"></div>
+                    <div class="heatmap-cell" data-intensity="1" style="width: 12px; height: 12px;"></div>
+                    <div class="heatmap-cell" data-intensity="2" style="width: 12px; height: 12px;"></div>
+                    <div class="heatmap-cell" data-intensity="3" style="width: 12px; height: 12px;"></div>
+                    <div class="heatmap-cell" data-intensity="4" style="width: 12px; height: 12px;"></div>
+                    <span>More Trips</span>
+                </div>
+            </section>
+
+            <!-- Transport Category Breakdown -->
+            <section class="panel-card" aria-label="Transport Modes">
+                <div class="panel-header">
+                    <div>
+                        <h2 class="panel-title"><span>🚆</span> Vehicle Modes & Lines</h2>
+                        <p class="panel-desc">Distance and journey distribution by vehicle class</p>
+                    </div>
+                </div>
+
+                <div class="category-bars" id="categoryBarsContainer">
+                    <!-- Dynamic progress bars -->
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border-subtle);">
+                    <div>
+                        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Favorite Line</div>
+                        <div style="font-weight: 700; font-size: 1.1rem; color: var(--accent-cyan); margin-top: 2px;" id="favLineText">None</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);" id="favLineSub">0 trips</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Longest Journey</div>
+                        <div style="font-weight: 700; font-size: 14px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="longestTripRoute">None</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);" id="longestTripSub">0 km</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Analytics Row 2: Top Hub Stations & Delay Hall of Fame -->
+        <div class="analytics-grid-two">
+            <!-- Top Stations Ranking -->
+            <section class="panel-card" aria-label="Most Visited Stations">
+                <div class="panel-header">
+                    <div>
+                        <h2 class="panel-title"><span>🚉</span> Top Hub Stations</h2>
+                        <p class="panel-desc">Most visited origins, destinations, and waypoints</p>
+                    </div>
+                </div>
+
+                <div class="top-items-list" id="topStationsList">
+                    <!-- Dynamic station rank rows with map deep links -->
+                </div>
+            </section>
+
+            <!-- Delay Hall of Fame & Passenger Rights -->
+            <section class="panel-card" aria-label="Delay Hall of Fame and Passenger Rights">
+                <div class="panel-header">
+                    <div>
+                        <h2 class="panel-title"><span>⏳</span> Delay Hall of Fame</h2>
+                        <p class="panel-desc">Rail punctuality records and passenger rights compensation</p>
+                    </div>
+                </div>
+
+                <!-- Single Worst Delay Card -->
+                <div class="delay-box">
+                    <div class="delay-box-title">
+                        <span>⚠️</span>
+                        <span>Biggest Single Delay</span>
+                    </div>
+                    <div class="delay-box-highlight" id="worstDelayMinutes">+0 min</div>
+                    <div class="delay-box-route" id="worstDelayRoute">No significant delay recorded</div>
+                </div>
+
+                <!-- EU Passenger Rights Estimation -->
+                <div class="rights-callout">
+                    <div>
+                        <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--accent-green); letter-spacing: 0.05em;">
+                            Estimated Compensation Claim Value
+                        </div>
+                        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;" id="rightsEligibleCount">
+                            0 journeys delayed 60m+ eligible for compensation under EU 1371/2007.
+                        </div>
+                    </div>
+                    <div class="rights-amount" id="rightsRefundEstimate">~€0</div>
+                </div>
+
+                <!-- Travel Buddies -->
+                <div style="margin-top: 6px;">
+                    <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">
+                        Top Travel Companions
+                    </div>
+                    <div class="top-items-list" id="topBuddiesList">
+                        <!-- Dynamic buddy rows -->
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Social Card Export Modal (<dialog>) -->
+    <dialog id="shareCardModal" class="share-modal" aria-labelledby="shareModalTitle">
+        <div class="share-modal-header">
+            <h2 class="share-modal-title" id="shareModalTitle">✨ Your Rail Wrapped Card</h2>
+            <button type="button" class="share-modal-close" id="closeShareModalBtn" aria-label="Close modal">✕</button>
+        </div>
+
+        <p style="margin: 0; font-size: 14px; color: var(--text-secondary);">
+            Generated from your real Träwelling check-in data. Download and share to social media or with friends!
+        </p>
+
+        <div class="card-preview-wrapper">
+            <img id="cardPreviewImg" class="card-preview-img" alt="Träwelling Wrapped Preview Card">
+        </div>
+
+        <div class="share-modal-actions">
+            <button type="button" class="nav-link-btn" id="shareNativeBtn" style="padding: 10px 18px;">
+                <span>📤 Share...</span>
+            </button>
+            <button type="button" class="nav-link-btn primary" id="downloadCardBtn" style="padding: 10px 22px;">
+                <span>📥 Download PNG</span>
+            </button>
+        </div>
+    </dialog>
+</body>
+
+</html>
