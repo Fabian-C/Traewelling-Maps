@@ -21,7 +21,7 @@ export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
 
     trips.forEach(trip => {
         const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
-        let polyline = train.polyline;
+        let polyline = (trip.geometry?.coordinates && trip.geometry.coordinates.length >= 2) ? trip : train.polyline;
         if (!polyline?.geometry?.coordinates || polyline.geometry.coordinates.length < 2) {
             const origLng = parseFloat(train.origin?.station?.longitude ?? train.origin?.longitude);
             const origLat = parseFloat(train.origin?.station?.latitude ?? train.origin?.latitude);

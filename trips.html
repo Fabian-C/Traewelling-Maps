@@ -86,10 +86,15 @@
                 <span class="telemetry-val" id="telemetryPunctuality">100%</span>
                 <span class="telemetry-sub" id="telemetryPunctualitySub">on-time journeys</span>
             </div>
-            <div class="telemetry-chip amber">
+            <div class="telemetry-chip amber" id="telemetryDurationChip" style="cursor: pointer;" title="Click to toggle between days, total hours, and months">
                 <span class="telemetry-label"><span>⏰</span> Total Travel Time</span>
                 <span class="telemetry-val" id="telemetryDuration">0 hrs</span>
-                <span class="telemetry-sub" id="telemetryDurationSub">time on tracks</span>
+                <span class="telemetry-sub" id="telemetryDurationSub">time on tracks (click to switch unit)</span>
+            </div>
+            <div class="telemetry-chip cyan" id="telemetryEcoChip" title="Estimated CO₂ emissions avoided compared to average passenger car (142g CO₂/km)">
+                <span class="telemetry-label"><span>🌱</span> Carbon Saved</span>
+                <span class="telemetry-val" id="telemetryEco">0 tonnes</span>
+                <span class="telemetry-sub" id="telemetryEcoSub">vs passenger car</span>
             </div>
         </section>
 
@@ -429,6 +434,9 @@
             <a href="#" class="nav-link-btn primary" id="modalMapLink">
                 <span>🗺️ View on Map</span>
             </a>
+            <button type="button" class="nav-link-btn" id="modalExportManualBtn" style="border-color: rgba(56, 189, 248, 0.4); color: var(--accent-cyan);">
+                <span>🛠️ Export Template</span>
+            </button>
         </div>
     </dialog>
 </body>

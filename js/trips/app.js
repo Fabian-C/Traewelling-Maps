@@ -1,7 +1,8 @@
 import { SessionDB } from '../cache/session.js';
 import { tripsToGeoJSON } from '../export/geojson.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
-import { formatDelayMinutes } from '../utils/format.js';
+import { formatDelayMinutes, formatHumanDuration, formatTotalTime, calculateCO2Saved, formatSpeed } from '../utils/format.js';
+import { openManualTripExportDialog } from '../export/manualTrip.js';
 import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
 import {
     TRIP_COLUMNS,
@@ -17,6 +18,8 @@ let activeSession = null;
 let allTrips = [];
 let filteredTrips = [];
 let flattenedTrips = [];
+let currentModalTrip = null;
+let durationDisplayMode = 'standard'; // 'standard' | 'days' | 'months'
 
 // Studio state
 let appMode = 'standard'; // 'standard' | 'studio'
@@ -371,6 +374,31 @@ function setupEventListeners() {
                 renderResults();
                 window.scrollTo({ top: 300, behavior: 'smooth' });
             }
+        });
+    }
+
+    // Modal Export Manual Trip Button
+    const modalExportBtn = document.getElementById('modalExportManualBtn');
+    if (modalExportBtn) {
+        modalExportBtn.addEventListener('click', () => {
+            if (currentModalTrip) {
+                openManualTripExportDialog(currentModalTrip);
+            }
+        });
+    }
+
+    // Telemetry Duration Unit Switcher
+    const durChip = document.getElementById('telemetryDurationChip');
+    if (durChip) {
+        durChip.addEventListener('click', () => {
+            if (durationDisplayMode === 'standard') {
+                durationDisplayMode = 'days';
+            } else if (durationDisplayMode === 'days') {
+                durationDisplayMode = 'months';
+            } else {
+                durationDisplayMode = 'standard';
+            }
+            updateTelemetry(filteredTrips);
         });
     }
 
@@ -1024,6 +1052,8 @@ function updateTelemetry(trips) {
     const punctEl = document.getElementById('telemetryPunctuality');
     const durEl = document.getElementById('telemetryDuration');
     const durSubEl = document.getElementById('telemetryDurationSub');
+    const ecoEl = document.getElementById('telemetryEco');
+    const ecoSubEl = document.getElementById('telemetryEcoSub');
 
     let totalDistMeters = 0;
     let onTimeCount = 0;
@@ -1043,14 +1073,37 @@ function updateTelemetry(trips) {
     const distKm = Math.round(totalDistMeters / 1000);
     const punctRate = trips.length > 0 ? Math.round((onTimeCount / trips.length) * 100) : 100;
     const totalHours = Math.round(totalMinutes / 60);
+    const timeInfo = formatTotalTime(totalHours);
+    const eco = calculateCO2Saved(distKm);
 
     if (countEl) countEl.textContent = trips.length.toLocaleString();
     if (countSubEl) countSubEl.textContent = `of ${allTrips.length.toLocaleString()} total journeys`;
     if (distEl) distEl.textContent = `${distKm.toLocaleString()} km`;
     if (distSubEl) distSubEl.textContent = `${(distKm / 40075).toFixed(1)}x Earth laps`;
     if (punctEl) punctEl.textContent = `${punctRate}%`;
-    if (durEl) durEl.textContent = `${totalHours.toLocaleString()} hrs`;
-    if (durSubEl) durSubEl.textContent = `~${(totalHours / 24).toFixed(0)} days on tracks`;
+
+    if (durEl) {
+        if (durationDisplayMode === 'days') {
+            durEl.textContent = timeInfo.primary;
+        } else if (durationDisplayMode === 'months') {
+            durEl.textContent = `~${timeInfo.months} mo`;
+        } else {
+            durEl.textContent = `${totalHours.toLocaleString()} hrs`;
+        }
+    }
+
+    if (durSubEl) {
+        if (durationDisplayMode === 'days') {
+            durSubEl.textContent = `${timeInfo.secondary} (click to toggle)`;
+        } else if (durationDisplayMode === 'months') {
+            durSubEl.textContent = `${timeInfo.primary} (${totalHours.toLocaleString()} hrs)`;
+        } else {
+            durSubEl.textContent = `~${timeInfo.days} days on tracks • click to toggle`;
+        }
+    }
+
+    if (ecoEl) ecoEl.textContent = `${eco.tonnes} tonnes`;
+    if (ecoSubEl) ecoSubEl.textContent = `~${eco.kg.toLocaleString()} kg CO₂ avoided vs car`;
 }
 
 /**
@@ -1117,7 +1170,23 @@ function renderResults() {
     if (tbody) {
         if (pageItems.length === 0) {
             const colSpan = isStudioCustom ? sqlQueryResult.columns.length + 1 : 9;
-            tbody.innerHTML = `<tr><td colspan="${colSpan}" style="text-align: center; padding: 40px; color: var(--text-muted);">No journeys found matching your search.</td></tr>`;
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="${colSpan}" style="text-align: center; padding: 48px 16px;">
+                        <div style="font-size: 38px; margin-bottom: 8px;">🔍</div>
+                        <div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">No journeys match your active filters</div>
+                        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">Try loosening your search query, transport category, or delay tier.</div>
+                        <button type="button" class="studio-action-btn primary" id="emptyTableResetBtn">Reset All Filters</button>
+                    </td>
+                </tr>
+            `;
+            const emptyResetBtn = tbody.querySelector('#emptyTableResetBtn');
+            if (emptyResetBtn) {
+                emptyResetBtn.addEventListener('click', () => {
+                    const rBtn = document.getElementById('resetFiltersBtn');
+                    if (rBtn) rBtn.click();
+                });
+            }
         } else if (isStudioCustom) {
             tbody.innerHTML = pageItems.map(row => {
                 const cells = sqlQueryResult.columns.map(col => {
@@ -1301,7 +1370,8 @@ export function openTripDetailModal(trip) {
     const rawDist = typeof train.totalDistance === 'number' ? train.totalDistance : (train.distance || 0);
     const distKm = Math.round(rawDist / 1000);
     const durationMin = computeTripDurationMinutes(train);
-    const durStr = durationMin > 0 ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m` : '—';
+    const durStr = durationMin > 0 ? formatHumanDuration(durationMin) : '—';
+    const speedStr = formatSpeed(distKm, durationMin);
 
     const delays = deriveDelaySeconds(train);
     const arrDelaySec = delays.arrival !== null ? delays.arrival : 0;
@@ -1311,6 +1381,9 @@ export function openTripDetailModal(trip) {
     const seat = trip.properties?.seat || train.seat?.number || train.seat || '—';
     const wagon = trip.properties?.wagon || train.seat?.wagon || train.wagon || '—';
     const ticket = trip.properties?.ticket?.name || trip.properties?.ticket || train.ticket?.name || train.ticket || '—';
+
+    // Store active modal trip for export actions
+    currentModalTrip = trip;
 
     // Modal elements
     document.getElementById('modalLineBadge').textContent = lineName;
@@ -1325,7 +1398,7 @@ export function openTripDetailModal(trip) {
     document.getElementById('modalArrivalTime').textContent = `Sched: ${destPlanned} · Actual: ${destReal}`;
     document.getElementById('modalDestPlatform').textContent = `Platform ${destPlatform}`;
 
-    document.getElementById('modalDistance').textContent = `${distKm} km`;
+    document.getElementById('modalDistance').textContent = `${distKm} km${speedStr !== '—' ? ` (Avg: ${speedStr})` : ''}`;
     document.getElementById('modalDuration').textContent = durStr;
     document.getElementById('modalDelay').textContent = delayFormatted;
     document.getElementById('modalOperator').textContent = operator;

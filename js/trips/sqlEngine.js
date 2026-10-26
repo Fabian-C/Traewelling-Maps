@@ -478,7 +478,14 @@ function compileWherePredicate(tokens) {
             const max = maxTok ? maxTok.value : Infinity;
             return row => {
                 const val = row[colName];
-                return val >= min && val <= max;
+                if (val === null || val === undefined || val === '') return false;
+                const numVal = Number(val);
+                const numMin = Number(min);
+                const numMax = Number(max);
+                if (!isNaN(numVal) && !isNaN(numMin) && !isNaN(numMax)) {
+                    return numVal >= numMin && numVal <= numMax;
+                }
+                return String(val) >= String(min) && String(val) <= String(max);
             };
         }
 
@@ -490,28 +497,57 @@ function compileWherePredicate(tokens) {
         return row => {
             const rowVal = row[colName];
 
+            // In SQL, comparing NULL with any relational operator returns NULL (false)
+            // (Unless checked via IS NULL / IS NOT NULL handled above)
+            const isNullVal = rowVal === null || rowVal === undefined || rowVal === '';
+
             // String patterns LIKE / ILIKE
             if (op === 'LIKE' || op === 'ILIKE') {
+                if (isNullVal) return false;
                 const pattern = String(targetVal)
                     .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
                     .replace(/%/g, '.*')
                     .replace(/_/g, '.');
                 const regex = new RegExp(`^${pattern}$`, op === 'ILIKE' ? 'i' : '');
-                return regex.test(String(rowVal || ''));
+                return regex.test(String(rowVal));
             }
 
             if (op === '=') {
-                if (typeof rowVal === 'number') return rowVal === Number(targetVal);
-                return String(rowVal || '').toLowerCase() === String(targetVal || '').toLowerCase();
+                if (targetVal === null || targetVal === 'NULL') return isNullVal;
+                if (isNullVal) return false;
+                if (typeof rowVal === 'number' || !isNaN(Number(targetVal)) && typeof rowVal === 'number') {
+                    return rowVal === Number(targetVal);
+                }
+                return String(rowVal).toLowerCase() === String(targetVal).toLowerCase();
             }
             if (op === '!=') {
-                if (typeof rowVal === 'number') return rowVal !== Number(targetVal);
-                return String(rowVal || '').toLowerCase() !== String(targetVal || '').toLowerCase();
+                if (targetVal === null || targetVal === 'NULL') return !isNullVal;
+                if (isNullVal) return false;
+                if (typeof rowVal === 'number' || !isNaN(Number(targetVal)) && typeof rowVal === 'number') {
+                    return rowVal !== Number(targetVal);
+                }
+                return String(rowVal).toLowerCase() !== String(targetVal).toLowerCase();
             }
-            if (op === '>') return Number(rowVal) > Number(targetVal);
-            if (op === '<') return Number(rowVal) < Number(targetVal);
-            if (op === '>=') return Number(rowVal) >= Number(targetVal);
-            if (op === '<=') return Number(rowVal) <= Number(targetVal);
+
+            // Numeric/relational comparisons: MUST be non-null and numeric
+            if (isNullVal) return false;
+            const numA = Number(rowVal);
+            const numB = Number(targetVal);
+            if (isNaN(numA) || isNaN(numB)) {
+                // Lexicographical fallback
+                const strA = String(rowVal);
+                const strB = String(targetVal);
+                if (op === '>') return strA > strB;
+                if (op === '<') return strA < strB;
+                if (op === '>=') return strA >= strB;
+                if (op === '<=') return strA <= strB;
+                return false;
+            }
+
+            if (op === '>') return numA > numB;
+            if (op === '<') return numA < numB;
+            if (op === '>=') return numA >= numB;
+            if (op === '<=') return numA <= numB;
 
             return true;
         };

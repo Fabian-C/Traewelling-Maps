@@ -1332,3 +1332,309 @@ body {
     }
 }
 
+/* ==========================================================================
+   Universal Accessible Select Dropdowns & Options
+   Fixes cutoffs, unstyled OS bevels, and ensures dark contrast
+   ========================================================================== */
+
+select, .profile-select, .studio-select, .rule-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: rgba(15, 23, 42, 0.85);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px;
+    padding-right: 30px !important;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    color-scheme: dark;
+    border-radius: var(--radius-sm);
+    outline: none;
+    max-width: 100%;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+select option {
+    background-color: #0f131d;
+    color: #f6f7fb;
+    padding: 8px 12px;
+}
+
+select:focus, .profile-select:focus, .studio-select:focus, .rule-select:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+/* ==========================================================================
+   Modern Modal & Dialog Guidelines (overscroll-behavior, scroll lock)
+   ========================================================================== */
+
+dialog {
+    overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+    background: rgba(4, 6, 12, 0.78);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+body:has(dialog[open]) {
+    overflow: hidden;
+}
+
+/* ==========================================================================
+   Manual Trip Export Modal Styles
+   ========================================================================== */
+
+.manual-trip-modal {
+    border: 1px solid var(--border-glow);
+    border-radius: var(--radius-lg);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    padding: 0;
+    max-width: min(92vw, 620px);
+    width: 100%;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75);
+    margin: auto;
+}
+
+.manual-export-box {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-height: min(88dvh, 760px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.manual-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent-cyan);
+    margin-bottom: 4px;
+}
+
+.manual-title {
+    margin: 0;
+    font-size: 1.3rem;
+    font-family: var(--font-heading);
+}
+
+.manual-subtitle {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.manual-trip-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(2, 6, 23, 0.6);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    flex-wrap: wrap;
+}
+
+.summary-route {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.route-arrow {
+    color: var(--accent-cyan);
+}
+
+.manual-shifter-card {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.shifter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.shifter-hint {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.shifter-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.shifter-input {
+    flex: 1;
+    min-width: 180px;
+    padding: 8px 12px;
+    font-size: 13px;
+    background: rgba(2, 6, 23, 0.85);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    color: var(--text-primary);
+    color-scheme: dark;
+}
+
+.shifter-btn {
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.shifter-preview {
+    font-size: 12px;
+    color: var(--accent-cyan);
+}
+
+.manual-output-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.output-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.copy-csv-btn {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.copy-csv-btn.copied {
+    background: #059669;
+}
+
+.manual-csv-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: rgba(2, 6, 23, 0.9);
+    border: 1px solid var(--border-subtle);
+    color: var(--accent-green);
+    border-radius: 8px;
+    padding: 10px;
+    resize: vertical;
+}
+
+.output-note {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.manual-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+}
+
+.manual-action-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid transparent;
+}
+
+.manual-action-btn.external {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.35);
+    color: var(--accent-cyan);
+}
+
+.manual-action-btn.secondary {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--border-subtle);
+    color: var(--text-primary);
+}
+
+.manual-action-btn.ghost {
+    background: transparent;
+    color: var(--text-muted);
+}
+
+/* Small screen optimization (<= 480px and <= 360px) */
+@media (max-width: 480px) {
+    .visual-rule-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .rule-select, .rule-input {
+        width: 100%;
+        min-width: unset;
+    }
+
+    .shifter-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .shifter-input, .shifter-btn {
+        width: 100%;
+    }
+
+    .manual-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .manual-action-btn {
+        width: 100%;
+    }
+}
+

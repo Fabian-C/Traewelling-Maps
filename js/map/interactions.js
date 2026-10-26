@@ -12,6 +12,7 @@ import { updateRouteDensity } from './heatmap.js';
 import { escapeHtml } from '../utils/format.js';
 import { CATEGORY_NAMES } from './layers.js';
 import { normalizeCategory, extractTripTags, getTripSearchMatchReason } from '../data/processing.js';
+import { openManualTripExportDialog } from '../export/manualTrip.js';
 
 export function initMap() {
     const state = store.get();
@@ -384,25 +385,47 @@ export function setupMapInteractions() {
         }
         if (!features.length) return;
 
-        // Deduplicate and collect all distinct stacked check-ins intersecting the tap area
+        // Deduplicate distinct check-ins intersecting the tap area
         const seenStatusIds = new Set();
-        const stackedFeatures = [];
+        const candidateFeatures = [];
         for (const feat of features) {
             const sid = feat.properties?.statusId || feat.id;
             if (sid && !seenStatusIds.has(sid)) {
                 seenStatusIds.add(sid);
-                stackedFeatures.push(feat);
+                candidateFeatures.push(feat);
             } else if (!sid) {
-                stackedFeatures.push(feat);
+                candidateFeatures.push(feat);
             }
         }
 
-        const featureStack = stackedFeatures.length > 0 ? stackedFeatures : features;
-        const initialFeature = pickClosestFeature(featureStack, e.lngLat, e.point) || featureStack[0];
-        const initialIndex = Math.max(0, featureStack.indexOf(initialFeature));
+        const initialFeature = pickClosestFeature(candidateFeatures, e.lngLat, e.point) || candidateFeatures[0];
         const snapped = snapLngLatToLine(e.lngLat, initialFeature);
         const anchor = snapped || e.lngLat;
-        showPopup(anchor, initialFeature, { stack: featureStack, stackIndex: initialIndex });
+
+        // User requirement: Cycling must ONLY cycle through check-ins on top of each other
+        // or maximum really close within a few meters (<= 20 meters), strictly excluding anything 50+ meters away.
+        const MAX_STACK_DISTANCE_KM = 0.020; // 20 meters maximum
+        const tightStack = [];
+        const seenIds = new Set();
+
+        const initialId = initialFeature?.properties?.statusId || initialFeature?.id;
+        if (initialId) seenIds.add(initialId);
+        tightStack.push(initialFeature);
+
+        for (const feat of candidateFeatures) {
+            const sid = feat.properties?.statusId || feat.id;
+            if (sid && seenIds.has(sid)) continue;
+
+            const distKm = measureFeatureDistance(feat, anchor, null);
+            // Must be within 20 meters of the clicked anchor point to be considered stacked
+            if (distKm <= MAX_STACK_DISTANCE_KM) {
+                if (sid) seenIds.add(sid);
+                tightStack.push(feat);
+            }
+        }
+
+        const featureStack = tightStack.length > 1 ? tightStack : null;
+        showPopup(anchor, initialFeature, { stack: featureStack, stackIndex: 0 });
     };
 
     state.map.on('click', handleMapTap);
@@ -753,7 +776,10 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
         ${timingDetails}
         ${seatDetails}
         ${tagsDetails}
-        ${shareUrl ? `<div class="popup-actions"><a class="primary" href="${shareUrl}" target="_blank">View on Träwelling</a></div>` : ''}
+        <div class="popup-actions">
+            ${shareUrl ? `<a class="primary" href="${shareUrl}" target="_blank">View on Träwelling</a>` : ''}
+            <button type="button" class="popup-manual-export-btn" id="popupExportManualBtn" title="Export as manual checkin template with CSV importer & time shifter">🛠️ Export Template</button>
+        </div>
     </div>`;
 
     state.currentPopup = new mapboxgl.Popup({ className: 'route-popup', closeButton: true, closeOnClick: true })
@@ -833,6 +859,14 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
                 }
             });
         }
+
+        const exportManualBtn = popupEl.querySelector('#popupExportManualBtn');
+        if (exportManualBtn) {
+            exportManualBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openManualTripExportDialog(feature);
+            });
+        }
     }
     
     state.currentPopup.on('close', () => {
@@ -846,6 +880,7 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
 
 export function highlightRoute(feature, statusId) {
     const state = store.get();
+    if (!state.map) return;
     let coordinates = null;
     
     if (statusId && statusId !== 'unknown') {
