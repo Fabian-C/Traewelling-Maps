@@ -224,16 +224,16 @@ export function executeTripQuery(sql, records = []) {
 
         if (tok.type === 'OPERATOR' && tok.value === '*') {
             selectedFields.push('*');
-        } else if (tok.type === 'WORD') {
+        } else if (tok.type === 'WORD' || tok.type === 'STRING') {
             // Check for aggregate like COUNT(*)
             const next = peek();
             if (next && next.type === 'PUNCT' && next.value === '(') {
                 consume(); // '('
                 const inner = consume(); // '*' or field
                 consume(); // ')'
-                selectedFields.push(`${tok.value.toUpperCase()}(${inner.value})`);
+                selectedFields.push(`${tok.value.toUpperCase()}(${inner ? inner.value : '*'})`);
             } else {
-                selectedFields.push(tok.value);
+                selectedFields.push(String(tok.value).toLowerCase());
             }
         }
 
@@ -247,7 +247,8 @@ export function executeTripQuery(sql, records = []) {
     // 2. FROM clause
     if (matchWord('FROM')) {
         const tableTok = consume();
-        if (!tableTok || (tableTok.value.toLowerCase() !== 'trips' && tableTok.value.toLowerCase() !== 'checkins')) {
+        const validTables = ['trips', 'trip', 'checkins', 'checkin'];
+        if (!tableTok || !validTables.includes(String(tableTok.value).toLowerCase())) {
             throw new Error("Target table must be 'trips'");
         }
     }
@@ -271,11 +272,11 @@ export function executeTripQuery(sql, records = []) {
     if (matchWord('ORDER') && matchWord('BY')) {
         while (cursor < tokens.length) {
             const colTok = consume();
-            if (!colTok || colTok.type !== 'WORD') break;
+            if (!colTok || (colTok.type !== 'WORD' && colTok.type !== 'STRING')) break;
             let dir = 'ASC';
             if (matchWord('DESC')) dir = 'DESC';
             else if (matchWord('ASC')) dir = 'ASC';
-            orderByList.push({ column: colTok.value, dir });
+            orderByList.push({ column: String(colTok.value).toLowerCase(), dir });
 
             if (peek() && peek().type === 'COMMA') {
                 consume();
@@ -347,7 +348,19 @@ export function executeTripQuery(sql, records = []) {
     const availableCols = TRIP_COLUMNS.map(c => c.name);
     const activeColumns = isSelectAll
         ? availableCols
-        : selectedFields.filter(f => availableCols.includes(f) || f.startsWith('COUNT('));
+        : selectedFields.filter(f => availableCols.includes(f.toLowerCase()) || f.toUpperCase().startsWith('COUNT(')).map(f => f.toUpperCase().startsWith('COUNT(') ? f.toUpperCase() : f.toLowerCase());
+
+    const hasCount = activeColumns.some(c => c.startsWith('COUNT('));
+    if (hasCount && activeColumns.length === 1) {
+        return {
+            columns: ['COUNT(*)'],
+            rows: [{ id: 0, 'COUNT(*)': totalMatching }],
+            totalRows: 1,
+            rawTrips: [],
+            executionTimeMs: Math.round((performance.now() - startTime) * 100) / 100,
+            isSelectAll: false
+        };
+    }
 
     const projectedRows = paged.map(row => {
         if (isSelectAll) return { ...row };
@@ -424,7 +437,7 @@ function compileWherePredicate(tokens) {
         // Column comparison rule: [col] [op] [val]
         const colTok = tokens[c++];
         if (!colTok) return () => true;
-        const colName = colTok.value;
+        const colName = String(colTok.value || '').toLowerCase();
 
         if (c >= len) return () => true;
         const opTok = tokens[c++];

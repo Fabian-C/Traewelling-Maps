@@ -248,11 +248,17 @@ function setupEventListeners() {
             if (found) {
                 activeSession = found;
                 allTrips = activeSession.trips || [];
+                flattenedTrips = allTrips.map(flattenTripRecord);
                 populateYearPills(allTrips);
                 populateBuddyDropdown(allTrips);
                 filterState.page = 1;
                 updateUrlParams();
-                applyFiltersAndRender();
+                if (appMode === 'studio') {
+                    const currentSql = document.getElementById('sqlQueryInput')?.value || QUERY_RECIPES[0].sql;
+                    runSqlQuery(currentSql);
+                } else {
+                    applyFiltersAndRender();
+                }
             }
         });
     }
@@ -425,7 +431,10 @@ function setupEventListeners() {
     }
     if (nextPageBtn) {
         nextPageBtn.addEventListener('click', () => {
-            const maxPage = Math.ceil(filteredTrips.length / filterState.pageSize);
+            const totalItems = (appMode === 'studio' && sqlQueryResult)
+                ? (sqlQueryResult.isSelectAll ? (sqlQueryResult.rawTrips?.length || 0) : sqlQueryResult.rows.length)
+                : filteredTrips.length;
+            const maxPage = Math.ceil(totalItems / filterState.pageSize);
             if (filterState.page < maxPage) {
                 filterState.page++;
                 renderResults();
@@ -648,6 +657,10 @@ function setupStudioEventListeners() {
             modeStandardBtn.classList.remove('active');
             if (filterPanel) filterPanel.style.display = 'none';
             if (studioPanel) studioPanel.style.display = 'flex';
+            const viewTableBtn = document.getElementById('viewTableBtn');
+            if (viewTableBtn && !viewTableBtn.classList.contains('active')) {
+                viewTableBtn.click();
+            }
 
             if (!sqlQueryResult) {
                 const currentSql = document.getElementById('sqlQueryInput')?.value || QUERY_RECIPES[0].sql;
@@ -936,11 +949,28 @@ function setupStudioEventListeners() {
  * Execute an arbitrary SQL query on the dataset
  */
 export function runSqlQuery(sql) {
-    if (!sql || !flattenedTrips.length) return;
+    if (!sql) return;
+
+    if (!flattenedTrips.length && allTrips.length) {
+        flattenedTrips = allTrips.map(flattenTripRecord);
+    }
+    if (!flattenedTrips.length) return;
 
     try {
         const result = executeTripQuery(sql, flattenedTrips);
         sqlQueryResult = result;
+
+        // Ensure table view is visible
+        const tableView = document.getElementById('tableViewContainer');
+        const cardsView = document.getElementById('cardViewContainer');
+        const viewTableBtn = document.getElementById('viewTableBtn');
+        const viewCardsBtn = document.getElementById('viewCardsBtn');
+        if (tableView && cardsView) {
+            tableView.style.display = 'block';
+            cardsView.style.display = 'none';
+            if (viewTableBtn) viewTableBtn.classList.add('active');
+            if (viewCardsBtn) viewCardsBtn.classList.remove('active');
+        }
 
         // Update benchmark badge
         const badge = document.getElementById('sqlBenchmarkBadge');
@@ -951,7 +981,7 @@ export function runSqlQuery(sql) {
         }
 
         // Update main telemetry chips
-        if (result.rawTrips?.length) {
+        if (result.rawTrips) {
             updateTelemetry(result.rawTrips);
         }
 
@@ -966,6 +996,17 @@ export function runSqlQuery(sql) {
             badge.style.color = '#ef4444';
             badge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
         }
+        sqlQueryResult = {
+            columns: ['error'],
+            rows: [],
+            totalRows: 0,
+            rawTrips: [],
+            executionTimeMs: 0,
+            isSelectAll: false,
+            error: err.message
+        };
+        filterState.page = 1;
+        renderResults();
     }
 }
 window.runSqlQuery = runSqlQuery;
@@ -1298,21 +1339,48 @@ function renderResults() {
     const prevBtn = document.getElementById('prevPageBtn');
     const nextBtn = document.getElementById('nextPageBtn');
 
-    const isStudioCustom = (appMode === 'studio' && sqlQueryResult && !sqlQueryResult.isSelectAll);
-    const total = isStudioCustom ? sqlQueryResult.rows.length : filteredTrips.length;
+    const isStudio = (appMode === 'studio' && Boolean(sqlQueryResult));
+    const isStudioCustom = (isStudio && !sqlQueryResult.isSelectAll);
+    let total = filteredTrips.length;
+    let pageItems = [];
+
+    if (isStudio) {
+        if (sqlQueryResult.error) {
+            total = 0;
+            pageItems = [];
+        } else if (sqlQueryResult.isSelectAll) {
+            total = (sqlQueryResult.rawTrips || []).length;
+        } else {
+            total = (sqlQueryResult.rows || []).length;
+        }
+    }
+
     const totalPages = Math.max(1, Math.ceil(total / filterState.pageSize));
     if (filterState.page > totalPages) filterState.page = totalPages;
 
     const startIdx = (filterState.page - 1) * filterState.pageSize;
     const endIdx = Math.min(total, startIdx + filterState.pageSize);
-    const pageItems = isStudioCustom
-        ? sqlQueryResult.rows.slice(startIdx, endIdx)
-        : filteredTrips.slice(startIdx, endIdx);
+
+    if (isStudio) {
+        if (sqlQueryResult.error) {
+            pageItems = [];
+        } else if (sqlQueryResult.isSelectAll) {
+            pageItems = (sqlQueryResult.rawTrips || []).slice(startIdx, endIdx);
+        } else {
+            pageItems = (sqlQueryResult.rows || []).slice(startIdx, endIdx);
+        }
+    } else {
+        pageItems = filteredTrips.slice(startIdx, endIdx);
+    }
 
     if (countText) {
-        countText.innerHTML = total > 0
-            ? `Showing <strong>${startIdx + 1}–${endIdx}</strong> of <strong>${total.toLocaleString()}</strong> matching journeys`
-            : 'No journeys match the active filters';
+        if (isStudio && sqlQueryResult?.error) {
+            countText.innerHTML = `<span style="color: var(--accent-danger);">SQL Syntax Error</span>`;
+        } else {
+            countText.innerHTML = total > 0
+                ? `Showing <strong>${startIdx + 1}–${endIdx}</strong> of <strong>${total.toLocaleString()}</strong> matching ${isStudio ? 'records' : 'journeys'}`
+                : `No ${isStudio ? 'records' : 'journeys'} match the active ${isStudio ? 'SQL query' : 'filters'}`;
+        }
     }
 
     if (summaryText) summaryText.textContent = `Page ${filterState.page} of ${totalPages}`;
@@ -1352,22 +1420,34 @@ function renderResults() {
     const tbody = document.getElementById('tripsTableBody');
     if (tbody) {
         if (pageItems.length === 0) {
-            const colSpan = isStudioCustom ? sqlQueryResult.columns.length + 1 : 9;
+            const colSpan = isStudioCustom ? (sqlQueryResult?.columns?.length || 1) + 1 : 9;
+            const errorMsg = isStudio && sqlQueryResult?.error;
             tbody.innerHTML = `
                 <tr>
                     <td colspan="${colSpan}" style="text-align: center; padding: 48px 16px;">
-                        <div style="font-size: 38px; margin-bottom: 8px;">🔍</div>
-                        <div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">No journeys match your active filters</div>
-                        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">Try loosening your search query, transport category, or delay tier.</div>
-                        <button type="button" class="studio-action-btn primary" id="emptyTableResetBtn">Reset All Filters</button>
+                        <div style="font-size: 38px; margin-bottom: 8px;">${errorMsg ? '⚠️' : '🔍'}</div>
+                        <div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">
+                            ${errorMsg ? 'SQL Query Error' : (isStudio ? 'No records match your SQL query' : 'No journeys match your active filters')}
+                        </div>
+                        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
+                            ${errorMsg ? escapeHtml(sqlQueryResult.error) : (isStudio ? 'Try checking your WHERE conditions, column names, or table names.' : 'Try loosening your search query, transport category, or delay tier.')}
+                        </div>
+                        ${isStudio ? `<button type="button" class="studio-action-btn primary" id="emptyTableResetBtn">Reset to Default Query</button>` : `<button type="button" class="studio-action-btn primary" id="emptyTableResetBtn">Reset All Filters</button>`}
                     </td>
                 </tr>
             `;
             const emptyResetBtn = tbody.querySelector('#emptyTableResetBtn');
             if (emptyResetBtn) {
                 emptyResetBtn.addEventListener('click', () => {
-                    const rBtn = document.getElementById('resetFiltersBtn');
-                    if (rBtn) rBtn.click();
+                    if (isStudio) {
+                        const defaultSql = QUERY_RECIPES[0].sql;
+                        const input = document.getElementById('sqlQueryInput');
+                        if (input) input.value = defaultSql;
+                        runSqlQuery(defaultSql);
+                    } else {
+                        const rBtn = document.getElementById('resetFiltersBtn');
+                        if (rBtn) rBtn.click();
+                    }
                 });
             }
         } else if (isStudioCustom) {
@@ -1401,13 +1481,17 @@ function renderResults() {
                     return `<td data-label="${escapeHtml(col)}">${val !== null && val !== undefined ? escapeHtml(val) : '—'}</td>`;
                 }).join('');
 
+                const hasRealTrip = row.id && allTrips.some(t => String(t.id) === String(row.id));
+
                 return `
                     <tr data-trip-id="${row.id}">
                         ${cells}
                         <td data-label="Actions">
-                            <button type="button" class="nav-link-btn inspect-trip-btn" data-trip-id="${row.id}" style="padding: 4px 8px; font-size: 11px;">
-                                🔍 Inspect
-                            </button>
+                            ${hasRealTrip ? `
+                                <button type="button" class="nav-link-btn inspect-trip-btn" data-trip-id="${row.id}" style="padding: 4px 8px; font-size: 11px;">
+                                    🔍 Inspect
+                                </button>
+                            ` : '—'}
                         </td>
                     </tr>
                 `;
