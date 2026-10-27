@@ -84,6 +84,18 @@ export const SQL_SNIPPETS = [
         detail: 'Trips shared with travel companions'
     },
     {
+        label: 'buddy_count >= 2',
+        insertText: 'buddy_count >= 2 ',
+        type: 'recipe',
+        detail: 'Group trips with 2 or more travel companions'
+    },
+    {
+        label: 'buddy_count = 0',
+        insertText: 'buddy_count = 0 ',
+        type: 'recipe',
+        detail: 'Solo trips with no travel companions'
+    },
+    {
         label: 'ORDER BY delay_dep DESC',
         insertText: 'ORDER BY delay_dep DESC ',
         type: 'recipe',

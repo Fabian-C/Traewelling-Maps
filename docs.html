@@ -3,27 +3,52 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Träwelling Map Explorer · Complete Documentation</title>
+  <meta name="description" content="Complete documentation and user guide for Träwelling Map Explorer, Trip Database, in-browser SQL Studio, travel companion queries, and GeoJSON route exports.">
+  <title>Träwelling Map Explorer · Complete Documentation &amp; SQL Guide</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #06070a;
       --bg-panel: rgba(12, 14, 22, 0.9);
       --bg-panel-strong: rgba(16, 19, 32, 0.98);
+      --bg-code: #0b0f19;
       --text: #f6f7fb;
       --text-muted: #a1a4ba;
       --accent: #66e0ff;
       --accent-strong: #4cc0ff;
+      --accent-emerald: #34d399;
+      --accent-amber: #fbbf24;
       --accent-red: #c72730;
       --gradient: linear-gradient(135deg, #66e0ff 0%, #7c5dff 50%, #ff6b9c 100%);
       --gradient-red: linear-gradient(135deg, #c72730 0%, #9e1a22 100%);
       --panel-radius: 18px;
       --border: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(102, 224, 255, 0.25);
       --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
     }
     *, *::before, *::after { box-sizing: border-box; }
+    
+    /* Skip link for keyboard accessibility */
+    .skip-link {
+      position: absolute;
+      top: -60px;
+      left: 16px;
+      background: var(--accent);
+      color: #05070d;
+      padding: 10px 18px;
+      font-weight: 700;
+      border-radius: 8px;
+      z-index: 9999;
+      text-decoration: none;
+      transition: top 0.2s ease;
+    }
+    .skip-link:focus-visible {
+      top: 16px;
+      outline: 3px solid #fff;
+    }
+
     body {
       margin: 0;
       font-family: "IBM Plex Sans", "Space Grotesk", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -35,8 +60,9 @@
       padding: 60px 5vw 80px;
       line-height: 1.6;
     }
+
     header {
-      max-width: 980px;
+      max-width: 1020px;
       margin: 0 auto 60px;
       padding: 44px;
       background: var(--bg-panel);
@@ -72,7 +98,11 @@
       cursor: pointer;
       text-decoration: none;
       font-size: 0.95rem;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
     }
     .btn-primary {
       background: var(--gradient);
@@ -91,16 +121,28 @@
       color: var(--text);
     }
     .btn:hover { transform: translateY(-2px); }
-    section {
+
+    main {
       max-width: 1100px;
-      margin: 0 auto 60px;
+      margin: 0 auto;
+    }
+    section {
+      margin: 0 auto 64px;
     }
     h2 {
       font-family: "Space Grotesk", sans-serif;
       font-size: clamp(1.8rem, 3vw, 2.4rem);
+      margin-top: 0;
       margin-bottom: 24px;
       letter-spacing: -0.02em;
     }
+    h3 {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.35rem;
+      margin: 32px 0 14px;
+      color: var(--text);
+    }
+
     .card-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -123,7 +165,7 @@
       opacity: 0.8;
       pointer-events: none;
     }
-    .card h3 {
+    .card h3, .card h4 {
       font-family: "Space Grotesk", sans-serif;
       margin: 0 0 12px;
       font-size: 1.25rem;
@@ -140,6 +182,8 @@
       border-radius: 4px;
       color: var(--accent);
     }
+
+    /* Steps */
     .steps {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -168,6 +212,142 @@
     }
     .step h4 { margin: 0 0 10px; font-size: 1.1rem; }
     .step p { margin: 0; color: var(--text-muted); font-size: 0.92rem; }
+
+    /* SQL Code Blocks with Copy Button */
+    .code-card {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 24px;
+      overflow: hidden;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    }
+    .code-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 18px;
+      background: rgba(255, 255, 255, 0.04);
+      border-bottom: 1px solid var(--border);
+    }
+    .code-title {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .code-desc {
+      padding: 12px 18px 0;
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+    .copy-sql-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text);
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .copy-sql-btn:hover {
+      background: rgba(102, 224, 255, 0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .copy-sql-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .copy-sql-btn.copied {
+      background: rgba(52, 211, 153, 0.2);
+      border-color: var(--accent-emerald);
+      color: var(--accent-emerald);
+    }
+    pre {
+      margin: 0;
+      padding: 16px 18px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.88rem;
+      line-height: 1.6;
+      color: #e2e8f0;
+    }
+    pre code {
+      font-family: inherit;
+      color: inherit;
+    }
+
+    /* Schema Table */
+    .schema-table-container {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--bg-panel-strong);
+      margin: 20px 0;
+    }
+    .schema-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.92rem;
+    }
+    .schema-table caption {
+      text-align: left;
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+    }
+    .schema-table th, .schema-table td {
+      padding: 12px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .schema-table th {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--accent);
+      font-weight: 600;
+      font-family: "Space Grotesk", sans-serif;
+    }
+    .schema-table tr:last-child td {
+      border-bottom: none;
+    }
+    .schema-table code {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.85em;
+      background: rgba(102, 224, 255, 0.1);
+      color: var(--accent);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .schema-table .type-tag {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+    }
+    .schema-table .type-tag.number { color: var(--accent-amber); background: rgba(251, 191, 36, 0.12); }
+    .schema-table .type-tag.string { color: var(--accent-emerald); background: rgba(52, 211, 153, 0.12); }
+    .schema-table .type-tag.datetime { color: var(--accent); background: rgba(102, 224, 255, 0.12); }
+
     .split {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -200,10 +380,10 @@
       background: rgba(5, 7, 12, 0.8);
       border: 1px solid var(--border);
     }
-    .faq-item h4 { margin: 0 0 8px; font-size: 1.1rem; color: var(--text); }
+    .faq-item h4 { margin: 0 0 8px; font-size: 1.15rem; color: var(--text); }
     .faq-item p { margin: 0; color: var(--text-muted); font-size: 0.95rem; }
     .notice {
-      max-width: 980px;
+      max-width: 1020px;
       margin: -20px auto 40px;
     }
     .notice-card {
@@ -217,196 +397,513 @@
       box-shadow: var(--shadow);
     }
     .notice-card strong { color: #ffb347; }
+    
     footer {
       text-align: center;
       color: var(--text-muted);
       font-size: 0.9rem;
       margin-top: 80px;
+      border-top: 1px solid var(--border);
+      padding-top: 32px;
     }
+
+    /* Live notification toast */
+    .toast-announcer {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--bg-panel-strong);
+      border: 1px solid var(--accent);
+      color: var(--text);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 10000;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(12px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .toast-announcer.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
     @media (max-width: 640px) {
       body { padding: 30px 5vw 50px; }
       header { padding: 26px; }
       .hero-actions { flex-direction: column; }
       .btn { width: 100%; justify-content: center; }
+      .schema-table th, .schema-table td { padding: 10px 12px; font-size: 0.85rem; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <p class="chip">Mobile-Optimized • Desktop Ready • Local-First Privacy</p>
+  <a href="#mainContent" class="skip-link">Skip to main content</a>
+
+  <header role="banner">
+    <p class="chip">Mobile-Optimized • Desktop Ready • In-Browser SQL Studio • Local-First Privacy</p>
     <h1>Träwelling Map Explorer</h1>
-    <p>Trace your train check-ins on a responsive map, rank travel companions, filter by date and transit mode, and export your routes to GeoJSON.</p>
-    <div class="hero-actions">
+    <p>Trace your train check-ins on a responsive map, rank travel companions, query trips with in-memory SQL, filter by buddy count, and export routes to GeoJSON.</p>
+    <nav class="hero-actions" aria-label="Quick links">
       <a class="btn btn-primary" href="./index.html">🚀 Launch Map Explorer</a>
-      <a class="btn btn-secondary" href="./trips.html">🗂️ Trip Database</a>
+      <a class="btn btn-secondary" href="./trips.html">🗂️ Trip Database &amp; Studio</a>
       <a class="btn btn-secondary" href="./wrapped.html">✨ Rail Wrapped</a>
       <a class="btn btn-oauth" href="./index.html">🚆 1-Click Träwelling Login</a>
       <a class="btn btn-secondary" href="https://traewelling.de/settings/security" target="_blank" rel="noopener">🔑 Personal API Token</a>
-    </div>
+    </nav>
   </header>
 
-  <section class="notice">
-    <div class="notice-card">
-      <p><strong>Heads up on upstream lines:</strong> Träwelling’s GeoJSON export endpoint is currently undergoing upstream maintenance (<a href="https://github.com/Traewelling/traewelling/issues/4312" target="_blank" rel="noopener" style="color: #ffb347;">issue #4312</a>). When polylines are missing from upstream check-ins, direct station connections are rendered.</p>
-      <p><strong>Rate Limits & Large Datasets:</strong> Map Explorer automatically throttles requests to adhere to Träwelling's 55 req/60s rate limit and uses local 90-day IndexedDB caching for near-instant reloads.</p>
-    </div>
-  </section>
+  <main id="mainContent">
+    <section class="notice" aria-label="Service advisory notice">
+      <div class="notice-card">
+        <p><strong>Heads up on upstream lines:</strong> Träwelling’s GeoJSON export endpoint is currently undergoing upstream maintenance (<a href="https://github.com/Traewelling/traewelling/issues/4312" target="_blank" rel="noopener" style="color: #ffb347;">issue #4312</a>). When polylines are missing from upstream check-ins, direct station connections are rendered.</p>
+        <p><strong>Rate Limits &amp; Large Datasets:</strong> Map Explorer automatically throttles requests to adhere to Träwelling's 55 req/60s rate limit and uses local 90-day IndexedDB caching for near-instant reloads.</p>
+      </div>
+    </section>
 
-  <section>
-    <h2>Getting Started</h2>
-    <div class="steps">
-      <div class="step">
-        <h4>1. Connect or Enter User</h4>
-        <p>Click <strong>Log in with Träwelling</strong> for instant 1-click OAuth authentication, or type any public username to start exploring without login.</p>
-      </div>
-      <div class="step">
-        <h4>2. Fetch & Cache Data</h4>
-        <p>Trips are fetched safely with live headroom meters. Once fetched, trips are stored locally in your browser's IndexedDB for 90 days.</p>
-      </div>
-      <div class="step">
-        <h4>3. Filter & Explore</h4>
-        <p>Slice your travel by companions, prefilled date ranges, train categories, or comments, and toggle the HeatMap overlay.</p>
-      </div>
-      <div class="step">
-        <h4>4. Export & Share</h4>
-        <p>Export your full or filtered map routes as GeoJSON files or copy directly to your clipboard for use in QGIS, uMap, or GIS tools.</p>
-      </div>
-    </div>
-  </section>
+    <!-- SECTION: Database Studio & Companion SQL Queries -->
+    <section id="database-studio" aria-labelledby="sql-studio-title">
+      <h2 id="sql-studio-title">🗄️ Database Studio: In-Memory SQL &amp; Buddy Queries</h2>
+      <p style="color: var(--text-muted); font-size: 1.05rem; margin-bottom: 24px;">
+        The <strong>Database Studio</strong> inside the <a href="./trips.html" style="color: var(--accent); text-decoration: underline;">Trip Database</a> executes queries 100% locally in your browser over your stored check-in dataset with sub-millisecond execution times. Both the <strong>Standard Explorer</strong> and <strong>Database Studio</strong> share the same rich 10-column table layout with expandable check-in notes, companion badges, and timetable telemetry.
+      </p>
 
-  <section>
-    <h2>Core Features</h2>
-    <div class="card-grid">
-      <article class="card">
-        <h3>🚆 1-Click Träwelling OAuth</h3>
-        <p>Authenticate securely using modern OAuth 2.0 with PKCE directly from your browser. Access your private check-ins and select any user profile to query.</p>
-      </article>
-      <article class="card">
-        <h3>👥 Travel Buddies Ranking</h3>
-        <p>View your top travel companions ranked by shared trips, extracted directly from official Träwelling API data (<code>bodyMentions</code> & <code>createdBy</code>). Tap any buddy to filter your map.</p>
-      </article>
-      <article class="card">
-        <h3>📅 Smart Date Boundary Filter</h3>
-        <p>The time filter automatically detects the exact first and last dates in your travel dataset upon load, with a single-click <strong>Reset Date Range</strong> button to restore full view.</p>
-      </article>
-      <article class="card">
-        <h3>📤 GeoJSON Route & Stopovers Export</h3>
-        <p>Export your travels as standardized GeoJSON. Export active filtered layers or your full trip database, with the option to fetch intermediate station stopovers (platforms, delay telemetry, and coordinates) or copy directly to clipboard.</p>
-      </article>
-      <article class="card">
-        <h3>🚉 Intermediate Stations & Stopovers</h3>
-        <p>Query Träwelling's <code>/v1/stopovers/{ids}</code> API to fetch complete station itineraries along train routes. Cached in IndexedDB to minimize network requests.</p>
-      </article>
-      <article class="card">
-        <h3>⚡ Instant 0ms Setup & Session Switcher</h3>
-        <p>Zero-delay synchronous cache in the setup menu. Instantaneously displays your recent Träwelling accounts and allows seamless profile switching or offline exploring.</p>
-      </article>
-      <article class="card">
-        <h3>🖼️ Photo & Video Lightbox Gallery</h3>
-        <p>Browse media attachments directly in check-in popups. Full-screen lightbox with mobile touch gestures, debounced image loading, and muted video playback.</p>
-      </article>
-      <article class="card">
-        <h3>🚦 Transport Layers & Taxi Support</h3>
-        <p>Toggle individual categories (ICE, IC/EC, Regional Express, Regional, S-Bahn, Bus, Tram, Subway, Taxi/Rideshare, Plane, Ferry) and drag-and-drop to reorder visual stacking.</p>
-      </article>
-      <article class="card">
-        <h3>🔥 HeatMap</h3>
-        <p>Visualise corridors of frequent travel with an interactive HeatMap overlay and optional wave animation mode.</p>
-      </article>
-      <article class="card">
-        <h3>💼 Trip Purpose Filter</h3>
-        <p>Filter check-ins by purpose tags recorded in Träwelling: <strong>Personal</strong>, <strong>Work</strong>, and <strong>Commute</strong>.</p>
-      </article>
-      <article class="card">
-        <h3>🔍 Search Notes & Comments</h3>
-        <p>Full-text search across your trip check-ins to find specific notes, companions, station stops, or train line names.</p>
-      </article>
-      <article class="card">
-        <h3>⚠️ Delay Highlights Overlay</h3>
-        <p>Identify your most delayed connections and examine punctuality metrics across your travel history.</p>
-      </article>
-      <article class="card">
-        <h3>🛤️ High-Res Railway Basemap</h3>
-        <p>Overlay detailed OpenRailwayMap tracks on top of Mapbox vector tiles for railway enthusiasts and spatial orientation.</p>
-      </article>
-      <article class="card">
-        <h3>⚡ 90-Day IndexedDB Cache</h3>
-        <p>Recent trips and session credentials are stored locally in your browser. Incremental updates fetch only new check-ins, dramatically reducing load times.</p>
-      </article>
-      <article class="card">
-        <h3>📱 Mobile & Desktop First</h3>
-        <p>Designed with tap-friendly controls, dark mode aesthetics, and responsive panels that adapt seamlessly from smartphones to 4K displays.</p>
-      </article>
-    </div>
-  </section>
+      <h3 id="buddy-queries-heading">👥 Filtering Check-ins by Number of Travel Buddies</h3>
+      <p style="color: var(--text-muted);">
+        Every journey record tracks companions from official <code>bodyMentions</code>, <code>buddies</code>, and inline <code>@username</code> check-in tags. You can filter trips by the exact or minimum number of companions using the numeric <code>buddy_count</code> column.
+      </p>
 
-  <section>
-    <h2>Data & Privacy Architecture</h2>
-    <div class="split">
-      <div class="card">
-        <h3>Zero Cloud Intermediaries</h3>
-        <p class="chip">Local-First Execution</p>
-        <ul class="list">
-          <li><strong>Direct API Calls:</strong> All data requests travel directly between your browser and <code>https://traewelling.de/api/v1</code>.</li>
-          <li><strong>No Backend Server:</strong> Träwelling Map Explorer runs 100% on static client-side JavaScript. No analytics, tracking, or proxy servers exist.</li>
-          <li><strong>PKCE Security:</strong> OAuth tokens are exchanged directly in the browser using PKCE without exposing client secrets.</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h3>Local Storage Management</h3>
-        <ul class="list">
-          <li><strong>Encrypted IndexedDB:</strong> Cached trips and tokens remain in your browser's private origin storage.</li>
-          <li><strong>Clear Cache:</strong> Tap 🧹 <strong>Clear Cached Data</strong> at any time to purge all stored accounts, tokens, and check-in records.</li>
-          <li><strong>Token Safety:</strong> Personal Access Tokens are stored only if you choose "Remember Token" and never leave your machine.</li>
-        </ul>
-        <p class="chip" style="margin-top: 14px;">Total Control Over Your Data</p>
-      </div>
-    </div>
-  </section>
+      <!-- Query 1: Filter Group Travel (2+ Buddies) -->
+      <article class="code-card">
+        <div class="code-card-header">
+          <span class="code-title">👥 Group Travel: 2 or More Travel Buddies</span>
+          <button type="button" class="copy-sql-btn" data-sql="SELECT line, origin, destination, buddies, buddy_count, departure FROM trips WHERE buddy_count >= 2 ORDER BY buddy_count DESC;" aria-label="Copy group travel query to clipboard">
+            📋 Copy SQL
+          </button>
+        </div>
+        <p class="code-desc">Finds all check-ins shared with two or more companions, sorted by the largest travel party first.</p>
+        <pre><code class="language-sql">SELECT line, origin, destination, buddies, buddy_count, departure
+FROM trips
+WHERE buddy_count &gt;= 2
+ORDER BY buddy_count DESC;</code></pre>
+      </article>
 
-  <section>
-    <h2>Quick Tips</h2>
-    <div class="card">
-      <h3>Power User Shortcuts</h3>
-      <div>
-        <span class="chip">Public profiles load immediately without login or token</span>
-        <span class="chip">Click any Travel Buddy in the sidebar to isolate joint journeys</span>
-        <span class="chip">Tap "Reset Date Range" to quickly snap back to your full history</span>
-        <span class="chip">Use "Export GeoJSON" to import your routes into uMap or QGIS</span>
-        <span class="chip">Tap "📋 Paste" on mobile to quickly insert Personal API Tokens</span>
-        <span class="chip">Filter slider toggles accuracy thresholds to clean up messy track geometry</span>
-      </div>
-    </div>
-  </section>
+      <!-- Query 2: Filter Trips with At Least One Buddy -->
+      <article class="code-card">
+        <div class="code-card-header">
+          <span class="code-title">🤝 Joint Journeys: At Least 1 Companion</span>
+          <button type="button" class="copy-sql-btn" data-sql="SELECT line, origin, destination, buddies, departure FROM trips WHERE buddy_count >= 1 ORDER BY departure DESC;" aria-label="Copy joint journeys query to clipboard">
+            📋 Copy SQL
+          </button>
+        </div>
+        <p class="code-desc">Returns all check-ins where you travelled with at least one companion (equivalent to <code>WHERE buddies IS NOT NULL</code>).</p>
+        <pre><code class="language-sql">SELECT line, origin, destination, buddies, departure
+FROM trips
+WHERE buddy_count &gt;= 1
+ORDER BY departure DESC;</code></pre>
+      </article>
 
-  <section>
-    <h2>Frequently Asked Questions</h2>
-    <div class="faq">
-      <div class="faq-item">
-        <h4>How does 1-Click Login work?</h4>
-        <p>It uses standard OAuth 2.0 Authorization Code Flow with PKCE. Clicking <strong>Log in with Träwelling</strong> opens Träwelling’s official authorization screen where you grant read-only permissions for check-ins and statistics. Träwelling redirects back with an authorization code that your browser exchanges directly for an access token.</p>
-      </div>
-      <div class="faq-item">
-        <h4>Can I explore someone else’s map while logged in?</h4>
-        <p>Yes! Once authenticated, your username is selected by default, but you can enter any public Träwelling username into the "User to explore" input to map their public journeys.</p>
-      </div>
-      <div class="faq-item">
-        <h4>How does Travel Buddy filtering work?</h4>
-        <p>Träwelling records companion data in official <code>bodyMentions</code> and <code>createdBy</code> API fields. The app tallies all journeys taken together and displays them in the 👥 Travel Buddies menu. Clicking a companion filters the map routes, heatmap, and trip statistics to only your journeys with that buddy.</p>
-      </div>
-      <div class="faq-item">
-        <h4>Can I export my trips to GIS or Google Earth?</h4>
-        <p>Yes! Click <strong>📤 Export GeoJSON</strong> in the Statistics panel or menu to download your active routes as standard GeoJSON or copy the GeoJSON string directly to your clipboard. You can import this into QGIS, uMap, Google Earth, or GeoJSON.io.</p>
-      </div>
-      <div class="faq-item">
-        <h4>Does caching sync between different devices?</h4>
-        <p>No. For privacy, caching is restricted to your current browser's local IndexedDB. If you switch devices or browsers, simply log in again or re-enter the username to fetch your data.</p>
-      </div>
-    </div>
-  </section>
+      <!-- Query 3: Filter Solo Journeys (Zero Companions) -->
+      <article class="code-card">
+        <div class="code-card-header">
+          <span class="code-title">🚶 Solo Rides: No Travel Buddies (Zero Count)</span>
+          <button type="button" class="copy-sql-btn" data-sql="SELECT line, origin, destination, distance_km, departure FROM trips WHERE buddy_count = 0 ORDER BY departure DESC;" aria-label="Copy solo rides query to clipboard">
+            📋 Copy SQL
+          </button>
+        </div>
+        <p class="code-desc">Isolates solo travels where no fellow passengers or buddies were tagged.</p>
+        <pre><code class="language-sql">SELECT line, origin, destination, distance_km, departure
+FROM trips
+WHERE buddy_count = 0
+ORDER BY departure DESC;</code></pre>
+      </article>
 
-  <footer>
+      <!-- Query 4: Filter by Exact Number of Buddies -->
+      <article class="code-card">
+        <div class="code-card-header">
+          <span class="code-title">👫 Duo Rides: Exactly 1 Travel Companion</span>
+          <button type="button" class="copy-sql-btn" data-sql="SELECT line, origin, destination, buddies, departure FROM trips WHERE buddy_count = 1 ORDER BY departure DESC;" aria-label="Copy duo rides query to clipboard">
+            📋 Copy SQL
+          </button>
+        </div>
+        <p class="code-desc">Isolates journeys where you travelled with exactly one specific travel partner.</p>
+        <pre><code class="language-sql">SELECT line, origin, destination, buddies, departure
+FROM trips
+WHERE buddy_count = 1
+ORDER BY departure DESC;</code></pre>
+      </article>
+
+      <!-- Query 5: Highspeed Trains with Companions -->
+      <article class="code-card">
+        <div class="code-card-header">
+          <span class="code-title">🚄 High-Speed Group Rides (ICE / TGV with 2+ Buddies)</span>
+          <button type="button" class="copy-sql-btn" data-sql="SELECT line, origin, destination, distance_km, buddies, buddy_count FROM trips WHERE category = 'nationalExpress' AND buddy_count >= 2 ORDER BY distance_km DESC;" aria-label="Copy high-speed group rides query to clipboard">
+            📋 Copy SQL
+          </button>
+        </div>
+        <p class="code-desc">Combines transport category filtering with companion counts to identify long-distance group excursions.</p>
+        <pre><code class="language-sql">SELECT line, origin, destination, distance_km, buddies, buddy_count
+FROM trips
+WHERE category = 'nationalExpress' AND buddy_count &gt;= 2
+ORDER BY distance_km DESC;</code></pre>
+      </article>
+
+      <!-- Query 6: Specific Buddy by Username -->
+      <article class="code-card">
+        <div class="code-card-header">
+          <span class="code-title">🔍 Journeys with a Specific Travel Partner</span>
+          <button type="button" class="copy-sql-btn" data-sql="SELECT line, origin, destination, buddies, departure FROM trips WHERE buddies LIKE '%Fabi%' ORDER BY departure DESC;" aria-label="Copy specific buddy search query to clipboard">
+            📋 Copy SQL
+          </button>
+        </div>
+        <p class="code-desc">Performs a pattern match across companions to isolate joint trips with a particular username (replace <code>Fabi</code> with your buddy's username).</p>
+        <pre><code class="language-sql">SELECT line, origin, destination, buddies, departure
+FROM trips
+WHERE buddies LIKE '%Fabi%'
+ORDER BY departure DESC;</code></pre>
+      </article>
+
+      <!-- Visual Query Builder Instructions -->
+      <div class="card" style="margin-top: 32px;">
+        <h3>🎛️ How to Filter by Buddy Count in the Visual Query Builder (No SQL Required)</h3>
+        <p style="margin-bottom: 14px;">If you prefer not to write raw SQL, you can use the interactive <strong>Visual Query Builder</strong> inside the Studio tab:</p>
+        <ol class="list">
+          <li>Open <a href="./trips.html" style="color: var(--accent); text-decoration: underline;">trips.html</a> and click <strong>⚡ Database Studio</strong>.</li>
+          <li>Ensure the <strong>🧩 Visual Query Builder</strong> tab is active.</li>
+          <li>Click <strong>➕ Add Condition</strong>.</li>
+          <li>In the column dropdown, select <strong>Buddy Count (buddy_count)</strong>.</li>
+          <li>In the operator dropdown, choose <strong>&gt;= greater than or equal</strong> (or <strong>= equals</strong>).</li>
+          <li>In the number input, type your desired number of companions (e.g. <code>2</code>).</li>
+          <li>Click <strong>▶ Run Query</strong>. The SQL will be generated and evaluated instantly, displaying matching trips with rich expandable rows.</li>
+        </ol>
+      </div>
+
+      <!-- Trips Schema Table Reference -->
+      <h3 style="margin-top: 40px;">📊 Trips Table Schema Reference</h3>
+      <p style="color: var(--text-muted);">You can query the <code>trips</code> table using any of the following 17 structured columns:</p>
+      
+      <div class="schema-table-container">
+        <table class="schema-table">
+          <caption>Available columns for SELECT and WHERE clauses in Database Studio</caption>
+          <thead>
+            <tr>
+              <th scope="col">Column</th>
+              <th scope="col">Type</th>
+              <th scope="col">Label</th>
+              <th scope="col">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>buddy_count</code></td>
+              <td><span class="type-tag number">number</span></td>
+              <td>Buddy Count</td>
+              <td>Number of fellow passengers / travel companions tagged in the check-in (0 for solo trips).</td>
+            </tr>
+            <tr>
+              <td><code>buddies</code></td>
+              <td><span class="type-tag string">string</span></td>
+              <td>Companions</td>
+              <td>Comma-separated list of companion usernames (e.g. <code>@Fabi, @Alex</code>) or <code>NULL</code>.</td>
+            </tr>
+            <tr>
+              <td><code>line</code></td>
+              <td><span class="type-tag string">string</span></td>
+              <td>Line</td>
+              <td>Train / transit line identifier (e.g. <code>ICE 702</code>, <code>RE 1</code>, <code>S9</code>).</td>
+            </tr>
+            <tr>
+              <td><code>category</code></td>
+              <td><span class="type-tag string">string</span></td>
+              <td>Category</td>
+              <td>Normalized category: <code>nationalExpress</code>, <code>national</code>, <code>regional</code>, <code>suburban</code>, <code>subway</code>, <code>tram</code>, <code>bus</code>, <code>ferry</code>.</td>
+            </tr>
+            <tr>
+              <td><code>origin</code></td>
+              <td><span class="type-tag string">string</span></td>
+              <td>Origin</td>
+              <td>Departure station name.</td>
+            </tr>
+            <tr>
+              <td><code>destination</code></td>
+              <td><span class="type-tag string">string</span></td>
+              <td>Destination</td>
+              <td>Arrival station name.</td>
+            </tr>
+            <tr>
+              <td><code>departure</code></td>
+              <td><span class="type-tag datetime">datetime</span></td>
+              <td>Departure</td>
+              <td>Scheduled departure ISO timestamp.</td>
+            </tr>
+            <tr>
+              <td><code>arrival</code></td>
+              <td><span class="type-tag datetime">datetime</span></td>
+              <td>Arrival</td>
+              <td>Scheduled arrival ISO timestamp.</td>
+            </tr>
+            <tr>
+              <td><code>year</code></td>
+              <td><span class="type-tag number">number</span></td>
+              <td>Year</td>
+              <td>Calendar year of departure (e.g. <code>2026</code>).</td>
+            </tr>
+            <tr>
+              <td><code>delay_dep</code></td>
+              <td><span class="type-tag number">number</span></td>
+              <td>Dep Delay (min)</td>
+              <td>Departure delay in minutes.</td>
+            </tr>
+            <tr>
+              <td><code>delay_arr</code></td>
+              <td><span class="type-tag number">number</span></td>
+              <td>Arr Delay (min)</td>
+              <td>Arrival delay in minutes.</td>
+            </tr>
+            <tr>
+              <td><code>distance_km</code></td>
+              <td><span class="type-tag number">number</span></td>
+              <td>Distance (km)</td>
+              <td>Total traveled journey distance in kilometers.</td>
+            </tr>
+            <tr>
+              <td><code>duration_min</code></td>
+              <td><span class="type-tag number">number</span></td>
+              <td>Duration (min)</td>
+              <td>Trip duration in minutes.</td>
+            </tr>
+            <tr>
+              <td><code>operator</code></td>
+              <td><span class="type-tag string">string</span></td>
+              <td>Operator</td>
+              <td>Railway company or transit provider (e.g. <code>DB Fernverkehr</code>).</td>
+            </tr>
+            <tr>
+              <td><code>business</code></td>
+              <td><span class="type-tag string">string</span></td>
+              <td>Purpose</td>
+              <td>Travel purpose type: <code>private</code>, <code>commute</code>, or <code>business</code>.</td>
+            </tr>
+            <tr>
+              <td><code>notes</code></td>
+              <td><span class="type-tag string">string</span></td>
+              <td>Notes</td>
+              <td>User's check-in message body or notes.</td>
+            </tr>
+            <tr>
+              <td><code>id</code></td>
+              <td><span class="type-tag number">number</span></td>
+              <td>ID</td>
+              <td>Unique Träwelling check-in status ID.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Getting Started -->
+    <section aria-labelledby="getting-started-title">
+      <h2 id="getting-started-title">Getting Started</h2>
+      <div class="steps">
+        <div class="step">
+          <h4>1. Connect or Enter User</h4>
+          <p>Click <strong>Log in with Träwelling</strong> for instant 1-click OAuth authentication, or type any public username to start exploring without login.</p>
+        </div>
+        <div class="step">
+          <h4>2. Fetch &amp; Cache Data</h4>
+          <p>Trips are fetched safely with live headroom meters. Once fetched, trips are stored locally in your browser's IndexedDB for 90 days.</p>
+        </div>
+        <div class="step">
+          <h4>3. Filter &amp; Explore</h4>
+          <p>Slice your travel by companions, prefilled date ranges, train categories, or comments, and toggle the HeatMap overlay.</p>
+        </div>
+        <div class="step">
+          <h4>4. Export &amp; Share</h4>
+          <p>Export your full or filtered map routes as GeoJSON files, or export queried datasets from Database Studio as CSV, JSON, or GeoJSON.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Core Features -->
+    <section aria-labelledby="core-features-title">
+      <h2 id="core-features-title">Core Features</h2>
+      <div class="card-grid">
+        <article class="card">
+          <h3>⚡ In-Browser Database Studio</h3>
+          <p>Full SQL query engine and Visual Query Builder directly in your browser. Filter check-ins with complex logic (<code>buddy_count</code>, delays, categories) with 0ms server latency.</p>
+        </article>
+        <article class="card">
+          <h3>🗂️ Interactive Trip Table</h3>
+          <p>Browse journeys with sortable columns, delay pills, category badges, and expandable cards showing scheduled vs. actual timetable times, platforms, and check-in comments.</p>
+        </article>
+        <article class="card">
+          <h3>👥 Travel Buddies Ranking</h3>
+          <p>View top companions ranked by shared journeys. Tap any companion chip in the map sidebar or expanded trip card to filter your history.</p>
+        </article>
+        <article class="card">
+          <h3>🚆 1-Click Träwelling OAuth</h3>
+          <p>Authenticate securely using modern OAuth 2.0 with PKCE directly from your browser. Access your private check-ins and select any user profile to query.</p>
+        </article>
+        <article class="card">
+          <h3>📅 Smart Date Boundary Filter</h3>
+          <p>The time filter automatically detects the exact first and last dates in your travel dataset upon load, with a single-click <strong>Reset Date Range</strong> button.</p>
+        </article>
+        <article class="card">
+          <h3>📤 GeoJSON Route &amp; Stopovers Export</h3>
+          <p>Export your travels as standardized GeoJSON. Export active filtered layers or your full trip database, with optional intermediate station stopovers.</p>
+        </article>
+        <article class="card">
+          <h3>🚉 Intermediate Stations &amp; Stopovers</h3>
+          <p>Query Träwelling's <code>/v1/stopovers/{ids}</code> API to fetch complete station itineraries along train routes, cached in IndexedDB.</p>
+        </article>
+        <article class="card">
+          <h3>🖼️ Photo &amp; Video Lightbox Gallery</h3>
+          <p>Browse media attachments directly in check-in popups. Full-screen lightbox with mobile touch gestures, debounced image loading, and video playback.</p>
+        </article>
+        <article class="card">
+          <h3>🚦 Transport Layers &amp; Taxi Support</h3>
+          <p>Toggle individual categories (ICE, IC/EC, Regional, S-Bahn, Bus, Tram, Subway, Taxi, Ferry) and reorder visual stacking.</p>
+        </article>
+        <article class="card">
+          <h3>🔥 HeatMap Density Layer</h3>
+          <p>Visualise corridors of frequent travel with an interactive HeatMap overlay and sleep-wake resilient wave animations.</p>
+        </article>
+        <article class="card">
+          <h3>💼 Trip Purpose Filter</h3>
+          <p>Filter check-ins by purpose tags recorded in Träwelling: <strong>Personal</strong>, <strong>Work</strong>, and <strong>Commute</strong>.</p>
+        </article>
+        <article class="card">
+          <h3>🔍 Search Notes &amp; Comments</h3>
+          <p>Full-text search across your trip check-ins to find specific notes, companions, station stops, or train line names.</p>
+        </article>
+        <article class="card">
+          <h3>⚠️ Delay Highlights Overlay</h3>
+          <p>Identify your most delayed connections and examine punctuality metrics across your travel history.</p>
+        </article>
+        <article class="card">
+          <h3>🛤️ High-Res Railway Basemap</h3>
+          <p>Overlay detailed OpenRailwayMap tracks on top of Mapbox vector tiles for railway enthusiasts and spatial orientation.</p>
+        </article>
+        <article class="card">
+          <h3>⚡ 90-Day IndexedDB Cache</h3>
+          <p>Recent trips and session credentials are stored locally in your browser. Incremental updates fetch only new check-ins, dramatically reducing load times.</p>
+        </article>
+        <article class="card">
+          <h3>📱 Mobile &amp; Desktop First</h3>
+          <p>Designed with tap-friendly controls, dark mode aesthetics, and responsive panels that adapt seamlessly from smartphones to 4K displays.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- Data & Privacy Architecture -->
+    <section aria-labelledby="privacy-title">
+      <h2 id="privacy-title">Data &amp; Privacy Architecture</h2>
+      <div class="split">
+        <div class="card">
+          <h3>Zero Cloud Intermediaries</h3>
+          <p class="chip">Local-First Execution</p>
+          <ul class="list">
+            <li><strong>Direct API Calls:</strong> All data requests travel directly between your browser and <code>https://traewelling.de/api/v1</code>.</li>
+            <li><strong>No Backend Server:</strong> Träwelling Map Explorer runs 100% on static client-side JavaScript. No analytics, tracking, or proxy servers exist.</li>
+            <li><strong>PKCE Security:</strong> OAuth tokens are exchanged directly in the browser using PKCE without exposing client secrets.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Local Storage Management</h3>
+          <ul class="list">
+            <li><strong>Encrypted IndexedDB:</strong> Cached trips and tokens remain in your browser's private origin storage.</li>
+            <li><strong>Clear Cache:</strong> Tap 🧹 <strong>Clear Cached Data</strong> at any time to purge all stored accounts, tokens, and check-in records.</li>
+            <li><strong>Token Safety:</strong> Personal Access Tokens are stored only if you choose "Remember Token" and never leave your machine.</li>
+          </ul>
+          <p class="chip" style="margin-top: 14px;">Total Control Over Your Data</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section aria-labelledby="faq-title">
+      <h2 id="faq-title">Frequently Asked Questions</h2>
+      <div class="faq">
+        <div class="faq-item">
+          <h4>How can I filter check-ins by the number of travel buddies?</h4>
+          <p>Go to <a href="./trips.html" style="color: var(--accent);">Trip Database</a> and open <strong>Database Studio</strong>. In the SQL Console, run <code>SELECT * FROM trips WHERE buddy_count &gt;= 2</code> to view group trips, or <code>SELECT * FROM trips WHERE buddy_count = 0</code> for solo rides. Alternatively, add a condition in the Visual Query Builder choosing <strong>Buddy Count</strong> with operator <strong>&gt;=</strong> or <strong>=</strong>.</p>
+        </div>
+        <div class="faq-item">
+          <h4>How does 1-Click Login work?</h4>
+          <p>It uses standard OAuth 2.0 Authorization Code Flow with PKCE. Clicking <strong>Log in with Träwelling</strong> opens Träwelling’s official authorization screen where you grant read-only permissions for check-ins and statistics. Träwelling redirects back with an authorization code that your browser exchanges directly for an access token.</p>
+        </div>
+        <div class="faq-item">
+          <h4>Can I explore someone else’s map while logged in?</h4>
+          <p>Yes! Once authenticated, your username is selected by default, but you can enter any public Träwelling username into the "User to explore" input to map their public journeys.</p>
+        </div>
+        <div class="faq-item">
+          <h4>How does Travel Buddy filtering work on the map?</h4>
+          <p>Träwelling records companion data in official <code>bodyMentions</code> and <code>createdBy</code> API fields. The app tallies all journeys taken together and displays them in the 👥 Travel Buddies menu. Clicking a companion filters the map routes, heatmap, and trip statistics to only your journeys with that buddy.</p>
+        </div>
+        <div class="faq-item">
+          <h4>Can I export my trips to GIS or Google Earth?</h4>
+          <p>Yes! Click <strong>📤 Export GeoJSON</strong> in the Statistics panel or menu to download your active routes as standard GeoJSON or copy the GeoJSON string directly to your clipboard. In Database Studio, you can also export queried datasets as CSV or JSON.</p>
+        </div>
+        <div class="faq-item">
+          <h4>Does caching sync between different devices?</h4>
+          <p>No. For privacy, caching is restricted to your current browser's local IndexedDB. If you switch devices or browsers, simply log in again or re-enter the username to fetch your data.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer role="contentinfo">
     Träwelling Map Explorer · Community Open Source Tool · Built for Träwelling travellers everywhere.
   </footer>
+
+  <!-- Live toast for copy notification -->
+  <div id="toastAnnouncer" class="toast-announcer" role="status" aria-live="polite"></div>
+
+  <script>
+    // Copy SQL snippet functionality adhering to modern web best practices
+    document.querySelectorAll('.copy-sql-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const sql = btn.getAttribute('data-sql');
+        if (!sql) return;
+
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(sql);
+          } else {
+            // Fallback for older environments
+            const textArea = document.createElement('textarea');
+            textArea.value = sql;
+            textArea.style.position = 'fixed';
+            textArea.style.opacity = '0';
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+          }
+
+          const originalText = btn.innerHTML;
+          btn.innerHTML = '✓ Copied!';
+          btn.classList.add('copied');
+
+          const toast = document.getElementById('toastAnnouncer');
+          if (toast) {
+            toast.textContent = 'SQL query copied to clipboard!';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+          }
+
+          setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.classList.remove('copied');
+          }, 2000);
+        } catch (err) {
+          console.error('Failed to copy SQL snippet:', err);
+        }
+      });
+    });
+  </script>
 </body>
 </html>

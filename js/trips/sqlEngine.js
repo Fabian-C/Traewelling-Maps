@@ -18,6 +18,7 @@ export const TRIP_COLUMNS = [
     { name: 'operator', label: 'Operator', type: 'string', description: 'Transport company / provider' },
     { name: 'business', label: 'Purpose', type: 'string', description: 'Travel purpose (private, business, commute)' },
     { name: 'buddies', label: 'Companions', type: 'string', description: 'Fellow passengers / buddies' },
+    { name: 'buddy_count', label: 'Buddy Count', type: 'number', description: 'Number of fellow passengers / buddies' },
     { name: 'notes', label: 'Notes', type: 'string', description: 'Check-in message body' }
 ];
 
@@ -25,6 +26,14 @@ export const QUERY_RECIPES = [
     {
         title: 'Top 10 Most Delayed Trips',
         sql: 'SELECT line, origin, destination, delay_dep, departure FROM trips WHERE delay_dep > 15 ORDER BY delay_dep DESC LIMIT 10'
+    },
+    {
+        title: 'Group Travel (2+ Travel Buddies)',
+        sql: 'SELECT line, origin, destination, buddies, buddy_count, departure FROM trips WHERE buddy_count >= 2 ORDER BY buddy_count DESC'
+    },
+    {
+        title: 'Solo Journeys (No Companions)',
+        sql: 'SELECT line, origin, destination, distance_km, departure FROM trips WHERE buddy_count = 0 ORDER BY departure DESC'
     },
     {
         title: 'High-Speed Long Distance (> 300 km)',
@@ -90,6 +99,7 @@ export function flattenTripRecord(trip) {
         if (matches) matches.forEach(m => addBuddy(m));
     }
     const buddiesStr = buddiesSet.size ? Array.from(buddiesSet).join(', ') : null;
+    const buddyCount = buddiesSet.size;
 
     const bType = getTripBusinessType(trip);
     const businessStr = bType === 1 ? 'business' : (bType === 2 ? 'commute' : 'private');
@@ -113,6 +123,8 @@ export function flattenTripRecord(trip) {
         operator: train.operator?.name || train.operator || 'Unknown',
         business: businessStr,
         buddies: buddiesStr,
+        buddy_count: buddyCount,
+        buddies_count: buddyCount,
         notes: trip.body || trip.properties?.body || null
     };
 }
