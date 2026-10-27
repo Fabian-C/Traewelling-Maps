@@ -814,24 +814,40 @@ function setupStudioEventListeners() {
             </div>
         `).join('') + `
             <div class="sql-ac-footer">
-                <span>↑/↓ to navigate • ↵ / Tab to apply • Esc to close</span>
-                <span>${currentACResult.items.length} suggestions</span>
+                <span>↑/↓ navigate • ↵ / Tab apply</span>
+                <button type="button" class="sql-ac-close-btn" aria-label="Dismiss suggestions">✕ Close</button>
             </div>
         `;
 
         acPopover.style.display = 'flex';
 
         acPopover.querySelectorAll('.sql-ac-item').forEach(itemEl => {
-            itemEl.addEventListener('mousedown', (e) => {
+            const handleSelect = (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 const idx = parseInt(itemEl.dataset.acIndex, 10);
                 applyAC(idx);
-            });
+            };
+            itemEl.addEventListener('pointerdown', handleSelect);
+            itemEl.addEventListener('click', handleSelect);
             itemEl.addEventListener('mouseenter', () => {
                 activeACIndex = parseInt(itemEl.dataset.acIndex, 10);
                 updateACActiveItem();
             });
         });
+
+        const closeBtn = acPopover.querySelector('.sql-ac-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                acPopover.style.display = 'none';
+            });
+            closeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                acPopover.style.display = 'none';
+            });
+        }
     }
 
     function updateACActiveItem() {
@@ -929,12 +945,29 @@ function setupStudioEventListeners() {
         chip.addEventListener('click', () => {
             const snippet = chip.dataset.insert;
             if (snippet && sqlInput) {
+                const currentVal = sqlInput.value.trim();
+                const hasFrom = /\bFROM\s+trips\b/i.test(currentVal);
                 if (snippet.startsWith('SELECT *')) {
                     sqlInput.value = snippet;
-                } else if (sqlInput.value.includes('WHERE')) {
-                    sqlInput.value += ` AND ${snippet.replace(/^WHERE /, '')}`;
+                } else if (!currentVal || !currentVal.toUpperCase().startsWith('SELECT')) {
+                    sqlInput.value = `SELECT * FROM trips ${snippet}`;
+                } else if (!hasFrom && snippet.startsWith('WHERE')) {
+                    sqlInput.value = `${currentVal} FROM trips ${snippet}`;
+                } else if (!hasFrom && snippet.startsWith('ORDER BY')) {
+                    sqlInput.value = `${currentVal} FROM trips ${snippet}`;
+                } else if (snippet.startsWith('WHERE') && currentVal.toUpperCase().includes('WHERE')) {
+                    const extraCond = snippet.replace(/^WHERE\s+/i, '');
+                    if (currentVal.toUpperCase().includes('ORDER BY')) {
+                        const parts = currentVal.split(/ORDER\s+BY/i);
+                        sqlInput.value = `${parts[0].trim()} AND ${extraCond} ORDER BY${parts[1]}`;
+                    } else {
+                        sqlInput.value = `${currentVal} AND ${extraCond}`;
+                    }
+                } else if (snippet.startsWith('ORDER BY') && currentVal.toUpperCase().includes('ORDER BY')) {
+                    const base = currentVal.replace(/ORDER\s+BY\s+.*$/i, '').trim();
+                    sqlInput.value = `${base} ${snippet}`;
                 } else {
-                    sqlInput.value += ` ${snippet}`;
+                    sqlInput.value = `${currentVal} ${snippet}`;
                 }
                 sqlInput.focus();
             }
@@ -1086,6 +1119,22 @@ window.runSqlQuery = runSqlQuery;
 window.executeTripQuery = executeTripQuery;
 window.visualFilterToSQL = visualFilterToSQL;
 
+const VISUAL_CATEGORY_OPTIONS = [
+    { value: 'highspeed', label: '🚄 High-Speed (ICE/TGV)' },
+    { value: 'regional', label: '🚆 Regional (RE/RB)' },
+    { value: 'suburban', label: '🚈 Suburban (S-Bahn)' },
+    { value: 'subway', label: '🚇 Subway (U-Bahn)' },
+    { value: 'tram', label: '🚊 Tram / Streetcar' },
+    { value: 'bus', label: '🚌 Bus' },
+    { value: 'ferry', label: '⛴️ Ferry' }
+];
+
+const VISUAL_BUSINESS_OPTIONS = [
+    { value: 'private', label: '🌴 Private / Leisure' },
+    { value: 'commute', label: '💼 Commute' },
+    { value: 'business', label: '👔 Business / Work' }
+];
+
 /**
  * Render visual filter rule rows
  */
@@ -1094,7 +1143,7 @@ function renderVisualRules() {
     if (!container) return;
 
     if (!visualRules.length) {
-        container.innerHTML = `<div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px;">No conditions set. All journeys match. Click <strong>+ Add Condition</strong> above.</div>`;
+        container.innerHTML = `<div class="visual-rules-empty">No conditions set. All journeys match. Click <strong>➕ Add Condition</strong> above.</div>`;
         return;
     }
 
@@ -1105,19 +1154,46 @@ function renderVisualRules() {
 
         const selectedCol = TRIP_COLUMNS.find(c => c.name === rule.column);
         const isNum = selectedCol?.type === 'number';
+        const isDate = selectedCol?.type === 'datetime';
+        const isCategory = rule.column === 'category';
+        const isBusiness = rule.column === 'business';
 
-        const operators = isNum
-            ? [
-                { id: 'equals', label: '=' },
-                { id: 'not_equals', label: '!=' },
-                { id: 'greater_than', label: '>' },
-                { id: 'less_than', label: '<' },
-                { id: 'greater_equal', label: '>=' },
-                { id: 'less_equal', label: '<=' },
+        let operators;
+        if (isNum) {
+            operators = [
+                { id: 'greater_than', label: '> greater than' },
+                { id: 'less_than', label: '< less than' },
+                { id: 'greater_equal', label: '>= at least' },
+                { id: 'less_equal', label: '<= at most' },
+                { id: 'equals', label: '= equals' },
+                { id: 'not_equals', label: '!= not equals' },
+                { id: 'is_empty', label: 'is empty (NULL)' },
+                { id: 'is_not_empty', label: 'is not empty' }
+            ];
+        } else if (isDate) {
+            operators = [
+                { id: 'after', label: '📅 on or after (>=)' },
+                { id: 'before', label: '📅 on or before (<=)' },
+                { id: 'equals', label: '= exact date' },
+                { id: 'is_empty', label: 'is empty (NULL)' },
+                { id: 'is_not_empty', label: 'is not empty' }
+            ];
+        } else if (isCategory) {
+            operators = [
+                { id: 'equals', label: 'is mode (=)' },
+                { id: 'not_equals', label: 'is not mode (!=)' },
                 { id: 'is_empty', label: 'is empty' },
                 { id: 'is_not_empty', label: 'is not empty' }
-            ]
-            : [
+            ];
+        } else if (isBusiness) {
+            operators = [
+                { id: 'equals', label: 'is purpose (=)' },
+                { id: 'not_equals', label: 'is not purpose (!=)' },
+                { id: 'is_empty', label: 'is empty' },
+                { id: 'is_not_empty', label: 'is not empty' }
+            ];
+        } else {
+            operators = [
                 { id: 'contains', label: 'contains' },
                 { id: 'starts_with', label: 'starts with' },
                 { id: 'equals', label: 'equals' },
@@ -1125,6 +1201,7 @@ function renderVisualRules() {
                 { id: 'is_empty', label: 'is empty' },
                 { id: 'is_not_empty', label: 'is not empty' }
             ];
+        }
 
         const opOptions = operators.map(o => `
             <option value="${o.id}" ${o.id === rule.operator ? 'selected' : ''}>${o.label}</option>
@@ -1132,12 +1209,41 @@ function renderVisualRules() {
 
         const hideValue = rule.operator === 'is_empty' || rule.operator === 'is_not_empty';
 
+        let valueControlHtml = '';
+        if (!hideValue) {
+            if (isCategory) {
+                const catOpts = VISUAL_CATEGORY_OPTIONS.map(c => `
+                    <option value="${c.value}" ${rule.value === c.value ? 'selected' : ''}>${c.label}</option>
+                `).join('');
+                valueControlHtml = `<select class="rule-select rule-val-element rule-val-select" aria-label="Select Category">${catOpts}</select>`;
+            } else if (isBusiness) {
+                const bizOpts = VISUAL_BUSINESS_OPTIONS.map(b => `
+                    <option value="${b.value}" ${rule.value === b.value ? 'selected' : ''}>${b.label}</option>
+                `).join('');
+                valueControlHtml = `<select class="rule-select rule-val-element rule-val-select" aria-label="Select Purpose">${bizOpts}</select>`;
+            } else if (isDate) {
+                valueControlHtml = `<input type="date" class="rule-input rule-val-element rule-val-date" value="${escapeHtml(rule.value || '')}" aria-label="Filter Date" placeholder="YYYY-MM-DD">`;
+            } else if (isNum) {
+                valueControlHtml = `<input type="number" class="rule-input rule-val-element" value="${escapeHtml(rule.value ?? '')}" placeholder="Value..." step="any" aria-label="Filter Number">`;
+            } else {
+                valueControlHtml = `<input type="text" class="rule-input rule-val-element" value="${escapeHtml(rule.value || '')}" placeholder="Value or text..." aria-label="Filter Text">`;
+            }
+        }
+
         return `
             <div class="visual-rule-row" data-rule-index="${idx}">
-                <select class="rule-select rule-col-select" aria-label="Select Column">${colOptions}</select>
-                <select class="rule-select rule-op-select" aria-label="Select Operator">${opOptions}</select>
-                ${hideValue ? '' : `<input type="${isNum ? 'number' : 'text'}" class="rule-input" value="${escapeHtml(rule.value || '')}" placeholder="Value..." aria-label="Rule Value">`}
-                <button type="button" class="rule-delete-btn" title="Remove condition" aria-label="Remove condition">✕</button>
+                <div class="rule-field-col">
+                    <select class="rule-select rule-col-select" aria-label="Select Column">${colOptions}</select>
+                </div>
+                <div class="rule-field-op">
+                    <select class="rule-select rule-op-select" aria-label="Select Operator">${opOptions}</select>
+                </div>
+                <div class="rule-field-val ${hideValue ? 'val-hidden' : ''}">
+                    ${valueControlHtml}
+                </div>
+                <div class="rule-field-del">
+                    <button type="button" class="rule-delete-btn" title="Remove condition" aria-label="Remove condition">✕</button>
+                </div>
             </div>
         `;
     }).join('');
@@ -1147,14 +1253,30 @@ function renderVisualRules() {
         const idx = parseInt(rowEl.dataset.ruleIndex, 10);
         const colSelect = rowEl.querySelector('.rule-col-select');
         const opSelect = rowEl.querySelector('.rule-op-select');
-        const valInput = rowEl.querySelector('.rule-input');
+        const valElem = rowEl.querySelector('.rule-val-element');
         const delBtn = rowEl.querySelector('.rule-delete-btn');
 
         if (colSelect) {
             colSelect.addEventListener('change', (e) => {
-                visualRules[idx].column = e.target.value;
-                const colDef = TRIP_COLUMNS.find(c => c.name === e.target.value);
-                visualRules[idx].operator = colDef?.type === 'number' ? 'greater_than' : 'contains';
+                const newCol = e.target.value;
+                visualRules[idx].column = newCol;
+                const colDef = TRIP_COLUMNS.find(c => c.name === newCol);
+                if (newCol === 'category') {
+                    visualRules[idx].operator = 'equals';
+                    visualRules[idx].value = 'highspeed';
+                } else if (newCol === 'business') {
+                    visualRules[idx].operator = 'equals';
+                    visualRules[idx].value = 'commute';
+                } else if (colDef?.type === 'datetime') {
+                    visualRules[idx].operator = 'after';
+                    visualRules[idx].value = '';
+                } else if (colDef?.type === 'number') {
+                    visualRules[idx].operator = 'greater_than';
+                    visualRules[idx].value = '';
+                } else {
+                    visualRules[idx].operator = 'contains';
+                    visualRules[idx].value = '';
+                }
                 renderVisualRules();
             });
         }
@@ -1164,9 +1286,17 @@ function renderVisualRules() {
                 renderVisualRules();
             });
         }
-        if (valInput) {
-            valInput.addEventListener('input', (e) => {
+        if (valElem) {
+            const handleValChange = (e) => {
                 visualRules[idx].value = e.target.value;
+            };
+            valElem.addEventListener('input', handleValChange);
+            valElem.addEventListener('change', handleValChange);
+            valElem.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('applyVisualRulesBtn')?.click();
+                }
             });
         }
         if (delBtn) {

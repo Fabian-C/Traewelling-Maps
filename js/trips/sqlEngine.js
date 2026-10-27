@@ -612,6 +612,12 @@ export function visualFilterToSQL(conditions = [], logicalMode = 'AND') {
         const { column, operator, value } = rule;
         if (!column || !operator) continue;
 
+        if (operator !== 'is_empty' && operator !== 'is_not_empty') {
+            if (value === undefined || value === null || String(value).trim() === '') {
+                continue;
+            }
+        }
+
         const colDef = TRIP_COLUMNS.find(c => c.name === column);
         const isNum = colDef?.type === 'number';
 
@@ -634,9 +640,11 @@ export function visualFilterToSQL(conditions = [], logicalMode = 'AND') {
             case 'less_than':
                 clauses.push(`${column} < ${isNum ? value : `'${value.replace(/'/g, "''")}'`}`);
                 break;
+            case 'after':
             case 'greater_equal':
                 clauses.push(`${column} >= ${isNum ? value : `'${value.replace(/'/g, "''")}'`}`);
                 break;
+            case 'before':
             case 'less_equal':
                 clauses.push(`${column} <= ${isNum ? value : `'${value.replace(/'/g, "''")}'`}`);
                 break;
