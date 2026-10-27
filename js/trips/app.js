@@ -2,7 +2,6 @@ import { SessionDB } from '../cache/session.js';
 import { tripsToGeoJSON } from '../export/geojson.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
 import { formatDelayMinutes, formatHumanDuration, formatTotalTime, calculateCO2Saved, formatSpeed, escapeHtml } from '../utils/format.js';
-import { openManualTripExportDialog } from '../export/manualTrip.js';
 import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
 import {
     TRIP_COLUMNS,
@@ -379,7 +378,12 @@ function setupEventListeners() {
     if (sortSelect) {
         sortSelect.addEventListener('change', (e) => {
             filterState.sortBy = e.target.value;
-            applyFiltersAndRender();
+            if (appMode === 'studio' && sqlQueryResult?.rawTrips) {
+                sortTrips(sqlQueryResult.rawTrips, filterState.sortBy);
+                renderResults();
+            } else {
+                applyFiltersAndRender();
+            }
         });
     }
 
@@ -432,23 +436,13 @@ function setupEventListeners() {
     if (nextPageBtn) {
         nextPageBtn.addEventListener('click', () => {
             const totalItems = (appMode === 'studio' && sqlQueryResult)
-                ? (sqlQueryResult.isSelectAll ? (sqlQueryResult.rawTrips?.length || 0) : sqlQueryResult.rows.length)
+                ? (sqlQueryResult.rawTrips?.length || sqlQueryResult.rows?.length || 0)
                 : filteredTrips.length;
             const maxPage = Math.ceil(totalItems / filterState.pageSize);
             if (filterState.page < maxPage) {
                 filterState.page++;
                 renderResults();
                 window.scrollTo({ top: 300, behavior: 'smooth' });
-            }
-        });
-    }
-
-    // Modal Export Manual Trip Button
-    const modalExportBtn = document.getElementById('modalExportManualBtn');
-    if (modalExportBtn) {
-        modalExportBtn.addEventListener('click', () => {
-            if (currentModalTrip) {
-                openManualTripExportDialog(currentModalTrip);
             }
         });
     }
@@ -1544,19 +1538,27 @@ function renderResults() {
     const nextBtn = document.getElementById('nextPageBtn');
 
     const isStudio = (appMode === 'studio' && Boolean(sqlQueryResult));
-    const isStudioCustom = (isStudio && !sqlQueryResult.isSelectAll);
-    let total = filteredTrips.length;
-    let pageItems = [];
+    const isScalarCount = isStudio && Boolean(sqlQueryResult) && sqlQueryResult.columns?.length === 1 && sqlQueryResult.columns[0]?.startsWith('COUNT(');
+
+    let total = 0;
+    let items = [];
 
     if (isStudio) {
         if (sqlQueryResult.error) {
+            items = [];
             total = 0;
-            pageItems = [];
-        } else if (sqlQueryResult.isSelectAll) {
-            total = (sqlQueryResult.rawTrips || []).length;
+        } else if (isScalarCount) {
+            items = sqlQueryResult.rows || [];
+            total = items.length;
         } else {
-            total = (sqlQueryResult.rows || []).length;
+            items = (sqlQueryResult.rawTrips && sqlQueryResult.rawTrips.length > 0)
+                ? sqlQueryResult.rawTrips
+                : (sqlQueryResult.rows || []).map(r => r._rawTrip || allTrips.find(t => String(t.id) === String(r.id)) || r);
+            total = items.length;
         }
+    } else {
+        items = filteredTrips;
+        total = items.length;
     }
 
     const totalPages = Math.max(1, Math.ceil(total / filterState.pageSize));
@@ -1564,18 +1566,7 @@ function renderResults() {
 
     const startIdx = (filterState.page - 1) * filterState.pageSize;
     const endIdx = Math.min(total, startIdx + filterState.pageSize);
-
-    if (isStudio) {
-        if (sqlQueryResult.error) {
-            pageItems = [];
-        } else if (sqlQueryResult.isSelectAll) {
-            pageItems = (sqlQueryResult.rawTrips || []).slice(startIdx, endIdx);
-        } else {
-            pageItems = (sqlQueryResult.rows || []).slice(startIdx, endIdx);
-        }
-    } else {
-        pageItems = filteredTrips.slice(startIdx, endIdx);
-    }
+    const pageItems = items.slice(startIdx, endIdx);
 
     if (countText) {
         if (isStudio && sqlQueryResult?.error) {
@@ -1594,14 +1585,10 @@ function renderResults() {
     // 1. Render Table
     const thead = document.querySelector('.trips-table thead');
     if (thead) {
-        if (isStudioCustom) {
+        if (isScalarCount) {
             thead.innerHTML = `
                 <tr>
-                    ${sqlQueryResult.columns.map(c => {
-                        const colDef = TRIP_COLUMNS.find(col => col.name === c);
-                        return `<th>${escapeHtml(colDef?.label || c)}</th>`;
-                    }).join('')}
-                    <th>Actions</th>
+                    <th style="text-align: center; padding: 14px 20px;">COUNT(*)</th>
                 </tr>
             `;
         } else {
@@ -1644,7 +1631,12 @@ function renderResults() {
                 const sortSelect = document.getElementById('sortSelect');
                 if (sortSelect) sortSelect.value = nextSort;
                 filterState.page = 1;
-                applyFiltersAndRender();
+                if (isStudio && sqlQueryResult?.rawTrips) {
+                    sortTrips(sqlQueryResult.rawTrips, nextSort);
+                    renderResults();
+                } else {
+                    applyFiltersAndRender();
+                }
             };
 
             thead.querySelectorAll('th.sortable').forEach(th => {
@@ -1666,7 +1658,7 @@ function renderResults() {
     const tbody = document.getElementById('tripsTableBody');
     if (tbody) {
         if (pageItems.length === 0) {
-            const colSpan = isStudioCustom ? (sqlQueryResult?.columns?.length || 1) + 1 : 10;
+            const colSpan = isScalarCount ? 1 : 10;
             const errorMsg = isStudio && sqlQueryResult?.error;
             tbody.innerHTML = `
                 <tr>
@@ -1696,54 +1688,17 @@ function renderResults() {
                     }
                 });
             }
-        } else if (isStudioCustom) {
-            tbody.innerHTML = pageItems.map(row => {
-                const cells = sqlQueryResult.columns.map(col => {
-                    const val = row[col];
-                    if (col === 'line') {
-                        return `<td data-label="${escapeHtml(col)}"><span class="line-badge ${row.category || 'regional'}">${escapeHtml(val || 'Train')}</span></td>`;
-                    }
-                    if (col === 'delay_dep' || col === 'delay_arr') {
-                        const min = Number(val) || 0;
-                        let delayPillClass = 'on-time';
-                        if (min > 30) delayPillClass = 'severe';
-                        else if (min > 15) delayPillClass = 'moderate';
-                        else if (min > 5) delayPillClass = 'minor';
-                        const text = min > 0 ? `+${min}m` : (min < 0 ? `${min}m` : 'On-time');
-                        return `<td data-label="${escapeHtml(col)}"><span class="delay-pill ${delayPillClass}">${text}</span></td>`;
-                    }
-                    if (col === 'distance_km') {
-                        return `<td data-label="${escapeHtml(col)}">${val} km</td>`;
-                    }
-                    if (col === 'duration_min') {
-                        const durStr = val > 0 ? `${Math.floor(val / 60)}h ${val % 60}m` : '—';
-                        return `<td data-label="${escapeHtml(col)}">${durStr}</td>`;
-                    }
-                    if (col === 'departure' || col === 'arrival') {
-                        const dateStr = val ? new Date(val).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
-                        const timeStr = val ? new Date(val).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '';
-                        return `<td data-label="${escapeHtml(col)}">${dateStr} <span style="color: var(--text-muted); font-size: 11px;">${timeStr}</span></td>`;
-                    }
-                    return `<td data-label="${escapeHtml(col)}">${val !== null && val !== undefined ? escapeHtml(val) : '—'}</td>`;
-                }).join('');
-
-                const hasRealTrip = row.id && allTrips.some(t => String(t.id) === String(row.id));
-
-                return `
-                    <tr data-trip-id="${row.id}">
-                        ${cells}
-                        <td data-label="Actions">
-                            ${hasRealTrip ? `
-                                <button type="button" class="nav-link-btn inspect-trip-btn" data-trip-id="${row.id}" style="padding: 4px 8px; font-size: 11px;">
-                                    🔍 Inspect
-                                </button>
-                            ` : '—'}
-                        </td>
-                    </tr>
-                `;
-            }).join('');
+        } else if (isScalarCount) {
+            tbody.innerHTML = pageItems.map(row => `
+                <tr>
+                    <td style="text-align: center; font-size: 28px; font-weight: 700; color: var(--accent-cyan); padding: 36px;">
+                        ${(row['COUNT(*)'] ?? 0).toLocaleString()}
+                    </td>
+                </tr>
+            `).join('');
         } else {
-            tbody.innerHTML = pageItems.map(trip => {
+            tbody.innerHTML = pageItems.map(item => {
+                const trip = item._rawTrip || (item.train || item.checkin ? item : allTrips.find(t => String(t.id) === String(item.id))) || item;
                 const train = trip.train || trip.checkin || {};
                 const cat = normalizeCategory(train.category || 'regional');
                 const lineName = train.lineName || train.number || train.name || 'Train';
@@ -1872,9 +1827,6 @@ function renderResults() {
                                     <a href="https://traewelling.de/status/${trip.id}" target="_blank" rel="noopener noreferrer" class="nav-link-btn" style="padding: 6px 14px; font-size: 12px;" onclick="event.stopPropagation()">
                                         🌐 Träwelling.de
                                     </a>
-                                    <button type="button" class="nav-link-btn export-manual-btn" data-trip-id="${trip.id}" style="padding: 6px 14px; font-size: 12px;">
-                                        📋 Export Checkin
-                                    </button>
                                 </div>
                             </div>
                         </td>
@@ -1890,7 +1842,8 @@ function renderResults() {
         if (pageItems.length === 0) {
             cardsGrid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-muted);">No journeys found matching your search.</div>`;
         } else {
-            cardsGrid.innerHTML = pageItems.map(trip => {
+            cardsGrid.innerHTML = pageItems.map(item => {
+                const trip = item._rawTrip || (item.train || item.checkin ? item : allTrips.find(t => String(t.id) === String(item.id))) || item;
                 const train = trip.train || trip.checkin || {};
                 const cat = normalizeCategory(train.category || 'regional');
                 const lineName = train.lineName || train.number || train.name || 'Train';
@@ -2019,16 +1972,6 @@ function renderResults() {
             const tripId = btn.dataset.tripId;
             const trip = allTrips.find(t => String(t.id) === String(tripId));
             if (trip) openTripDetailModal(trip);
-        });
-    });
-
-    // Attach manual export buttons
-    document.querySelectorAll('.export-manual-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const tripId = btn.dataset.tripId;
-            const trip = allTrips.find(t => String(t.id) === String(tripId));
-            if (trip) openManualTripExportDialog(trip);
         });
     });
 
