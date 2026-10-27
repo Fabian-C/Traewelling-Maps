@@ -130,8 +130,13 @@ export async function initTripExplorer() {
                         lineName: "Fäh 62",
                         totalDistance: 22590,
                         departureDelay: 120,
-                        origin: { name: "Hamburg Landungsbrücken", departureReal: "2022-04-16T16:50:00Z" },
-                        destination: { name: "Dockland", arrivalReal: "2022-04-16T17:15:00Z" }
+                        origin: { name: "Hamburg Landungsbrücken", departureReal: "2022-04-16T16:50:00Z", latitude: 53.546314, longitude: 9.970619 },
+                        destination: { name: "Dockland", arrivalReal: "2022-04-16T17:15:00Z", latitude: 53.543024, longitude: 9.935498 },
+                        polyline: {
+                            type: "Feature",
+                            geometry: { type: "LineString", coordinates: [[9.970619, 53.546314], [9.952236, 53.54395], [9.935498, 53.543024]] },
+                            properties: { statusId: 325374 }
+                        }
                     }
                 },
                 {
@@ -144,8 +149,13 @@ export async function initTripExplorer() {
                         lineName: "S9",
                         totalDistance: 14030,
                         departureDelay: 300,
-                        origin: { name: "Friedrichstraße", departureReal: "2026-10-11T18:46:00Z" },
-                        destination: { name: "Alexanderplatz", arrivalReal: "2026-10-11T18:58:00Z" }
+                        origin: { name: "Friedrichstraße", departureReal: "2026-10-11T18:46:00Z", latitude: 52.520424, longitude: 13.38635 },
+                        destination: { name: "Alexanderplatz", arrivalReal: "2026-10-11T18:58:00Z", latitude: 52.522, longitude: 13.411 },
+                        polyline: {
+                            type: "Feature",
+                            geometry: { type: "LineString", coordinates: [[13.38635, 52.520424], [13.400, 52.521], [13.411, 52.522]] },
+                            properties: { statusId: 9309802 }
+                        }
                     }
                 },
                 {
@@ -157,8 +167,16 @@ export async function initTripExplorer() {
                         lineName: "RE 1",
                         totalDistance: 280000,
                         departureDelay: 1200,
-                        origin: { name: "Hamburg Hbf", departureReal: "2026-10-12T10:00:00Z" },
-                        destination: { name: "Berlin Hbf", arrivalReal: "2026-10-12T11:45:00Z" }
+                        origin: { name: "Hamburg Hbf", departureReal: "2026-10-12T10:00:00Z", latitude: 53.5533, longitude: 10.0069 },
+                        destination: { name: "Berlin Hbf", arrivalReal: "2026-10-12T11:45:00Z", latitude: 52.5255, longitude: 13.3695 },
+                        polyline: {
+                            type: "Feature",
+                            geometry: {
+                                type: "LineString",
+                                coordinates: [[10.0069, 53.5533], [13.3695, 52.5255]]
+                            },
+                            properties: { statusId: 8877665 }
+                        }
                     }
                 }
             ];
@@ -171,6 +189,9 @@ export async function initTripExplorer() {
                 timestamp: Date.now()
             };
             allSessions.unshift(activeSession);
+            try {
+                await SessionDB.save(activeSession.username, activeSession.trips, { displayName: activeSession.displayName });
+            } catch (e) {}
         }
     }
 

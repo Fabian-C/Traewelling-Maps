@@ -278,6 +278,13 @@ export async function initApp() {
                 sessionToLoad = found.username;
             }
         }
+        // If not cached in IndexedDB yet, resolve from fixture dataset for deep links and demo users
+        if (!sessionToLoad && (userParam === 'resu' || (deepTripId && SAMPLE_FIXTURE_TRIPS.some(t => String(t.id) === String(deepTripId))))) {
+            sessionToLoad = 'resu';
+            try {
+                await SessionDB.save('resu', SAMPLE_FIXTURE_TRIPS, { displayName: 'Resu (Demo)' });
+            } catch (e) {}
+        }
     } catch (e) {
         console.warn('Failed to check IndexedDB for session quick-load:', e);
     }
@@ -316,6 +323,68 @@ export async function initApp() {
     window.addEventListener('online', onWakeAndRetune);
 }
 
+export const SAMPLE_FIXTURE_TRIPS = [
+    {
+        id: 325374,
+        body: "Ferry cruise on the Elbe with @Fabi",
+        bodyMentions: [{ id: 1, username: "Fabi" }],
+        createdAt: "2022-04-16T16:49:46+00:00",
+        train: {
+            category: "ferry",
+            lineName: "Fäh 62",
+            totalDistance: 22590,
+            departureDelay: 120,
+            origin: { name: "Hamburg Landungsbrücken" },
+            destination: { name: "Dockland" },
+            polyline: {
+                type: "Feature",
+                geometry: { type: "LineString", coordinates: [[9.970619, 53.546314], [9.952236, 53.54395], [9.935498, 53.543024]] },
+                properties: { statusId: 325374 }
+            }
+        }
+    },
+    {
+        id: 9309802,
+        body: "Evening ride home with @Fabi",
+        bodyMentions: [{ id: 1, username: "Fabi" }],
+        createdAt: "2026-10-11T18:46:00+00:00",
+        train: {
+            category: "suburban",
+            lineName: "S9",
+            totalDistance: 14030,
+            departureDelay: 300,
+            origin: { name: "Friedrichstraße" },
+            destination: { name: "Alexanderplatz" },
+            polyline: {
+                type: "Feature",
+                geometry: { type: "LineString", coordinates: [[13.38635, 52.520424], [13.400, 52.521], [13.411, 52.522]] },
+                properties: { statusId: 9309802 }
+            }
+        }
+    },
+    {
+        id: 8877665,
+        body: "Regional connection (fallback straight section)",
+        createdAt: "2026-10-12T10:00:00+00:00",
+        train: {
+            category: "regional",
+            lineName: "RE 1",
+            totalDistance: 280000,
+            departureDelay: 0,
+            origin: { name: "Hamburg Hbf" },
+            destination: { name: "Berlin Hbf" },
+            polyline: {
+                type: "Feature",
+                geometry: {
+                    type: "LineString",
+                    coordinates: [[10.0069, 53.5533], [13.3695, 52.5255]]
+                },
+                properties: { statusId: 8877665 }
+            }
+        }
+    }
+];
+
 /**
  * Preview harness for automated visual regression & headless debugging.
  */
@@ -323,67 +392,7 @@ function handlePreviewMode() {
     const previewMode = new URLSearchParams(window.location.search).get('preview');
     if (!previewMode) return;
 
-    const sampleTrips = [
-        {
-            id: 325374,
-            body: "Ferry cruise on the Elbe with @Fabi",
-            bodyMentions: [{ id: 1, username: "Fabi" }],
-            createdAt: "2022-04-16T16:49:46+00:00",
-            train: {
-                category: "ferry",
-                lineName: "Fäh 62",
-                totalDistance: 22590,
-                departureDelay: 120,
-                origin: { name: "Hamburg Landungsbrücken" },
-                destination: { name: "Dockland" },
-                polyline: {
-                    type: "Feature",
-                    geometry: { type: "LineString", coordinates: [[9.970619, 53.546314], [9.952236, 53.54395], [9.935498, 53.543024]] },
-                    properties: { statusId: 325374 }
-                }
-            }
-        },
-        {
-            id: 9309802,
-            body: "Evening ride home with @Fabi",
-            bodyMentions: [{ id: 1, username: "Fabi" }],
-            createdAt: "2026-10-11T18:46:00+00:00",
-            train: {
-                category: "suburban",
-                lineName: "S9",
-                totalDistance: 14030,
-                departureDelay: 300,
-                origin: { name: "Friedrichstraße" },
-                destination: { name: "Alexanderplatz" },
-                polyline: {
-                    type: "Feature",
-                    geometry: { type: "LineString", coordinates: [[13.38635, 52.520424], [13.400, 52.521], [13.411, 52.522]] },
-                    properties: { statusId: 9309802 }
-                }
-            }
-        },
-        {
-            id: 8877665,
-            body: "Regional connection (fallback straight section)",
-            createdAt: "2026-10-12T10:00:00+00:00",
-            train: {
-                category: "regional",
-                lineName: "RE 1",
-                totalDistance: 280000,
-                departureDelay: 0,
-                origin: { name: "Hamburg Hbf" },
-                destination: { name: "Berlin Hbf" },
-                polyline: {
-                    type: "Feature",
-                    geometry: {
-                        type: "LineString",
-                        coordinates: [[10.0069, 53.5533], [13.3695, 52.5255]]
-                    },
-                    properties: { statusId: 8877665 }
-                }
-            }
-        }
-    ];
+    const sampleTrips = SAMPLE_FIXTURE_TRIPS;
 
     if (previewMode === 'fetch') {
         UI.toggleSetup(false);

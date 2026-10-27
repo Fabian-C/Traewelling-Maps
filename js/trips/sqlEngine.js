@@ -148,6 +148,7 @@ function tokenize(sql) {
         // Single or double quote strings
         if (char === "'" || char === '"') {
             const quote = char;
+            const startPos = i;
             let str = '';
             i++;
             while (i < len && sql[i] !== quote) {
@@ -158,6 +159,9 @@ function tokenize(sql) {
                     str += sql[i];
                 }
                 i++;
+            }
+            if (i >= len || sql[i] !== quote) {
+                throw new Error(`Unclosed string literal starting at position ${startPos}: missing closing ${quote}`);
             }
             i++; // skip closing quote
             tokens.push({ type: 'STRING', value: str });

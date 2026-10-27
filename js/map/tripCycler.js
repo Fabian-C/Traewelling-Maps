@@ -8,9 +8,15 @@ import { normalizeCategory } from '../data/processing.js';
  * Focus and highlight a trip on the map, opening its popup with identical fidelity to a normal map click
  * @param {Object} trip 
  */
-export function focusTripOnMap(trip) {
+export function focusTripOnMap(trip, retryCount = 0) {
     const state = store.get();
-    if (!state.map || !trip) return;
+    if (!trip) return;
+    if (!state.map) {
+        if (retryCount < 25) {
+            setTimeout(() => focusTripOnMap(trip, retryCount + 1), 200);
+        }
+        return;
+    }
 
     // 1. Resolve real rendered GeoJSON feature from map layers if available
     let targetFeature = null;
@@ -42,7 +48,14 @@ export function focusTripOnMap(trip) {
         }
     }
 
-    if (!targetLngLat) return;
+    if (!targetLngLat) {
+        if (state.map?.getCenter) {
+            const center = state.map.getCenter();
+            targetLngLat = [center.lng, center.lat];
+        } else {
+            return;
+        }
+    }
 
     // 2. Build complete feature fallback if not found directly in rendered layer
     if (!targetFeature) {

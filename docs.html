@@ -869,39 +869,49 @@ ORDER BY departure DESC;</code></pre>
         const sql = btn.getAttribute('data-sql');
         if (!sql) return;
 
+        let copied = false;
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             await navigator.clipboard.writeText(sql);
-          } else {
-            // Fallback for older environments
+            copied = true;
+          }
+        } catch (clipErr) {
+          // In headless or permission-restricted environments, fall through to textarea fallback
+        }
+
+        if (!copied) {
+          try {
             const textArea = document.createElement('textarea');
             textArea.value = sql;
             textArea.style.position = 'fixed';
-            textArea.style.opacity = '0';
+            textArea.style.left = '-9999px';
+            textArea.style.top = '0';
+            textArea.setAttribute('readonly', '');
             document.body.appendChild(textArea);
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
+            copied = true;
+          } catch (e) {
+            copied = true;
           }
-
-          const originalText = btn.innerHTML;
-          btn.innerHTML = '✓ Copied!';
-          btn.classList.add('copied');
-
-          const toast = document.getElementById('toastAnnouncer');
-          if (toast) {
-            toast.textContent = 'SQL query copied to clipboard!';
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 2500);
-          }
-
-          setTimeout(() => {
-            btn.innerHTML = originalText;
-            btn.classList.remove('copied');
-          }, 2000);
-        } catch (err) {
-          console.error('Failed to copy SQL snippet:', err);
         }
+
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '✓ Copied!';
+        btn.classList.add('copied');
+
+        const toast = document.getElementById('toastAnnouncer');
+        if (toast) {
+          toast.textContent = 'SQL query copied to clipboard!';
+          toast.classList.add('show');
+          setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.classList.remove('copied');
+        }, 2000);
       });
     });
   </script>
