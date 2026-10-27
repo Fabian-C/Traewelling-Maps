@@ -12,7 +12,6 @@ import { updateRouteDensity } from './heatmap.js';
 import { escapeHtml } from '../utils/format.js';
 import { CATEGORY_NAMES } from './layers.js';
 import { normalizeCategory, extractTripTags, getTripSearchMatchReason } from '../data/processing.js';
-import { openManualTripExportDialog } from '../export/manualTrip.js';
 
 export function initMap() {
     const state = store.get();
@@ -167,7 +166,7 @@ function queryLayersNearPoint(point, layers, tolerance = 10) {
     }
 }
 
-function measureFeatureDistance(feature, lngLat, clickPoint = null) {
+export function measureFeatureDistance(feature, lngLat, clickPoint = null) {
     if (!feature) return Infinity;
     const state = store.get();
     const geom = feature.geometry;
@@ -778,7 +777,6 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
         ${tagsDetails}
         <div class="popup-actions">
             ${shareUrl ? `<a class="primary" href="${shareUrl}" target="_blank">View on Träwelling</a>` : ''}
-            <button type="button" class="popup-manual-export-btn" id="popupExportManualBtn" title="Export as manual checkin template with CSV importer & time shifter">🛠️ Export Template</button>
         </div>
     </div>`;
 
@@ -857,14 +855,6 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
                     e.preventDefault();
                     toggleHandler(e);
                 }
-            });
-        }
-
-        const exportManualBtn = popupEl.querySelector('#popupExportManualBtn');
-        if (exportManualBtn) {
-            exportManualBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openManualTripExportDialog(feature);
             });
         }
     }

@@ -935,7 +935,8 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
         updateDelayOverlaySummary();
     }
 
-    const deepTripId = new URLSearchParams(window.location.search).get('trip');
+    const urlParams = new URLSearchParams(window.location.search);
+    const deepTripId = urlParams.get('id') || urlParams.get('trip') || urlParams.get('statusId') || urlParams.get('status');
     if (deepTripId && Array.isArray(state.fetchedTrips)) {
         const foundTrip = state.fetchedTrips.find(t => String(t.id) === String(deepTripId));
         if (foundTrip) {

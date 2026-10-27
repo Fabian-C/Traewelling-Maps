@@ -95,21 +95,31 @@ export function updateStatistics(data, category, statisticsObj) {
 
 export function refreshStatsDisplay(statisticsObj) {
     if (!statisticsObj) return;
-    document.getElementById('statTrips').textContent = statisticsObj.trips;
-    document.getElementById('statDistance').textContent = Math.round(statisticsObj.distance / 1000 * 100) / 100 + ' km';
 
-    const mostLine = Object.entries(statisticsObj.lineCounts).sort((a,b) => b[1]-a[1])[0];
-    document.getElementById('statLine').textContent = mostLine ? mostLine[0] : '-';
+    const setTxt = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+    };
+    const setHtml = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = val;
+    };
 
-    const mostType = Object.entries(statisticsObj.typeCounts).sort((a,b) => b[1]-a[1])[0];
-    document.getElementById('statType').textContent = mostType ? mostType[0] : '-';
+    setTxt('statTrips', statisticsObj.trips ?? 0);
+    setTxt('statDistance', (Math.round((statisticsObj.distance || 0) / 1000 * 100) / 100) + ' km');
+
+    const mostLine = Object.entries(statisticsObj.lineCounts || {}).sort((a,b) => b[1]-a[1])[0];
+    setTxt('statLine', mostLine ? mostLine[0] : '-');
+
+    const mostType = Object.entries(statisticsObj.typeCounts || {}).sort((a,b) => b[1]-a[1])[0];
+    setTxt('statType', mostType ? mostType[0] : '-');
 
     const oldest = statisticsObj.oldestDate;
     const newest = statisticsObj.newestDate;
-    document.getElementById('statOldestDate').innerHTML = oldest && statisticsObj.oldestStatusId
-        ? `<a href="https://traewelling.de/status/${statisticsObj.oldestStatusId}" target="_blank" class="stat-link popup-link">${oldest.toLocaleDateString('de-DE')}</a>` : '-';
-    document.getElementById('statNewestDate').innerHTML = newest && statisticsObj.newestStatusId
-        ? `<a href="https://traewelling.de/status/${statisticsObj.newestStatusId}" target="_blank" class="stat-link popup-link">${newest.toLocaleDateString('de-DE')}</a>` : '-';
+    setHtml('statOldestDate', oldest && statisticsObj.oldestStatusId
+        ? `<a href="https://traewelling.de/status/${statisticsObj.oldestStatusId}" target="_blank" class="stat-link popup-link">${oldest.toLocaleDateString('de-DE')}</a>` : '-');
+    setHtml('statNewestDate', newest && statisticsObj.newestStatusId
+        ? `<a href="https://traewelling.de/status/${statisticsObj.newestStatusId}" target="_blank" class="stat-link popup-link">${newest.toLocaleDateString('de-DE')}</a>` : '-');
 
     // Favorite travel buddy in Stats panel
     const buddiesItem = document.getElementById('statBuddiesItem');

@@ -181,8 +181,11 @@
                     <div class="sql-editor-toolbar">
                         <span class="sql-editor-title">Query Editor (Target: <code>trips</code>)</span>
                         <span class="sql-editor-hint">Press <strong>Ctrl+Enter</strong> / <strong>Cmd+Enter</strong> to execute</span>
+                    <div class="sql-textarea-wrapper">
+                        <textarea id="sqlQueryInput" class="sql-editor-textarea" spellcheck="false" rows="4" aria-label="SQL Query Input" placeholder="SELECT line, origin, destination, distance_km, delay_dep FROM trips WHERE delay_dep > 15 ORDER BY delay_dep DESC LIMIT 50"></textarea>
+                        <!-- Interactive Autocomplete & Recommendations Popover -->
+                        <div id="sqlAutocompletePopover" class="sql-autocomplete-popover" style="display: none;" role="listbox" aria-label="SQL Autocomplete Suggestions"></div>
                     </div>
-                    <textarea id="sqlQueryInput" class="sql-editor-textarea" spellcheck="false" rows="4" aria-label="SQL Query Input" placeholder="SELECT line, origin, destination, distance_km, delay_dep FROM trips WHERE delay_dep > 15 ORDER BY delay_dep DESC LIMIT 50"></textarea>
                     
                     <div class="sql-editor-footer">
                         <div class="sql-chips-reference">

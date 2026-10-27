@@ -13,6 +13,7 @@ import {
     downloadWrappedCard,
     shareWrappedCard
 } from './socialCard.js';
+import { escapeHtml } from '../utils/format.js';
 
 let allSessions = [];
 let activeSession = null;
@@ -615,12 +616,3 @@ function showEmptyState() {
     }
 }
 
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}

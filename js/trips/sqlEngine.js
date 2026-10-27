@@ -82,7 +82,7 @@ export function flattenTripRecord(trip) {
         delay_dep: Math.round(depDelaySec / 60),
         delay_arr: Math.round(arrDelaySec / 60),
         distance_km: train.totalDistance ? Math.round((train.totalDistance / 1000) * 10) / 10 : 0,
-        duration_min: computeTripDurationMinutes(origin, dest) || 0,
+        duration_min: computeTripDurationMinutes(train) || 0,
         operator: train.operator?.name || train.operator || 'Unknown',
         business: getTripBusinessType(trip),
         buddies: buddiesList.length ? buddiesList.join(', ') : null,

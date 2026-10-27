@@ -1,7 +1,7 @@
 import { SessionDB } from '../cache/session.js';
 import { tripsToGeoJSON } from '../export/geojson.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
-import { formatDelayMinutes, formatHumanDuration, formatTotalTime, calculateCO2Saved, formatSpeed } from '../utils/format.js';
+import { formatDelayMinutes, formatHumanDuration, formatTotalTime, calculateCO2Saved, formatSpeed, escapeHtml } from '../utils/format.js';
 import { openManualTripExportDialog } from '../export/manualTrip.js';
 import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
 import {
@@ -12,6 +12,7 @@ import {
     visualFilterToSQL,
     exportRowsToCSV
 } from './sqlEngine.js';
+import { getSQLCompletions } from './sqlAutocomplete.js';
 
 let allSessions = [];
 let activeSession = null;
@@ -97,24 +98,80 @@ export async function initTripExplorer() {
         } catch (e) {}
     }
 
-    // Fixture fallback for testing/previews
-    if ((!activeSession || !activeSession.trips?.length) && fixtureUrl) {
-        try {
-            const res = await fetch(fixtureUrl);
-            const trips = await res.json();
-            if (Array.isArray(trips) && trips.length > 0) {
-                const u = requestedUser || 'hash';
-                activeSession = {
-                    username: u,
-                    displayName: u.charAt(0).toUpperCase() + u.slice(1),
-                    trips: trips,
-                    tripCount: trips.length,
-                    timestamp: Date.now()
-                };
-                allSessions.unshift(activeSession);
+    // Fixture / Preview fallback for testing/previews
+    const previewParam = urlParams.get('preview');
+    if ((!activeSession || !activeSession.trips?.length)) {
+        if (fixtureUrl) {
+            try {
+                const res = await fetch(fixtureUrl);
+                const trips = await res.json();
+                if (Array.isArray(trips) && trips.length > 0) {
+                    const u = (requestedUser || 'resu').replace(/^@/, '');
+                    activeSession = {
+                        username: u,
+                        displayName: u.charAt(0).toUpperCase() + u.slice(1),
+                        trips: trips,
+                        tripCount: trips.length,
+                        timestamp: Date.now()
+                    };
+                    allSessions.unshift(activeSession);
+                }
+            } catch (err) {
+                console.warn('Failed to load fixture in trips explorer:', err);
             }
-        } catch (err) {
-            console.warn('Failed to load fixture in trips explorer:', err);
+        } else if (previewParam) {
+            const sampleTrips = [
+                {
+                    id: 325374,
+                    body: "Ferry cruise on the Elbe with @Fabi",
+                    bodyMentions: [{ id: 1, username: "Fabi" }],
+                    createdAt: "2022-04-16T16:49:46+00:00",
+                    train: {
+                        category: "ferry",
+                        lineName: "Fäh 62",
+                        totalDistance: 22590,
+                        departureDelay: 120,
+                        origin: { name: "Hamburg Landungsbrücken", departureReal: "2022-04-16T16:50:00Z" },
+                        destination: { name: "Dockland", arrivalReal: "2022-04-16T17:15:00Z" }
+                    }
+                },
+                {
+                    id: 9309802,
+                    body: "Evening ride home with @Fabi",
+                    bodyMentions: [{ id: 1, username: "Fabi" }],
+                    createdAt: "2026-10-11T18:46:00+00:00",
+                    train: {
+                        category: "suburban",
+                        lineName: "S9",
+                        totalDistance: 14030,
+                        departureDelay: 300,
+                        origin: { name: "Friedrichstraße", departureReal: "2026-10-11T18:46:00Z" },
+                        destination: { name: "Alexanderplatz", arrivalReal: "2026-10-11T18:58:00Z" }
+                    }
+                },
+                {
+                    id: 8877665,
+                    body: "Regional connection Hamburg to Berlin",
+                    createdAt: "2026-10-12T10:00:00+00:00",
+                    train: {
+                        category: "regional",
+                        lineName: "RE 1",
+                        totalDistance: 280000,
+                        departureDelay: 1200,
+                        origin: { name: "Hamburg Hbf", departureReal: "2026-10-12T10:00:00Z" },
+                        destination: { name: "Berlin Hbf", arrivalReal: "2026-10-12T11:45:00Z" }
+                    }
+                }
+            ];
+            const u = (requestedUser || 'resu').replace(/^@/, '');
+            activeSession = {
+                username: u,
+                displayName: u.charAt(0).toUpperCase() + u.slice(1),
+                trips: sampleTrips,
+                tripCount: sampleTrips.length,
+                timestamp: Date.now()
+            };
+            allSessions.unshift(activeSession);
         }
     }
 
@@ -639,19 +696,145 @@ function setupStudioEventListeners() {
         });
     }
 
-    // 4. SQL Console Run and Keyboard Shortcut
+    // 4. SQL Console Run, Autocomplete, and Keyboard Navigation
     const runSqlBtn = document.getElementById('runSqlQueryBtn');
     const sqlInput = document.getElementById('sqlQueryInput');
+    const acPopover = document.getElementById('sqlAutocompletePopover');
+    let activeACIndex = 0;
+    let currentACResult = null;
+
+    function renderAC() {
+        if (!sqlInput || !acPopover) return;
+        const val = sqlInput.value;
+        const cursorPos = sqlInput.selectionStart || 0;
+        currentACResult = getSQLCompletions(val, cursorPos);
+
+        if (!currentACResult.items || currentACResult.items.length === 0) {
+            acPopover.style.display = 'none';
+            return;
+        }
+
+        if (activeACIndex >= currentACResult.items.length) {
+            activeACIndex = 0;
+        }
+
+        acPopover.innerHTML = currentACResult.items.map((item, idx) => `
+            <div class="sql-ac-item ${idx === activeACIndex ? 'active' : ''}" data-ac-index="${idx}" role="option" aria-selected="${idx === activeACIndex}">
+                <div class="sql-ac-left">
+                    <span class="sql-ac-badge ${item.type}">${item.type === 'keyword' ? 'KW' : (item.type === 'column' ? 'COL' : (item.type === 'value' ? 'VAL' : (item.type === 'table' ? 'TBL' : 'REC')))}</span>
+                    <span class="sql-ac-label">${escapeHtml(item.label)}</span>
+                </div>
+                <div class="sql-ac-detail">${escapeHtml(item.detail || '')}</div>
+            </div>
+        `).join('') + `
+            <div class="sql-ac-footer">
+                <span>↑/↓ to navigate • ↵ / Tab to apply • Esc to close</span>
+                <span>${currentACResult.items.length} suggestions</span>
+            </div>
+        `;
+
+        acPopover.style.display = 'flex';
+
+        acPopover.querySelectorAll('.sql-ac-item').forEach(itemEl => {
+            itemEl.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                const idx = parseInt(itemEl.dataset.acIndex, 10);
+                applyAC(idx);
+            });
+            itemEl.addEventListener('mouseenter', () => {
+                activeACIndex = parseInt(itemEl.dataset.acIndex, 10);
+                updateACActiveItem();
+            });
+        });
+    }
+
+    function updateACActiveItem() {
+        if (!acPopover) return;
+        acPopover.querySelectorAll('.sql-ac-item').forEach((el, idx) => {
+            el.classList.toggle('active', idx === activeACIndex);
+            el.setAttribute('aria-selected', idx === activeACIndex ? 'true' : 'false');
+        });
+    }
+
+    function applyAC(index) {
+        if (!currentACResult || !currentACResult.items[index]) return;
+        const item = currentACResult.items[index];
+        const val = sqlInput.value;
+        const tokenStart = currentACResult.tokenStart;
+        const tokenEnd = tokenStart + currentACResult.token.length;
+
+        const before = val.slice(0, tokenStart);
+        const after = val.slice(tokenEnd);
+        const insert = item.insertText;
+
+        sqlInput.value = before + insert + after;
+        const newCursor = tokenStart + insert.length;
+        sqlInput.selectionStart = newCursor;
+        sqlInput.selectionEnd = newCursor;
+        sqlInput.focus();
+
+        acPopover.style.display = 'none';
+        currentACResult = null;
+        activeACIndex = 0;
+    }
+
     if (runSqlBtn && sqlInput) {
         runSqlBtn.addEventListener('click', () => {
+            if (acPopover) acPopover.style.display = 'none';
             runSqlQuery(sqlInput.value);
         });
 
+        sqlInput.addEventListener('input', () => {
+            renderAC();
+        });
+
         sqlInput.addEventListener('keydown', (e) => {
+            // Ctrl+Enter or Cmd+Enter to execute query
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
+                if (acPopover) acPopover.style.display = 'none';
                 runSqlQuery(sqlInput.value);
+                return;
             }
+
+            // Ctrl+Space to force open suggestions
+            if ((e.ctrlKey || e.metaKey) && e.key === ' ') {
+                e.preventDefault();
+                renderAC();
+                return;
+            }
+
+            // If autocomplete popover is open
+            if (acPopover && acPopover.style.display !== 'none' && currentACResult && currentACResult.items.length > 0) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    activeACIndex = (activeACIndex + 1) % currentACResult.items.length;
+                    updateACActiveItem();
+                    return;
+                }
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    activeACIndex = (activeACIndex - 1 + currentACResult.items.length) % currentACResult.items.length;
+                    updateACActiveItem();
+                    return;
+                }
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                    e.preventDefault();
+                    applyAC(activeACIndex);
+                    return;
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    acPopover.style.display = 'none';
+                    return;
+                }
+            }
+        });
+
+        sqlInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                if (acPopover) acPopover.style.display = 'none';
+            }, 200);
         });
     }
 
@@ -1497,12 +1680,3 @@ function showEmptyState() {
     }
 }
 
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}

@@ -50,29 +50,73 @@ export async function initWrapped() {
         } catch (e) {}
     }
 
-    // Fixture fallback for testing / previews
-    if (allSessions.length === 0 && fixtureUrl) {
-        try {
-            const res = await fetch(fixtureUrl);
-            const trips = await res.json();
-            if (Array.isArray(trips) && trips.length > 0) {
-                const u = requestedUser || 'resu';
-                allSessions = [{
-                    username: u,
-                    displayName: u.charAt(0).toUpperCase() + u.slice(1),
-                    trips: trips,
-                    tripCount: trips.length,
-                    timestamp: Date.now()
-                }];
+    // Fixture / Preview fallback for testing / previews
+    const previewParam = urlParams.get('preview');
+    if (allSessions.length === 0) {
+        if (fixtureUrl) {
+            try {
+                const res = await fetch(fixtureUrl);
+                const trips = await res.json();
+                if (Array.isArray(trips) && trips.length > 0) {
+                    const u = (requestedUser || 'resu').replace(/^@/, '');
+                    allSessions = [{
+                        username: u,
+                        displayName: u.charAt(0).toUpperCase() + u.slice(1),
+                        trips: trips,
+                        tripCount: trips.length,
+                        timestamp: Date.now()
+                    }];
+                }
+            } catch (err) {
+                console.warn('Failed to load fixture data:', err);
             }
-        } catch (err) {
-            console.warn('Failed to load fixture data:', err);
+        } else if (previewParam) {
+            const u = (requestedUser || 'resu').replace(/^@/, '');
+            allSessions = [{
+                username: u,
+                displayName: u.charAt(0).toUpperCase() + u.slice(1),
+                trips: [
+                    {
+                        id: 325374,
+                        body: "Ferry cruise on the Elbe with @Fabi",
+                        bodyMentions: [{ id: 1, username: "Fabi" }],
+                        createdAt: "2022-04-16T16:49:46+00:00",
+                        train: {
+                            category: "ferry",
+                            lineName: "Fäh 62",
+                            totalDistance: 22590,
+                            departureDelay: 120,
+                            origin: { name: "Hamburg Landungsbrücken", departureReal: "2022-04-16T16:50:00Z" },
+                            destination: { name: "Dockland", arrivalReal: "2022-04-16T17:15:00Z" }
+                        }
+                    },
+                    {
+                        id: 9309802,
+                        body: "Evening ride home with @Fabi",
+                        bodyMentions: [{ id: 1, username: "Fabi" }],
+                        createdAt: "2026-10-11T18:46:00+00:00",
+                        train: {
+                            category: "suburban",
+                            lineName: "S9",
+                            totalDistance: 14030,
+                            departureDelay: 300,
+                            origin: { name: "Friedrichstraße", departureReal: "2026-10-11T18:46:00Z" },
+                            destination: { name: "Alexanderplatz", arrivalReal: "2026-10-11T18:58:00Z" }
+                        }
+                    }
+                ],
+                tripCount: 2,
+                timestamp: Date.now()
+            }];
         }
     }
 
+    const normUser = u => (u || '').toLowerCase().replace(/^@/, '').trim();
+
     if (allSessions.length > 0) {
         if (requestedUser) {
-            activeSession = allSessions.find(s => s.username?.toLowerCase() === requestedUser) || allSessions[0];
+            const targetUser = normUser(requestedUser);
+            activeSession = allSessions.find(s => normUser(s.username) === targetUser) || allSessions[0];
         } else {
             activeSession = allSessions[0];
         }
@@ -92,12 +136,14 @@ export async function initWrapped() {
 }
 
 function setupEventListeners() {
+    const normUser = u => (u || '').toLowerCase().replace(/^@/, '').trim();
+
     // Profile Switcher
     const profileSelect = document.getElementById('profileSelect');
     if (profileSelect) {
         profileSelect.addEventListener('change', (e) => {
-            const user = (e.target.value || '').toLowerCase().trim();
-            const found = allSessions.find(s => s.username?.toLowerCase() === user);
+            const user = normUser(e.target.value);
+            const found = allSessions.find(s => normUser(s.username) === user);
             if (found) {
                 activeSession = found;
                 activeYear = 'all';
@@ -115,8 +161,8 @@ function setupEventListeners() {
             const isActive = container.classList.toggle('active');
             duelToggleBtn.classList.toggle('active', isActive);
             if (isActive && !duelOpponentSession && allSessions.length > 1) {
-                const currentLower = (activeSession?.username || '').toLowerCase();
-                duelOpponentSession = allSessions.find(s => s.username?.toLowerCase() !== currentLower) || allSessions[1];
+                const currentNorm = normUser(activeSession?.username);
+                duelOpponentSession = allSessions.find(s => normUser(s.username) !== currentNorm) || allSessions[1];
                 renderDuelSection();
             }
         });
@@ -126,8 +172,8 @@ function setupEventListeners() {
     const duelSelect = document.getElementById('duelOpponentSelect');
     if (duelSelect) {
         duelSelect.addEventListener('change', (e) => {
-            const user = (e.target.value || '').toLowerCase().trim();
-            duelOpponentSession = allSessions.find(s => s.username?.toLowerCase() === user);
+            const user = normUser(e.target.value);
+            duelOpponentSession = allSessions.find(s => normUser(s.username) === user);
             renderDuelSection();
         });
     }
@@ -240,8 +286,9 @@ function renderProfileDropdown() {
         return;
     }
 
+    const normUser = u => (u || '').toLowerCase().replace(/^@/, '').trim();
     profileSelect.innerHTML = allSessions.map(s => {
-        const selected = (activeSession && s.username?.toLowerCase() === activeSession.username?.toLowerCase()) ? 'selected' : '';
+        const selected = (activeSession && normUser(s.username) === normUser(activeSession.username)) ? 'selected' : '';
         const name = s.displayName ? `${s.displayName} (@${s.username})` : `@${s.username}`;
         return `<option value="${s.username}" ${selected}>${name}</option>`;
     }).join('');

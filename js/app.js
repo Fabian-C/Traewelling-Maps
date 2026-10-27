@@ -358,52 +358,35 @@ function handlePreviewMode() {
     } else {
         const setupEl = document.getElementById('setupScreen');
         if (setupEl) setupEl.classList.add('hidden');
-        const menuEl = document.getElementById('mainMenu');
-        if (menuEl) menuEl.style.display = '';
 
-        const state = store.get();
-        state.username = 'hash';
-        state.fetchedTrips = sampleTrips;
-        state.activeTrips = sampleTrips;
+        import('./fetch/orchestrator.js').then(async ({ processAndDisplayData }) => {
+            await processAndDisplayData(sampleTrips, true);
 
-        const categories = dataProcessing.processTripsToGeoJSON(sampleTrips);
-        state.layers.order.forEach(layerId => {
-            const cfg = CONFIG.LAYER_CONFIG.find(([id]) => id === layerId);
-            const colorVal = cfg ? cfg[1] : '#888888';
-            const data = categories[layerId] || { type: 'FeatureCollection', features: [] };
-            state.layers.data.set(layerId, {
-                data,
-                color: colorVal,
-                visible: true
-            });
+            if (previewMode === 'layers') {
+                const m = document.getElementById('mainMenu');
+                if (m) { m.setAttribute('open', ''); m.open = true; }
+                const l = document.getElementById('transportLayersSubmenu');
+                if (l) { l.setAttribute('open', ''); l.open = true; }
+            } else if (previewMode === 'search') {
+                const m = document.getElementById('mainMenu');
+                if (m) { m.setAttribute('open', ''); m.open = true; }
+                const s = document.querySelectorAll('.menu-submenu');
+                s.forEach(el => { if (el.textContent.includes('Search Trips')) { el.setAttribute('open', ''); el.open = true; } });
+            } else if (previewMode === 'stats') {
+                const panel = document.getElementById('statsPanel');
+                if (panel) {
+                    panel.classList.add('active');
+                    panel.style.transition = 'none';
+                    panel.style.opacity = '1';
+                    document.body.classList.add('stats-open');
+                }
+                const m = document.getElementById('mainMenu');
+                if (m) {
+                    m.open = false;
+                    m.removeAttribute('open');
+                }
+            }
         });
-        loadLayers();
-        analytics.updateAllStatistics(sampleTrips);
-
-        if (previewMode === 'layers') {
-            const m = document.getElementById('mainMenu');
-            if (m) { m.setAttribute('open', ''); m.open = true; }
-            const l = document.getElementById('transportLayersSubmenu');
-            if (l) { l.setAttribute('open', ''); l.open = true; }
-        } else if (previewMode === 'search') {
-            const m = document.getElementById('mainMenu');
-            if (m) { m.setAttribute('open', ''); m.open = true; }
-            const s = document.querySelectorAll('.menu-submenu');
-            s.forEach(el => { if (el.textContent.includes('Search Trips')) { el.setAttribute('open', ''); el.open = true; } });
-        } else if (previewMode === 'stats') {
-            const panel = document.getElementById('statsPanel');
-            if (panel) {
-                panel.classList.add('active');
-                panel.style.transition = 'none';
-                panel.style.opacity = '1';
-                document.body.classList.add('stats-open');
-            }
-            const m = document.getElementById('mainMenu');
-            if (m) {
-                m.open = false;
-                m.removeAttribute('open');
-            }
-        }
     }
 }
 
