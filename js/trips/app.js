@@ -563,6 +563,88 @@ function populateYearPills(trips) {
 }
 
 /**
+ * Extract all travel companions / buddies from checkin metadata, mentions, and text
+ * @param {Object} trip - Raw journey / checkin record
+ * @param {string} currentUser - Current session username to exclude from buddies
+ * @returns {Array<{username: string, displayName: string}>}
+ */
+export function getTripBuddies(trip, currentUser = '') {
+    if (!trip) return [];
+    const buddies = new Map();
+    const currentClean = (currentUser || '').toLowerCase().trim();
+
+    const addBuddy = (u, display = '') => {
+        if (!u || typeof u !== 'string') return;
+        const clean = u.replace(/^@/, '').trim();
+        if (!clean) return;
+        const key = clean.toLowerCase();
+        if (currentClean && key === currentClean) return;
+        if (!buddies.has(key)) {
+            buddies.set(key, {
+                username: clean,
+                displayName: display || clean
+            });
+        }
+    };
+
+    // 1. Mentions array in bodyMentions or properties.bodyMentions
+    let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
+    if (typeof mentions === 'string') {
+        try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
+    }
+    if (Array.isArray(mentions)) {
+        mentions.forEach(m => {
+            if (typeof m === 'string') {
+                addBuddy(m);
+            } else if (m && typeof m === 'object') {
+                addBuddy(m.username || m.name, m.displayName || m.name || m.username);
+            }
+        });
+    }
+
+    // 2. Companions / buddies / fellowPassengers array
+    let companions = trip.companions || trip.properties?.companions || trip.buddies || trip.properties?.buddies || trip.fellowPassengers;
+    if (typeof companions === 'string') {
+        try { companions = JSON.parse(companions); } catch (e) { companions = []; }
+    }
+    if (Array.isArray(companions)) {
+        companions.forEach(c => {
+            if (typeof c === 'string') {
+                addBuddy(c);
+            } else if (c && typeof c === 'object') {
+                addBuddy(c.username || c.name, c.displayName || c.name || c.username);
+            }
+        });
+    }
+
+    // 3. Regex @mentions in body text
+    const body = trip.body || trip.properties?.body || '';
+    if (typeof body === 'string' && body.includes('@')) {
+        const matches = body.match(/@([a-zA-Z0-9_\-\.]+)/g);
+        if (matches) {
+            matches.forEach(m => addBuddy(m));
+        }
+    }
+
+    return Array.from(buddies.values());
+}
+window.getTripBuddies = getTripBuddies;
+
+/**
+ * Render comment/notes text safely with clickable @mention profile links
+ * @param {string} text
+ * @returns {string} Safe HTML string with linked @mentions
+ */
+export function renderLinkedComment(text) {
+    if (!text || typeof text !== 'string') return '';
+    const safe = escapeHtml(text);
+    return safe.replace(/@([a-zA-Z0-9_\-\.]+)/g, (match, username) => {
+        return `<a href="https://traewelling.de/profile/${encodeURIComponent(username)}" target="_blank" rel="noopener noreferrer" class="comment-mention-link" title="Open @${username} on Träwelling" onclick="event.stopPropagation()">@${username}</a>`;
+    });
+}
+window.renderLinkedComment = renderLinkedComment;
+
+/**
  * Populate Travel Buddy selector
  */
 function populateBuddyDropdown(trips) {
@@ -571,20 +653,11 @@ function populateBuddyDropdown(trips) {
 
     const buddyCounts = new Map();
     trips.forEach(t => {
-        const train = t.train || t.checkin || {};
-        let mentions = t.bodyMentions || t.properties?.bodyMentions;
-        if (typeof mentions === 'string') {
-            try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
-        }
-        if (Array.isArray(mentions)) {
-            mentions.forEach(m => {
-                const username = m.username || m.name || m;
-                if (typeof username === 'string' && username.trim()) {
-                    const clean = username.trim().toLowerCase();
-                    buddyCounts.set(clean, (buddyCounts.get(clean) || 0) + 1);
-                }
-            });
-        }
+        const buddies = getTripBuddies(t, activeSession?.username);
+        buddies.forEach(b => {
+            const clean = b.username.toLowerCase();
+            buddyCounts.set(clean, (buddyCounts.get(clean) || 0) + 1);
+        });
     });
 
     const sortedBuddies = Array.from(buddyCounts.entries()).sort((a, b) => b[1] - a[1]);
@@ -1160,15 +1233,8 @@ export function applyFiltersAndRender() {
 
         // 4. Companion Filter
         if (selectedBuddy !== 'all') {
-            let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
-            if (typeof mentions === 'string') {
-                try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
-            }
-            if (!Array.isArray(mentions)) return false;
-            const hasBuddy = mentions.some(m => {
-                const u = (m.username || m.name || m || '').toLowerCase();
-                return u === selectedBuddy;
-            });
+            const buddies = getTripBuddies(trip, activeSession?.username);
+            const hasBuddy = buddies.some(b => b.username.toLowerCase() === selectedBuddy.toLowerCase());
             if (!hasBuddy) return false;
         }
 
@@ -1192,13 +1258,9 @@ export function applyFiltersAndRender() {
             const tags = extractTripTags(trip.properties || {}).concat(extractTripTags({ tags: train.tags }));
             const tagsText = tags.map(t => `${t.key} ${t.value}`).join(' ').toLowerCase();
 
-            // Search mentions
-            let mentionsText = '';
-            let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
-            if (typeof mentions === 'string') try { mentions = JSON.parse(mentions); } catch (e) {}
-            if (Array.isArray(mentions)) {
-                mentionsText = mentions.map(m => m.username || m.name || m).join(' ').toLowerCase();
-            }
+            // Search mentions and buddies
+            const buddies = getTripBuddies(trip, activeSession?.username);
+            const buddiesText = buddies.map(b => `${b.username} ${b.displayName}`).join(' ').toLowerCase();
 
             const matched = line.includes(query) ||
                             origin.includes(query) ||
@@ -1206,7 +1268,7 @@ export function applyFiltersAndRender() {
                             body.includes(query) ||
                             operator.includes(query) ||
                             tagsText.includes(query) ||
-                            mentionsText.includes(query);
+                            buddiesText.includes(query);
             if (!matched) return false;
         }
 
@@ -1403,6 +1465,7 @@ function renderResults() {
         } else {
             thead.innerHTML = `
                 <tr>
+                    <th class="th-expand" aria-label="Expand checkin"></th>
                     <th class="sortable" data-sort="date">Departure</th>
                     <th>Line / Mode</th>
                     <th>Origin</th>
@@ -1420,7 +1483,7 @@ function renderResults() {
     const tbody = document.getElementById('tripsTableBody');
     if (tbody) {
         if (pageItems.length === 0) {
-            const colSpan = isStudioCustom ? (sqlQueryResult?.columns?.length || 1) + 1 : 9;
+            const colSpan = isStudioCustom ? (sqlQueryResult?.columns?.length || 1) + 1 : 10;
             const errorMsg = isStudio && sqlQueryResult?.error;
             tbody.innerHTML = `
                 <tr>
@@ -1523,15 +1586,35 @@ function renderResults() {
                 const dateStr = rawDate ? new Date(rawDate).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
                 const timeStr = rawDate ? new Date(rawDate).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '';
 
-                // Companions
-                let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
-                if (typeof mentions === 'string') try { mentions = JSON.parse(mentions); } catch (e) {}
-                const buddyStr = Array.isArray(mentions) && mentions.length > 0
-                    ? mentions.map(m => `@${escapeHtml(m.username || m.name || m)}`).join(', ')
-                    : '—';
+                // Buddies and Comment
+                const buddies = getTripBuddies(trip, activeSession?.username);
+                const bodyText = (trip.body || trip.properties?.body || '').trim();
+                const bType = getTripBusinessType(trip);
+                const purposeText = bType === 1 ? '💼 Work' : (bType === 2 ? '🚇 Commute' : '🌴 Leisure / Personal');
+
+                const originPlanned = train.origin?.departurePlanned ? formatTime(train.origin.departurePlanned) : '—';
+                const originReal = train.origin?.departureReal ? formatTime(train.origin.departureReal) : originPlanned;
+                const destPlanned = train.destination?.arrivalPlanned ? formatTime(train.destination.arrivalPlanned) : '—';
+                const destReal = train.destination?.arrivalReal ? formatTime(train.destination.arrivalReal) : destPlanned;
+
+                const originPlatform = train.origin?.departurePlatformReal || train.origin?.platform || '—';
+                const destPlatform = train.destination?.arrivalPlatformReal || train.destination?.platform || '—';
+                const operator = train.operator?.name || train.operator?.identifier || train.provider?.name || train.provider || '—';
+
+                const buddyBadgesHtml = buddies.length > 0
+                    ? `<div class="buddy-pills-list">${buddies.map(b => `
+                        <a href="https://traewelling.de/profile/${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" title="Open @${escapeHtml(b.username)} profile on Träwelling" onclick="event.stopPropagation()">
+                            <span class="buddy-badge-icon">👤</span>
+                            <span>@${escapeHtml(b.username)}</span>
+                        </a>
+                    `).join('')}</div>`
+                    : '<span style="color: var(--text-muted);">—</span>';
 
                 return `
-                    <tr data-trip-id="${trip.id}">
+                    <tr class="trip-row" data-trip-id="${trip.id}" id="tripRow-${trip.id}" title="Click row or arrow to expand comments &amp; details">
+                        <td class="expand-cell" onclick="event.stopPropagation()">
+                            <button type="button" class="expand-trip-btn" data-trip-id="${trip.id}" aria-label="Toggle details for trip ${trip.id}" aria-expanded="false" title="Click to view comments and details">▶</button>
+                        </td>
                         <td data-label="Departure">${dateStr} <span style="color: var(--text-muted); font-size: 11px;">${timeStr}</span></td>
                         <td data-label="Line"><span class="line-badge ${cat}">${escapeHtml(lineName)}</span></td>
                         <td data-label="Origin"><strong>${escapeHtml(origin)}</strong></td>
@@ -1539,11 +1622,78 @@ function renderResults() {
                         <td data-label="Distance">${distKm} km</td>
                         <td data-label="Duration">${durStr}</td>
                         <td data-label="Delay"><span class="delay-pill ${delayPillClass}">${delayText}</span></td>
-                        <td data-label="Companions" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;">${buddyStr}</td>
+                        <td data-label="Companions" style="max-width: 170px;">${buddyBadgesHtml}</td>
                         <td data-label="Actions">
                             <button type="button" class="nav-link-btn inspect-trip-btn" data-trip-id="${trip.id}" style="padding: 4px 8px; font-size: 11px;">
                                 🔍 Inspect
                             </button>
+                        </td>
+                    </tr>
+                    <tr class="trip-expand-row" id="expandRow-${trip.id}" style="display: none;">
+                        <td colspan="10" class="trip-expand-cell">
+                            <div class="expand-card-container">
+                                <div class="expand-comment-card ${bodyText ? '' : 'empty'}">
+                                    <span class="comment-icon">💬</span>
+                                    <div class="comment-body-text">
+                                        ${bodyText ? renderLinkedComment(bodyText) : '<em>No checkin note or comment was attached to this journey.</em>'}
+                                    </div>
+                                </div>
+                                ${buddies.length > 0 ? `
+                                    <div class="expand-buddies-row">
+                                        <span class="expand-buddies-label">👥 Travel Companions (${buddies.length}):</span>
+                                        <div class="expand-buddies-chips">
+                                            ${buddies.map(b => `
+                                                <div class="buddy-chip-wrapper">
+                                                    <a href="https://traewelling.de/profile/${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-link-pill" title="View @${escapeHtml(b.username)} on Träwelling" onclick="event.stopPropagation()">
+                                                        <span>👤 @${escapeHtml(b.username)}</span>
+                                                    </a>
+                                                    <button type="button" class="buddy-filter-btn" data-username="${escapeHtml(b.username.toLowerCase())}" title="Filter trips with @${escapeHtml(b.username)}">Filter</button>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                <div class="expand-details-grid">
+                                    <div class="expand-detail-item">
+                                        <span class="expand-detail-label">Schedule Departure</span>
+                                        <span class="expand-detail-value">${originPlanned} (Actual: ${originReal})</span>
+                                    </div>
+                                    <div class="expand-detail-item">
+                                        <span class="expand-detail-label">Schedule Arrival</span>
+                                        <span class="expand-detail-value">${destPlanned} (Actual: ${destReal})</span>
+                                    </div>
+                                    <div class="expand-detail-item">
+                                        <span class="expand-detail-label">Platform</span>
+                                        <span class="expand-detail-value">Dep: ${originPlatform} • Arr: ${destPlatform}</span>
+                                    </div>
+                                    <div class="expand-detail-item">
+                                        <span class="expand-detail-label">Operator</span>
+                                        <span class="expand-detail-value">${escapeHtml(operator)}</span>
+                                    </div>
+                                    <div class="expand-detail-item">
+                                        <span class="expand-detail-label">Punctuality</span>
+                                        <span class="expand-detail-value"><span class="delay-pill ${delayPillClass}">${delayText}</span></span>
+                                    </div>
+                                    <div class="expand-detail-item">
+                                        <span class="expand-detail-label">Purpose</span>
+                                        <span class="expand-detail-value">${purposeText}</span>
+                                    </div>
+                                </div>
+                                <div class="expand-actions-row">
+                                    <a href="index.html?user=${encodeURIComponent(activeSession?.username || '')}&trip=${trip.id}" class="nav-link-btn primary" style="padding: 6px 14px; font-size: 12px;">
+                                        🗺️ View on Map
+                                    </a>
+                                    <button type="button" class="nav-link-btn inspect-trip-btn" data-trip-id="${trip.id}" style="padding: 6px 14px; font-size: 12px;">
+                                        🔍 Full Details
+                                    </button>
+                                    <a href="https://traewelling.de/status/${trip.id}" target="_blank" rel="noopener noreferrer" class="nav-link-btn" style="padding: 6px 14px; font-size: 12px;" onclick="event.stopPropagation()">
+                                        🌐 Träwelling.de
+                                    </a>
+                                    <button type="button" class="nav-link-btn export-manual-btn" data-trip-id="${trip.id}" style="padding: 6px 14px; font-size: 12px;">
+                                        📋 Export Checkin
+                                    </button>
+                                </div>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -1581,6 +1731,9 @@ function renderResults() {
                 const rawDate = train.origin?.departureReal || train.origin?.departure || trip.createdAt;
                 const dateStr = rawDate ? new Date(rawDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
+                const buddies = getTripBuddies(trip, activeSession?.username);
+                const bodyText = (trip.body || trip.properties?.body || '').trim();
+
                 return `
                     <div class="trip-card" data-trip-id="${trip.id}">
                         <div class="trip-card-header">
@@ -1592,6 +1745,25 @@ function renderResults() {
                             <div class="trip-card-arrow">↓</div>
                             <div class="trip-card-station">🏁 ${escapeHtml(dest)}</div>
                         </div>
+                        ${bodyText ? `
+                            <div class="trip-card-comment" style="padding: 8px 12px; font-size: 12.5px; background: rgba(15, 23, 42, 0.6); border-radius: 6px; border-left: 2px solid var(--accent-primary); margin: 6px 0; color: var(--text-primary); line-height: 1.4;">
+                                <span style="font-size: 13px; margin-right: 4px;">💬</span>
+                                <span>${renderLinkedComment(bodyText)}</span>
+                            </div>
+                        ` : ''}
+                        ${buddies.length > 0 ? `
+                            <div class="trip-card-buddies" style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 4px 0;">
+                                <span style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">With:</span>
+                                <div class="buddy-pills-list">
+                                    ${buddies.map(b => `
+                                        <a href="https://traewelling.de/profile/${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" onclick="event.stopPropagation()">
+                                            <span class="buddy-badge-icon">👤</span>
+                                            <span>@${escapeHtml(b.username)}</span>
+                                        </a>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
                         <div class="trip-card-footer">
                             <span>${distKm} km · ${durStr}</span>
                             <span class="delay-pill ${delayPillClass}">${delayText}</span>
@@ -1602,12 +1774,102 @@ function renderResults() {
         }
     }
 
-    // Attach row/card click listeners to open detail modal
-    document.querySelectorAll('#tripsTableBody tr[data-trip-id], .trip-card[data-trip-id]').forEach(el => {
-        el.addEventListener('click', (e) => {
-            const tripId = el.dataset.tripId;
+    // Toggle row expansion helper
+    function toggleTripExpansion(tripId) {
+        const row = document.getElementById(`tripRow-${tripId}`);
+        const expandRow = document.getElementById(`expandRow-${tripId}`);
+        const btn = document.querySelector(`.expand-trip-btn[data-trip-id="${tripId}"]`);
+        if (!expandRow) return;
+
+        const isCurrentlyExpanded = expandRow.style.display !== 'none';
+        if (isCurrentlyExpanded) {
+            expandRow.style.display = 'none';
+            if (row) row.classList.remove('expanded');
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.textContent = '▶';
+            }
+        } else {
+            expandRow.style.display = 'table-row';
+            if (row) row.classList.add('expanded');
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'true');
+                btn.textContent = '▼';
+            }
+        }
+    }
+
+    // Attach expand button click listeners
+    document.querySelectorAll('.expand-trip-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const tripId = btn.dataset.tripId;
+            toggleTripExpansion(tripId);
+        });
+    });
+
+    // Attach row click listeners (expanding inline on click unless button/link clicked)
+    document.querySelectorAll('#tripsTableBody tr.trip-row').forEach(row => {
+        row.addEventListener('click', (e) => {
+            if (e.target.closest('a, button, input, select, .nav-link-btn, .expand-trip-btn')) {
+                return;
+            }
+            const tripId = row.dataset.tripId;
+            toggleTripExpansion(tripId);
+        });
+    });
+
+    // Attach card click listener to open modal
+    document.querySelectorAll('.trip-card[data-trip-id]').forEach(card => {
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('a, button')) return;
+            const tripId = card.dataset.tripId;
             const trip = allTrips.find(t => String(t.id) === String(tripId));
             if (trip) openTripDetailModal(trip);
+        });
+    });
+
+    // Attach inspect buttons (table & cards & expanded row)
+    document.querySelectorAll('.inspect-trip-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const tripId = btn.dataset.tripId;
+            const trip = allTrips.find(t => String(t.id) === String(tripId));
+            if (trip) openTripDetailModal(trip);
+        });
+    });
+
+    // Attach manual export buttons
+    document.querySelectorAll('.export-manual-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const tripId = btn.dataset.tripId;
+            const trip = allTrips.find(t => String(t.id) === String(tripId));
+            if (trip) openManualTripExportDialog(trip);
+        });
+    });
+
+    // Attach companion quick-filter buttons in expanded row
+    document.querySelectorAll('.buddy-filter-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const username = btn.dataset.username;
+            if (username) {
+                const buddySelect = document.getElementById('buddySelect');
+                if (buddySelect) {
+                    let option = Array.from(buddySelect.options).find(opt => opt.value.toLowerCase() === username.toLowerCase());
+                    if (!option) {
+                        option = document.createElement('option');
+                        option.value = username;
+                        option.textContent = `@${username}`;
+                        buddySelect.appendChild(option);
+                    }
+                    buddySelect.value = option.value;
+                }
+                filterState.selectedBuddy = username;
+                filterState.page = 1;
+                applyFiltersAndRender();
+            }
         });
     });
 }
@@ -1675,13 +1937,14 @@ export function openTripDetailModal(trip) {
     // Buddies
     const buddiesSec = document.getElementById('modalBuddiesSection');
     const buddiesList = document.getElementById('modalBuddiesList');
-    let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
-    if (typeof mentions === 'string') try { mentions = JSON.parse(mentions); } catch (e) {}
-    if (Array.isArray(mentions) && mentions.length > 0) {
+    const buddies = getTripBuddies(trip, activeSession?.username);
+    if (buddies.length > 0) {
         buddiesSec.style.display = 'block';
-        buddiesList.innerHTML = mentions.map(m => {
-            const u = m.username || m.name || m;
-            return `<a href="https://traewelling.de/@${escapeHtml(u)}" target="_blank" class="nav-link-btn" style="padding: 2px 8px; font-size: 11px;">@${escapeHtml(u)}</a>`;
+        buddiesList.innerHTML = buddies.map(b => {
+            return `<a href="https://traewelling.de/profile/${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 4px 10px; font-size: 12px;" title="Open @${escapeHtml(b.username)} profile on Träwelling">
+                <span class="buddy-badge-icon">👤</span>
+                <span>@${escapeHtml(b.username)}</span>
+            </a>`;
         }).join('');
     } else {
         buddiesSec.style.display = 'none';
@@ -1693,7 +1956,7 @@ export function openTripDetailModal(trip) {
     const body = trip.body || trip.properties?.body;
     if (body && body.trim()) {
         notesSec.style.display = 'block';
-        notesText.textContent = body.trim();
+        notesText.innerHTML = renderLinkedComment(body.trim());
     } else {
         notesSec.style.display = 'none';
     }

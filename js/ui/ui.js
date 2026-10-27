@@ -293,7 +293,7 @@ export const UI = {
         if (this.trainCarsCount >= targetLoaded) return Promise.resolve();
 
         const startTime = Date.now();
-        const maxWaitMs = 60000; // Allow ample time for natural animation pace
+        const maxWaitMs = 15000; // Allow ample time for natural animation pace without stalling sleeping tabs
 
         return new Promise(resolve => {
             const poll = () => {
@@ -307,6 +307,60 @@ export const UI = {
             };
             poll();
         });
+    },
+    retuneCargoAnimation() {
+        // 1. If currently fetching and wakeLock dropped during sleep, re-acquire it
+        if (!this.wakeLock && typeof this.acquireWakeLock === 'function') {
+            this.acquireWakeLock().catch(() => {});
+        }
+
+        // 2. Clear any stuck / stale crane timeouts from pre-sleep
+        if (Array.isArray(this._craneTimeouts)) {
+            this._craneTimeouts.forEach(id => clearTimeout(id));
+            this._craneTimeouts = [];
+        }
+
+        // 3. Reset crane animation lock if stalled
+        const gantry = this.refs?.gantry;
+        const hoist = this.refs?.gantryHoist;
+        const payload = this.refs?.gantryPayload;
+
+        if (this.craneAnimating) {
+            console.log('Retuning cargo animation after sleep/visibility change');
+            this.craneAnimating = false;
+        }
+
+        // 4. Restore crane gantry and hoist to safe idle position
+        if (gantry) {
+            gantry.classList.remove('at-depot');
+            gantry.classList.add('at-train');
+            gantry.style.left = '';
+            gantry.style.setProperty('--trolley-pos', '50%');
+        }
+        if (hoist) {
+            hoist.style.height = '12px';
+        }
+        if (payload) {
+            payload.classList.remove('visible');
+            payload.innerHTML = '';
+        }
+
+        // 5. Update animation speed and depot scroll
+        this._updateAnimSpeed();
+        this._updateDepotScroll();
+
+        // 6. If items remain in queue, kick queue processing smoothly
+        if (Array.isArray(this.loadQueue) && this.loadQueue.length > 0) {
+            requestAnimationFrame(() => {
+                this._processQueue();
+            });
+        }
+
+        // 7. Retune Solari board shuffle if active
+        if (this._solariTimer && this._solariTrips && this._solariTrips.length) {
+            clearInterval(this._solariTimer);
+            this.startSolariShuffle(this._solariTrips);
+        }
     },
     _processQueue() {
         if (this.craneAnimating || this.loadQueue.length === 0) return;
@@ -758,6 +812,7 @@ export const UI = {
     startSolariShuffle(trips = []) {
         if (this._solariTimer) clearInterval(this._solariTimer);
         const validTrips = Array.isArray(trips) ? trips.filter(t => t && t.train) : [];
+        this._solariTrips = validTrips;
         if (validTrips.length <= 1) return;
 
         // Randomly flip departure board rows with real station names, varied track numbers, and intermediate stopovers

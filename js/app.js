@@ -257,9 +257,37 @@ export async function initApp() {
         }
     }
 
-    // Support ?user= query param to automatically explore a user profile
-    const userParam = new URLSearchParams(window.location.search).get('user')?.toLowerCase();
-    if (userParam) {
+    // Support ?user= and/or ?trip= / ?id= query params
+    // If the user or checkin already exists in IndexedDB, load it directly without forcing the query dialog
+    const urlParams = new URLSearchParams(window.location.search);
+    const userParam = urlParams.get('user')?.toLowerCase();
+    const deepTripId = urlParams.get('id') || urlParams.get('trip') || urlParams.get('statusId') || urlParams.get('status');
+
+    let sessionToLoad = null;
+    try {
+        if (userParam) {
+            const cached = await SessionDB.get(userParam);
+            if (cached?.trips?.length > 0) {
+                sessionToLoad = cached.username;
+            }
+        }
+        if (!sessionToLoad && deepTripId) {
+            const allSessions = await SessionDB.getAll();
+            const found = allSessions.find(s => Array.isArray(s.trips) && s.trips.some(t => String(t.id) === String(deepTripId)));
+            if (found) {
+                sessionToLoad = found.username;
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to check IndexedDB for session quick-load:', e);
+    }
+
+    if (sessionToLoad) {
+        console.log(`⚡ Instant load for @${sessionToLoad} from IndexedDB without query modal`);
+        const setupEl = document.getElementById('setupScreen');
+        if (setupEl) setupEl.classList.add('hidden');
+        await loadSessionByUsername(sessionToLoad);
+    } else if (userParam) {
         const userInput = document.getElementById('username');
         if (userInput) {
             userInput.value = userParam;
@@ -270,13 +298,22 @@ export async function initApp() {
     // Preview query param handler for testing and automated screenshots (?preview=fetch|layers|search|stats)
     handlePreviewMode();
 
-    // Handle visibility change for wake lock
-    document.addEventListener('visibilitychange', async () => {
+    // Handle visibility change, focus, and online state for wake lock and animation retuning
+    const onWakeAndRetune = async () => {
         const state = store ? store.get() : null;
-        if (state?.isFetching && document.visibilityState === 'visible' && !UI.wakeLock) {
-            await UI.acquireWakeLock();
+        if (document.visibilityState === 'visible') {
+            if (state?.isFetching && !UI.wakeLock) {
+                await UI.acquireWakeLock();
+            }
+            if (UI?.retuneCargoAnimation) {
+                UI.retuneCargoAnimation();
+            }
         }
-    });
+    };
+
+    document.addEventListener('visibilitychange', onWakeAndRetune);
+    window.addEventListener('focus', onWakeAndRetune);
+    window.addEventListener('online', onWakeAndRetune);
 }
 
 /**

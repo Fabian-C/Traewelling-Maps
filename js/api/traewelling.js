@@ -32,18 +32,51 @@ export class TraewellingAPI {
         }
     }
 
-    async request(endpoint, requireAuth = false) {
+    async request(endpoint, requireAuth = false, maxRetries = 2) {
         if (requireAuth && !this.token) {
             throw new Error('API Error: Authentication token required');
         }
-        await this.waitForRateLimit();
-        const headers = { 'Accept': 'application/json' };
-        if (this.token) {
-            headers['Authorization'] = `Bearer ${this.token}`;
+
+        let attempt = 0;
+        while (true) {
+            await this.waitForRateLimit();
+            const headers = { 'Accept': 'application/json' };
+            if (this.token) {
+                headers['Authorization'] = `Bearer ${this.token}`;
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+            try {
+                const response = await fetch(`${CONFIG.API_BASE_URL}${endpoint}`, {
+                    headers,
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    if ((response.status >= 500 || response.status === 429) && attempt < maxRetries) {
+                        attempt++;
+                        console.warn(`Transient API error ${response.status}, retrying attempt ${attempt}...`);
+                        await new Promise(r => setTimeout(r, 1500 * attempt));
+                        continue;
+                    }
+                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                }
+                return await response.json();
+            } catch (err) {
+                clearTimeout(timeoutId);
+                const isNetworkOrAbort = err.name === 'AbortError' || err.message?.includes('Failed to fetch') || err.message?.includes('network');
+                if (isNetworkOrAbort && attempt < maxRetries) {
+                    attempt++;
+                    console.warn(`Network sleep/disconnect detected on ${endpoint}, retrying attempt ${attempt}...`);
+                    await new Promise(r => setTimeout(r, 2000 * attempt));
+                    continue;
+                }
+                throw err;
+            }
         }
-        const response = await fetch(`${CONFIG.API_BASE_URL}${endpoint}`, { headers });
-        if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
-        return response.json();
     }
 
     getUserStatuses(username, page = 1) { return this.request(`/user/${encodeURIComponent(username)}/statuses?page=${page}`); }

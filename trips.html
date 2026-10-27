@@ -327,10 +327,15 @@
         </section>
 
         <!-- Results Display: Table View (adhering to modern-web-guidance responsive-table) -->
+        <!-- Results Display: Table View (adhering to modern-web-guidance responsive-table) -->
         <section class="table-wrapper" id="tableViewContainer" tabindex="0" role="region" aria-label="Trip database table">
+            <div class="mobile-table-hint" id="mobileTableHint" aria-hidden="true">
+                <span>👈 Swipe horizontally to view full table • Tap any row to view comments &amp; details 👉</span>
+            </div>
             <table class="trips-table">
                 <thead>
                     <tr>
+                        <th class="th-expand" aria-label="Expand checkin"></th>
                         <th class="sortable" data-sort="date">Departure</th>
                         <th>Line / Mode</th>
                         <th>Origin</th>
