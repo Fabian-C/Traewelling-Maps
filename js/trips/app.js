@@ -1187,7 +1187,9 @@ function downloadFile(content, filename, mimeType) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+        try { URL.revokeObjectURL(url); } catch (e) {}
+    }, 1000);
 }
 
 /**
@@ -1318,10 +1320,20 @@ function sortTrips(trips, sortBy) {
             const delayB = deriveDelaySeconds(trainB).arrival || 0;
             return delayB - delayA;
         }
+        if (sortBy === 'delay-asc') {
+            const delayA = deriveDelaySeconds(trainA).arrival || 0;
+            const delayB = deriveDelaySeconds(trainB).arrival || 0;
+            return delayA - delayB;
+        }
         if (sortBy === 'dur-desc') {
             const durA = computeTripDurationMinutes(trainA);
             const durB = computeTripDurationMinutes(trainB);
             return durB - durA;
+        }
+        if (sortBy === 'dur-asc') {
+            const durA = computeTripDurationMinutes(trainA);
+            const durB = computeTripDurationMinutes(trainB);
+            return durA - durB;
         }
         return 0;
     });
@@ -1463,20 +1475,61 @@ function renderResults() {
                 </tr>
             `;
         } else {
+            const getSortIndicator = (field) => {
+                if (filterState.sortBy === `${field}-desc`) return '<span class="sort-arrow desc" aria-hidden="true">▼</span>';
+                if (filterState.sortBy === `${field}-asc`) return '<span class="sort-arrow asc" aria-hidden="true">▲</span>';
+                return '<span class="sort-arrow idle" aria-hidden="true">↕</span>';
+            };
+            const getAriaSort = (field) => {
+                if (filterState.sortBy === `${field}-desc`) return 'descending';
+                if (filterState.sortBy === `${field}-asc`) return 'ascending';
+                return 'none';
+            };
+
             thead.innerHTML = `
                 <tr>
                     <th class="th-expand" aria-label="Expand checkin"></th>
-                    <th class="sortable" data-sort="date">Departure</th>
+                    <th class="sortable" data-sort="date" aria-sort="${getAriaSort('date')}" role="columnheader" tabindex="0" title="Click to sort by departure time">Departure ${getSortIndicator('date')}</th>
                     <th>Line / Mode</th>
                     <th>Origin</th>
                     <th>Destination</th>
-                    <th class="sortable" data-sort="dist">Distance</th>
-                    <th class="sortable" data-sort="dur">Duration</th>
-                    <th class="sortable" data-sort="delay">Delay</th>
+                    <th class="sortable" data-sort="dist" aria-sort="${getAriaSort('dist')}" role="columnheader" tabindex="0" title="Click to sort by distance">Distance ${getSortIndicator('dist')}</th>
+                    <th class="sortable" data-sort="dur" aria-sort="${getAriaSort('dur')}" role="columnheader" tabindex="0" title="Click to sort by duration">Duration ${getSortIndicator('dur')}</th>
+                    <th class="sortable" data-sort="delay" aria-sort="${getAriaSort('delay')}" role="columnheader" tabindex="0" title="Click to sort by delay">Delay ${getSortIndicator('delay')}</th>
                     <th>Companions</th>
                     <th>Actions</th>
                 </tr>
             `;
+
+            // Attach interactive sorting listeners
+            const handleHeaderSort = (sortField) => {
+                const currentSort = filterState.sortBy;
+                let nextSort = `${sortField}-desc`;
+                if (currentSort === `${sortField}-desc`) {
+                    nextSort = `${sortField}-asc`;
+                } else if (currentSort === `${sortField}-asc`) {
+                    nextSort = `${sortField}-desc`;
+                }
+                filterState.sortBy = nextSort;
+                const sortSelect = document.getElementById('sortSelect');
+                if (sortSelect) sortSelect.value = nextSort;
+                filterState.page = 1;
+                applyFiltersAndRender();
+            };
+
+            thead.querySelectorAll('th.sortable').forEach(th => {
+                th.addEventListener('click', () => {
+                    const sortField = th.dataset.sort;
+                    if (sortField) handleHeaderSort(sortField);
+                });
+                th.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        const sortField = th.dataset.sort;
+                        if (sortField) handleHeaderSort(sortField);
+                    }
+                });
+            });
         }
     }
 

@@ -109,6 +109,23 @@ export async function loadSessionByUsername(username) {
             await processAndDisplayData(session.trips);
             analytics.refreshStatsDisplay(state.statistics);
             updateMenuAccountList();
+
+            // Focus requested trip from URL parameter (?trip=, ?id=, ?status=, ?statusId=)
+            const urlParams = new URLSearchParams(window.location.search);
+            const deepTripId = urlParams.get('id') || urlParams.get('trip') || urlParams.get('statusId') || urlParams.get('status');
+            if (deepTripId && Array.isArray(session.trips)) {
+                const foundTrip = session.trips.find(t => String(t.id) === String(deepTripId));
+                if (foundTrip) {
+                    setTimeout(async () => {
+                        try {
+                            const { focusTripOnMap } = await import('../map/tripCycler.js');
+                            focusTripOnMap(foundTrip);
+                        } catch (err) {
+                            console.warn('Failed to focus trip on map:', err);
+                        }
+                    }, 400);
+                }
+            }
         } else {
             startDataFetch(false, false);
         }

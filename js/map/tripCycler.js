@@ -46,23 +46,25 @@ export function focusTripOnMap(trip) {
 
     // 2. Build complete feature fallback if not found directly in rendered layer
     if (!targetFeature) {
+        const props = trip.properties || {};
         targetFeature = {
             type: 'Feature',
             properties: {
                 statusId: trip.id,
                 lineName: train.lineName || train.number || train.name || 'Unknown',
-                category: normalizeCategory(train.category || 'regional'),
+                category: normalizeCategory(train.category || props.category || 'regional'),
                 origin: train.origin?.name || 'Unknown',
                 destination: train.destination?.name || 'Unknown',
                 train: train,
                 checkin: train,
-                body: trip.body || null,
-                ticket: trip.ticket || null,
-                seat: trip.seat || null,
-                wagon: trip.wagon || null,
-                class: trip.class || trip.travelClass || null,
-                buddies: trip.buddies || trip.fellowPassengers || null,
-                tags: trip.tags || []
+                body: trip.body || props.body || null,
+                bodyMentions: trip.bodyMentions || props.bodyMentions || null,
+                ticket: props.ticket || train.ticket || trip.ticket || null,
+                seat: props.seat || train.seat?.number || train.seat || trip.seat || null,
+                wagon: props.wagon || train.seat?.wagon || train.wagon || trip.wagon || null,
+                class: props.class || props.travelClass || trip.class || trip.travelClass || null,
+                buddies: trip.buddies || props.buddies || trip.companions || props.companions || trip.fellowPassengers || null,
+                tags: props.tags || trip.tags || train.tags || []
             },
             geometry: polyline?.geometry || {
                 type: 'Point',
@@ -90,7 +92,7 @@ export function focusTripOnMap(trip) {
     const tightStack = [];
     const seenIds = new Set();
     const initialId = targetFeature.properties?.statusId || targetFeature.id;
-    if (initialId) seenIds.add(initialId);
+    if (initialId !== undefined && initialId !== null) seenIds.add(String(initialId));
     tightStack.push(targetFeature);
 
     if (state.layers?.data) {
@@ -98,10 +100,10 @@ export function focusTripOnMap(trip) {
             const features = layerObj.data?.features || [];
             for (const feat of features) {
                 const sid = feat.properties?.statusId || feat.id;
-                if (sid && seenIds.has(sid)) continue;
+                if (sid !== undefined && sid !== null && seenIds.has(String(sid))) continue;
                 const distKm = measureFeatureDistance(feat, { lng: anchor[0], lat: anchor[1] }, null);
                 if (distKm <= MAX_STACK_DISTANCE_KM) {
-                    if (sid) seenIds.add(sid);
+                    if (sid !== undefined && sid !== null) seenIds.add(String(sid));
                     tightStack.push(feat);
                 }
             }

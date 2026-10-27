@@ -536,10 +536,30 @@ body {
 .trips-table th.sortable {
     cursor: pointer;
     user-select: none;
+    transition: color 0.15s ease;
 }
 
 .trips-table th.sortable:hover {
     color: var(--accent-cyan);
+}
+
+.trips-table th.sortable:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: -2px;
+}
+
+.sort-arrow {
+    display: inline-block;
+    font-size: 10px;
+    margin-left: 4px;
+    vertical-align: middle;
+    color: var(--accent-cyan);
+    opacity: 0.9;
+}
+
+.sort-arrow.idle {
+    color: var(--text-muted);
+    opacity: 0.35;
 }
 
 .trips-table tbody tr {

@@ -629,35 +629,76 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
         </details>
     ` : '';
 
-    const body = props.body ? escapeHtml(props.body.trim()) : '';
+    const rawBody = (props.body || '').trim();
+    const currentUsername = (state.username || '').toLowerCase().trim();
 
-    // Extract deduplicated buddies for the popup
-    const popupBuddies = [];
+    // Helper to render linked comment in popup
+    const renderPopupLinkedComment = (text) => {
+        if (!text) return '';
+        const safe = escapeHtml(text);
+        return safe.replace(/@([a-zA-Z0-9_\-\.]+)/g, (match, u) => {
+            return `<a href="https://traewelling.de/profile/${encodeURIComponent(u)}" target="_blank" rel="noopener noreferrer" class="mention-link" title="Open @${u} on Träwelling">@${u}</a>`;
+        });
+    };
+
+    // Extract deduplicated buddies for the popup from all available sources
+    const popupBuddiesMap = new Map();
+    const addPopupBuddy = (u) => {
+        if (!u || typeof u !== 'string') return;
+        const clean = u.replace(/^@/, '').trim();
+        if (!clean) return;
+        const key = clean.toLowerCase();
+        if (currentUsername && key === currentUsername) return;
+        if (!popupBuddiesMap.has(key)) {
+            popupBuddiesMap.set(key, clean);
+        }
+    };
+
+    // 1. Body mentions
     let bodyMentions = props.bodyMentions;
     if (typeof bodyMentions === 'string') {
         try { bodyMentions = JSON.parse(bodyMentions); } catch (e) { bodyMentions = []; }
     }
     if (Array.isArray(bodyMentions)) {
         bodyMentions.forEach(m => {
-            const u = m.user?.username || m.username;
-            if (u && !popupBuddies.some(b => b.toLowerCase() === u.toLowerCase())) {
-                popupBuddies.push(u);
-            }
+            const u = m.user?.username || m.username || m.name || (typeof m === 'string' ? m : null);
+            addPopupBuddy(u);
         });
     }
 
+    // 2. Fellow passengers / companions / buddies
+    let companions = props.companions || props.buddies || props.fellowPassengers;
+    if (typeof companions === 'string') {
+        try { companions = JSON.parse(companions); } catch (e) { companions = []; }
+    }
+    if (Array.isArray(companions)) {
+        companions.forEach(c => {
+            const u = c.username || c.name || (typeof c === 'string' ? c : null);
+            addPopupBuddy(u);
+        });
+    }
+
+    // 3. CreatedBy user
     let createdBy = props.createdBy;
     if (typeof createdBy === 'string') {
         try { createdBy = JSON.parse(createdBy); } catch (e) { createdBy = null; }
     }
-    const createdByUsername = createdBy?.username;
-    if (createdByUsername && !popupBuddies.some(b => b.toLowerCase() === createdByUsername.toLowerCase())) {
-        popupBuddies.push(createdByUsername);
+    const createdByUsername = createdBy?.username || (typeof createdBy === 'string' ? createdBy : null);
+    addPopupBuddy(createdByUsername);
+
+    // 4. Regex @mentions in body
+    if (rawBody.includes('@')) {
+        const matches = rawBody.match(/@([a-zA-Z0-9_\-\.]+)/g);
+        if (matches) matches.forEach(m => addPopupBuddy(m));
     }
+
+    const popupBuddies = Array.from(popupBuddiesMap.values());
 
     let mentionsHtml = '';
     if (popupBuddies.length > 0) {
-        const buddyLinks = popupBuddies.map(u => `<a href="https://traewelling.de/@${escapeHtml(u)}" target="_blank" class="mention-link">@${escapeHtml(u)}</a>`);
+        const buddyLinks = popupBuddies.map(u => 
+            `<a href="https://traewelling.de/profile/${encodeURIComponent(u)}" target="_blank" rel="noopener noreferrer" class="mention-link" title="Open @${escapeHtml(u)} on Träwelling">@${escapeHtml(u)}</a>`
+        );
         mentionsHtml = `
             <div class="popup-mentions">
                 <label>Travel Buddies:</label>
@@ -667,17 +708,17 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
     }
 
     let commentHtml = '';
-    if (body || mentionsHtml) {
+    if (rawBody || mentionsHtml) {
         commentHtml = `
             <div class="popup-comment">
-                ${body ? `
+                ${rawBody ? `
                     <details class="popup-comment-details">
                         <summary class="popup-comment-summary">
                             <span>💬 Check-in Note</span>
                             <span class="popup-comment-toggle">▾</span>
                         </summary>
                         <div class="popup-comment-content">
-                            <p>${body}</p>
+                            <p>${renderPopupLinkedComment(rawBody)}</p>
                         </div>
                     </details>
                 ` : ''}

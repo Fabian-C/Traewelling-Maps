@@ -63,9 +63,36 @@ export function flattenTripRecord(trip) {
     const depDelaySec = delays.departure !== null ? delays.departure : (delays.worst || 0);
     const arrDelaySec = delays.arrival !== null ? delays.arrival : (delays.worst || 0);
 
-    const buddiesList = Array.isArray(trip.buddies)
-        ? trip.buddies.map(b => b.username || b.name || '').filter(Boolean)
-        : (Array.isArray(trip.fellowPassengers) ? trip.fellowPassengers.map(b => b.username || b.name || '').filter(Boolean) : []);
+    // Extract companions including bodyMentions, buddies, companions, and @mentions
+    const buddiesSet = new Set();
+    const addBuddy = (u) => {
+        if (!u || typeof u !== 'string') return;
+        const clean = u.replace(/^@/, '').trim();
+        if (clean) buddiesSet.add(`@${clean}`);
+    };
+    let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
+    if (typeof mentions === 'string') {
+        try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
+    }
+    if (Array.isArray(mentions)) {
+        mentions.forEach(m => addBuddy(m.username || m.name || m));
+    }
+    let companions = trip.buddies || trip.properties?.buddies || trip.companions || trip.properties?.companions || trip.fellowPassengers;
+    if (typeof companions === 'string') {
+        try { companions = JSON.parse(companions); } catch (e) { companions = []; }
+    }
+    if (Array.isArray(companions)) {
+        companions.forEach(c => addBuddy(c.username || c.name || c));
+    }
+    const bodyText = trip.body || trip.properties?.body || '';
+    if (bodyText.includes('@')) {
+        const matches = bodyText.match(/@([a-zA-Z0-9_\-\.]+)/g);
+        if (matches) matches.forEach(m => addBuddy(m));
+    }
+    const buddiesStr = buddiesSet.size ? Array.from(buddiesSet).join(', ') : null;
+
+    const bType = getTripBusinessType(trip);
+    const businessStr = bType === 1 ? 'business' : (bType === 2 ? 'commute' : 'private');
 
     const yr = depTime ? new Date(depTime).getFullYear() : null;
 
@@ -84,9 +111,9 @@ export function flattenTripRecord(trip) {
         distance_km: train.totalDistance ? Math.round((train.totalDistance / 1000) * 10) / 10 : 0,
         duration_min: computeTripDurationMinutes(train) || 0,
         operator: train.operator?.name || train.operator || 'Unknown',
-        business: getTripBusinessType(trip),
-        buddies: buddiesList.length ? buddiesList.join(', ') : null,
-        notes: trip.body || null
+        business: businessStr,
+        buddies: buddiesStr,
+        notes: trip.body || trip.properties?.body || null
     };
 }
 
@@ -602,16 +629,16 @@ export function visualFilterToSQL(conditions = [], logicalMode = 'AND') {
                 clauses.push(`${column} LIKE '${value.replace(/'/g, "''")}%'`);
                 break;
             case 'greater_than':
-                clauses.push(`${column} > ${value}`);
+                clauses.push(`${column} > ${isNum ? value : `'${value.replace(/'/g, "''")}'`}`);
                 break;
             case 'less_than':
-                clauses.push(`${column} < ${value}`);
+                clauses.push(`${column} < ${isNum ? value : `'${value.replace(/'/g, "''")}'`}`);
                 break;
             case 'greater_equal':
-                clauses.push(`${column} >= ${value}`);
+                clauses.push(`${column} >= ${isNum ? value : `'${value.replace(/'/g, "''")}'`}`);
                 break;
             case 'less_equal':
-                clauses.push(`${column} <= ${value}`);
+                clauses.push(`${column} <= ${isNum ? value : `'${value.replace(/'/g, "''")}'`}`);
                 break;
             case 'is_empty':
                 clauses.push(`${column} IS NULL`);
