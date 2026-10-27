@@ -192,8 +192,9 @@ export function calculateWrappedInsights(trips = [], username = '') {
         const dist = sanitizeTripDistanceKm(rawKm, originLat, originLon, destLat, destLon, cat);
         totalKm += dist;
 
-        // Longest Trip (distance stored in km)
-        if (!longestTrip || dist > longestTrip.distance) {
+        // Longest Trip (distance stored in km) - exclude flights
+        const isFlight = cat === 'plane' || (typeof train.category === 'string' && ['plane', 'flight', 'airplane', 'aviation'].includes(train.category.toLowerCase().trim()));
+        if (!isFlight && (!longestTrip || dist > longestTrip.distance)) {
             longestTrip = {
                 id: trip.id,
                 distance: dist,

@@ -15,6 +15,7 @@ export function normalizeCategory(category) {
     const lower = c.toLowerCase();
     if (lower === 'ship') return 'ferry';
     if (lower === 'taxi' || lower === 'cab' || lower === 'taxicab' || lower === 'rideshare' || lower === 'ondemand' || lower === 'on-demand') return 'taxi';
+    if (lower === 'plane' || lower === 'flight' || lower === 'airplane' || lower === 'aviation') return 'plane';
     if (KNOWN_CATEGORIES.has(c)) return c;
     for (const known of KNOWN_CATEGORIES) {
         if (known.toLowerCase() === lower) return known;

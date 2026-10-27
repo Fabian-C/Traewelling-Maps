@@ -221,7 +221,7 @@ export async function generateWrappedCardCanvas(insights, user = {}, year = 'All
     drawHighlightCard(
         listY + 236,
         '🗺️',
-        'LONGEST SINGLE JOURNEY',
+        'LONGEST JOURNEY (EXCL. FLIGHTS)',
         longestRoute,
         longestDist,
         '#ff6b9c'
