@@ -1,0 +1,231 @@
+// Autocomplete & Smart Recommendations Engine for Database Studio SQL Console
+import { TRIP_COLUMNS } from './sqlEngine.js';
+
+export const SQL_KEYWORDS = [
+    { label: 'SELECT', insertText: 'SELECT ', type: 'keyword', detail: 'Select columns or expressions' },
+    { label: 'FROM', insertText: 'FROM trips ', type: 'keyword', detail: 'Specify source table' },
+    { label: 'WHERE', insertText: 'WHERE ', type: 'keyword', detail: 'Filter rows with conditions' },
+    { label: 'ORDER BY', insertText: 'ORDER BY ', type: 'keyword', detail: 'Sort result rows' },
+    { label: 'LIMIT', insertText: 'LIMIT ', type: 'keyword', detail: 'Limit row count' },
+    { label: 'AND', insertText: 'AND ', type: 'keyword', detail: 'Logical AND condition' },
+    { label: 'OR', insertText: 'OR ', type: 'keyword', detail: 'Logical OR condition' },
+    { label: 'NOT', insertText: 'NOT ', type: 'keyword', detail: 'Logical NOT condition' },
+    { label: 'LIKE', insertText: "LIKE '%...%' ", type: 'keyword', detail: 'Pattern matching (% wildcard)' },
+    { label: 'ILIKE', insertText: "ILIKE '%...%' ", type: 'keyword', detail: 'Case-insensitive pattern matching' },
+    { label: 'IN', insertText: "IN (...) ", type: 'keyword', detail: 'Set inclusion check' },
+    { label: 'BETWEEN', insertText: 'BETWEEN ... AND ... ', type: 'keyword', detail: 'Range check (inclusive)' },
+    { label: 'IS NULL', insertText: 'IS NULL ', type: 'keyword', detail: 'Check for missing/null values' },
+    { label: 'IS NOT NULL', insertText: 'IS NOT NULL ', type: 'keyword', detail: 'Check for non-null values' },
+    { label: 'DESC', insertText: 'DESC ', type: 'keyword', detail: 'Sort descending (highest first)' },
+    { label: 'ASC', insertText: 'ASC ', type: 'keyword', detail: 'Sort ascending (lowest first)' },
+    { label: 'DISTINCT', insertText: 'DISTINCT ', type: 'keyword', detail: 'Filter unique values' },
+    { label: 'COUNT(*)', insertText: 'COUNT(*) ', type: 'keyword', detail: 'Count matching rows' },
+    { label: 'AVG()', insertText: 'AVG(distance_km) ', type: 'keyword', detail: 'Average of numeric column' },
+    { label: 'SUM()', insertText: 'SUM(distance_km) ', type: 'keyword', detail: 'Sum of numeric column' },
+    { label: 'MAX()', insertText: 'MAX(delay_dep) ', type: 'keyword', detail: 'Maximum value of column' },
+    { label: 'MIN()', insertText: 'MIN(delay_dep) ', type: 'keyword', detail: 'Minimum value of column' }
+];
+
+export const SQL_TABLES = [
+    { label: 'trips', insertText: 'trips ', type: 'table', detail: 'Standard Träwelling trips table' }
+];
+
+export const SQL_VALUES = [
+    // Categories
+    { label: "'nationalExpress'", insertText: "'nationalExpress'", type: 'value', detail: 'High-speed rail (ICE, TGV, Eurostar)' },
+    { label: "'national'", insertText: "'national'", type: 'value', detail: 'InterCity & EuroCity trains (IC, EC)' },
+    { label: "'regional'", insertText: "'regional'", type: 'value', detail: 'Regional trains (RE, RB, MEX)' },
+    { label: "'suburban'", insertText: "'suburban'", type: 'value', detail: 'Suburban commuter rail (S-Bahn)' },
+    { label: "'subway'", insertText: "'subway'", type: 'value', detail: 'Underground transit (U-Bahn, Metro)' },
+    { label: "'tram'", insertText: "'tram'", type: 'value', detail: 'Streetcar / Light rail' },
+    { label: "'bus'", insertText: "'bus'", type: 'value', detail: 'Local & regional bus lines' },
+    { label: "'ferry'", insertText: "'ferry'", type: 'value', detail: 'Water transit & ferries' },
+    // Business travel types
+    { label: "'private'", insertText: "'private'", type: 'value', detail: 'Personal leisure travel' },
+    { label: "'business'", insertText: "'business'", type: 'value', detail: 'Work & business trips' },
+    { label: "'commute'", insertText: "'commute'", type: 'value', detail: 'Daily commute to workplace' }
+];
+
+export const SQL_SNIPPETS = [
+    {
+        label: 'SELECT columns template',
+        insertText: 'SELECT line, origin, destination, distance_km, delay_dep, departure FROM trips ',
+        type: 'recipe',
+        detail: 'Standard overview columns'
+    },
+    {
+        label: 'delay_dep > 15',
+        insertText: 'delay_dep > 15 ',
+        type: 'recipe',
+        detail: 'Trips delayed by more than 15 minutes'
+    },
+    {
+        label: 'distance_km > 300',
+        insertText: 'distance_km > 300 ',
+        type: 'recipe',
+        detail: 'Long distance trips (> 300 km)'
+    },
+    {
+        label: "category = 'nationalExpress'",
+        insertText: "category = 'nationalExpress' ",
+        type: 'recipe',
+        detail: 'Filter ICE / High-speed trains'
+    },
+    {
+        label: "category = 'regional'",
+        insertText: "category = 'regional' ",
+        type: 'recipe',
+        detail: 'Filter Regional RE / RB trains'
+    },
+    {
+        label: 'buddies IS NOT NULL',
+        insertText: 'buddies IS NOT NULL ',
+        type: 'recipe',
+        detail: 'Trips shared with travel companions'
+    },
+    {
+        label: 'ORDER BY delay_dep DESC',
+        insertText: 'ORDER BY delay_dep DESC ',
+        type: 'recipe',
+        detail: 'Sort highest delay first'
+    },
+    {
+        label: 'ORDER BY distance_km DESC',
+        insertText: 'ORDER BY distance_km DESC ',
+        type: 'recipe',
+        detail: 'Sort longest distance first'
+    },
+    {
+        label: 'ORDER BY departure DESC',
+        insertText: 'ORDER BY departure DESC ',
+        type: 'recipe',
+        detail: 'Sort newest trips first'
+    },
+    {
+        label: 'LIMIT 50',
+        insertText: 'LIMIT 50',
+        type: 'recipe',
+        detail: 'Return top 50 rows'
+    }
+];
+
+/**
+ * Get suggestions for current SQL query and caret position
+ * @param {string} sql Full SQL query text
+ * @param {number} cursorPos Caret index
+ * @returns {{ items: Array, token: string, tokenStart: number }}
+ */
+export function getSQLCompletions(sql = '', cursorPos = 0) {
+    const textBefore = sql.slice(0, cursorPos);
+    const match = textBefore.match(/([a-zA-Z0-9_'%*]+)$/);
+    const token = match ? match[1] : '';
+    const tokenStart = cursorPos - token.length;
+    const precedingText = textBefore.slice(0, tokenStart).trim();
+    const precedingUpper = precedingText.toUpperCase();
+
+    // Map column objects into suggestion items
+    const columnSuggestions = TRIP_COLUMNS.map(c => ({
+        label: c.name,
+        insertText: c.name,
+        type: 'column',
+        detail: `${c.label} (${c.type}) - ${c.description}`
+    }));
+
+    let candidateList = [];
+
+    // Context 1: Just after FROM
+    if (precedingUpper.endsWith('FROM')) {
+        candidateList = [
+            ...SQL_TABLES,
+            ...columnSuggestions
+        ];
+    }
+    // Context 2: Just after WHERE, AND, OR
+    else if (precedingUpper.endsWith('WHERE') || precedingUpper.endsWith('AND') || precedingUpper.endsWith('OR')) {
+        candidateList = [
+            ...SQL_SNIPPETS.filter(s => !s.label.startsWith('SELECT') && !s.label.startsWith('ORDER BY') && !s.label.startsWith('LIMIT')),
+            ...columnSuggestions,
+            ...SQL_KEYWORDS.filter(k => ['NOT', 'IS NULL', 'IS NOT NULL', 'IN', 'LIKE', 'ILIKE', 'BETWEEN'].includes(k.label))
+        ];
+    }
+    // Context 3: After ORDER BY
+    else if (precedingUpper.endsWith('ORDER BY') || precedingUpper.endsWith('BY')) {
+        candidateList = [
+            { label: 'delay_dep DESC', insertText: 'delay_dep DESC ', type: 'recipe', detail: 'Sort by delay (worst first)' },
+            { label: 'distance_km DESC', insertText: 'distance_km DESC ', type: 'recipe', detail: 'Sort by distance (longest first)' },
+            { label: 'duration_min DESC', insertText: 'duration_min DESC ', type: 'recipe', detail: 'Sort by duration (longest first)' },
+            { label: 'departure DESC', insertText: 'departure DESC ', type: 'recipe', detail: 'Sort by departure (newest first)' },
+            { label: 'departure ASC', insertText: 'departure ASC ', type: 'recipe', detail: 'Sort by departure (oldest first)' },
+            ...columnSuggestions,
+            ...SQL_KEYWORDS.filter(k => ['DESC', 'ASC', 'LIMIT'].includes(k.label))
+        ];
+    }
+    // Context 4: Checking category / business equality or IN
+    else if (/category\s*(=|IN|\!=|<>)\s*\(?$/i.test(precedingText)) {
+        candidateList = [
+            ...SQL_VALUES.filter(v => v.detail.includes('rail') || v.detail.includes('trains') || v.detail.includes('bus') || v.detail.includes('transit')),
+            ...SQL_KEYWORDS
+        ];
+    }
+    else if (/business\s*(=|IN|\!=|<>)\s*\(?$/i.test(precedingText)) {
+        candidateList = [
+            ...SQL_VALUES.filter(v => ['\'private\'', '\'business\'', '\'commute\''].includes(v.label)),
+            ...SQL_KEYWORDS
+        ];
+    }
+    // Context 5: Start of query or SELECT
+    else if (precedingUpper === '' || precedingUpper.endsWith('SELECT')) {
+        candidateList = [
+            { label: '*', insertText: '* ', type: 'keyword', detail: 'Select all columns' },
+            { label: 'COUNT(*)', insertText: 'COUNT(*) ', type: 'keyword', detail: 'Count matching rows' },
+            ...SQL_SNIPPETS.filter(s => s.label.startsWith('SELECT')),
+            ...columnSuggestions,
+            ...SQL_KEYWORDS
+        ];
+    }
+    // Default context: Everything available
+    else {
+        candidateList = [
+            ...columnSuggestions,
+            ...SQL_KEYWORDS,
+            ...SQL_TABLES,
+            ...SQL_VALUES,
+            ...SQL_SNIPPETS
+        ];
+    }
+
+    // Filter by typed token prefix if any
+    let filtered = candidateList;
+    if (token) {
+        const lowerToken = token.toLowerCase().replace(/^['%]/, '');
+        filtered = candidateList.filter(item => {
+            const lowerLabel = item.label.toLowerCase();
+            const lowerInsert = item.insertText.toLowerCase();
+            return lowerLabel.includes(lowerToken) || lowerInsert.includes(lowerToken);
+        });
+
+        // Sort: Exact prefix matches first, then contains
+        filtered.sort((a, b) => {
+            const aStartsWith = a.label.toLowerCase().startsWith(lowerToken) ? -1 : 1;
+            const bStartsWith = b.label.toLowerCase().startsWith(lowerToken) ? -1 : 1;
+            if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
+            return a.label.localeCompare(b.label);
+        });
+    }
+
+    // Deduplicate by label
+    const seen = new Set();
+    const unique = [];
+    for (const item of filtered) {
+        if (!seen.has(item.label)) {
+            seen.add(item.label);
+            unique.push(item);
+        }
+    }
+
+    return {
+        items: unique.slice(0, 10), // Show top 10 items
+        token,
+        tokenStart
+    };
+}
