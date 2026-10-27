@@ -24,6 +24,7 @@ let durationDisplayMode = 'standard'; // 'standard' | 'days' | 'months'
 // Studio state
 let appMode = 'standard'; // 'standard' | 'studio'
 let studioTab = 'visual'; // 'visual' | 'sql'
+let studioTableMode = localStorage.getItem('tw_studio_table_mode') || 'unified'; // 'unified' | 'raw'
 let visualRules = [
     { column: 'delay_dep', operator: 'greater_than', value: '15' }
 ];
@@ -729,6 +730,42 @@ function setupStudioEventListeners() {
     const filterPanel = document.getElementById('tripsFilterPanel');
     const studioPanel = document.getElementById('tripsStudioPanel');
 
+    const sqlTableToggle = document.getElementById('sqlTableModeToggle');
+    const btnTableUnified = document.getElementById('btnTableUnified');
+    const btnTableRawSql = document.getElementById('btnTableRawSql');
+
+    const updateSqlTableModeButtons = () => {
+        if (sqlTableToggle) {
+            sqlTableToggle.style.display = (appMode === 'studio') ? 'inline-flex' : 'none';
+        }
+        if (btnTableUnified && btnTableRawSql) {
+            if (studioTableMode === 'raw') {
+                btnTableRawSql.classList.add('active');
+                btnTableUnified.classList.remove('active');
+            } else {
+                btnTableUnified.classList.add('active');
+                btnTableRawSql.classList.remove('active');
+            }
+        }
+    };
+    updateSqlTableModeButtons();
+
+    if (btnTableUnified && btnTableRawSql) {
+        btnTableUnified.addEventListener('click', () => {
+            studioTableMode = 'unified';
+            localStorage.setItem('tw_studio_table_mode', 'unified');
+            updateSqlTableModeButtons();
+            renderResults();
+        });
+
+        btnTableRawSql.addEventListener('click', () => {
+            studioTableMode = 'raw';
+            localStorage.setItem('tw_studio_table_mode', 'raw');
+            updateSqlTableModeButtons();
+            renderResults();
+        });
+    }
+
     if (modeStandardBtn && modeStudioBtn) {
         modeStandardBtn.addEventListener('click', () => {
             appMode = 'standard';
@@ -736,6 +773,7 @@ function setupStudioEventListeners() {
             modeStudioBtn.classList.remove('active');
             if (filterPanel) filterPanel.style.display = 'flex';
             if (studioPanel) studioPanel.style.display = 'none';
+            updateSqlTableModeButtons();
             applyFiltersAndRender();
         });
 
@@ -745,6 +783,7 @@ function setupStudioEventListeners() {
             modeStandardBtn.classList.remove('active');
             if (filterPanel) filterPanel.style.display = 'none';
             if (studioPanel) studioPanel.style.display = 'flex';
+            updateSqlTableModeButtons();
             const viewTableBtn = document.getElementById('viewTableBtn');
             if (viewTableBtn && !viewTableBtn.classList.contains('active')) {
                 viewTableBtn.click();
@@ -1560,6 +1599,7 @@ function renderResults() {
 
     const isStudio = (appMode === 'studio' && Boolean(sqlQueryResult));
     const isScalarCount = isStudio && Boolean(sqlQueryResult) && sqlQueryResult.columns?.length === 1 && sqlQueryResult.columns[0]?.startsWith('COUNT(');
+    const isRawSqlMode = isStudio && studioTableMode === 'raw' && !isScalarCount && !sqlQueryResult?.error;
 
     let total = 0;
     let items = [];
@@ -1569,6 +1609,9 @@ function renderResults() {
             items = [];
             total = 0;
         } else if (isScalarCount) {
+            items = sqlQueryResult.rows || [];
+            total = items.length;
+        } else if (isRawSqlMode) {
             items = sqlQueryResult.rows || [];
             total = items.length;
         } else {
@@ -1603,6 +1646,12 @@ function renderResults() {
     if (prevBtn) prevBtn.disabled = (filterState.page <= 1);
     if (nextBtn) nextBtn.disabled = (filterState.page >= totalPages);
 
+    // Column metadata helper for Raw SQL Table mode
+    const colTypeMap = new Map(TRIP_COLUMNS.map(c => [c.name, c.type]));
+    const rawCols = (isRawSqlMode && sqlQueryResult?.columns && sqlQueryResult.columns.length > 0)
+        ? sqlQueryResult.columns
+        : (isRawSqlMode && pageItems.length > 0 ? Object.keys(pageItems[0]).filter(k => !k.startsWith('_')) : []);
+
     // 1. Render Table
     const thead = document.querySelector('.trips-table thead');
     if (thead) {
@@ -1610,6 +1659,25 @@ function renderResults() {
             thead.innerHTML = `
                 <tr>
                     <th style="text-align: center; padding: 14px 20px;">COUNT(*)</th>
+                </tr>
+            `;
+        } else if (isRawSqlMode) {
+            thead.innerHTML = `
+                <tr class="sql-raw-header-row">
+                    <th class="sql-th-index" title="Row index in current result set">#</th>
+                    ${rawCols.map(col => {
+                        const typeStr = colTypeMap.get(col) || (col.endsWith('_km') || col.endsWith('_min') || col.endsWith('_count') || col === 'id' || col === 'year' ? 'number' : 'string');
+                        const isNum = (typeStr === 'number');
+                        const badgeText = isNum ? 'NUM' : (typeStr === 'datetime' ? 'DATE' : 'TEXT');
+                        return `
+                            <th class="sql-raw-th ${isNum ? 'numeric' : ''}" title="Column: ${escapeHtml(col)} (${badgeText})">
+                                <div class="sql-th-content">
+                                    <span class="sql-th-name">${escapeHtml(col)}</span>
+                                    <span class="sql-th-type">${badgeText}</span>
+                                </div>
+                            </th>
+                        `;
+                    }).join('')}
                 </tr>
             `;
         } else {
@@ -1679,7 +1747,7 @@ function renderResults() {
     const tbody = document.getElementById('tripsTableBody');
     if (tbody) {
         if (pageItems.length === 0) {
-            const colSpan = isScalarCount ? 1 : 10;
+            const colSpan = isScalarCount ? 1 : (isRawSqlMode ? Math.max(1, rawCols.length + 1) : 10);
             const errorMsg = isStudio && sqlQueryResult?.error;
             tbody.innerHTML = `
                 <tr>
@@ -1717,6 +1785,32 @@ function renderResults() {
                     </td>
                 </tr>
             `).join('');
+        } else if (isRawSqlMode) {
+            tbody.innerHTML = pageItems.map((row, idx) => {
+                const rowNum = startIdx + idx + 1;
+                const cellsHtml = rawCols.map(col => {
+                    const val = row[col];
+                    if (val === null || val === undefined || val === '') {
+                        return `<td class="sql-td-null"><span class="sql-null-pill">NULL</span></td>`;
+                    }
+                    const typeStr = colTypeMap.get(col) || (typeof val === 'number' ? 'number' : 'string');
+                    if (typeStr === 'number' || typeof val === 'number') {
+                        const formattedNum = Number.isInteger(val) ? val.toLocaleString() : Number(val).toFixed(1);
+                        return `<td class="sql-td-num">${formattedNum}</td>`;
+                    } else if (typeStr === 'datetime' || (typeof val === 'string' && val.includes('T') && !isNaN(Date.parse(val)))) {
+                        return `<td class="sql-td-date">${escapeHtml(String(val))}</td>`;
+                    } else {
+                        return `<td class="sql-td-text">${escapeHtml(String(val))}</td>`;
+                    }
+                }).join('');
+
+                return `
+                    <tr class="sql-raw-row">
+                        <td class="sql-td-index">${rowNum}</td>
+                        ${cellsHtml}
+                    </tr>
+                `;
+            }).join('');
         } else {
             tbody.innerHTML = pageItems.map(item => {
                 const trip = item._rawTrip || (item.train || item.checkin ? item : allTrips.find(t => String(t.id) === String(item.id))) || item;

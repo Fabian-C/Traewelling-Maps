@@ -320,6 +320,12 @@
                 Showing journeys...
             </div>
             <div class="results-actions-group">
+                <!-- In Database Studio: Table Layout Mode (Unified Explorer vs Raw SQL Table) -->
+                <div class="view-mode-toggle" id="sqlTableModeToggle" role="group" aria-label="Table display format" style="display: none;">
+                    <button type="button" class="view-btn active" id="btnTableUnified" title="Unified Explorer Table with check-in drawers">📋 Unified</button>
+                    <button type="button" class="view-btn" id="btnTableRawSql" title="Raw SQL Tabular Grid showing exact projected columns">📊 Raw SQL</button>
+                </div>
+
                 <label for="pageSizeSelect" style="font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
                     <span>Per page:</span>
                     <select id="pageSizeSelect" class="profile-select" style="padding: 4px 8px;">

@@ -2340,3 +2340,103 @@ body:has(dialog[open]) {
     }
 }
 
+/* ==========================================================================
+   Raw SQL Table Result Mode (for relational database inspection)
+   ========================================================================== */
+
+.sql-raw-header-row th {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 10px 14px;
+    background: rgba(15, 23, 42, 0.95);
+    border-bottom: 2px solid var(--border-subtle);
+    white-space: nowrap;
+}
+
+.sql-raw-th {
+    text-align: left;
+}
+
+.sql-raw-th.numeric {
+    text-align: right;
+}
+
+.sql-th-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sql-th-name {
+    color: var(--accent-cyan);
+}
+
+.sql-th-type {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sql-th-index,
+.sql-td-index {
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-align: center;
+    width: 44px;
+    min-width: 44px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.sql-raw-row {
+    transition: background 0.15s ease;
+}
+
+.sql-raw-row:hover {
+    background: rgba(56, 189, 248, 0.05);
+}
+
+.sql-raw-row td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.sql-td-num {
+    font-family: var(--font-mono);
+    text-align: right;
+    color: #e2e8f0;
+}
+
+.sql-td-date {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.sql-td-text {
+    color: var(--text-primary);
+}
+
+.sql-null-pill {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-style: italic;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+}
+
