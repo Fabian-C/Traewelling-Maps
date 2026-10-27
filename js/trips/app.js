@@ -422,6 +422,10 @@ function setupEventListeners() {
             viewCardsBtn.classList.remove('active');
             tableView.style.display = 'block';
             cardsView.style.display = 'none';
+            const sqlTableToggle = document.getElementById('sqlTableModeToggle');
+            if (sqlTableToggle && appMode === 'studio') {
+                sqlTableToggle.style.display = 'inline-flex';
+            }
         });
 
         viewCardsBtn.addEventListener('click', () => {
@@ -430,6 +434,10 @@ function setupEventListeners() {
             viewTableBtn.classList.remove('active');
             tableView.style.display = 'none';
             cardsView.style.display = 'grid';
+            const sqlTableToggle = document.getElementById('sqlTableModeToggle');
+            if (sqlTableToggle) {
+                sqlTableToggle.style.display = 'none';
+            }
         });
     }
 
@@ -472,7 +480,7 @@ function setupEventListeners() {
     // Telemetry Duration Unit Switcher
     const durChip = document.getElementById('telemetryDurationChip');
     if (durChip) {
-        durChip.addEventListener('click', () => {
+        const cycleDuration = () => {
             if (durationDisplayMode === 'standard') {
                 durationDisplayMode = 'days';
             } else if (durationDisplayMode === 'days') {
@@ -480,7 +488,16 @@ function setupEventListeners() {
             } else {
                 durationDisplayMode = 'standard';
             }
-            updateTelemetry(filteredTrips);
+            const activeTrips = (appMode === 'studio' && sqlQueryResult?.rawTrips) ? sqlQueryResult.rawTrips : filteredTrips;
+            updateTelemetry(activeTrips);
+        };
+
+        durChip.addEventListener('click', cycleDuration);
+        durChip.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                cycleDuration();
+            }
         });
     }
 
@@ -532,11 +549,22 @@ function setupEventListeners() {
         });
     }
 
-    // Modal Close
+    // Modal Close (Button + Backdrop Click)
     const modalCloseBtn = document.getElementById('closeModalBtn');
     const modal = document.getElementById('tripDetailModal');
     if (modalCloseBtn && modal) {
         modalCloseBtn.addEventListener('click', () => modal.close());
+        modal.addEventListener('click', (e) => {
+            const rect = modal.getBoundingClientRect();
+            if (
+                e.clientX < rect.left ||
+                e.clientX > rect.right ||
+                e.clientY < rect.top ||
+                e.clientY > rect.bottom
+            ) {
+                modal.close();
+            }
+        });
     }
 
     // Setup Studio Database Workbench Listeners
@@ -1955,7 +1983,33 @@ function renderResults() {
     const cardsGrid = document.getElementById('cardViewContainer');
     if (cardsGrid) {
         if (pageItems.length === 0) {
-            cardsGrid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-muted);">No journeys found matching your search.</div>`;
+            const errorMsg = isStudio && sqlQueryResult?.error;
+            cardsGrid.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 48px 16px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+                    <div style="font-size: 38px; margin-bottom: 8px;">${errorMsg ? '⚠️' : '🔍'}</div>
+                    <div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">
+                        ${errorMsg ? 'SQL Query Error' : (isStudio ? 'No records match your SQL query' : 'No journeys match your active filters')}
+                    </div>
+                    <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
+                        ${errorMsg ? escapeHtml(sqlQueryResult.error) : (isStudio ? 'Try checking your WHERE conditions, column names, or table names.' : 'Try loosening your search query, transport category, or delay tier.')}
+                    </div>
+                    ${isStudio ? `<button type="button" class="studio-action-btn primary" id="emptyCardsResetBtn">Reset to Default Query</button>` : `<button type="button" class="studio-action-btn primary" id="emptyCardsResetBtn">Reset All Filters</button>`}
+                </div>
+            `;
+            const emptyCardsResetBtn = cardsGrid.querySelector('#emptyCardsResetBtn');
+            if (emptyCardsResetBtn) {
+                emptyCardsResetBtn.addEventListener('click', () => {
+                    if (isStudio) {
+                        const defaultSql = QUERY_RECIPES[0].sql;
+                        const input = document.getElementById('sqlQueryInput');
+                        if (input) input.value = defaultSql;
+                        runSqlQuery(defaultSql);
+                    } else {
+                        const rBtn = document.getElementById('resetFiltersBtn');
+                        if (rBtn) rBtn.click();
+                    }
+                });
+            }
         } else {
             cardsGrid.innerHTML = pageItems.map(item => {
                 const trip = item._rawTrip || (item.train || item.checkin ? item : allTrips.find(t => String(t.id) === String(item.id))) || item;

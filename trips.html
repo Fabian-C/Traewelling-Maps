@@ -42,8 +42,8 @@
         <!-- Profile & Navigation Actions -->
         <div class="trips-nav-actions">
             <!-- Profile Switcher -->
-            <label for="profileSelect" style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary);">
-                <span>User:</span>
+            <label for="profileSelect" class="profile-select-label" style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary);">
+                <span class="profile-label-text">User:</span>
                 <select id="profileSelect" class="profile-select" aria-label="Select User Profile"></select>
             </label>
 
@@ -86,7 +86,7 @@
                 <span class="telemetry-val" id="telemetryPunctuality">100%</span>
                 <span class="telemetry-sub" id="telemetryPunctualitySub">on-time journeys</span>
             </div>
-            <div class="telemetry-chip amber" id="telemetryDurationChip" style="cursor: pointer;" title="Click to toggle between days, total hours, and months">
+            <div class="telemetry-chip amber" id="telemetryDurationChip" role="button" tabindex="0" style="cursor: pointer;" title="Click to toggle between days, total hours, and months" aria-label="Cycle travel time unit: hours, days, or months">
                 <span class="telemetry-label"><span>⏰</span> Total Travel Time</span>
                 <span class="telemetry-val" id="telemetryDuration">0 hrs</span>
                 <span class="telemetry-sub" id="telemetryDurationSub">time on tracks (click to switch unit)</span>
@@ -193,11 +193,12 @@
                     
                     <div class="sql-editor-footer">
                         <div class="sql-chips-reference" aria-label="Quick SQL syntax chips">
-                            <span class="sql-chip-tag" data-insert="SELECT * FROM trips">SELECT *</span>
-                            <span class="sql-chip-tag" data-insert="WHERE category = 'highspeed'">category</span>
-                            <span class="sql-chip-tag" data-insert="WHERE delay_dep > 15">delay_dep</span>
-                            <span class="sql-chip-tag" data-insert="WHERE distance_km > 300">distance_km</span>
-                            <span class="sql-chip-tag" data-insert="ORDER BY delay_dep DESC">ORDER BY</span>
+                            <button type="button" class="sql-chip-tag" data-insert="SELECT * FROM trips">SELECT *</button>
+                            <button type="button" class="sql-chip-tag" data-insert="WHERE category = 'highspeed'">category</button>
+                            <button type="button" class="sql-chip-tag" data-insert="WHERE delay_dep > 15">delay_dep</button>
+                            <button type="button" class="sql-chip-tag" data-insert="WHERE distance_km > 300">distance_km</button>
+                            <button type="button" class="sql-chip-tag" data-insert="WHERE buddy_count >= 1">buddy_count</button>
+                            <button type="button" class="sql-chip-tag" data-insert="ORDER BY delay_dep DESC">ORDER BY</button>
                         </div>
                         <div class="sql-exec-group">
                             <span class="studio-benchmark-badge" id="sqlBenchmarkBadge">⏱️ 0.0ms • 0 rows</span>
@@ -304,12 +305,6 @@
                             <option value="dur-asc">Duration (Shortest first)</option>
                         </select>
                     </label>
-
-                    <!-- View Mode Toggle -->
-                    <div class="view-mode-toggle" role="group" aria-label="View layout switch">
-                        <button type="button" class="view-btn active" id="viewTableBtn" title="Table View">📋 Table</button>
-                        <button type="button" class="view-btn" id="viewCardsBtn" title="Cards View">🎴 Cards</button>
-                    </div>
                 </div>
             </div>
         </section>
@@ -320,6 +315,12 @@
                 Showing journeys...
             </div>
             <div class="results-actions-group">
+                <!-- View Mode Toggle (Table vs Cards) -->
+                <div class="view-mode-toggle" id="viewModeToggle" role="group" aria-label="View layout switch">
+                    <button type="button" class="view-btn active" id="viewTableBtn" title="Table View">📋 Table</button>
+                    <button type="button" class="view-btn" id="viewCardsBtn" title="Cards View">🎴 Cards</button>
+                </div>
+
                 <!-- In Database Studio: Table Layout Mode (Unified Explorer vs Raw SQL Table) -->
                 <div class="view-mode-toggle" id="sqlTableModeToggle" role="group" aria-label="Table display format" style="display: none;">
                     <button type="button" class="view-btn active" id="btnTableUnified" title="Unified Explorer Table with check-in drawers">📋 Unified</button>
@@ -338,7 +339,6 @@
             </div>
         </section>
 
-        <!-- Results Display: Table View (adhering to modern-web-guidance responsive-table) -->
         <!-- Results Display: Table View (adhering to modern-web-guidance responsive-table) -->
         <section class="table-wrapper" id="tableViewContainer" tabindex="0" role="region" aria-label="Trip database table">
             <div class="mobile-table-hint" id="mobileTableHint" aria-hidden="true">
@@ -448,7 +448,7 @@
         </div>
 
         <div class="modal-actions">
-            <a href="#" target="_blank" class="nav-link-btn" id="modalTraewellingLink">
+            <a href="#" target="_blank" rel="noopener noreferrer" class="nav-link-btn" id="modalTraewellingLink">
                 <span>🔗 View on Träwelling</span>
             </a>
             <a href="#" class="nav-link-btn primary" id="modalMapLink">
