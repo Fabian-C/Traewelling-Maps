@@ -3,405 +3,325 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Träwelling Maps &amp; Database Studio · Complete Documentation</title>
+    <title>Träwelling Map Explorer &amp; Trip Database · Complete User Guide</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="dark">
-    <meta name="description" content="Official documentation for Träwelling Maps, Trip Database Explorer, in-memory SQL Studio, travel companion queries, and GeoJSON route exports.">
+    <meta name="description" content="Explore your personal train, transit, and ferry journeys on an interactive map. Complete guide for Träwelling Map Explorer, in-browser SQL Studio, travel buddies, and GeoJSON exports.">
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
 
     <!-- Stylesheet -->
     <link rel="stylesheet" href="css/docs.css">
 
-    <!-- Interactive Docs Script -->
-    <script defer src="js/docs.js"></script>
+    <!-- Interactive Docs Logic -->
+    <script type="module" src="js/docs.js"></script>
 </head>
 
 <body>
     <!-- Accessibility Skip Link -->
     <a href="#main-content" class="skip-link">Skip to main content</a>
 
-    <!-- Sticky Header Navigation -->
+    <!-- Top Sticky Header -->
     <header class="docs-header" role="banner">
-        <button type="button" class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation menu" aria-expanded="false">
-            ☰
-        </button>
-
-        <a href="index.html" class="docs-brand" aria-label="Träwelling Maps Home">
-            <span class="docs-brand-icon">🗺️</span>
-            <div class="docs-brand-text">
+        <div class="docs-header-inner">
+            <a href="index.html" class="docs-brand" aria-label="Träwelling Map Explorer Home">
+                <span class="docs-brand-logo">🗺️</span>
                 <span class="docs-brand-title">Träwelling Maps</span>
-                <span class="docs-brand-badge">Docs &amp; Studio Guide</span>
+                <span class="docs-brand-badge">Guide</span>
+            </a>
+
+            <!-- Live Docs Instant Search -->
+            <div class="docs-search-container" role="search">
+                <span class="docs-search-icon" aria-hidden="true">🔍</span>
+                <input type="search" class="docs-search-input" id="docsSearchInput" placeholder="Search guide (e.g. map, delay, sql)..." aria-label="Search Documentation">
+                <span class="docs-search-kbd">/</span>
             </div>
-        </a>
 
-        <!-- Global Documentation Search -->
-        <div class="docs-search-container" role="search">
-            <span class="docs-search-icon" aria-hidden="true">🔍</span>
-            <input type="search" id="docsSearchInput" class="docs-search-input" placeholder="Search guides, SQL syntax, schema..." aria-label="Search documentation">
-            <kbd class="docs-search-kbd">/</kbd>
+            <!-- Top Nav Navigation Links -->
+            <nav class="docs-nav-links" aria-label="Main Navigation">
+                <a href="index.html" class="docs-nav-btn primary" title="Open Interactive Map Explorer">
+                    <span>🗺️</span>
+                    <span>Map</span>
+                </a>
+                <a href="trips.html" class="docs-nav-btn" title="Open Trip Database &amp; SQL Studio">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="database-svg-icon" aria-hidden="true">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                    </svg>
+                    <span>Database</span>
+                </a>
+                <a href="wrapped.html" class="docs-nav-btn" title="Open Rail Wrapped">
+                    <span>✨</span>
+                    <span>Wrapped</span>
+                </a>
+                <a href="https://github.com/fabian-c/Traewelling-Maps" target="_blank" rel="noopener noreferrer" class="docs-nav-btn" title="GitHub Repository">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" class="github-icon" aria-hidden="true">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                    </svg>
+                    <span>GitHub</span>
+                </a>
+            </nav>
         </div>
-
-        <!-- Navigation Links -->
-        <nav class="docs-nav-links" aria-label="App Navigation">
-            <a href="index.html" class="docs-nav-btn" title="Open Interactive Route Map">
-                <span>🗺️</span>
-                <span>Map</span>
-            </a>
-            <a href="trips.html" class="docs-nav-btn primary" title="Open Trip Database &amp; SQL Studio">
-                <span>🗂️</span>
-                <span>Database</span>
-            </a>
-            <a href="wrapped.html" class="docs-nav-btn" title="View Annual Rail Wrapped">
-                <span>✨</span>
-                <span>Wrapped</span>
-            </a>
-            <a href="https://github.com" target="_blank" rel="noopener noreferrer" class="docs-nav-btn" title="GitHub Repository">
-                <span>🐙</span>
-                <span>GitHub</span>
-            </a>
-        </nav>
     </header>
 
-    <!-- Main Layout Container -->
-    <div class="docs-layout">
-        <!-- Left Sidebar Navigation -->
-        <aside class="docs-sidebar" id="docsSidebar" aria-label="Documentation Sidebar">
-            <nav>
-                <div class="docs-sidebar-group">
-                    <span class="docs-sidebar-title">🚀 Getting Started</span>
-                    <ul class="docs-sidebar-links">
-                        <li><a href="#overview" class="docs-sidebar-link active">Overview &amp; Architecture</a></li>
-                        <li><a href="#quickstart" class="docs-sidebar-link">Quick Start Setup</a></li>
-                        <li><a href="#oauth-vs-public" class="docs-sidebar-link">OAuth2 vs Public Profiles</a></li>
-                        <li><a href="#privacy" class="docs-sidebar-link">100% Client-Side Privacy</a></li>
-                    </ul>
+    <!-- Sticky Pill Quick Navigation -->
+    <nav class="docs-pill-nav" aria-label="Section Quick Jump">
+        <div class="docs-pill-nav-inner">
+            <a href="#map-explorer" class="pill-link active">🗺️ Route Map Explorer</a>
+            <a href="#getting-started" class="pill-link">🚀 Getting Started</a>
+            <a href="#sql-studio" class="pill-link">🗄️ Database Studio</a>
+            <a href="#schema-reference" class="pill-link">📊 SQL Schema</a>
+            <a href="#rail-wrapped" class="pill-link">✨ Rail Wrapped</a>
+            <a href="#data-exports" class="pill-link">📦 GeoJSON &amp; Exports</a>
+            <a href="#privacy-faq" class="pill-link">🔒 Privacy &amp; FAQ</a>
+        </div>
+    </nav>
+
+    <!-- Main Content Container -->
+    <main class="docs-container" id="main-content">
+
+        <!-- Hero Section -->
+        <header class="docs-hero">
+            <div class="hero-tag">🌟 Open-Source Rail &amp; Transit Explorer</div>
+            <h1>Träwelling Map Explorer</h1>
+            <p class="hero-subtitle">
+                An interactive visualization platform that transforms your personal train, transit, and ferry journeys from <a href="https://traewelling.de" target="_blank" rel="noopener noreferrer" style="color: var(--accent-cyan); text-decoration: underline;">Träwelling</a> into an interactive route network, personal travel map, and local SQL analytics studio.
+            </p>
+            <div class="hero-actions">
+                <a href="index.html" class="btn btn-primary">
+                    <span>🗺️ Open Interactive Map</span>
+                </a>
+                <a href="trips.html" class="btn btn-secondary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="database-svg-icon" aria-hidden="true">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                    </svg>
+                    <span>Database Studio</span>
+                </a>
+                <a href="wrapped.html" class="btn btn-secondary">
+                    <span>✨ Rail Wrapped</span>
+                </a>
+                <a href="https://github.com/fabian-c/Traewelling-Maps" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="github-icon" aria-hidden="true">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                    </svg>
+                    <span>GitHub</span>
+                </a>
+            </div>
+        </header>
+
+        <!-- ===================================================================
+             SECTION 1: Route Map Explorer (The Core of Träwelling Maps)
+             =================================================================== -->
+        <section class="docs-section" id="map-explorer">
+            <div class="docs-section-header">
+                <h2><span>🗺️</span> The Interactive Route Map Explorer</h2>
+                <p>The heart of the project: visualizing your train, transit, and ferry journeys on interactive railway networks.</p>
+            </div>
+
+            <p>
+                Träwelling Maps is designed first and foremost to make your travel memories tangible. Rather than browsing raw lists of check-ins, the Map Explorer plots your actual train paths across countries, highlighting high-speed corridors, intermediate station stopovers, and ferry connections.
+            </p>
+
+            <div class="feature-grid">
+                <article class="feature-card">
+                    <span class="feature-card-icon">🛤️</span>
+                    <h4>Railway Network &amp; Polylines</h4>
+                    <p>Every train journey is plotted using real-world railway tracks and station coordinates with vibrant color-coding by transit mode.</p>
+                </article>
+
+                <article class="feature-card">
+                    <span class="feature-card-icon">🚉</span>
+                    <h4>Intermediate Stations &amp; Stopovers</h4>
+                    <p>Click on any journey to reveal the intermediate stops along the line, with scheduled timetables and actual arrival timestamps.</p>
+                </article>
+
+                <article class="feature-card">
+                    <span class="feature-card-icon">🔥</span>
+                    <h4>Track HeatMap Density</h4>
+                    <p>Toggle the HeatMap layer to visualize which corridors and tracks you ride the most, with customizable intensity and wave animations.</p>
+                </article>
+
+                <article class="feature-card">
+                    <span class="feature-card-icon">⚠️</span>
+                    <h4>Delay &amp; Punctuality Highlights</h4>
+                    <p>Track delay metrics visually. Trips with significant delays glow in orange/red, with detailed delay causes and actual vs. scheduled times.</p>
+                </article>
+
+                <article class="feature-card">
+                    <span class="feature-card-icon">📸</span>
+                    <h4>Media &amp; Check-in Notes</h4>
+                    <p>Interactive station popups display your check-in comments, travel buddy tags, and embedded photos or videos directly on the map.</p>
+                </article>
+
+                <article class="feature-card">
+                    <span class="feature-card-icon">🚦</span>
+                    <h4>Multi-Modal Transit Layers</h4>
+                    <p>Filter by transport category: High-Speed Rail (ICE/TGV/Eurostar), Regional, S-Bahn/Suburban, Subways, Trams, Buses, and Ferries.</p>
+                </article>
+            </div>
+
+            <div class="docs-alert tip">
+                <span class="docs-alert-icon">💡</span>
+                <div class="docs-alert-body">
+                    <p><strong>Direct Trip Sharing:</strong> You can link directly to any specific journey popup on the map by appending <code>?user=USERNAME&amp;trip=STATUS_ID</code> to the map URL.</p>
                 </div>
+            </div>
 
-                <div class="docs-sidebar-group">
-                    <span class="docs-sidebar-title">🗺️ Route Map Explorer</span>
-                    <ul class="docs-sidebar-links">
-                        <li><a href="#map-features" class="docs-sidebar-link">Interactive Polylines &amp; Modes</a></li>
-                        <li><a href="#map-popups" class="docs-sidebar-link">Station Popups &amp; Check-ins</a></li>
-                        <li><a href="#map-deeplinking" class="docs-sidebar-link">Direct Deep-Linking (?trip=...)</a></li>
-                    </ul>
-                </div>
-
-                <div class="docs-sidebar-group">
-                    <span class="docs-sidebar-title">🗂️ Trip Database</span>
-                    <ul class="docs-sidebar-links">
-                        <li><a href="#database-explorer" class="docs-sidebar-link">Explorer &amp; Multi-Criteria Filters</a></li>
-                        <li><a href="#table-modes" class="docs-sidebar-link">Unified vs Raw SQL Table</a></li>
-                        <li><a href="#cards-view" class="docs-sidebar-link">Visual Cards Grid</a></li>
-                        <li><a href="#detail-inspector" class="docs-sidebar-link">Trip Detail Inspector</a></li>
-                    </ul>
-                </div>
-
-                <div class="docs-sidebar-group">
-                    <span class="docs-sidebar-title">⚡ In-Memory SQL Studio</span>
-                    <ul class="docs-sidebar-links">
-                        <li><a href="#sql-engine" class="docs-sidebar-link">In-Browser SQL Engine</a></li>
-                        <li><a href="#sql-schema" class="docs-sidebar-link">Schema Reference (17 Columns)</a></li>
-                        <li><a href="#sql-syntax" class="docs-sidebar-link">Supported SQL Syntax &amp; Clauses</a></li>
-                        <li><a href="#sql-buddy-queries" class="docs-sidebar-link">Travel Buddies &amp; Companions</a></li>
-                        <li><a href="#sql-recipes" class="docs-sidebar-link">Pre-Built SQL Recipes</a></li>
-                    </ul>
-                </div>
-
-                <div class="docs-sidebar-group">
-                    <span class="docs-sidebar-title">✨ Rail Wrapped</span>
-                    <ul class="docs-sidebar-links">
-                        <li><a href="#wrapped-overview" class="docs-sidebar-link">Year in Review Analytics</a></li>
-                        <li><a href="#wrapped-longest-journey" class="docs-sidebar-link">Longest Journey (Flights Excluded)</a></li>
-                    </ul>
-                </div>
-
-                <div class="docs-sidebar-group">
-                    <span class="docs-sidebar-title">📦 Data Exports</span>
-                    <ul class="docs-sidebar-links">
-                        <li><a href="#export-geojson" class="docs-sidebar-link">GeoJSON Route Exports</a></li>
-                        <li><a href="#export-csv-json" class="docs-sidebar-link">CSV &amp; JSON Data Exports</a></li>
-                    </ul>
-                </div>
-
-                <div class="docs-sidebar-group">
-                    <span class="docs-sidebar-title">❓ Help &amp; Reference</span>
-                    <ul class="docs-sidebar-links">
-                        <li><a href="#faq" class="docs-sidebar-link">Frequently Asked Questions</a></li>
-                    </ul>
-                </div>
-            </nav>
-        </aside>
-
-        <!-- Main Article Content -->
-        <main class="docs-main" id="main-content">
-            <!-- Hero Banner -->
-            <section class="docs-hero">
-                <span class="docs-hero-badge">Documentation &amp; User Manual</span>
-                <h1>Träwelling Maps &amp; Database Studio</h1>
-                <p>
-                    A high-performance, privacy-first web platform for visualizing, querying, filtering, and exporting your entire Träwelling transit and rail travel history.
-                </p>
-                <div class="docs-hero-actions">
-                    <a href="trips.html" class="docs-nav-btn primary" style="padding: 10px 18px; font-size: 14px;">
-                        <span>🚀 Launch Database Studio</span>
-                    </a>
-                    <a href="index.html" class="docs-nav-btn" style="padding: 10px 18px; font-size: 14px;">
-                        <span>🗺️ Open Interactive Map</span>
-                    </a>
-                    <a href="#sql-recipes" class="docs-nav-btn" style="padding: 10px 18px; font-size: 14px;">
-                        <span>⚡ SQL Recipes</span>
-                    </a>
-                </div>
-            </section>
-
-            <!-- 1. Overview & Architecture -->
-            <section class="docs-section" id="overview">
-                <h2><span>🚀</span> Overview &amp; Architecture</h2>
-                <p>
-                    <strong>Träwelling Maps</strong> transforms your personal train, transit, and ferry check-ins into an interactive spatial network and relational database. Built without heavy frontend frameworks or remote database dependencies, everything runs <strong>100% client-side in your browser</strong>.
-                </p>
-
-                <div class="docs-grid">
-                    <div class="docs-card">
-                        <span class="docs-card-icon">🗺️</span>
-                        <h3 class="docs-card-title">Interactive Route Map</h3>
-                        <p class="docs-card-desc">Visualizes real transit geometries, station markers, punctuality tiers, platform changes, and custom check-in notes.</p>
-                    </div>
-                    <div class="docs-card">
-                        <span class="docs-card-icon">⚡</span>
-                        <h3 class="docs-card-title">In-Memory SQL Studio</h3>
-                        <p class="docs-card-desc">Executes arbitrary SQL queries with filtering, sorting, aggregations, companion criteria, and pagination in sub-millisecond execution times.</p>
-                    </div>
-                    <div class="docs-card">
-                        <span class="docs-card-icon">👥</span>
-                        <h3 class="docs-card-title">Travel Companion Tracking</h3>
-                        <p class="docs-card-desc">Native relational tracking for friends traveling together via <code>buddies</code> and <code>buddy_count</code> predicates.</p>
-                    </div>
-                    <div class="docs-card">
-                        <span class="docs-card-icon">✨</span>
-                        <h3 class="docs-card-title">Annual Rail Wrapped</h3>
-                        <p class="docs-card-desc">Calculates year-end transit analytics, carbon savings, top train lines, and pure rail longest journeys (excluding flights).</p>
+            <div class="code-card">
+                <div class="code-card-header">
+                    <span class="code-card-title">Shareable Map URL Example</span>
+                    <div class="code-card-actions">
+                        <button type="button" class="copy-btn copy-sql-btn" data-sql="index.html?user=USERNAME&trip=STATUS_ID">Copy URL</button>
                     </div>
                 </div>
+                <pre class="code-content"><code>index.html?user=<span class="sql-col">USERNAME</span>&amp;trip=<span class="sql-number">STATUS_ID</span></code></pre>
+            </div>
+        </section>
 
-                <div class="docs-alert note">
-                    <span class="docs-alert-icon">💡</span>
-                    <div class="docs-alert-content">
-                        <div class="docs-alert-title">Architecture Highlight</div>
-                        All parsing, caching (via IndexedDB), filtering, and SQL evaluation happens directly in your browser. No travel history or credentials ever leave your device.
+        <!-- ===================================================================
+             SECTION 2: Getting Started & Authentication
+             =================================================================== -->
+        <section class="docs-section" id="getting-started">
+            <div class="docs-section-header">
+                <h2><span>🚀</span> Getting Started &amp; Authentication</h2>
+                <p>Two simple ways to explore your travel data: 1-Click OAuth or Instant Public Profile.</p>
+            </div>
+
+            <div class="feature-grid">
+                <article class="feature-card">
+                    <span class="feature-card-icon">🔑</span>
+                    <h4>1-Click Träwelling OAuth</h4>
+                    <p>Click "Login with Träwelling" to securely authenticate with your account. Access your private trips, full profile, and auto-sync.</p>
+                </article>
+
+                <article class="feature-card">
+                    <span class="feature-card-icon">👤</span>
+                    <h4>Instant Public Profile View</h4>
+                    <p>Simply enter any public Träwelling username (or use <code>?user=username</code> in the URL) to explore their public travel map without logging in.</p>
+                </article>
+
+                <article class="feature-card">
+                    <span class="feature-card-icon">⚡</span>
+                    <h4>Offline IndexedDB Cache</h4>
+                    <p>All journey data, stations, and intermediate stopovers are cached locally in your browser for 90 days. Instant loads with zero API lag.</p>
+                </article>
+            </div>
+        </section>
+
+        <!-- ===================================================================
+             SECTION 3: Trip Database & In-Memory SQL Studio
+             =================================================================== -->
+        <section class="docs-section" id="sql-studio">
+            <div class="docs-section-header">
+                <h2>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="database-svg-icon" aria-hidden="true" style="color: var(--accent-cyan);">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                    </svg>
+                    Trip Database &amp; In-Memory SQL Studio
+                </h2>
+                <p>Powerful relational filtering and local query studio built into the browser.</p>
+            </div>
+
+            <p>
+                While the Map Explorer lets you see journeys spatially, the <strong>Trip Database</strong> (<a href="trips.html" style="color: var(--accent-cyan);">trips.html</a>) provides an advanced search engine and client-side SQL workbench. Every journey is loaded into an in-memory relational table (<code>trips</code>), enabling instant SQL queries without any backend database.
+            </p>
+
+            <h3>Interactive Pre-Built SQL Recipes</h3>
+            <p>Run these popular queries directly in Database Studio or copy them with one click:</p>
+
+            <!-- Recipe 1: Buddy Trips -->
+            <div class="code-card">
+                <div class="code-card-header">
+                    <span class="code-card-title">👥 Group Journeys with Travel Buddies</span>
+                    <div class="code-card-actions">
+                        <button type="button" class="copy-btn copy-sql-btn" data-sql="SELECT line, origin, destination, buddies, buddy_count FROM trips WHERE buddy_count >= 1 ORDER BY buddy_count DESC">📋 Copy SQL</button>
+                        <a href="trips.html?sql=SELECT%20line%2C%20origin%2C%20destination%2C%20buddies%2C%20buddy_count%20FROM%20trips%20WHERE%20buddy_count%20%3E%3D%201%20ORDER%20BY%20buddy_count%20DESC" class="run-studio-btn">🚀 Run in Studio</a>
                     </div>
                 </div>
-            </section>
+                <pre class="code-content"><code><span class="sql-keyword">SELECT</span> <span class="sql-col">line</span>, <span class="sql-col">origin</span>, <span class="sql-col">destination</span>, <span class="sql-col">buddies</span>, <span class="sql-col">buddy_count</span>
+<span class="sql-keyword">FROM</span> <span class="sql-col">trips</span>
+<span class="sql-keyword">WHERE</span> <span class="sql-col">buddy_count</span> &gt;= <span class="sql-number">1</span>
+<span class="sql-keyword">ORDER BY</span> <span class="sql-col">buddy_count</span> <span class="sql-keyword">DESC</span>;</code></pre>
+            </div>
 
-            <!-- 2. Quick Start Setup -->
-            <section class="docs-section" id="quickstart">
-                <h2><span>⚡</span> Quick Start Setup</h2>
-                <p>
-                    You can start exploring immediately using either an OAuth2 account connection or by loading any public Träwelling username.
-                </p>
-
-                <div class="docs-grid">
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">Option A: Connect via OAuth2</h3>
-                        <p class="docs-card-desc">Click <strong>Connect with Träwelling</strong> on the main map. Authenticate securely via Träwelling's official OAuth2 provider to automatically sync all your private and public check-ins with full comments, platform info, and tickets.</p>
-                    </div>
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">Option B: Inspect Any Public Profile</h3>
-                        <p class="docs-card-desc">Enter any Träwelling username in the search input (e.g., <code>https://traewelling.de/profile/username</code>). The app fetches public statuses via Träwelling's public API and caches them in your local browser storage.</p>
+            <!-- Recipe 2: Solo Trips -->
+            <div class="code-card">
+                <div class="code-card-header">
+                    <span class="code-card-title">🚶 Solo Adventures (No Companions)</span>
+                    <div class="code-card-actions">
+                        <button type="button" class="copy-btn copy-sql-btn" data-sql="SELECT line, origin, destination, distance_km, departure FROM trips WHERE buddy_count = 0 ORDER BY departure DESC">📋 Copy SQL</button>
+                        <a href="trips.html?sql=SELECT%20line%2C%20origin%2C%20destination%2C%20distance_km%2C%20departure%20FROM%20trips%20WHERE%20buddy_count%20%3D%200%20ORDER%20BY%20departure%20DESC" class="run-studio-btn">🚀 Run in Studio</a>
                     </div>
                 </div>
-            </section>
+                <pre class="code-content"><code><span class="sql-keyword">SELECT</span> <span class="sql-col">line</span>, <span class="sql-col">origin</span>, <span class="sql-col">destination</span>, <span class="sql-col">distance_km</span>, <span class="sql-col">departure</span>
+<span class="sql-keyword">FROM</span> <span class="sql-col">trips</span>
+<span class="sql-keyword">WHERE</span> <span class="sql-col">buddy_count</span> = <span class="sql-number">0</span>
+<span class="sql-keyword">ORDER BY</span> <span class="sql-col">departure</span> <span class="sql-keyword">DESC</span>;</code></pre>
+            </div>
 
-            <!-- 3. OAuth2 vs Public Profiles -->
-            <section class="docs-section" id="oauth-vs-public">
-                <h2><span>🔑</span> OAuth2 vs Public Profiles</h2>
-                <p>
-                    Träwelling provides two ways to access your journey data. Below is a breakdown of capabilities available in each mode:
-                </p>
+            <!-- Recipe 3: High-Speed Long Distance -->
+            <div class="code-card">
+                <div class="code-card-header">
+                    <span class="code-card-title">🚄 Long-Distance High-Speed Trips (&gt; 300 km)</span>
+                    <div class="code-card-actions">
+                        <button type="button" class="copy-btn copy-sql-btn" data-sql="SELECT line, origin, destination, distance_km, duration_min FROM trips WHERE category = 'nationalExpress' AND distance_km > 300 ORDER BY distance_km DESC">📋 Copy SQL</button>
+                        <a href="trips.html?sql=SELECT%20line%2C%20origin%2C%20destination%2C%20distance_km%2C%20duration_min%20FROM%20trips%20WHERE%20category%20%3D%20'nationalExpress'%20AND%20distance_km%20%3E%20300%20ORDER%20BY%20distance_km%20DESC" class="run-studio-btn">🚀 Run in Studio</a>
+                    </div>
+                </div>
+                <pre class="code-content"><code><span class="sql-keyword">SELECT</span> <span class="sql-col">line</span>, <span class="sql-col">origin</span>, <span class="sql-col">destination</span>, <span class="sql-col">distance_km</span>, <span class="sql-col">duration_min</span>
+<span class="sql-keyword">FROM</span> <span class="sql-col">trips</span>
+<span class="sql-keyword">WHERE</span> <span class="sql-col">category</span> = <span class="sql-string">'nationalExpress'</span> <span class="sql-keyword">AND</span> <span class="sql-col">distance_km</span> &gt; <span class="sql-number">300</span>
+<span class="sql-keyword">ORDER BY</span> <span class="sql-col">distance_km</span> <span class="sql-keyword">DESC</span>;</code></pre>
+            </div>
 
-                <div class="schema-table-wrapper">
+            <!-- Recipe 4: Top Delays -->
+            <div class="code-card">
+                <div class="code-card-header">
+                    <span class="code-card-title">⚠️ Top 10 Heaviest Departure Delays (&gt; 15 min)</span>
+                    <div class="code-card-actions">
+                        <button type="button" class="copy-btn copy-sql-btn" data-sql="SELECT line, origin, destination, delay_dep, departure FROM trips WHERE delay_dep > 15 ORDER BY delay_dep DESC LIMIT 10">📋 Copy SQL</button>
+                        <a href="trips.html?sql=SELECT%20line%2C%20origin%2C%20destination%2C%20delay_dep%2C%20departure%20FROM%20trips%20WHERE%20delay_dep%20%3E%2015%20ORDER%20BY%20delay_dep%20DESC%20LIMIT%2010" class="run-studio-btn">🚀 Run in Studio</a>
+                    </div>
+                </div>
+                <pre class="code-content"><code><span class="sql-keyword">SELECT</span> <span class="sql-col">line</span>, <span class="sql-col">origin</span>, <span class="sql-col">destination</span>, <span class="sql-col">delay_dep</span>, <span class="sql-col">departure</span>
+<span class="sql-keyword">FROM</span> <span class="sql-col">trips</span>
+<span class="sql-keyword">WHERE</span> <span class="sql-col">delay_dep</span> &gt; <span class="sql-number">15</span>
+<span class="sql-keyword">ORDER BY</span> <span class="sql-col">delay_dep</span> <span class="sql-keyword">DESC</span>
+<span class="sql-keyword">LIMIT</span> <span class="sql-number">10</span>;</code></pre>
+            </div>
+        </section>
+
+        <!-- ===================================================================
+             SECTION 4: SQL Schema Reference
+             =================================================================== -->
+        <section class="docs-section" id="schema-reference">
+            <div class="docs-section-header">
+                <h2><span>📊</span> Relational Trips Table Schema</h2>
+                <p>Complete reference of all 17 columns available in the in-memory database.</p>
+            </div>
+
+            <div class="schema-table-wrapper">
+                <div class="schema-table-header">
+                    <span style="font-weight: 600; font-size: 14px;">Table: <code>trips</code></span>
+                    <input type="search" class="schema-table-search" id="schemaSearchInput" placeholder="Filter columns (e.g. delay, buddy)..." aria-label="Filter SQL columns">
+                </div>
+
+                <div class="table-responsive">
                     <table class="schema-table">
                         <thead>
                             <tr>
-                                <th>Feature / Data Field</th>
-                                <th>OAuth2 Connected User</th>
-                                <th>Public Username Fetch</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>Historical Check-Ins</strong></td>
-                                <td><span class="col-badge text">Full History</span></td>
-                                <td><span class="col-badge text">Latest Public Pages</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Private Check-Ins &amp; Notes</strong></td>
-                                <td><span class="col-badge num">Included</span></td>
-                                <td><span class="col-badge date">Public Only</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Platform &amp; Real-Time Delay Info</strong></td>
-                                <td><span class="col-badge num">Included</span></td>
-                                <td><span class="col-badge num">Included</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Travel Companions (@buddies)</strong></td>
-                                <td><span class="col-badge num">Included</span></td>
-                                <td><span class="col-badge num">Included</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Offline Cache Persistence</strong></td>
-                                <td><span class="col-badge text">IndexedDB</span></td>
-                                <td><span class="col-badge text">IndexedDB</span></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- 4. Privacy -->
-            <section class="docs-section" id="privacy">
-                <h2><span>🛡️</span> 100% Client-Side Privacy</h2>
-                <p>
-                    We believe your transit history is personal. Träwelling Maps is designed with a strict zero-telemetry, zero-remote-database philosophy:
-                </p>
-                <ul>
-                    <li><strong>No Backend Server:</strong> The application is statically hosted. There is no remote backend server collecting, logging, or storing your data.</li>
-                    <li><strong>Direct API Communication:</strong> All network requests communicate directly between your browser and <code>traewelling.de</code> via HTTPS.</li>
-                    <li><strong>Local IndexedDB Storage:</strong> Credentials and cached journeys are stored strictly in your browser's local sandbox (<code>SessionDB</code>).</li>
-                    <li><strong>Easy Cache Eviction:</strong> You can clear your cached sessions at any time with a single click.</li>
-                </ul>
-            </section>
-
-            <!-- 5. Interactive Route Map -->
-            <section class="docs-section" id="map-features">
-                <h2><span>🗺️</span> Interactive Route Map</h2>
-                <p>
-                    The interactive map transforms individual check-in statuses into contiguous geographic polylines across regional, national, and international transit networks.
-                </p>
-                <div class="docs-grid">
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">Category Color Schemes</h3>
-                        <p class="docs-card-desc">ICE and high-speed rail glow red, regional express lines appear in cyan, S-Bahn lines shine emerald, and ferries are marked in teal.</p>
-                    </div>
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">Time Scrubbing Slider</h3>
-                        <p class="docs-card-desc">Filter your journeys across specific years, months, or date ranges with real-time route rendering.</p>
-                    </div>
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">Punctuality Badges</h3>
-                        <p class="docs-card-desc">Each journey displays departure and arrival punctuality tiers, from punctual (≤5 min) to severe delays (>30 min).</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 6. Deep Linking -->
-            <section class="docs-section" id="map-deeplinking">
-                <h2><span>🔗</span> Direct Deep-Linking</h2>
-                <p>
-                    You can link directly to any specific journey across both the Map Explorer and Database Studio using URL parameters:
-                </p>
-
-                <div class="code-card">
-                    <div class="code-card-header">
-                        <div class="code-card-title">Deep Link URL Pattern</div>
-                        <div class="code-card-actions">
-                            <button type="button" class="copy-btn" data-sql="index.html?user=USERNAME&trip=STATUS_ID">Copy URL</button>
-                        </div>
-                    </div>
-                    <pre class="code-content"><code>index.html?user=<span class="sql-string">resu</span>&trip=<span class="sql-number">325374</span></code></pre>
-                </div>
-
-                <div class="docs-alert tip">
-                    <span class="docs-alert-icon">💡</span>
-                    <div class="docs-alert-content">
-                        <div class="docs-alert-title">Automatic Map Pan &amp; Detail Zoom</div>
-                        Opening an <code>index.html?user=...&trip=...</code> deep-link automatically centers the map onto the journey's polyline coordinates and opens the rich station popup.
-                    </div>
-                </div>
-            </section>
-
-            <!-- 7. Trip Database & Multi-Criteria Filters -->
-            <section class="docs-section" id="database-explorer">
-                <h2><span>🗂️</span> Trip Database Explorer</h2>
-                <p>
-                    The <strong>Trip Database</strong> (<a href="trips.html" style="color: var(--accent-cyan);">trips.html</a>) provides an advanced search engine and relational workbench for your journeys.
-                </p>
-
-                <div class="docs-grid">
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">Live Text Search</h3>
-                        <p class="docs-card-desc">Instantly searches line names, train numbers, origin/destination stations, check-in comments, and buddy mentions (e.g., <code>@Fabi</code>).</p>
-                    </div>
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">Multi-Select Categories</h3>
-                        <p class="docs-card-desc">Filter multiple transport modes simultaneously (e.g. High-Speed + Regional + Ferry).</p>
-                    </div>
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">Telemetry Analytics Bar</h3>
-                        <p class="docs-card-desc">Live telemetry showing matched journeys, total distance (with Earth lap comparison), punctuality rate, interactive travel time (hours/days/months), and avoided carbon emissions vs passenger cars.</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 8. Unified vs Raw SQL Table -->
-            <section class="docs-section" id="table-modes">
-                <h2><span>📊</span> Unified Table vs. Raw SQL Grid</h2>
-                <p>
-                    Database Studio includes two complementary table display modes accessible via the <code>[ 📋 Unified | 📊 Raw SQL ]</code> format switcher in the results bar:
-                </p>
-
-                <div class="docs-grid">
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">📋 Unified Explorer Mode (Default)</h3>
-                        <p class="docs-card-desc">Rich visual cards with transport mode icons, punctuality pills, interactive travel companion chips with profile links, and an expandable check-in drawer showing scheduled vs actual times, platforms, and check-in notes.</p>
-                    </div>
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">📊 Raw SQL Output Mode</h3>
-                        <p class="docs-card-desc">Designed for SQL users: renders the exact projected relational table matching your <code>SELECT</code> clause. Displays typed column headers (<code>TEXT</code>, <code>NUM</code>, <code>DATE</code>), right-aligned monospace numbers, row indices (<code>#</code>), and explicit <code>NULL</code> badges.</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 9. In-Memory SQL Studio -->
-            <section class="docs-section" id="sql-engine">
-                <h2><span>⚡</span> In-Memory SQL Studio</h2>
-                <p>
-                    Database Studio features a full SQL tokenizer, recursive-descent query parser, and evaluation engine executing in Web Workers or main thread. It evaluates complex logical expressions with parenthesized groups against thousands of trips in <strong>under 1 millisecond</strong>.
-                </p>
-
-                <div class="docs-alert important">
-                    <span class="docs-alert-icon">⚡</span>
-                    <div class="docs-alert-content">
-                        <div class="docs-alert-title">Pure Relational SQL</div>
-                        Queries run against the virtual <code>trips</code> table. You can use standard SQL clauses: <code>SELECT</code>, <code>WHERE</code>, <code>ORDER BY</code>, <code>LIMIT</code>, and <code>OFFSET</code>.
-                    </div>
-                </div>
-            </section>
-
-            <!-- 10. SQL Schema Reference -->
-            <section class="docs-section" id="sql-schema">
-                <h2><span>📋</span> SQL Schema Reference (17 Columns)</h2>
-                <p>
-                    Below is the complete interactive column reference for the <code>trips</code> table. Use the search input to filter column names, types, or descriptions:
-                </p>
-
-                <div class="schema-table-wrapper">
-                    <div class="schema-table-toolbar">
-                        <span style="font-weight: 600; font-size: 13px; color: var(--text-primary);">Table: <code>trips</code> (17 Columns Available)</span>
-                        <input type="search" class="schema-table-search" id="schemaSearchInput" placeholder="Filter columns (e.g. delay, buddy)..." aria-label="Filter SQL columns">
-                    </div>
-                    <table class="schema-table">
-                        <thead>
-                            <tr>
-                                <th>Column Name</th>
-                                <th>SQL Type</th>
+                                <th>Column</th>
+                                <th>Type</th>
                                 <th>Description</th>
-                                <th>Example Value</th>
+                                <th>Sample Value</th>
                             </tr>
                         </thead>
                         <tbody id="schemaTableBody">
@@ -510,266 +430,117 @@
                         </tbody>
                     </table>
                 </div>
-            </section>
+            </div>
+        </section>
 
-            <!-- 11. Travel Buddies & Companions -->
-            <section class="docs-section" id="sql-buddy-queries">
-                <h2><span>👥</span> Travel Buddies &amp; Group Travel Queries</h2>
-                <p>
-                    Träwelling lets you check in alongside friends. In Database Studio, you can filter group trips using both text matching and numeric buddy counts:
-                </p>
+        <!-- ===================================================================
+             SECTION 5: Annual Rail Wrapped & Community Analytics
+             =================================================================== -->
+        <section class="docs-section" id="rail-wrapped">
+            <div class="docs-section-header">
+                <h2><span>✨</span> Annual Rail Wrapped &amp; Analytics</h2>
+                <p>Celebrate your year on rails with customized statistics and visual summaries.</p>
+            </div>
 
-                <h3>Option 1: Using the <code>buddy_count</code> Numeric Column (Recommended)</h3>
-                <p>
-                    The <code>buddy_count</code> column represents the exact count of travel buddies. This enables precise relational filtering:
-                </p>
+            <p>
+                Inspired by Spotify Wrapped, <strong>Rail Wrapped</strong> (<a href="wrapped.html" style="color: var(--accent-cyan);">wrapped.html</a>) produces a shareable summary of your annual train travel milestones.
+            </p>
 
-                <div class="code-card">
-                    <div class="code-card-header">
-                        <div class="code-card-title">Group Travel: Trips with at least 1 companion</div>
-                        <div class="code-card-actions">
-                            <button type="button" class="copy-btn" data-sql="SELECT line, origin, destination, buddies, buddy_count FROM trips WHERE buddy_count >= 1 ORDER BY buddy_count DESC">📋 Copy SQL</button>
-                            <a href="trips.html" class="run-studio-btn">🚀 Run in Studio</a>
-                        </div>
-                    </div>
-                    <pre class="code-content"><code><span class="sql-keyword">SELECT</span> <span class="sql-col">line</span>, <span class="sql-col">origin</span>, <span class="sql-col">destination</span>, <span class="sql-col">buddies</span>, <span class="sql-col">buddy_count</span>
-<span class="sql-keyword">FROM</span> trips
-<span class="sql-keyword">WHERE</span> <span class="sql-col">buddy_count</span> &gt;= <span class="sql-number">1</span>
-<span class="sql-keyword">ORDER BY</span> <span class="sql-col">buddy_count</span> <span class="sql-keyword">DESC</span>;</code></pre>
-                </div>
+            <div class="feature-grid">
+                <article class="feature-card">
+                    <span class="feature-card-icon">📏</span>
+                    <h4>Distance &amp; Journey Totals</h4>
+                    <p>Total kilometers covered by train, days spent on rails, and equivalents (e.g. trips around the Earth).</p>
+                </article>
 
-                <div class="code-card">
-                    <div class="code-card-header">
-                        <div class="code-card-title">Solo Journeys: Trips with no companions</div>
-                        <div class="code-card-actions">
-                            <button type="button" class="copy-btn" data-sql="SELECT line, origin, destination, distance_km, departure FROM trips WHERE buddy_count = 0 ORDER BY departure DESC">📋 Copy SQL</button>
-                            <a href="trips.html" class="run-studio-btn">🚀 Run in Studio</a>
-                        </div>
-                    </div>
-                    <pre class="code-content"><code><span class="sql-keyword">SELECT</span> <span class="sql-col">line</span>, <span class="sql-col">origin</span>, <span class="sql-col">destination</span>, <span class="sql-col">distance_km</span>, <span class="sql-col">departure</span>
-<span class="sql-keyword">FROM</span> trips
-<span class="sql-keyword">WHERE</span> <span class="sql-col">buddy_count</span> = <span class="sql-number">0</span>
-<span class="sql-keyword">ORDER BY</span> <span class="sql-col">departure</span> <span class="sql-keyword">DESC</span>;</code></pre>
-                </div>
+                <article class="feature-card">
+                    <span class="feature-card-icon">🏆</span>
+                    <h4>Longest Journey</h4>
+                    <p>Identifies your epic single rail journey of the year (strictly rail/transit, excluding flights).</p>
+                </article>
 
-                <h3>Option 2: Without the <code>buddy_count</code> Parameter</h3>
-                <p>
-                    If you prefer writing SQL against the raw string column <code>buddies</code>, you can use <code>IS NOT NULL</code> or pattern matching:
-                </p>
+                <article class="feature-card">
+                    <span class="feature-card-icon">👥</span>
+                    <h4>Travel Buddy Rankings</h4>
+                    <p>Celebrates your top travel companions and shared kilometers on the tracks.</p>
+                </article>
+            </div>
+        </section>
 
-                <div class="code-card">
-                    <div class="code-card-header">
-                        <div class="code-card-title">Find Trips with Buddies using IS NOT NULL or LIKE</div>
-                        <div class="code-card-actions">
-                            <button type="button" class="copy-btn" data-sql="SELECT line, origin, destination, buddies, departure FROM trips WHERE buddies IS NOT NULL ORDER BY departure DESC">📋 Copy SQL</button>
-                            <a href="trips.html" class="run-studio-btn">🚀 Run in Studio</a>
-                        </div>
-                    </div>
-                    <pre class="code-content"><code><span class="sql-comment">-- Matches any trip where companions are attached</span>
-<span class="sql-keyword">SELECT</span> <span class="sql-col">line</span>, <span class="sql-col">origin</span>, <span class="sql-col">destination</span>, <span class="sql-col">buddies</span>, <span class="sql-col">departure</span>
-<span class="sql-keyword">FROM</span> trips
-<span class="sql-keyword">WHERE</span> <span class="sql-col">buddies</span> <span class="sql-keyword">IS NOT NULL</span>
-<span class="sql-keyword">ORDER BY</span> <span class="sql-col">departure</span> <span class="sql-keyword">DESC</span>;
+        <!-- ===================================================================
+             SECTION 6: Data Exports & GeoJSON Route Polylines
+             =================================================================== -->
+        <section class="docs-section" id="data-exports">
+            <div class="docs-section-header">
+                <h2><span>📦</span> Data Exports &amp; GeoJSON</h2>
+                <p>Your data belongs to you: export routes for GIS, Google Earth, or archival backups.</p>
+            </div>
 
-<span class="sql-comment">-- Or search for a specific friend's username</span>
-<span class="sql-keyword">SELECT</span> <span class="sql-col">line</span>, <span class="sql-col">origin</span>, <span class="sql-col">destination</span>, <span class="sql-col">departure</span>
-<span class="sql-keyword">FROM</span> trips
-<span class="sql-keyword">WHERE</span> <span class="sql-col">buddies</span> <span class="sql-keyword">LIKE</span> <span class="sql-string">'%@Fabi%'</span>;</code></pre>
-                </div>
-            </section>
+            <p>
+                Träwelling Maps supports full GeoJSON export directly from the map menu:
+            </p>
 
-            <!-- 12. Pre-Built SQL Recipes -->
-            <section class="docs-section" id="sql-recipes">
-                <h2><span>⚡</span> Pre-Built SQL Recipes</h2>
-                <p>
-                    Try these curated SQL recipes directly in Database Studio or copy them with one click:
-                </p>
-
-                <!-- Recipe 1 -->
-                <div class="code-card">
-                    <div class="code-card-header">
-                        <div class="code-card-title">Top 10 Most Delayed Trips</div>
-                        <div class="code-card-actions">
-                            <button type="button" class="copy-btn" data-sql="SELECT line, origin, destination, delay_dep, departure FROM trips WHERE delay_dep > 15 ORDER BY delay_dep DESC LIMIT 10">📋 Copy SQL</button>
-                            <a href="trips.html" class="run-studio-btn">🚀 Run in Studio</a>
-                        </div>
-                    </div>
-                    <pre class="code-content"><code><span class="sql-keyword">SELECT</span> <span class="sql-col">line</span>, <span class="sql-col">origin</span>, <span class="sql-col">destination</span>, <span class="sql-col">delay_dep</span>, <span class="sql-col">departure</span>
-<span class="sql-keyword">FROM</span> trips
-<span class="sql-keyword">WHERE</span> <span class="sql-col">delay_dep</span> &gt; <span class="sql-number">15</span>
-<span class="sql-keyword">ORDER BY</span> <span class="sql-col">delay_dep</span> <span class="sql-keyword">DESC</span>
-<span class="sql-keyword">LIMIT</span> <span class="sql-number">10</span>;</code></pre>
-                </div>
-
-                <!-- Recipe 2 -->
-                <div class="code-card">
-                    <div class="code-card-header">
-                        <div class="code-card-title">High-Speed Long Distance Journeys (&gt; 300 km)</div>
-                        <div class="code-card-actions">
-                            <button type="button" class="copy-btn" data-sql="SELECT line, origin, destination, distance_km, duration_min FROM trips WHERE category = 'nationalExpress' AND distance_km > 300 ORDER BY distance_km DESC">📋 Copy SQL</button>
-                            <a href="trips.html" class="run-studio-btn">🚀 Run in Studio</a>
-                        </div>
-                    </div>
-                    <pre class="code-content"><code><span class="sql-keyword">SELECT</span> <span class="sql-col">line</span>, <span class="sql-col">origin</span>, <span class="sql-col">destination</span>, <span class="sql-col">distance_km</span>, <span class="sql-col">duration_min</span>
-<span class="sql-keyword">FROM</span> trips
-<span class="sql-keyword">WHERE</span> <span class="sql-col">category</span> = <span class="sql-string">'nationalExpress'</span> <span class="sql-keyword">AND</span> <span class="sql-col">distance_km</span> &gt; <span class="sql-number">300</span>
-<span class="sql-keyword">ORDER BY</span> <span class="sql-col">distance_km</span> <span class="sql-keyword">DESC</span>;</code></pre>
-                </div>
-
-                <!-- Recipe 3 -->
-                <div class="code-card">
-                    <div class="code-card-header">
-                        <div class="code-card-title">Late Night &amp; Early Morning Night Rides</div>
-                        <div class="code-card-actions">
-                            <button type="button" class="copy-btn" data-sql="SELECT line, origin, destination, departure, distance_km FROM trips WHERE (departure LIKE '%T22:%' OR departure LIKE '%T23:%' OR departure LIKE '%T00:%' OR departure LIKE '%T01:%' OR departure LIKE '%T02:%' OR departure LIKE '%T03:%' OR departure LIKE '%T04:%' OR departure LIKE '%T05:%') ORDER BY departure DESC">📋 Copy SQL</button>
-                            <a href="trips.html" class="run-studio-btn">🚀 Run in Studio</a>
-                        </div>
-                    </div>
-                    <pre class="code-content"><code><span class="sql-keyword">SELECT</span> <span class="sql-col">line</span>, <span class="sql-col">origin</span>, <span class="sql-col">destination</span>, <span class="sql-col">departure</span>, <span class="sql-col">distance_km</span>
-<span class="sql-keyword">FROM</span> trips
-<span class="sql-keyword">WHERE</span> (
-    <span class="sql-col">departure</span> <span class="sql-keyword">LIKE</span> <span class="sql-string">'%T22:%'</span> <span class="sql-keyword">OR</span> <span class="sql-col">departure</span> <span class="sql-keyword">LIKE</span> <span class="sql-string">'%T23:%'</span> <span class="sql-keyword">OR</span>
-    <span class="sql-col">departure</span> <span class="sql-keyword">LIKE</span> <span class="sql-string">'%T00:%'</span> <span class="sql-keyword">OR</span> <span class="sql-col">departure</span> <span class="sql-keyword">LIKE</span> <span class="sql-string">'%T01:%'</span> <span class="sql-keyword">OR</span>
-    <span class="sql-col">departure</span> <span class="sql-keyword">LIKE</span> <span class="sql-string">'%T02:%'</span> <span class="sql-keyword">OR</span> <span class="sql-col">departure</span> <span class="sql-keyword">LIKE</span> <span class="sql-string">'%T03:%'</span>
-)
-<span class="sql-keyword">ORDER BY</span> <span class="sql-col">departure</span> <span class="sql-keyword">DESC</span>;</code></pre>
-                </div>
-
-                <!-- Recipe 4 -->
-                <div class="code-card">
-                    <div class="code-card-header">
-                        <div class="code-card-title">100% Punctual Regional Runs (Zero Delay)</div>
-                        <div class="code-card-actions">
-                            <button type="button" class="copy-btn" data-sql="SELECT line, origin, destination, distance_km, departure FROM trips WHERE category = 'regional' AND delay_dep = 0 ORDER BY departure DESC LIMIT 20">📋 Copy SQL</button>
-                            <a href="trips.html" class="run-studio-btn">🚀 Run in Studio</a>
-                        </div>
-                    </div>
-                    <pre class="code-content"><code><span class="sql-keyword">SELECT</span> <span class="sql-col">line</span>, <span class="sql-col">origin</span>, <span class="sql-col">destination</span>, <span class="sql-col">distance_km</span>, <span class="sql-col">departure</span>
-<span class="sql-keyword">FROM</span> trips
-<span class="sql-keyword">WHERE</span> <span class="sql-col">category</span> = <span class="sql-string">'regional'</span> <span class="sql-keyword">AND</span> <span class="sql-col">delay_dep</span> = <span class="sql-number">0</span>
-<span class="sql-keyword">ORDER BY</span> <span class="sql-col">departure</span> <span class="sql-keyword">DESC</span>
-<span class="sql-keyword">LIMIT</span> <span class="sql-number">20</span>;</code></pre>
-                </div>
-            </section>
-
-            <!-- 13. Rail Wrapped -->
-            <section class="docs-section" id="wrapped-overview">
-                <h2><span>✨</span> Rail Wrapped Analytics</h2>
-                <p>
-                    <strong>Rail Wrapped</strong> provides your annual Year in Review for railway and public transit journeys, complete with leaderboards and shareable social cards.
-                </p>
-
-                <div class="docs-grid">
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">Carbon Avoidance Calculation</h3>
-                        <p class="docs-card-desc">Estimates kilograms and tonnes of CO₂ emissions avoided compared to driving an average passenger vehicle (142g CO₂/km).</p>
-                    </div>
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">Station &amp; Line Leaderboards</h3>
-                        <p class="docs-card-desc">Calculates your most visited transfer hubs, favorite train lines, and punctuality grade.</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 14. Longest Journey (Flights Excluded) -->
-            <section class="docs-section" id="wrapped-longest-journey">
-                <h2><span>🚂</span> Longest Journey (Flights Excluded)</h2>
-                <p>
-                    To ensure Wrapped reflects genuine train and transit achievements, <strong>flights (planes) are strictly excluded from the "Longest Journey" milestone</strong>.
-                </p>
-                <div class="docs-alert note">
-                    <span class="docs-alert-icon">ℹ️</span>
-                    <div class="docs-alert-content">
-                        <div class="docs-alert-title">Rail-First Metric</div>
-                        Check-ins categorized as <code>plane</code>, <code>flight</code>, or <code>airplane</code> are excluded from the longest single journey calculation, ensuring the spotlight stays on high-speed rail, sleeper trains, and regional odysseys.
-                    </div>
-                </div>
-            </section>
-
-            <!-- 15. GeoJSON Route Exports -->
-            <section class="docs-section" id="export-geojson">
-                <h2><span>📦</span> GeoJSON Route Exports</h2>
-                <p>
-                    Export your journeys into standard <code>FeatureCollection</code> GeoJSON with coordinate polylines, timestamps, and line properties:
-                </p>
-
-                <div class="code-card">
-                    <div class="code-card-header">
-                        <div class="code-card-title">Sample GeoJSON LineString Feature</div>
-                    </div>
-                    <pre class="code-content"><code>{
-  <span class="sql-string">"type"</span>: <span class="sql-string">"Feature"</span>,
-  <span class="sql-string">"geometry"</span>: {
-    <span class="sql-string">"type"</span>: <span class="sql-string">"LineString"</span>,
-    <span class="sql-string">"coordinates"</span>: [[<span class="sql-number">10.006</span>, <span class="sql-number">53.553</span>], [<span class="sql-number">13.369</span>, <span class="sql-number">52.525</span>]]
-  },
-  <span class="sql-string">"properties"</span>: {
-    <span class="sql-string">"line"</span>: <span class="sql-string">"ICE 772"</span>,
-    <span class="sql-string">"origin"</span>: <span class="sql-string">"Hamburg Hbf"</span>,
-    <span class="sql-string">"destination"</span>: <span class="sql-string">"Berlin Hbf"</span>,
-    <span class="sql-string">"distanceKm"</span>: <span class="sql-number">280.5</span>
-  }
-}</code></pre>
-                </div>
-            </section>
-
-            <!-- 16. CSV & JSON Exports -->
-            <section class="docs-section" id="export-csv-json">
-                <h2><span>📄</span> CSV &amp; JSON Tabular Exports</h2>
-                <p>
-                    In Database Studio, any query result can be exported with a single click in CSV, JSON, or GeoJSON format using the export buttons in the workbench sub-navigation toolbar.
-                </p>
-            </section>
-
-            <!-- 17. FAQ -->
-            <section class="docs-section" id="faq">
-                <h2><span>❓</span> Frequently Asked Questions</h2>
-                <div class="docs-grid">
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">How do I refresh my journeys?</h3>
-                        <p class="docs-card-desc">Click your user profile dropdown in the top header and re-select your profile or use the refresh action to sync newly logged check-ins.</p>
-                    </div>
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">Does the SQL engine support JOINs?</h3>
-                        <p class="docs-card-desc">Currently, queries operate against the unified <code>trips</code> table which already flattens train status, platform, delay, companion, and check-in details into 17 columns.</p>
-                    </div>
-                    <div class="docs-card">
-                        <h3 class="docs-card-title">Can I export query results to QGIS or Google Earth?</h3>
-                        <p class="docs-card-desc">Yes! Click the <strong>🗺️ GeoJSON</strong> export button in Database Studio to generate standard GeoJSON files compatible with QGIS, Mapbox, or Felt.</p>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- Right Sidebar (Table of Contents / On this page) -->
-        <aside class="docs-toc" aria-label="Table of Contents">
-            <div class="docs-toc-title">On this page</div>
-            <ul class="docs-toc-list">
-                <li class="docs-toc-item"><a href="#overview" class="active">Overview</a></li>
-                <li class="docs-toc-item"><a href="#quickstart">Quick Start</a></li>
-                <li class="docs-toc-item"><a href="#oauth-vs-public">OAuth2 vs Public</a></li>
-                <li class="docs-toc-item"><a href="#privacy">Privacy</a></li>
-                <li class="docs-toc-item"><a href="#map-features">Map Features</a></li>
-                <li class="docs-toc-item"><a href="#map-deeplinking">Deep-Linking</a></li>
-                <li class="docs-toc-item"><a href="#database-explorer">Trip Database</a></li>
-                <li class="docs-toc-item"><a href="#table-modes">Table Modes</a></li>
-                <li class="docs-toc-item"><a href="#sql-engine">In-Memory SQL</a></li>
-                <li class="docs-toc-item"><a href="#sql-schema">Schema (17 Columns)</a></li>
-                <li class="docs-toc-item"><a href="#sql-buddy-queries">Travel Buddies</a></li>
-                <li class="docs-toc-item"><a href="#sql-recipes">SQL Recipes</a></li>
-                <li class="docs-toc-item"><a href="#wrapped-overview">Rail Wrapped</a></li>
-                <li class="docs-toc-item"><a href="#wrapped-longest-journey">Longest Journey</a></li>
-                <li class="docs-toc-item"><a href="#export-geojson">GeoJSON Export</a></li>
-                <li class="docs-toc-item"><a href="#faq">FAQ</a></li>
+            <ul>
+                <li><strong>GeoJSON FeatureCollection:</strong> Export all or filtered routes as standardized GeoJSON linestrings and point markers, fully compatible with QGIS, ArcGIS, Mapbox, and Google Earth.</li>
+                <li><strong>Intermediate Stopovers Option:</strong> Fetch and embed intermediate stations along routes before exporting for high-fidelity path reconstruction.</li>
+                <li><strong>Offline Archival:</strong> Download raw JSON datasets or re-upload previously saved GeoJSON files directly into the map.</li>
             </ul>
-        </aside>
-    </div>
+        </section>
 
-    <!-- Live Toast Notification Container -->
+        <!-- ===================================================================
+             SECTION 7: Privacy Architecture & FAQ
+             =================================================================== -->
+        <section class="docs-section" id="privacy-faq">
+            <div class="docs-section-header">
+                <h2><span>🔒</span> Privacy Architecture &amp; FAQ</h2>
+                <p>100% client-side execution with zero intermediary servers.</p>
+            </div>
+
+            <div class="feature-grid">
+                <article class="feature-card">
+                    <span class="feature-card-icon">🛡️</span>
+                    <h4>Zero Cloud Intermediaries</h4>
+                    <p>Your authentication tokens, check-ins, and personal coordinates travel directly between your browser and the official Träwelling API. No middleman servers.</p>
+                </article>
+
+                <article class="feature-card">
+                    <span class="feature-card-icon">💾</span>
+                    <h4>Local Storage Control</h4>
+                    <p>All data is cached in your browser's IndexedDB. You can clear cached accounts and journey data with one click in the settings menu.</p>
+                </article>
+            </div>
+
+            <h3>Frequently Asked Questions</h3>
+            <div class="feature-grid">
+                <article class="feature-card">
+                    <h4>Why are some train paths straight lines?</h4>
+                    <p>If intermediate route geometry is unavailable from the schedule provider for a legacy or rare train, the map draws a direct polyline between origin and destination.</p>
+                </article>
+
+                <article class="feature-card">
+                    <h4>Does this support foreign / international trains?</h4>
+                    <p>Yes! Any journey logged on Träwelling across DB, ÖBB, SBB, SNCF, Eurostar, Trenitalia, or ferries appears on the map seamlessly.</p>
+                </article>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="docs-footer" role="contentinfo">
+            <p>
+                Träwelling Map Explorer · Built for rail enthusiasts &amp; transit travelers ·
+                <a href="https://github.com/fabian-c/Traewelling-Maps" target="_blank" rel="noopener noreferrer">
+                    Open Source on GitHub
+                </a>
+            </p>
+        </footer>
+
+    </main>
+
+    <!-- Global Toast Notification -->
     <div class="docs-toast" id="docsToast" role="status" aria-live="polite">
-        <span aria-hidden="true">✓</span>
         <span id="docsToastMsg">Copied SQL query to clipboard!</span>
     </div>
+
 </body>
 
 </html>

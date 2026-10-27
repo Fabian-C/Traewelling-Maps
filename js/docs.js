@@ -1,12 +1,12 @@
 /**
- * Interactive Script for Träwelling Maps Documentation Hub
- * Powers Live Search, Scrollspy, Clipboard Copy, and Schema Filtering
+ * Interactive Script for Träwelling Map Explorer Documentation Hub
+ * Powers Live Search, Pill Scrollspy, Clipboard Copy, and Schema Filtering
  */
 
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Live Documentation Search
     const searchInput = document.getElementById('docsSearchInput');
-    const sections = Array.from(document.querySelectorAll('.docs-section, .code-card, .docs-card'));
+    const sections = Array.from(document.querySelectorAll('.docs-section, .feature-card, .code-card'));
 
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
@@ -18,11 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             sections.forEach(sec => {
                 const text = sec.innerText.toLowerCase();
-                if (text.includes(query)) {
-                    sec.style.display = '';
-                } else {
-                    sec.style.display = 'none';
-                }
+                sec.style.display = text.includes(query) ? '' : 'none';
             });
         });
 
@@ -36,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 2. Interactive Code Block Copy with Toast
+    // 2. Interactive Code Block Copy with Toast Feedback
     const toast = document.getElementById('docsToast');
     const toastMsg = document.getElementById('docsToastMsg');
     let toastTimeout = null;
@@ -58,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 await navigator.clipboard.writeText(text);
                 success = true;
             } catch (err) {
-                // Clipboard API may fail in headless/unfocused contexts
                 success = false;
             }
         }
@@ -97,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    document.querySelectorAll('.copy-btn').forEach(btn => {
+    document.querySelectorAll('.copy-btn, .copy-sql-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const rawSql = btn.dataset.sql || btn.closest('.code-card')?.querySelector('.code-content')?.innerText || '';
             if (rawSql) {
@@ -120,52 +115,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 4. Scrollspy (IntersectionObserver)
-    const tocLinks = Array.from(document.querySelectorAll('.docs-toc-item a, .docs-sidebar-link'));
-    const sectionHeadings = Array.from(document.querySelectorAll('.docs-section[id]'));
+    // 4. Pill Navigation Scrollspy (IntersectionObserver)
+    const pillLinks = Array.from(document.querySelectorAll('.pill-link'));
+    const sectionElements = Array.from(document.querySelectorAll('.docs-section[id]'));
 
-    if ('IntersectionObserver' in window && sectionHeadings.length > 0) {
+    if ('IntersectionObserver' in window && sectionElements.length > 0) {
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     const id = entry.target.id;
-                    tocLinks.forEach(link => {
+                    pillLinks.forEach(link => {
                         const href = link.getAttribute('href');
                         if (href === `#${id}`) {
                             link.classList.add('active');
-                        } else if (href && href.startsWith('#')) {
+                            // Ensure the active pill is scrolled into view in horizontal container
+                            link.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+                        } else {
                             link.classList.remove('active');
                         }
                     });
                 }
             });
         }, {
-            rootMargin: '-80px 0px -60% 0px',
+            rootMargin: '-80px 0px -70% 0px',
             threshold: 0
         });
 
-        sectionHeadings.forEach(heading => observer.observe(heading));
-    }
-
-    // 5. Mobile Drawer Toggle
-    const mobileToggle = document.getElementById('mobileNavToggle');
-    const sidebar = document.getElementById('docsSidebar');
-
-    if (mobileToggle && sidebar) {
-        mobileToggle.addEventListener('click', () => {
-            sidebar.classList.toggle('open');
-            const isOpen = sidebar.classList.contains('open');
-            mobileToggle.setAttribute('aria-expanded', String(isOpen));
-        });
-
-        // Close sidebar on link click
-        sidebar.querySelectorAll('.docs-sidebar-link').forEach(link => {
-            link.addEventListener('click', () => {
-                if (window.innerWidth <= 900) {
-                    sidebar.classList.remove('open');
-                    mobileToggle.setAttribute('aria-expanded', 'false');
-                }
-            });
-        });
+        sectionElements.forEach(sec => observer.observe(sec));
     }
 });
