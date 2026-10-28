@@ -747,10 +747,29 @@ export function renderAllTripsFrame({
             centerSceneY: prevRide.rideCenterY
         };
         const prevEndTarget = sampleSmoothedCameraTarget(prevRideScene, 1);
-        const handoffT = smootherstep(0, Math.max(4, framesPerTrip * 0.34), localFrame);
+        const handoffT = smootherstep(0, Math.max(5, framesPerTrip * 0.36), localFrame);
         camTargetX = prevEndTarget.x + (currChaseTarget.x - prevEndTarget.x) * handoffT;
         camTargetY = prevEndTarget.y + (currChaseTarget.y - prevEndTarget.y) * handoffT;
-        camZoom = prevRide.rideZoom + (activeRide.rideZoom - prevRide.rideZoom) * handoffT;
+
+        // Logarithmic zoom interpolation so large zoom changes between city and intercity scale evenly
+        const logZ0 = Math.log(Math.max(0.1, prevRide.rideZoom));
+        const logZ1 = Math.log(Math.max(0.1, activeRide.rideZoom));
+        let interpZoom = Math.exp(logZ0 + (logZ1 - logZ0) * handoffT);
+
+        // If hopping between two distant cities while zoomed in, dip zoom slightly mid-hop;
+        // if staying within the same city, hopDist is small so camera stays zoomed in on the city!
+        const hopDistScenePx = Math.hypot(currChaseTarget.x - prevEndTarget.x, currChaseTarget.y - prevEndTarget.y);
+        const hopScreenPx = hopDistScenePx * Math.min(prevRide.rideZoom, activeRide.rideZoom);
+        if (hopScreenPx > 520) {
+            const midHopZoom = Math.max(allScene.fitScale * 1.15, (width * 0.65) / Math.max(1, hopDistScenePx));
+            const hopArch = Math.sin(handoffT * Math.PI);
+            if (midHopZoom < interpZoom) {
+                const logMid = Math.log(Math.max(0.1, midHopZoom));
+                const logCur = Math.log(Math.max(0.1, interpZoom));
+                interpZoom = Math.exp(logCur + (logMid - logCur) * hopArch * 0.72);
+            }
+        }
+        camZoom = interpZoom;
     }
 
     // Smooth intro zoom-in from full network overview and finale zoom-out to full network overview
@@ -765,7 +784,11 @@ export function renderAllTripsFrame({
 
     camTargetX = camTargetX + (allScene.centerSceneX - camTargetX) * overviewBlend;
     camTargetY = camTargetY + (allScene.centerSceneY - camTargetY) * overviewBlend;
-    camZoom = camZoom + (overviewZoom - camZoom) * overviewBlend;
+    if (overviewBlend > 0.0001) {
+        const logRide = Math.log(Math.max(0.1, camZoom));
+        const logOver = Math.log(Math.max(0.1, overviewZoom));
+        camZoom = Math.exp(logRide + (logOver - logRide) * overviewBlend);
+    }
 
     const viewCenterY = height / 2 + 42;
 
@@ -780,7 +803,7 @@ export function renderAllTripsFrame({
     ctx.scale(camZoom, camZoom);
     ctx.translate(-camTargetX, -camTargetY);
 
-    // 3. Draw preloaded Map Tiles
+    // 3. Draw preloaded Map Tiles (base overview tiles + high-res city detail tiles when zoomed in)
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     for (const tile of allScene.tiles) {
@@ -791,6 +814,18 @@ export function renderAllTripsFrame({
         } else {
             ctx.fillStyle = styleConfig.bg;
             ctx.fillRect(tile.left, tile.top, 256, 256);
+        }
+    }
+
+    if (camZoom > 1.75 && Array.isArray(allScene.detailTiles) && allScene.detailTiles.length > 0) {
+        const maxVisibleDetailZ = allScene.z + Math.log2(camZoom) + 1.25;
+        for (const dTile of allScene.detailTiles) {
+            if (dTile.z > maxVisibleDetailZ) continue;
+            const dUrl = styleConfig.getTileUrl(dTile.z, dTile.x, dTile.y);
+            const dImg = TILE_IMAGE_CACHE.get(dUrl);
+            if (dImg) {
+                ctx.drawImage(dImg, dTile.left, dTile.top, dTile.size * 1.003, dTile.size * 1.003);
+            }
         }
     }
 

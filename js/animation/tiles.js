@@ -141,14 +141,18 @@ export async function preloadSceneTiles(scene, mapStyle = 'traewelling-dark', on
         return { total: 0, loaded: 0 };
     }
     const styleConfig = MAP_STYLES[mapStyle] || MAP_STYLES['traewelling-dark'];
-    const total = scene.tiles.length;
+    const allTiles = Array.isArray(scene.detailTiles) && scene.detailTiles.length > 0
+        ? [...scene.tiles, ...scene.detailTiles]
+        : scene.tiles;
+    const total = allTiles.length;
     let loaded = 0;
     if (onProgress) onProgress({ loaded, total });
 
     await Promise.all(
-        scene.tiles.map(async (tile) => {
-            const primaryUrl = styleConfig.getTileUrl(scene.z, tile.x, tile.y);
-            const fallbackUrl = styleConfig.getFallbackUrl ? styleConfig.getFallbackUrl(scene.z, tile.x, tile.y) : null;
+        allTiles.map(async (tile) => {
+            const tileZ = tile.z ?? scene.z;
+            const primaryUrl = styleConfig.getTileUrl(tileZ, tile.x, tile.y);
+            const fallbackUrl = styleConfig.getFallbackUrl ? styleConfig.getFallbackUrl(tileZ, tile.x, tile.y) : null;
             await loadSingleTileImage(primaryUrl, fallbackUrl);
             loaded += 1;
             if (onProgress) onProgress({ loaded, total });

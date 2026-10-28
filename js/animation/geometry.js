@@ -416,11 +416,22 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
     );
 
     let runningKm = 0;
+    const minSpanBasePx = 340 * Math.pow(2, baseScene.z - 13.0);
+    const maxAllowedCityZoom = Math.max(
+        baseScene.fitScale * 2.2,
+        Math.pow(2, Math.max(1.2, 13.0 - baseScene.z))
+    );
+    const detailTileMap = new Map();
+
     const rides = rawRides.map(({ trip, coords, distanceKm }) => {
         let minX = Infinity;
         let maxX = -Infinity;
         let minY = Infinity;
         let maxY = -Infinity;
+        let rMinLon = Infinity;
+        let rMaxLon = -Infinity;
+        let rMinLat = Infinity;
+        let rMaxLat = -Infinity;
 
         const points = coords.map(([lon, lat]) => {
             const x = lonToWorldX(lon, baseScene.z) - baseScene.originWX;
@@ -429,6 +440,10 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
             if (x > maxX) maxX = x;
             if (y < minY) minY = y;
             if (y > maxY) maxY = y;
+            if (lon < rMinLon) rMinLon = lon;
+            if (lon > rMaxLon) rMaxLon = lon;
+            if (lat < rMinLat) rMinLat = lat;
+            if (lat > rMaxLat) rMaxLat = lat;
             return { x, y, lon, lat };
         });
 
@@ -442,17 +457,52 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         const startKm = runningKm;
         runningKm += distanceKm;
 
-        const spanX = Math.max(60, maxX - minX);
-        const spanY = Math.max(60, maxY - minY);
+        const spanX = Math.max(minSpanBasePx, (maxX - minX) * 1.45);
+        const spanY = Math.max(minSpanBasePx, (maxY - minY) * 1.45);
         const rideCenterX = Number.isFinite(minX) ? (minX + maxX) / 2 : baseScene.centerSceneX;
         const rideCenterY = Number.isFinite(minY) ? (minY + maxY) / 2 : baseScene.centerSceneY;
         const usableW = viewportWidth * 0.62;
         const usableH = (viewportHeight - 184) * 0.60;
         const idealRideZoom = Math.min(usableW / spanX, usableH / spanY);
         const clampedRideZoom = Math.min(
-            baseScene.fitScale * 2.15,
+            maxAllowedCityZoom,
             Math.max(baseScene.fitScale * 1.15, idealRideZoom)
         );
+
+        // Register higher-resolution city tiles when rideZoom zooms significantly past baseScene.z
+        if (clampedRideZoom > 2.2 && detailTileMap.size < 140 && Number.isFinite(rMinLon)) {
+            const detailZ = Math.min(
+                13,
+                Math.max(baseScene.z + 1, baseScene.z + Math.floor(Math.log2(clampedRideZoom)))
+            );
+            const scaleToBase = Math.pow(2, baseScene.z - detailZ);
+            const maxDetailIdx = Math.pow(2, detailZ);
+            const cLon = (rMinLon + rMaxLon) / 2;
+            const cLat = (rMinLat + rMaxLat) / 2;
+            const cTX = Math.floor(lonToWorldX(cLon, detailZ) / 256);
+            const cTY = Math.floor(latToWorldY(cLat, detailZ) / 256);
+
+            for (let dx = -2; dx <= 2; dx++) {
+                for (let dy = -2; dy <= 2; dy++) {
+                    const tx = cTX + dx;
+                    const ty = cTY + dy;
+                    if (ty < 0 || ty >= maxDetailIdx) continue;
+                    const wrappedX = ((tx % maxDetailIdx) + maxDetailIdx) % maxDetailIdx;
+                    const key = `${detailZ}-${wrappedX}-${ty}`;
+                    if (!detailTileMap.has(key) && detailTileMap.size < 140) {
+                        detailTileMap.set(key, {
+                            key,
+                            z: detailZ,
+                            x: wrappedX,
+                            y: ty,
+                            left: tx * 256 * scaleToBase - baseScene.originWX,
+                            top: ty * 256 * scaleToBase - baseScene.originWY,
+                            size: 256 * scaleToBase
+                        });
+                    }
+                }
+            }
+        }
 
         return {
             trip,
@@ -469,8 +519,11 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         };
     });
 
+    const detailTiles = Array.from(detailTileMap.values()).sort((a, b) => a.z - b.z);
+
     return {
         ...baseScene,
+        detailTiles,
         rides,
         totalDistanceKm: runningKm
     };
