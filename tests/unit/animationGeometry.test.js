@@ -69,9 +69,32 @@ describe('Animation Geometry & Camera Smoothing', () => {
             }
         };
         const coords = extractRouteCoordinates(trip);
-        expect(coords.length).toBe(181);
-        expect(coords[0][0]).toBeCloseTo(13.359059, 4);
-        expect(coords[coords.length - 1][0]).toBeCloseTo(13.387608, 4);
+        // Preserves full resolution coordinates without downsampling
+        expect(coords).toHaveLength(3);
+        expect(coords[0][0]).toBeCloseTo(13.359059, 6);
+        expect(coords[1][0]).toBeCloseTo(13.375200, 6);
+        expect(coords[2][0]).toBeCloseTo(13.387608, 6);
+    });
+
+    it('always preserves full resolution coordinates on polyline to ensure connecting rides line up exactly', () => {
+        // High-density polyline with 240 vertices
+        const originalCoords = [];
+        for (let i = 0; i < 240; i++) {
+            originalCoords.push([13.35 + i * 0.0005, 52.52 + (i % 5) * 0.0001]);
+        }
+        const trip = {
+            id: 12345,
+            checkin: {
+                polyline: {
+                    coordinates: originalCoords
+                }
+            }
+        };
+
+        const extracted = extractRouteCoordinates(trip);
+        expect(extracted).toHaveLength(240);
+        expect(extracted[0]).toEqual(originalCoords[0]);
+        expect(extracted[239]).toEqual(originalCoords[239]);
     });
 
     it('builds a valid map scene for a 960x960 square viewport', () => {
@@ -161,8 +184,10 @@ describe('Animation Geometry & Camera Smoothing', () => {
         const sorted = sortTripsChronologically(trips);
         expect(sorted.map(t => t.id)).toEqual([10, 20]);
 
-        const timing = computeAllModeTiming(sorted.length);
+        const timing = computeAllModeTiming(sorted.length, 30);
         expect(timing.framesPerTrip).toBe(48);
+        expect(timing.finaleStaticHoldFrames).toBe(90); // 3 seconds static hold at 30fps
+        expect(timing.finaleFrames).toBe(135);
         expect(timing.totalFrames).toBeGreaterThanOrEqual(240);
 
         const allScene = buildAllTripsScene(sorted, 960, 960);

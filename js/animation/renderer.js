@@ -686,6 +686,7 @@ export function renderTripFrame({
 export function renderAllTripsFrame({
     ctx,
     frame,
+    fps = 30,
     width,
     height,
     username,
@@ -697,7 +698,7 @@ export function renderAllTripsFrame({
     if (!rides.length) return;
 
     const framesPerTrip = Math.max(8, timing?.framesPerTrip || 30);
-    const finaleFrames = Math.max(30, timing?.finaleFrames || 75);
+    const finaleTransitionFrames = timing?.finaleTransitionFrames || Math.round(fps * 1.5);
     const travelTotalFrames = rides.length * framesPerTrip;
 
     const isFinale = frame >= travelTotalFrames;
@@ -773,13 +774,14 @@ export function renderAllTripsFrame({
         }
     }
 
-    // Smooth intro zoom-in from full network overview and finale zoom-out to full network overview
+    // Smooth intro zoom-in from full network overview
     const introBlend = 1 - smootherstep(0, Math.min(36, framesPerTrip * 0.85), frame);
-    const finaleBlend = smootherstep(
-        travelTotalFrames - Math.min(24, framesPerTrip * 0.5),
-        travelTotalFrames + finaleFrames * 0.72,
-        frame
-    );
+
+    // Finale zoom-out: 1.5s (45 frames) smooth glide to overview, followed by 3.0s (90 frames) completely static hold
+    const finaleBlend = isFinale
+        ? smootherstep(travelTotalFrames, travelTotalFrames + finaleTransitionFrames, frame)
+        : 0;
+
     const overviewBlend = Math.max(introBlend, finaleBlend);
     const overviewZoom = allScene.fitScale * 0.95;
 
@@ -875,12 +877,9 @@ export function renderAllTripsFrame({
     }
     ctx.restore();
 
-    // 5. Draw active ride track (only while ride is in progress, NOT in the finale zoom-out!)
-    if (!isFinale && finaleBlend < 0.8 && activeRide.points.length >= 2) {
+    // 5. Draw active ride track (only while ride is in progress, never in the finale overview!)
+    if (!isFinale && activeRide.points.length >= 2) {
         ctx.save();
-        if (finaleBlend > 0) {
-            ctx.globalAlpha = Math.max(0, 1 - finaleBlend / 0.8);
-        }
         ctx.beginPath();
         ctx.moveTo(activeRide.points[0].x, activeRide.points[0].y);
         for (let i = 1; i < activeRide.points.length; i++) {
@@ -898,9 +897,6 @@ export function renderAllTripsFrame({
         const wholeIdx = Math.floor(maxIdx);
 
         ctx.save();
-        if (finaleBlend > 0) {
-            ctx.globalAlpha = Math.max(0, 1 - finaleBlend / 0.8);
-        }
         ctx.beginPath();
         ctx.moveTo(activeRide.points[0].x, activeRide.points[0].y);
         for (let i = 1; i <= wholeIdx; i++) {
@@ -930,7 +926,7 @@ export function renderAllTripsFrame({
     const destPt = activeRide.points[activeRide.points.length - 1];
     const originIsNorthOfDest = originPt && destPt ? originPt.y <= destPt.y : true;
 
-    if (originPt && !isFinale && finaleBlend < 0.5) {
+    if (originPt && !isFinale) {
         const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
             originPt,
             camTargetX,
@@ -942,15 +938,12 @@ export function renderAllTripsFrame({
             originIsNorthOfDest
         );
         ctx.save();
-        if (finaleBlend > 0) {
-            ctx.globalAlpha = Math.max(0, 1 - finaleBlend / 0.5);
-        }
         ctx.translate(originPt.x, originPt.y);
         ctx.scale(1 / camZoom, 1 / camZoom);
         drawStationPin(ctx, originName, '#10b981', false, placeAbove, horizontalShiftPx, frame);
         ctx.restore();
     }
-    if (destPt && !isFinale && finaleBlend < 0.5) {
+    if (destPt && !isFinale) {
         const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
             destPt,
             camTargetX,
@@ -962,9 +955,6 @@ export function renderAllTripsFrame({
             !originIsNorthOfDest
         );
         ctx.save();
-        if (finaleBlend > 0) {
-            ctx.globalAlpha = Math.max(0, 1 - finaleBlend / 0.5);
-        }
         ctx.translate(destPt.x, destPt.y);
         ctx.scale(1 / camZoom, 1 / camZoom);
         drawStationPin(ctx, destName, lineColor, true, placeAbove, horizontalShiftPx, frame);
@@ -972,11 +962,8 @@ export function renderAllTripsFrame({
     }
 
     // 7. Moving Vehicle on Active Ride (hidden during finale)
-    if (!isFinale && finaleBlend < 0.5) {
+    if (!isFinale) {
         ctx.save();
-        if (finaleBlend > 0) {
-            ctx.globalAlpha = Math.max(0, 1 - finaleBlend / 0.5);
-        }
         ctx.translate(vehiclePose.x, vehiclePose.y);
         ctx.scale(1.08 / camZoom, 1.08 / camZoom);
         ctx.rotate(vehiclePose.angleRad || 0);

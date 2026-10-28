@@ -72,7 +72,7 @@ export function resampleCoordinatesByDistance(coords, sampleCount = 180) {
     return out;
 }
 
-export function extractRouteCoordinates(trip, sampleCount = 180) {
+export function extractRouteCoordinates(trip, sampleCount = null) {
     const checkin = trip?.checkin || trip?.train || {};
     const poly = checkin?.polyline || trip?.polyline;
     let rawCoords = [];
@@ -89,8 +89,12 @@ export function extractRouteCoordinates(trip, sampleCount = 180) {
         c => Array.isArray(c) && c.length >= 2 && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1]))
     ).map(c => [Number(c[0]), Number(c[1])]);
 
+    // Always preserve full authentic coordinate resolution unless caller explicitly requests resampling
     if (valid.length >= 2) {
-        return resampleCoordinatesByDistance(valid, sampleCount);
+        if (typeof sampleCount === 'number' && sampleCount > 0) {
+            return resampleCoordinatesByDistance(valid, sampleCount);
+        }
+        return valid;
     }
 
     const orig = checkin?.origin?.station || checkin?.origin || {};
@@ -102,7 +106,7 @@ export function extractRouteCoordinates(trip, sampleCount = 180) {
 
     if (Number.isFinite(lon1) && Number.isFinite(lat1) && Number.isFinite(lon2) && Number.isFinite(lat2)) {
         const curved = [];
-        const steps = Math.min(80, sampleCount);
+        const steps = typeof sampleCount === 'number' && sampleCount > 0 ? Math.min(80, sampleCount) : 64;
         const dLon = lon2 - lon1;
         const dLat = lat2 - lat1;
         for (let i = 0; i <= steps; i++) {
@@ -378,7 +382,7 @@ export function sortTripsChronologically(trips = []) {
 /**
  * Compute adaptive frame timing for mode=all so every ride is traversed sequentially.
  */
-export function computeAllModeTiming(tripCount = 1) {
+export function computeAllModeTiming(tripCount = 1, fps = 30) {
     const count = Math.max(1, Number(tripCount) || 1);
     let framesPerTrip = 48;
     if (count > 300) {
@@ -390,12 +394,18 @@ export function computeAllModeTiming(tripCount = 1) {
     } else if (count > 12) {
         framesPerTrip = 30;
     }
-    const finaleFrames = 75;
+
+    // Finale timing: 45 frames smooth zoom-out + 90 frames (3 full seconds at 30fps) completely static hold
+    const finaleTransitionFrames = Math.round(fps * 1.5); // 45 frames
+    const finaleStaticHoldFrames = Math.round(fps * 3.0); // 90 frames (3 seconds static hold)
+    const finaleFrames = finaleTransitionFrames + finaleStaticHoldFrames; // 135 frames total finale
     const totalFrames = Math.max(240, count * framesPerTrip + finaleFrames);
     return {
         tripCount: count,
         framesPerTrip,
         finaleFrames,
+        finaleTransitionFrames,
+        finaleStaticHoldFrames,
         totalFrames
     };
 }
@@ -405,10 +415,10 @@ export function computeAllModeTiming(tripCount = 1) {
  */
 export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeight = 960) {
     const sorted = sortTripsChronologically(trips);
-    const sampleCount = sorted.length > 80 ? 36 : 64;
     const allCoords = [];
     const rawRides = sorted.map((trip) => {
-        const coords = extractRouteCoordinates(trip, sampleCount);
+        // Always preserve full resolution coordinates so connecting stations and transfers line up with 100% precision
+        const coords = extractRouteCoordinates(trip);
         coords.forEach(pt => allCoords.push(pt));
         const checkin = trip?.checkin || trip?.train || {};
         const rawDist = typeof checkin.distance === 'number'
