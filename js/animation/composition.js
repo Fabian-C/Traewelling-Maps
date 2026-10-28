@@ -58,12 +58,12 @@ export function TripStoryComposition({
         [isAllMode, trip]
     );
     const scene = React.useMemo(
-        () => (isAllMode ? buildAllTripsScene(trips, width, height) : buildMapScene(coords, width, height)),
-        [isAllMode, trips, coords, width, height]
+        () => (isAllMode ? buildAllTripsScene(trips, width, height, fps) : buildMapScene(coords, width, height)),
+        [isAllMode, trips, coords, width, height, fps]
     );
     const allTiming = React.useMemo(
-        () => (isAllMode ? computeAllModeTiming(trips.length) : null),
-        [isAllMode, trips]
+        () => (isAllMode ? computeAllModeTiming(trips, fps) : null),
+        [isAllMode, trips, fps]
     );
     const styleConfig = MAP_STYLES[mapStyle] || MAP_STYLES['traewelling-dark'];
 

@@ -697,18 +697,24 @@ export function renderAllTripsFrame({
     const rides = allScene?.rides || [];
     if (!rides.length) return;
 
-    const framesPerTrip = Math.max(8, timing?.framesPerTrip || 30);
+    const travelTotalFrames = allScene?.travelTotalFrames ?? (timing?.travelTotalFrames || (rides.length * 20));
     const finaleTransitionFrames = timing?.finaleTransitionFrames || Math.round(fps * 1.5);
-    const travelTotalFrames = rides.length * framesPerTrip;
-
     const isFinale = frame >= travelTotalFrames;
-    const activeIdx = Math.min(rides.length - 1, Math.max(0, Math.floor(frame / framesPerTrip)));
-    const localFrame = isFinale ? framesPerTrip : (frame - activeIdx * framesPerTrip);
-    const rideProgress = isFinale
-        ? 1
-        : smootherstep(0.05, 0.93, localFrame / framesPerTrip);
+
+    let activeIdx = 0;
+    while (activeIdx < rides.length - 1 && frame >= (rides[activeIdx].endFrame ?? ((activeIdx + 1) * 20))) {
+        activeIdx++;
+    }
 
     const activeRide = rides[activeIdx];
+    const rideStartFrame = activeRide.startFrame ?? (activeIdx * 20);
+    const rideEndFrame = activeRide.endFrame ?? ((activeIdx + 1) * 20);
+    const rideDuration = Math.max(1, rideEndFrame - rideStartFrame);
+    const localFrame = isFinale ? rideDuration : Math.max(0, frame - rideStartFrame);
+    const rideProgress = isFinale
+        ? 1
+        : smootherstep(0.04, 0.94, localFrame / rideDuration);
+
     const activeTrip = activeRide.trip || {};
     const checkin = activeTrip.checkin || activeTrip.train || {};
     const categoryKey = checkin.category || 'regional';
@@ -737,7 +743,7 @@ export function renderAllTripsFrame({
     let camTargetY = currChaseTarget.y;
 
     // Continuous creeping zoom: smoothly ease from activeRide.startZoom toward activeRide.endZoom across this ride
-    const rideProgressT = Math.max(0, Math.min(1, localFrame / Math.max(1, framesPerTrip)));
+    const rideProgressT = Math.max(0, Math.min(1, localFrame / rideDuration));
     const zStart = typeof activeRide.startZoom === 'number' ? activeRide.startZoom : (activeRide.rideZoom || allScene.fitScale);
     const zEnd = typeof activeRide.endZoom === 'number' ? activeRide.endZoom : (activeRide.rideZoom || allScene.fitScale);
     const logZStart = Math.log(Math.max(0.1, zStart));
@@ -755,7 +761,8 @@ export function renderAllTripsFrame({
             centerSceneY: prevRide.rideCenterY
         };
         const prevEndTarget = sampleSmoothedCameraTarget(prevRideScene, 1);
-        const handoffT = smootherstep(0, Math.max(5, framesPerTrip * 0.36), localFrame);
+        const handoffDuration = Math.min(rideDuration * 0.70, Math.max(8, 24 * 0.40));
+        const handoffT = smootherstep(0, handoffDuration, localFrame);
         camTargetX = prevEndTarget.x + (currChaseTarget.x - prevEndTarget.x) * handoffT;
         camTargetY = prevEndTarget.y + (currChaseTarget.y - prevEndTarget.y) * handoffT;
 
@@ -775,7 +782,8 @@ export function renderAllTripsFrame({
     }
 
     // Smooth intro zoom-in from full network overview
-    const introBlend = 1 - smootherstep(0, Math.min(36, framesPerTrip * 0.85), frame);
+    const introDuration = Math.min(40, (rides[0]?.durationFrames || 30) * 0.85);
+    const introBlend = 1 - smootherstep(0, introDuration, frame);
 
     // Finale zoom-out: 1.5s (45 frames) smooth glide to overview, followed by 3.0s (90 frames) completely static hold
     const finaleBlend = isFinale
@@ -1049,7 +1057,9 @@ export function renderAllTripsFrame({
 
     // 10. TOP-RIGHT LIVE CUMULATIVE METRICS CARD
     const rightCardX = width - pad - rightCardW;
-    const cumulativeKm = (activeRide.startKm + activeRide.distanceKm * rideProgress).toFixed(1);
+    const cumulativeKm = isFinale
+        ? (allScene.totalDistanceKm || (activeRide.startKm + activeRide.distanceKm)).toFixed(1)
+        : (activeRide.startKm + activeRide.distanceKm * rideProgress).toFixed(1);
     const displayRidesCount = isFinale ? rides.length : activeIdx + 1;
 
     ctx.save();

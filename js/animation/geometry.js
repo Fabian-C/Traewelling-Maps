@@ -380,40 +380,9 @@ export function sortTripsChronologically(trips = []) {
 }
 
 /**
- * Compute adaptive frame timing for mode=all so every ride is traversed sequentially.
- */
-export function computeAllModeTiming(tripCount = 1, fps = 30) {
-    const count = Math.max(1, Number(tripCount) || 1);
-    let framesPerTrip = 48;
-    if (count > 300) {
-        framesPerTrip = 10;
-    } else if (count > 120) {
-        framesPerTrip = 14;
-    } else if (count > 45) {
-        framesPerTrip = 20;
-    } else if (count > 12) {
-        framesPerTrip = 30;
-    }
-
-    // Finale timing: 45 frames smooth zoom-out + 90 frames (3 full seconds at 30fps) completely static hold
-    const finaleTransitionFrames = Math.round(fps * 1.5); // 45 frames
-    const finaleStaticHoldFrames = Math.round(fps * 3.0); // 90 frames (3 seconds static hold)
-    const finaleFrames = finaleTransitionFrames + finaleStaticHoldFrames; // 135 frames total finale
-    const totalFrames = Math.max(240, count * framesPerTrip + finaleFrames);
-    return {
-        tripCount: count,
-        framesPerTrip,
-        finaleFrames,
-        finaleTransitionFrames,
-        finaleStaticHoldFrames,
-        totalFrames
-    };
-}
-
-/**
  * Build a unified Web Mercator scene covering an entire historical dataset of trips.
  */
-export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeight = 960) {
+export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeight = 960, fps = 30) {
     const sorted = sortTripsChronologically(trips);
     const allCoords = [];
     const rawRides = sorted.map((trip) => {
@@ -435,11 +404,11 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
     );
 
     let runningKm = 0;
-    const minSpanBasePx = 340 * Math.pow(2, baseScene.z - 13.0);
+    const minSpanBasePx = 280 * Math.pow(2, baseScene.z - 13.0);
     const usableW = viewportWidth * 0.62;
     const usableH = (viewportHeight - 184) * 0.60;
 
-    // Step 1: Pre-calculate ride geometries, bounds, and centers
+    // Step 1: Pre-calculate ride geometries, bounds, and natural ideal zoom
     const rideInfos = rawRides.map(({ trip, coords, distanceKm }) => {
         let minX = Infinity;
         let maxX = -Infinity;
@@ -503,66 +472,74 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         };
     });
 
-    // Step 2: Asymptotic Camera Creep toward each ride's zoom target
-    // Each ride has an ideal target zoom (deep for local city transit, wide for regional/intercity trips).
-    // Rather than snapping or finishing zoom during a single ride, the camera continuously and smoothly
-    // creeps toward the target across time. An isolated single bus ride in a city barely changes zoom
-    // (almost imperceptible), whereas consecutive rides in the same metropolitan area progressively deepen
-    // the zoom into intimate street level.
-    const maxAllowedCityZoom = Math.pow(2, Math.max(1.5, 11.5 - baseScene.z));
-
-    let currentZoom = baseScene.fitScale * 1.0;
-    const creepingZooms = rideInfos.map((info, i) => {
-        const targetZoom = Math.min(
+    // Step 2: Natural city zoom calculation with 3-point temporal smoothing
+    // City rides zoom in deeply so streets, stations, and routes are clearly visible.
+    // Temporal smoothing avoids momentary spikes while maintaining intimate city views.
+    const maxAllowedCityZoom = Math.min(32, Math.pow(2, Math.max(1.5, 12.0 - baseScene.z)));
+    const rawZooms = rideInfos.map((info) => {
+        return Math.min(
             maxAllowedCityZoom,
-            Math.max(baseScene.fitScale * 0.95, info.idealRideZoom)
+            Math.max(baseScene.fitScale * 1.05, info.idealRideZoom)
         );
+    });
 
-        // If jumping across distant regions (> 80km) to an isolated new city without an intermediate trip:
-        if (i > 0) {
-            const jumpDistKm = computeHaversineKm(
-                rideInfos[i - 1].centerLon,
-                rideInfos[i - 1].centerLat,
-                info.centerLon,
-                info.centerLat
-            );
-            if (jumpDistKm > 80) {
-                currentZoom = Math.min(currentZoom, baseScene.fitScale * 1.15);
-            }
+    const smoothedZooms = rawZooms.map((z, idx) => {
+        const prev = idx > 0 ? rawZooms[idx - 1] : z;
+        const next = idx < rawZooms.length - 1 ? rawZooms[idx + 1] : z;
+        const logZ = 0.25 * Math.log(prev) + 0.50 * Math.log(z) + 0.25 * Math.log(next);
+        return Math.exp(logZ);
+    });
+
+    // Step 3: Adaptive ride duration schedule
+    // Regional and long-distance trains get extra time to traverse the landscape without rushing.
+    // If the zoom level between consecutive rides is vastly different, extra transition frames are granted.
+    let currentTimelineFrame = 0;
+    const rideSchedules = rideInfos.map((info, i) => {
+        const dKm = info.distanceKm;
+        const z = smoothedZooms[i];
+        const prevZ = i > 0 ? smoothedZooms[i - 1] : z;
+        const zoomRatio = Math.max(z / prevZ, prevZ / z);
+
+        let f = 20;
+        if (dKm > 300) {
+            f = 50; // Long distance ICE across country
+        } else if (dKm > 80) {
+            f = 36; // Regional train crossing state
+        } else if (dKm > 25) {
+            f = 26; // Outer suburban / regional
         }
 
-        const startZoom = currentZoom;
-        // Inward creep is slow and patient (lambda = 0.09) so an isolated ride barely changes zoom.
-        // Outward easing when departing on a long trip is moderately paced (lambda = 0.22) to reveal corridors.
-        const lambda = targetZoom > startZoom ? 0.09 : 0.22;
-        const logStart = Math.log(startZoom);
-        const logTarget = Math.log(targetZoom);
-        const endZoom = Math.exp(logStart + (logTarget - logStart) * lambda);
+        if (zoomRatio > 1.8) {
+            const extraZoomFrames = Math.min(24, Math.round(Math.log2(zoomRatio) * 5));
+            f += extraZoomFrames;
+        }
 
-        currentZoom = endZoom;
+        const startFrame = currentTimelineFrame;
+        currentTimelineFrame += f;
+        const endFrame = currentTimelineFrame;
         return {
-            startZoom,
-            endZoom,
-            targetZoom,
-            rideZoom: endZoom
+            durationFrames: f,
+            startFrame,
+            endFrame,
+            rideZoom: z
         };
     });
 
-    // Step 3: Register high-resolution detail tiles for city clusters
+    // Step 4: Register high-resolution detail tiles for city clusters
     // detailZ is scaled relative to baseScene.z so tiles match visible viewport resolution seamlessly
     const detailTileMap = new Map();
     if (baseScene.z < 11) {
         rideInfos.forEach((info, idx) => {
-            const zActive = Math.max(creepingZooms[idx].startZoom, creepingZooms[idx].endZoom);
-            if (zActive >= baseScene.fitScale * 1.5 && Number.isFinite(info.minLon)) {
-                const detailZ = Math.min(12, Math.max(baseScene.z + 2, Math.round(baseScene.z + Math.log2(zActive) + 0.5)));
+            const zTarget = smoothedZooms[idx];
+            if (zTarget >= baseScene.fitScale * 1.8 && Number.isFinite(info.minLon)) {
+                const detailZ = Math.min(12, Math.max(baseScene.z + 2, Math.round(baseScene.z + Math.log2(zTarget) + 0.5)));
                 if (detailZ <= baseScene.z) return;
 
                 const scaleToBase = Math.pow(2, baseScene.z - detailZ);
                 const maxDetailIdx = Math.pow(2, detailZ);
 
                 // Determine visible geographical half-span for this city viewport in detail tile units
-                const halfScreenBasePx = (viewportWidth * 0.55) / zActive;
+                const halfScreenBasePx = (viewportWidth * 0.55) / zTarget;
                 const tileRadius = Math.min(3, Math.max(2, Math.ceil(halfScreenBasePx / (256 * scaleToBase))));
 
                 const centerTX = Math.floor(lonToWorldX(info.centerLon, detailZ) / 256);
@@ -575,7 +552,7 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
                         if (ty < 0 || ty >= maxDetailIdx) continue;
                         const wrappedX = ((tx % maxDetailIdx) + maxDetailIdx) % maxDetailIdx;
                         const key = `${detailZ}-${wrappedX}-${ty}`;
-                        if (!detailTileMap.has(key) && detailTileMap.size < 180) {
+                        if (!detailTileMap.has(key) && detailTileMap.size < 200) {
                             detailTileMap.set(key, {
                                 key,
                                 z: detailZ,
@@ -603,19 +580,73 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         endKm: info.endKm,
         rideCenterX: info.rideCenterX,
         rideCenterY: info.rideCenterY,
-        startZoom: creepingZooms[idx].startZoom,
-        endZoom: creepingZooms[idx].endZoom,
-        targetZoom: creepingZooms[idx].targetZoom,
-        rideZoom: creepingZooms[idx].endZoom
+        startZoom: idx === 0 ? baseScene.fitScale : smoothedZooms[idx - 1],
+        endZoom: smoothedZooms[idx],
+        targetZoom: smoothedZooms[idx],
+        rideZoom: smoothedZooms[idx],
+        durationFrames: rideSchedules[idx].durationFrames,
+        startFrame: rideSchedules[idx].startFrame,
+        endFrame: rideSchedules[idx].endFrame
     }));
 
     const detailTiles = Array.from(detailTileMap.values()).sort((a, b) => a.z - b.z);
+    const travelTotalFrames = currentTimelineFrame;
+    const finaleTransitionFrames = Math.round(fps * 1.5); // 45 frames (1.5s zoom-out)
+    const finaleStaticHoldFrames = Math.round(fps * 3.0); // 90 frames (3s static hold)
+    const finaleFrames = finaleTransitionFrames + finaleStaticHoldFrames; // 135 frames
+    const totalFrames = travelTotalFrames + finaleFrames;
 
     return {
         ...baseScene,
         detailTiles,
         rides,
-        totalDistanceKm: runningKm
+        totalDistanceKm: runningKm,
+        travelTotalFrames,
+        finaleTransitionFrames,
+        finaleStaticHoldFrames,
+        finaleFrames,
+        totalFrames
     };
 }
+
+/**
+ * Compute adaptive frame timing for mode=all so every ride is traversed sequentially.
+ */
+export function computeAllModeTiming(tripsOrCount = 1, fps = 30) {
+    if (Array.isArray(tripsOrCount)) {
+        const scene = buildAllTripsScene(tripsOrCount, 960, 960, fps);
+        return {
+            tripCount: tripsOrCount.length,
+            framesPerTrip: Math.round(scene.travelTotalFrames / Math.max(1, tripsOrCount.length)),
+            finaleFrames: scene.finaleFrames,
+            finaleTransitionFrames: scene.finaleTransitionFrames,
+            finaleStaticHoldFrames: scene.finaleStaticHoldFrames,
+            travelTotalFrames: scene.travelTotalFrames,
+            totalFrames: scene.totalFrames
+        };
+    }
+
+    const count = Math.max(1, Number(tripsOrCount) || 1);
+    let avgFrames = 48;
+    if (count > 300) avgFrames = 12;
+    else if (count > 120) avgFrames = 16;
+    else if (count > 45) avgFrames = 22;
+    else if (count > 12) avgFrames = 30;
+
+    const finaleTransitionFrames = Math.round(fps * 1.5); // 45 frames (1.5s zoom-out)
+    const finaleStaticHoldFrames = Math.round(fps * 3.0); // 90 frames (3 seconds static hold)
+    const finaleFrames = finaleTransitionFrames + finaleStaticHoldFrames; // 135 frames total finale
+    const travelTotalFrames = count * avgFrames;
+    const totalFrames = Math.max(240, travelTotalFrames + finaleFrames);
+    return {
+        tripCount: count,
+        framesPerTrip: avgFrames,
+        finaleFrames,
+        finaleTransitionFrames,
+        finaleStaticHoldFrames,
+        travelTotalFrames,
+        totalFrames
+    };
+}
+
 

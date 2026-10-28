@@ -239,7 +239,16 @@ describe('Animation Geometry & Camera Smoothing', () => {
             },
             {
                 id: 4,
-                createdAt: '2026-10-02T10:00:00Z',
+                createdAt: '2026-10-02T06:00:00Z',
+                checkin: {
+                    distance: 585000,
+                    origin: { station: { longitude: 13.369, latitude: 52.525 } },
+                    destination: { station: { longitude: 11.558, latitude: 48.140 } }
+                }
+            },
+            {
+                id: 5,
+                createdAt: '2026-10-02T12:00:00Z',
                 checkin: {
                     distance: 4000,
                     origin: { station: { longitude: 11.558, latitude: 48.140 } },
@@ -249,23 +258,24 @@ describe('Animation Geometry & Camera Smoothing', () => {
         ];
 
         const scene = buildAllTripsScene(berlinTrips, 960, 960);
-        expect(scene.rides).toHaveLength(4);
+        expect(scene.rides).toHaveLength(5);
 
-        // Continuous asymptotic creeping zoom:
+        // Continuous zoom across ride boundaries:
         // 1. Zoom is continuous across ride boundaries (ride[i].startZoom === ride[i-1].endZoom)
         expect(scene.rides[1].startZoom).toBeCloseTo(scene.rides[0].endZoom, 5);
         expect(scene.rides[2].startZoom).toBeCloseTo(scene.rides[1].endZoom, 5);
+        expect(scene.rides[3].startZoom).toBeCloseTo(scene.rides[2].endZoom, 5);
 
-        // 2. An isolated ride in a city creeps slowly and does not hit the target zoom at the end
-        expect(scene.rides[0].endZoom).toBeLessThan(scene.rides[0].targetZoom);
-        expect(scene.rides[0].endZoom).toBeLessThan(scene.rides[0].startZoom * 1.5);
+        // 2. City rides zoom in deeply so stations, streets, and routes are clearly visible
+        expect(scene.rides[0].rideZoom).toBeGreaterThan(scene.fitScale * 2);
+        expect(scene.rides[1].rideZoom).toBeGreaterThan(scene.fitScale * 2);
 
-        // 3. Consecutive rides in the same city area progressively deepen the zoom
-        expect(scene.rides[1].endZoom).toBeGreaterThan(scene.rides[0].endZoom);
-        expect(scene.rides[2].endZoom).toBeGreaterThan(scene.rides[1].endZoom);
+        // 3. Long-distance ICE (ride 3) has wide landscape zoom compared to tight city rides
+        expect(scene.rides[1].rideZoom).toBeGreaterThan(scene.rides[3].rideZoom * 2);
 
-        // 4. Ride 3 (deep into Berlin streak) has higher zoom than isolated Munich trip
-        expect(scene.rides[2].endZoom).toBeGreaterThan(scene.rides[3].endZoom);
+        // 4. Adaptive timing: long-distance ICE and large zoom transitions receive extra duration frames
+        expect(scene.rides[3].durationFrames).toBeGreaterThan(30);
+        expect(scene.travelTotalFrames).toBeGreaterThanOrEqual(120);
 
         // Detail tiles should be generated covering the city rides at higher zoom than base scene
         expect(Array.isArray(scene.detailTiles)).toBe(true);

@@ -199,7 +199,7 @@ let reactRoot = null;
 
 function getActiveDurationInFrames() {
     if (currentMode === 'all' && userTrips.length > 0) {
-        return computeAllModeTiming(userTrips.length).totalFrames;
+        return computeAllModeTiming(userTrips, FPS).totalFrames;
     }
     return DURATION_IN_FRAMES;
 }
@@ -491,7 +491,7 @@ function updateAllModeSidebar(trips) {
     const firstOrig = firstCheckin.origin?.name || firstCheckin.origin?.station?.name || 'First Station';
     const lastDest = lastCheckin.destination?.name || lastCheckin.destination?.station?.name || 'Latest Station';
 
-    const timing = computeAllModeTiming(sorted.length);
+    const timing = computeAllModeTiming(sorted, FPS);
     const clipSec = Math.round(timing.totalFrames / FPS);
 
     if (lineEl) lineEl.textContent = `All Rides (${sorted.length})`;
@@ -548,6 +548,7 @@ function renderPlayer() {
     }
 
     const activeDuration = getActiveDurationInFrames();
+    window.__totalDurationInFrames = activeDuration;
 
     reactRoot.render(html`
         <div class="player-wrapper">
@@ -597,6 +598,7 @@ async function triggerVideoDownload() {
         if (progressBar) progressBar.style.width = '5%';
 
         const activeDuration = getActiveDurationInFrames();
+    window.__totalDurationInFrames = activeDuration;
         const recorder = new VideoClipRecorder(playerRef, activeDuration);
         const result = await recorder.recordAndDownload({
             trip: currentTrip,
