@@ -128,3 +128,4 @@ export function filterTripsForPrivacy(trips = [], filters = {}) {
         return true;
     });
 }
+
