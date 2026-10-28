@@ -90,27 +90,20 @@
 
     <!-- Main Content Area -->
     <main class="anim-layout">
-        <!-- Center Stage: Rectangular 16:9 HD Video Player -->
-        <section class="anim-stage" aria-label="Video Player Stage">
-            <div id="playerContainer" class="player-host ratio-landscape">
+        <!-- Center Stage: Square 1:1 Video Player -->
+        <section class="anim-stage" aria-label="Video Player">
+            <div id="playerContainer" class="player-host ratio-square">
                 <div class="anim-loading">
                     <div class="spinner"></div>
-                    <div>Loading Journey Video Clip...</div>
+                    <div>Loading clip…</div>
                 </div>
             </div>
         </section>
 
-        <!-- Right Inspector Sidebar -->
-        <aside class="anim-sidebar" aria-label="Journey Details & Video Download">
-            <!-- Card 1: Journey Details -->
+        <!-- Right Sidebar -->
+        <aside class="anim-sidebar" aria-label="Trip Details">
             <div class="anim-card">
-                <h2 class="anim-card-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
-                        <rect width="20" height="14" x="2" y="5" rx="2"></rect>
-                        <line x1="2" x2="22" y1="10" y2="10"></line>
-                    </svg>
-                    <span>Journey Details</span>
-                </h2>
+                <h2 class="anim-card-title">Trip Details</h2>
 
                 <div class="trip-preview-grid">
                     <div class="trip-preview-item">
@@ -134,33 +127,21 @@
                         <strong id="sidebarDuration">—</strong>
                     </div>
                     <div class="trip-preview-item" style="grid-column: span 2;">
-                        <label>Check-in Note</label>
-                        <span id="sidebarNote" style="font-size: 11px; color: var(--text-secondary); font-style: italic;">—</span>
+                        <label>Note</label>
+                        <span id="sidebarNote" style="font-size: 12px; color: var(--text-secondary);">—</span>
                     </div>
                 </div>
-            </div>
 
-            <!-- Card 2: Download Video Clip (.webm) -->
-            <div class="anim-card">
-                <h2 class="anim-card-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    <span>Download Video Clip</span>
-                </h2>
-                <p style="margin: 0 0 10px 0; font-size: 12px; color: var(--text-secondary); line-height: 1.45;">
-                    Export a rectangular 16:9 HD video (<code>.webm</code>, 1280×720) ready for posting on social media.
-                </p>
-                <button type="button" id="downloadVideoBtn" class="anim-download-btn">
-                    ⬇ Download Video (.webm)
-                </button>
-                <div id="recordProgressWrap" class="record-progress-wrap hidden">
-                    <div class="record-progress-track">
-                        <div id="recordProgressBar" class="record-progress-fill" style="width: 0%;"></div>
+                <div style="margin-top: 14px;">
+                    <button type="button" id="downloadVideoBtn" class="anim-download-btn">
+                        Download .webm
+                    </button>
+                    <div id="recordProgressWrap" class="record-progress-wrap hidden">
+                        <div class="record-progress-track">
+                            <div id="recordProgressBar" class="record-progress-fill" style="width: 0%;"></div>
+                        </div>
+                        <div id="recordStatusText" class="record-status-text">Preparing…</div>
                     </div>
-                    <div id="recordStatusText" class="record-status-text">Preparing video…</div>
                 </div>
             </div>
         </aside>

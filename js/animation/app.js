@@ -1,8 +1,6 @@
 /**
- * Journey Video Clip Controller
- * Built around the Träwelling API v1 'checkin' response model.
- * Coordinates SessionDB, live API & single-status fetch, URL parameters (?user=&id=),
- * 16:9 rectangular HD canvas player, 7 map tile sets, and WebM video download.
+ * Trip Clip Controller
+ * Uses the Träwelling API v1 'checkin' response model.
  */
 
 import React from 'https://esm.sh/react@18.3.1';
@@ -68,7 +66,7 @@ const DEMO_FIXTURE_TRIPS = [
     },
     {
         id: 8877665,
-        body: 'High-speed rail run across Northern Germany 🚄',
+        body: 'Nach Berlin',
         createdAt: '2026-10-12T10:00:00+00:00',
         user: { username: 'resu', displayName: 'Resu' },
         checkin: {
@@ -109,8 +107,7 @@ const DEMO_FIXTURE_TRIPS = [
     },
     {
         id: 9309802,
-        body: 'Evening S-Bahn ride through the Berlin Stadtbahn with @Fabi',
-        bodyMentions: [{ user: { username: 'Fabi' } }],
+        body: '',
         createdAt: '2026-10-11T18:46:00+00:00',
         user: { username: 'resu', displayName: 'Resu' },
         checkin: {
@@ -148,7 +145,7 @@ const DEMO_FIXTURE_TRIPS = [
     },
     {
         id: 325374,
-        body: 'Harbor ferry cruise on the Elbe with @Fabi',
+        body: 'Mit @Fabi',
         bodyMentions: [{ user: { username: 'Fabi' } }],
         createdAt: '2022-04-16T16:49:46+00:00',
         user: { username: 'resu', displayName: 'Resu' },
@@ -179,8 +176,8 @@ const DEMO_FIXTURE_TRIPS = [
     }
 ];
 
-const VIDEO_WIDTH = 1280;
-const VIDEO_HEIGHT = 720;
+const VIDEO_WIDTH = 960;
+const VIDEO_HEIGHT = 960;
 const DURATION_IN_FRAMES = 240;
 const FPS = 30;
 
@@ -411,14 +408,14 @@ function updateTripSidebar(trip) {
     if (distEl) distEl.textContent = dist;
     if (delayEl) delayEl.textContent = delayStr;
     if (durEl) durEl.textContent = durStr;
-    if (noteEl) noteEl.textContent = trip.body ? `"${trip.body}"` : 'No check-in note';
+    if (noteEl) noteEl.textContent = trip.body ? trip.body : '—';
 }
 
 function renderPlayer() {
     const container = document.getElementById('playerContainer');
     if (!container) return;
 
-    container.className = 'player-host ratio-landscape';
+    container.className = 'player-host ratio-square';
 
     if (!reactRoot) {
         reactRoot = ReactDOM.createRoot(container);
@@ -462,7 +459,7 @@ async function triggerVideoDownload() {
     try {
         if (downloadBtn) {
             downloadBtn.disabled = true;
-            downloadBtn.textContent = '⏳ Rendering WebM Video…';
+            downloadBtn.textContent = 'Saving video…';
         }
         if (progressWrap) progressWrap.classList.remove('hidden');
         if (progressBar) progressBar.style.width = '5%';
@@ -480,10 +477,10 @@ async function triggerVideoDownload() {
             }
         });
 
-        if (statusText) statusText.textContent = `✓ Downloaded ${result.filename} (${Math.round(result.blob.size / 1024)} KB)`;
+        if (statusText) statusText.textContent = `Saved ${result.filename} (${Math.round(result.blob.size / 1024)} KB)`;
         if (downloadBtn) {
             downloadBtn.disabled = false;
-            downloadBtn.textContent = '⬇ Download Video (.webm)';
+            downloadBtn.textContent = 'Download .webm';
         }
         return result;
     } catch (e) {
@@ -491,7 +488,7 @@ async function triggerVideoDownload() {
         if (statusText) statusText.textContent = `Error: ${e.message}`;
         if (downloadBtn) {
             downloadBtn.disabled = false;
-            downloadBtn.textContent = '⬇ Download Video (.webm)';
+            downloadBtn.textContent = 'Download .webm';
         }
         return null;
     }

@@ -1,7 +1,5 @@
 /**
- * In-Browser WebM Video Clip Recorder
- * Silently preloads 100% of required map tiles, then captures the 1280x720 HTML5 canvas stream
- * into a downloadable .webm video file.
+ * In-Browser WebM Video Recorder
  */
 
 import { preloadTripTiles } from './composition.js';
@@ -18,8 +16,8 @@ export class VideoClipRecorder {
     async recordAndDownload({
         trip = null,
         mapStyle = 'traewelling-dark',
-        width = 1280,
-        height = 720,
+        width = 960,
+        height = 960,
         filename = 'traewelling-trip-clip.webm',
         onProgress = () => {}
     }) {
@@ -29,7 +27,7 @@ export class VideoClipRecorder {
 
         // Silently ensure all map tiles for the scene are loaded and decoded before recording
         if (trip) {
-            onProgress(5, 'Preparing video clip…');
+            onProgress(5, 'Preparing…');
             await preloadTripTiles(trip, mapStyle, width, height);
         }
 
@@ -99,7 +97,7 @@ export class VideoClipRecorder {
         const checkEnd = setInterval(() => {
             const currentFrame = this.playerRef.getCurrentFrame();
             const pct = 10 + Math.min(90, Math.round((currentFrame / totalFrames) * 90));
-            onProgress(pct, `Rendering WebM video (${Math.round((currentFrame / totalFrames) * 100)}%)…`);
+            onProgress(pct, `Recording (${Math.round((currentFrame / totalFrames) * 100)}%)…`);
 
             if (currentFrame >= totalFrames - 2) {
                 clearInterval(checkEnd);
