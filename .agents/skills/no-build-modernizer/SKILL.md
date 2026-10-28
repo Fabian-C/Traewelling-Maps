@@ -137,3 +137,4 @@ Verify changes across three testing tiers before declaring completion:
      - Extreme viewports (iPhone SE 320px portrait, 844x390 landscape modal fits).
 4. **Push to Feature Branch**:
    - Push verified commits to the remote branch and present a clean diff summary.
+

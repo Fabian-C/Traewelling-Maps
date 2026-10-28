@@ -83,3 +83,4 @@ export function renderLinkedComment(text) {
         return `<a href="https://traewelling.de/profile/${encodeURIComponent(username)}" target="_blank" rel="noopener noreferrer" class="comment-mention-link" title="Open @${username} on Träwelling" onclick="event.stopPropagation()">@${username}</a>`;
     });
 }
+
