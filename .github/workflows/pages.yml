@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - refactor/modernization-and-tooling
   workflow_dispatch:
 
 permissions:
