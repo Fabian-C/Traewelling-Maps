@@ -2,7 +2,7 @@
  * In-Browser WebM Video Recorder
  */
 
-import { preloadTripTiles } from './composition.js';
+import { preloadTripTiles, preloadSceneTiles, buildAllTripsScene } from './composition.js';
 
 export class VideoClipRecorder {
     constructor(playerRef, totalFrames = 240) {
@@ -15,6 +15,8 @@ export class VideoClipRecorder {
 
     async recordAndDownload({
         trip = null,
+        trips = [],
+        mode = 'single',
         mapStyle = 'traewelling-dark',
         width = 960,
         height = 960,
@@ -26,7 +28,11 @@ export class VideoClipRecorder {
         }
 
         // Silently ensure all map tiles for the scene are loaded and decoded before recording
-        if (trip) {
+        if (mode === 'all' && Array.isArray(trips) && trips.length > 0) {
+            onProgress(5, 'Preparing all-rides map scene…');
+            const allScene = buildAllTripsScene(trips, width, height);
+            await preloadSceneTiles(allScene, mapStyle);
+        } else if (trip) {
             onProgress(5, 'Preparing…');
             await preloadTripTiles(trip, mapStyle, width, height);
         }

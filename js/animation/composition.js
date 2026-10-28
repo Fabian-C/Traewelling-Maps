@@ -15,16 +15,35 @@ import {
     continueRender
 } from 'https://esm.sh/remotion@4.0.539?deps=react@18.3.1';
 
-import { CATEGORY_META, MAP_STYLES, preloadTripTiles } from './tiles.js';
-import { extractRouteCoordinates, buildMapScene, shortenStationName } from './geometry.js';
-import { renderTripFrame } from './renderer.js';
+import { CATEGORY_META, MAP_STYLES, preloadTripTiles, preloadSceneTiles } from './tiles.js';
+import {
+    extractRouteCoordinates,
+    buildMapScene,
+    buildAllTripsScene,
+    computeAllModeTiming,
+    sortTripsChronologically,
+    shortenStationName
+} from './geometry.js';
+import { renderTripFrame, renderAllTripsFrame } from './renderer.js';
 
 const html = htm.bind(React.createElement);
 
-export { CATEGORY_META, MAP_STYLES, preloadTripTiles, extractRouteCoordinates, buildMapScene };
+export {
+    CATEGORY_META,
+    MAP_STYLES,
+    preloadTripTiles,
+    preloadSceneTiles,
+    extractRouteCoordinates,
+    buildMapScene,
+    buildAllTripsScene,
+    computeAllModeTiming,
+    sortTripsChronologically
+};
 
 export function TripStoryComposition({
     trip,
+    trips = [],
+    mode = 'single',
     username = 'Traveler',
     mapStyle = 'traewelling-dark'
 }) {
@@ -33,13 +52,24 @@ export function TripStoryComposition({
     const canvasRef = React.useRef(null);
     const [tilesReadyCount, setTilesReadyCount] = React.useState(0);
 
-    const coords = React.useMemo(() => (trip ? extractRouteCoordinates(trip) : []), [trip]);
-    const scene = React.useMemo(() => buildMapScene(coords, width, height), [coords, width, height]);
+    const isAllMode = mode === 'all' && Array.isArray(trips) && trips.length > 0;
+    const coords = React.useMemo(
+        () => (!isAllMode && trip ? extractRouteCoordinates(trip) : []),
+        [isAllMode, trip]
+    );
+    const scene = React.useMemo(
+        () => (isAllMode ? buildAllTripsScene(trips, width, height) : buildMapScene(coords, width, height)),
+        [isAllMode, trips, coords, width, height]
+    );
+    const allTiming = React.useMemo(
+        () => (isAllMode ? computeAllModeTiming(trips.length) : null),
+        [isAllMode, trips]
+    );
     const styleConfig = MAP_STYLES[mapStyle] || MAP_STYLES['traewelling-dark'];
 
     // Silently preload 100% of scene tiles before rendering/recording starts
     React.useEffect(() => {
-        if (!trip || !scene.tiles.length) return;
+        if ((!trip && !isAllMode) || !scene.tiles.length) return;
         let cancelled = false;
         const handle = delayRender(`Preloading ${scene.tiles.length} map tiles`);
 
@@ -49,7 +79,7 @@ export function TripStoryComposition({
             }
         }, 6500);
 
-        preloadTripTiles(trip, mapStyle, width, height, ({ loaded }) => {
+        preloadSceneTiles(scene, mapStyle, ({ loaded }) => {
             if (!cancelled) {
                 setTilesReadyCount(loaded);
             }
@@ -65,13 +95,28 @@ export function TripStoryComposition({
             clearTimeout(safetyTimer);
             try { continueRender(handle); } catch { /* ignore */ }
         };
-    }, [trip, mapStyle, width, height, scene]);
+    }, [trip, isAllMode, mapStyle, width, height, scene]);
 
     React.useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas || !trip) return;
+        if (!canvas || (!trip && !isAllMode)) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
+
+        if (isAllMode) {
+            renderAllTripsFrame({
+                ctx,
+                frame,
+                fps,
+                width,
+                height,
+                username,
+                allScene: scene,
+                timing: allTiming,
+                styleConfig
+            });
+            return;
+        }
 
         const introSpring = spring({ frame, fps, config: { damping: 18, stiffness: 90 } });
         renderTripFrame({
@@ -87,12 +132,15 @@ export function TripStoryComposition({
             styleConfig,
             introSpring
         });
-    }, [frame, fps, width, height, trip, username, mapStyle, coords, scene, styleConfig, tilesReadyCount]);
+    }, [frame, fps, width, height, trip, trips, isAllMode, username, mapStyle, coords, scene, allTiming, styleConfig, tilesReadyCount]);
 
     const checkin = trip?.checkin || trip?.train || {};
     const lineName = checkin.lineName || checkin.number || 'Train';
     const orig = shortenStationName(checkin.origin?.name || checkin.origin?.station?.name || trip?.origin || 'Origin');
     const dest = shortenStationName(checkin.destination?.name || checkin.destination?.station?.name || trip?.destination || 'Destination');
+    const ariaText = isAllMode
+        ? `Historical replay of all ${trips.length} saved rides for @${username}`
+        : `Animated trip map for ${lineName} from ${orig} to ${dest}`;
 
     return html`
         <${AbsoluteFill} style=${{ backgroundColor: styleConfig.bg }}>
@@ -102,7 +150,7 @@ export function TripStoryComposition({
                 width=${width}
                 height=${height}
                 role="img"
-                aria-label=${`Animated trip map for ${lineName} from ${orig} to ${dest}`}
+                aria-label=${ariaText}
                 style=${{ inlineSize: '100%', blockSize: '100%', display: 'block' }}
             />
         <//>

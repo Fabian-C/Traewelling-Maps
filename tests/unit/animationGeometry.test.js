@@ -11,7 +11,10 @@ import {
     sampleSmoothedCameraTarget,
     computeCameraZoomMultiplier,
     shortenStationName,
-    getContrastingTextColor
+    getContrastingTextColor,
+    sortTripsChronologically,
+    computeAllModeTiming,
+    buildAllTripsScene
 } from '../../js/animation/geometry.js';
 
 describe('Animation Geometry & Camera Smoothing', () => {
@@ -130,6 +133,42 @@ describe('Animation Geometry & Camera Smoothing', () => {
         expect(zMidCruise).toBeGreaterThan(2.0);
         expect(zPreFinale).toBeCloseTo(2.0, 2);
         expect(zFinale).toBeLessThan(1.0);
+    });
+
+    it('sorts trips chronologically and builds unified mode=all historical scene', () => {
+        const trips = [
+            {
+                id: 20,
+                createdAt: '2026-10-12T10:00:00Z',
+                checkin: {
+                    distance: 284000,
+                    origin: { name: 'Hamburg Hbf', station: { longitude: 10.0069, latitude: 53.5533 } },
+                    destination: { name: 'Berlin Hbf', station: { longitude: 13.3695, latitude: 52.5255 } }
+                }
+            },
+            {
+                id: 10,
+                createdAt: '2026-10-05T08:00:00Z',
+                checkin: {
+                    distance: 3100,
+                    origin: { name: 'U Leopoldplatz', station: { longitude: 13.359, latitude: 52.546 } },
+                    destination: { name: 'U Oranienburger Tor', station: { longitude: 13.387, latitude: 52.524 } }
+                }
+            }
+        ];
+
+        const sorted = sortTripsChronologically(trips);
+        expect(sorted.map(t => t.id)).toEqual([10, 20]);
+
+        const timing = computeAllModeTiming(sorted.length);
+        expect(timing.framesPerTrip).toBe(48);
+        expect(timing.totalFrames).toBeGreaterThanOrEqual(240);
+
+        const allScene = buildAllTripsScene(sorted, 960, 960);
+        expect(allScene.rides).toHaveLength(2);
+        expect(allScene.rides[0].trip.id).toBe(10);
+        expect(allScene.rides[1].trip.id).toBe(20);
+        expect(allScene.totalDistanceKm).toBeCloseTo(287.1, 1);
     });
 });
 

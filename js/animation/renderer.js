@@ -677,3 +677,382 @@ export function renderTripFrame({
 
     ctx.restore();
 }
+
+/**
+ * Render a single frame of the Historical All-Rides Replay (mode=all).
+ * Sequentially animates every ride from oldest to newest while accumulating
+ * the completed rail network and live cumulative distance on the map.
+ */
+export function renderAllTripsFrame({
+    ctx,
+    frame,
+    width,
+    height,
+    username,
+    allScene,
+    timing,
+    styleConfig
+}) {
+    const rides = allScene?.rides || [];
+    if (!rides.length) return;
+
+    const framesPerTrip = Math.max(8, timing?.framesPerTrip || 30);
+    const finaleFrames = Math.max(30, timing?.finaleFrames || 75);
+    const travelTotalFrames = rides.length * framesPerTrip;
+
+    const isFinale = frame >= travelTotalFrames;
+    const activeIdx = Math.min(rides.length - 1, Math.max(0, Math.floor(frame / framesPerTrip)));
+    const localFrame = isFinale ? framesPerTrip : (frame - activeIdx * framesPerTrip);
+    const rideProgress = isFinale
+        ? 1
+        : smootherstep(0.05, 0.93, localFrame / framesPerTrip);
+
+    const activeRide = rides[activeIdx];
+    const activeTrip = activeRide.trip || {};
+    const checkin = activeTrip.checkin || activeTrip.train || {};
+    const categoryKey = checkin.category || 'regional';
+    const catMeta = CATEGORY_META[categoryKey] || CATEGORY_META.unknown;
+    const lineColor = checkin.routeColor
+        ? `#${String(checkin.routeColor).replace(/^#/, '')}`
+        : catMeta.color;
+    const badgeTextColor = getContrastingTextColor(lineColor, checkin.routeTextColor);
+
+    const lineName = checkin.lineName || checkin.number || 'Train';
+    const originName = checkin.origin?.name || checkin.origin?.station?.name || activeTrip.origin || 'Origin';
+    const destName = checkin.destination?.name || checkin.destination?.station?.name || activeTrip.destination || 'Destination';
+
+    const activeRideScene = {
+        points: activeRide.points,
+        cumDist: activeRide.cumDist,
+        totalPathPx: activeRide.totalPathPx,
+        centerSceneX: activeRide.rideCenterX,
+        centerSceneY: activeRide.rideCenterY
+    };
+
+    const vehiclePose = samplePointAlongRoute(activeRideScene, rideProgress);
+    const currChaseTarget = sampleSmoothedCameraTarget(activeRideScene, rideProgress);
+
+    let camTargetX = currChaseTarget.x;
+    let camTargetY = currChaseTarget.y;
+    let camZoom = activeRide.rideZoom;
+
+    // Smooth camera handoff from previous ride so there is never an abrupt jump between rides
+    if (activeIdx > 0 && !isFinale) {
+        const prevRide = rides[activeIdx - 1];
+        const prevRideScene = {
+            points: prevRide.points,
+            cumDist: prevRide.cumDist,
+            totalPathPx: prevRide.totalPathPx,
+            centerSceneX: prevRide.rideCenterX,
+            centerSceneY: prevRide.rideCenterY
+        };
+        const prevEndTarget = sampleSmoothedCameraTarget(prevRideScene, 1);
+        const handoffT = smootherstep(0, Math.max(4, framesPerTrip * 0.34), localFrame);
+        camTargetX = prevEndTarget.x + (currChaseTarget.x - prevEndTarget.x) * handoffT;
+        camTargetY = prevEndTarget.y + (currChaseTarget.y - prevEndTarget.y) * handoffT;
+        camZoom = prevRide.rideZoom + (activeRide.rideZoom - prevRide.rideZoom) * handoffT;
+    }
+
+    // Smooth intro zoom-in from full network overview and finale zoom-out to full network overview
+    const introBlend = 1 - smootherstep(0, Math.min(36, framesPerTrip * 0.85), frame);
+    const finaleBlend = smootherstep(
+        travelTotalFrames - Math.min(24, framesPerTrip * 0.5),
+        travelTotalFrames + finaleFrames * 0.72,
+        frame
+    );
+    const overviewBlend = Math.max(introBlend, finaleBlend);
+    const overviewZoom = allScene.fitScale * 0.95;
+
+    camTargetX = camTargetX + (allScene.centerSceneX - camTargetX) * overviewBlend;
+    camTargetY = camTargetY + (allScene.centerSceneY - camTargetY) * overviewBlend;
+    camZoom = camZoom + (overviewZoom - camZoom) * overviewBlend;
+
+    const viewCenterY = height / 2 + 42;
+
+    // 1. Clear background
+    ctx.save();
+    ctx.fillStyle = styleConfig.bg;
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Camera transform
+    ctx.save();
+    ctx.translate(width / 2, viewCenterY);
+    ctx.scale(camZoom, camZoom);
+    ctx.translate(-camTargetX, -camTargetY);
+
+    // 3. Draw preloaded Map Tiles
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    for (const tile of allScene.tiles) {
+        const url = styleConfig.getTileUrl(allScene.z, tile.x, tile.y);
+        const img = TILE_IMAGE_CACHE.get(url);
+        if (img) {
+            ctx.drawImage(img, tile.left, tile.top, 256.5, 256.5);
+        } else {
+            ctx.fillStyle = styleConfig.bg;
+            ctx.fillRect(tile.left, tile.top, 256, 256);
+        }
+    }
+
+    // 4. Draw all previously completed historical rides (0 .. activeIdx - 1)
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < activeIdx; i++) {
+        const pastRide = rides[i];
+        if (!pastRide.points || pastRide.points.length < 2) continue;
+        const pastCheckin = pastRide.trip?.checkin || pastRide.trip?.train || {};
+        const pastCat = CATEGORY_META[pastCheckin.category || 'regional'] || CATEGORY_META.unknown;
+        const pastColor = pastCheckin.routeColor
+            ? `#${String(pastCheckin.routeColor).replace(/^#/, '')}`
+            : pastCat.color;
+
+        ctx.beginPath();
+        ctx.moveTo(pastRide.points[0].x, pastRide.points[0].y);
+        for (let p = 1; p < pastRide.points.length; p++) {
+            ctx.lineTo(pastRide.points[p].x, pastRide.points[p].y);
+        }
+        ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(15, 23, 42, 0.35)';
+        ctx.lineWidth = 6.5 / camZoom;
+        ctx.stroke();
+
+        ctx.strokeStyle = pastColor;
+        ctx.lineWidth = 4.2 / camZoom;
+        ctx.stroke();
+    }
+    ctx.restore();
+
+    // 5. Draw active ride track (4-layer design)
+    if (activeRide.points.length >= 2) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(activeRide.points[0].x, activeRide.points[0].y);
+        for (let i = 1; i < activeRide.points.length; i++) {
+            ctx.lineTo(activeRide.points[i].x, activeRide.points[i].y);
+        }
+        ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(15, 23, 42, 0.24)';
+        ctx.lineWidth = 9 / camZoom;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.setLineDash([9 / camZoom, 9 / camZoom]);
+        ctx.stroke();
+        ctx.restore();
+
+        const maxIdx = Math.max(0, Math.min(activeRide.points.length - 1, vehiclePose.index));
+        const wholeIdx = Math.floor(maxIdx);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(activeRide.points[0].x, activeRide.points[0].y);
+        for (let i = 1; i <= wholeIdx; i++) {
+            ctx.lineTo(activeRide.points[i].x, activeRide.points[i].y);
+        }
+        ctx.lineTo(vehiclePose.x, vehiclePose.y);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.42)';
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetY = 3;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 14 / camZoom;
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 9 / camZoom;
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // 6. Active Ride Origin & Destination Station Pins (drawn below vehicle)
+    const originPt = activeRide.points[0];
+    const destPt = activeRide.points[activeRide.points.length - 1];
+    const originIsNorthOfDest = originPt && destPt ? originPt.y <= destPt.y : true;
+
+    if (originPt && !isFinale) {
+        const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
+            originPt,
+            camTargetX,
+            camTargetY,
+            camZoom,
+            width,
+            height,
+            viewCenterY,
+            originIsNorthOfDest
+        );
+        ctx.save();
+        ctx.translate(originPt.x, originPt.y);
+        ctx.scale(1 / camZoom, 1 / camZoom);
+        drawStationPin(ctx, originName, '#10b981', false, placeAbove, horizontalShiftPx, frame);
+        ctx.restore();
+    }
+    if (destPt && !isFinale) {
+        const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
+            destPt,
+            camTargetX,
+            camTargetY,
+            camZoom,
+            width,
+            height,
+            viewCenterY,
+            !originIsNorthOfDest
+        );
+        ctx.save();
+        ctx.translate(destPt.x, destPt.y);
+        ctx.scale(1 / camZoom, 1 / camZoom);
+        drawStationPin(ctx, destName, lineColor, true, placeAbove, horizontalShiftPx, frame);
+        ctx.restore();
+    }
+
+    // 7. Moving Vehicle on Active Ride (drawn ABOVE all station dots and tracks)
+    if (!isFinale) {
+        ctx.save();
+        ctx.translate(vehiclePose.x, vehiclePose.y);
+        ctx.scale(1.08 / camZoom, 1.08 / camZoom);
+        ctx.rotate(vehiclePose.angleRad || 0);
+        drawVehicleOnCanvas(ctx, catMeta.vehicle, lineColor, frame);
+        ctx.restore();
+    }
+
+    ctx.restore(); // End camera transform
+
+    // 8. Vignette & Top Header Scrim
+    const vig = ctx.createRadialGradient(width / 2, height / 2, width * 0.34, width / 2, height / 2, width * 0.70);
+    vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vig.addColorStop(1, 'rgba(4, 7, 15, 0.38)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, width, height);
+
+    const topScrim = ctx.createLinearGradient(0, 0, 0, 126);
+    topScrim.addColorStop(0, 'rgba(7, 10, 18, 0.55)');
+    topScrim.addColorStop(1, 'rgba(7, 10, 18, 0)');
+    ctx.fillStyle = topScrim;
+    ctx.fillRect(0, 0, width, 126);
+
+    // 9. TOP HUD HEADER BAR (Active Ride + Historical Counter)
+    const pad = 22;
+    const headerH = 84;
+    const rightCardW = 304;
+    const leftCardW = width - pad * 2 - rightCardW - 14;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = 'rgba(10, 14, 24, 0.90)';
+    drawRoundedRect(ctx, pad, pad, leftCardW, headerH, 20);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    const badgeLabel = isFinale ? 'ALL' : lineName;
+    ctx.font = '800 22px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    const badgeTextW = ctx.measureText(badgeLabel).width;
+    const badgeW = Math.max(72, Math.min(156, badgeTextW + 26));
+    const badgeH = 50;
+    const badgeX = pad + 16;
+    const badgeY = pad + (headerH - badgeH) / 2;
+
+    ctx.fillStyle = isFinale ? '#38bdf8' : lineColor;
+    drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 12);
+    ctx.fill();
+
+    ctx.fillStyle = isFinale ? '#0f172a' : badgeTextColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badgeLabel, badgeX + badgeW / 2, badgeY + badgeH / 2 + 1, badgeW - 14);
+
+    const textStartX = badgeX + badgeW + 16;
+    const shortOrig = shortenStationName(originName);
+    const shortDest = shortenStationName(destName);
+    const routeTitle = isFinale
+        ? `All ${rides.length} Saved Rides Completed`
+        : `${shortOrig} → ${shortDest}`;
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '800 21px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(routeTitle, textStartX, pad + 15, leftCardW - (textStartX - pad) - 16);
+
+    const resolvedUsername = activeTrip.user?.username || username || 'Traveler';
+    const dateRaw = checkin.origin?.departureReal || checkin.origin?.departurePlanned || activeTrip.createdAt;
+    const dateStr = dateRaw
+        ? new Date(dateRaw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+        : '';
+    const subTitle = isFinale
+        ? `@${resolvedUsername} • Historical Replay`
+        : `@${resolvedUsername} • Ride #${activeIdx + 1}/${rides.length}${dateStr ? ` • ${dateStr}` : ''}`;
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '600 15px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText(subTitle, textStartX, pad + 49, leftCardW - (textStartX - pad) - 16);
+    ctx.restore();
+
+    // 10. TOP-RIGHT LIVE CUMULATIVE METRICS CARD
+    const rightCardX = width - pad - rightCardW;
+    const cumulativeKm = (activeRide.startKm + activeRide.distanceKm * rideProgress).toFixed(1);
+    const completedCount = isFinale ? rides.length : activeIdx + 1;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = 'rgba(10, 14, 24, 0.90)';
+    drawRoundedRect(ctx, rightCardX, pad, rightCardW, headerH, 20);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '700 12px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('TOTAL DISTANCE', rightCardX + 18, pad + 15);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = '800 22px "JetBrains Mono", monospace';
+    ctx.fillText(`${cumulativeKm} km`, rightCardX + 18, pad + 36, 152);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.fillRect(rightCardX + 180, pad + 16, 1.5, headerH - 32);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '700 12px Inter, sans-serif';
+    ctx.fillText('RIDE', rightCardX + 194, pad + 15);
+
+    ctx.fillStyle = '#4ade80';
+    ctx.font = '800 22px "JetBrains Mono", monospace';
+    ctx.fillText(`${completedCount}/${rides.length}`, rightCardX + 194, pad + 36, 96);
+    ctx.restore();
+
+    // 11. CORNER WATERMARK
+    ctx.save();
+    const wmText = 'Generated on fabian-c.github.io/Traewelling-Maps';
+    ctx.font = '600 13px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    const wmTextW = ctx.measureText(wmText).width;
+    const wmW = wmTextW + 22;
+    const wmH = 26;
+    const wmX = width - pad - 44 - wmW;
+    const wmY = height - 48 - wmH;
+
+    ctx.fillStyle = 'rgba(10, 14, 24, 0.82)';
+    drawRoundedRect(ctx, wmX, wmY, wmW, wmH, 13);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(226, 232, 240, 0.90)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(wmText, wmX + wmW / 2, wmY + wmH / 2 + 0.5);
+    ctx.restore();
+
+    ctx.restore();
+}
+

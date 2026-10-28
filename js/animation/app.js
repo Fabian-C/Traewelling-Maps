@@ -14,7 +14,12 @@ import { normalizeTripStatus } from '../data/processing.js';
 import { syncNavigationLinks } from '../ui/navigation.js';
 import { computeTripDurationMinutes, deriveDelaySeconds } from '../utils/time.js';
 import { escapeHtml, formatHumanDuration } from '../utils/format.js';
-import { TripStoryComposition, MAP_STYLES } from './composition.js';
+import {
+    TripStoryComposition,
+    MAP_STYLES,
+    computeAllModeTiming,
+    sortTripsChronologically
+} from './composition.js';
 import { VideoClipRecorder } from './recorder.js';
 
 const html = htm.bind(React.createElement);
@@ -183,6 +188,7 @@ const FPS = 30;
 const api = new TraewellingAPI();
 
 let currentMapStyle = 'traewelling-dark';
+let currentMode = 'single';
 let currentUser = '';
 let currentTripId = '';
 let currentTrip = null;
@@ -191,10 +197,22 @@ let allSessions = [];
 let playerRef = null;
 let reactRoot = null;
 
+function getActiveDurationInFrames() {
+    if (currentMode === 'all' && userTrips.length > 0) {
+        return computeAllModeTiming(userTrips.length).totalFrames;
+    }
+    return DURATION_IN_FRAMES;
+}
+
 async function init() {
     const urlParams = new URLSearchParams(window.location.search);
     currentUser = (urlParams.get('user') || '').toLowerCase().trim();
     currentTripId = urlParams.get('id') || urlParams.get('trip') || urlParams.get('statusId') || '';
+    const modeParam = (urlParams.get('mode') || '').toLowerCase().trim();
+    if (modeParam === 'all' || currentTripId.toLowerCase() === 'all') {
+        currentMode = 'all';
+        if (currentTripId.toLowerCase() === 'all') currentTripId = '';
+    }
 
     const mapParam = urlParams.get('map');
     if (mapParam && MAP_STYLES[mapParam]) {
@@ -241,34 +259,74 @@ function syncToolbarPills() {
     });
 }
 
-async function attachPolylinesToTrips(trips) {
-    const missingPolyIds = trips
+async function attachPolylinesToTrips(trips, maxFetchCount = 20) {
+    // 1. Hydrate from IndexedDB SessionDB polyline cache first
+    const allMissingIds = trips
         .filter(t => {
             const checkin = t.checkin || t.train || {};
             return !checkin.polyline;
         })
-        .slice(0, 20)
         .map(t => t.id)
         .filter(Boolean);
 
-    if (missingPolyIds.length === 0) return;
+    if (allMissingIds.length === 0) return;
+
     try {
-        const polyData = await api.getPolylines(missingPolyIds);
-        const features = polyData?.data?.features || [];
-        const polyMap = new Map();
-        features.forEach(f => {
-            const sid = f?.properties?.statusId ?? f?.properties?.id;
-            if (sid) polyMap.set(String(sid), f);
-        });
+        const cachedPolys = await SessionDB.getPolylinesBatch(allMissingIds);
         trips.forEach(t => {
-            normalizeTripStatus(t);
-            const checkin = t.checkin || t.train;
-            if (checkin && polyMap.has(String(t.id))) {
-                checkin.polyline = polyMap.get(String(t.id));
+            const cached = cachedPolys[t.id] || cachedPolys[Number(t.id)];
+            if (cached) {
+                normalizeTripStatus(t);
+                const checkin = t.checkin || t.train;
+                if (checkin) checkin.polyline = cached;
             }
         });
-    } catch (e) {
-        console.warn('Polyline fetch warning:', e);
+    } catch {
+        // Ignore IndexedDB lookup warnings
+    }
+
+    // 2. Fetch remaining missing polylines in batches of 15 from API
+    const stillMissingIds = trips
+        .filter(t => {
+            const checkin = t.checkin || t.train || {};
+            return !checkin.polyline;
+        })
+        .slice(0, maxFetchCount)
+        .map(t => t.id)
+        .filter(Boolean);
+
+    if (stillMissingIds.length === 0) return;
+
+    const batchSize = 15;
+    const newCacheEntries = {};
+    for (let i = 0; i < stillMissingIds.length; i += batchSize) {
+        const batch = stillMissingIds.slice(i, i + batchSize);
+        try {
+            const polyData = await api.getPolylines(batch);
+            const features = polyData?.data?.features || [];
+            const polyMap = new Map();
+            features.forEach(f => {
+                const sid = f?.properties?.statusId ?? f?.properties?.id;
+                if (sid) {
+                    polyMap.set(String(sid), f);
+                    newCacheEntries[sid] = f;
+                }
+            });
+            trips.forEach(t => {
+                normalizeTripStatus(t);
+                const checkin = t.checkin || t.train;
+                if (checkin && polyMap.has(String(t.id))) {
+                    checkin.polyline = polyMap.get(String(t.id));
+                }
+            });
+        } catch (e) {
+            console.warn('Polyline fetch warning:', e);
+            break;
+        }
+    }
+
+    if (Object.keys(newCacheEntries).length > 0) {
+        SessionDB.savePolylinesBatch(newCacheEntries).catch(() => {});
     }
 }
 
@@ -279,6 +337,7 @@ async function loadUserTrips(username) {
             const session = await SessionDB.get(username);
             if (session && Array.isArray(session.trips) && session.trips.length > 0) {
                 userTrips = session.trips.map(t => normalizeTripStatus(t));
+                await attachPolylinesToTrips(userTrips, currentMode === 'all' ? 120 : 20);
             }
         } catch (e) {
             console.warn('Failed to load cached trips for user:', username, e);
@@ -288,10 +347,18 @@ async function loadUserTrips(username) {
     // Live API fallback if a real username was requested via URL but is not cached locally yet
     if (userTrips.length === 0 && username && username !== 'resu') {
         try {
-            const resp = await api.getUserStatuses(username, 1);
-            if (resp && Array.isArray(resp.data) && resp.data.length > 0) {
-                userTrips = resp.data.map(t => normalizeTripStatus(t));
-                await attachPolylinesToTrips(userTrips);
+            const maxPagesToFetch = currentMode === 'all' ? 8 : 1;
+            const fetched = [];
+            for (let page = 1; page <= maxPagesToFetch; page++) {
+                const resp = await api.getUserStatuses(username, page);
+                if (!resp || !Array.isArray(resp.data) || resp.data.length === 0) break;
+                resp.data.forEach(t => fetched.push(normalizeTripStatus(t)));
+                const hasNext = Boolean(resp.links?.next) || (resp.meta?.current_page < resp.meta?.last_page);
+                if (!hasNext) break;
+            }
+            if (fetched.length > 0) {
+                userTrips = fetched;
+                await attachPolylinesToTrips(userTrips, currentMode === 'all' ? 90 : 20);
             }
         } catch (e) {
             console.warn('Live API fallback failed, using demo fixtures:', e);
@@ -304,7 +371,7 @@ async function loadUserTrips(username) {
             const singleJson = await api.getStatus(currentTripId);
             if (singleJson?.data) {
                 const exactTrip = normalizeTripStatus(singleJson.data);
-                await attachPolylinesToTrips([exactTrip]);
+                await attachPolylinesToTrips([exactTrip], 5);
                 userTrips.unshift(exactTrip);
                 if (exactTrip.user?.username && !username) {
                     currentUser = exactTrip.user.username.toLowerCase();
@@ -332,7 +399,11 @@ async function loadUserTrips(username) {
         currentTripId = String(currentTrip.id);
     }
 
-    updateTripSidebar(currentTrip);
+    if (currentMode === 'all') {
+        updateAllModeSidebar(userTrips);
+    } else {
+        updateTripSidebar(currentTrip);
+    }
 }
 
 function renderSessionSelect() {
@@ -367,16 +438,68 @@ function renderTripSelect() {
         return;
     }
 
-    select.innerHTML = userTrips.map(t => {
+    const allOption = `<option value="__ALL__" ${currentMode === 'all' ? 'selected' : ''}>All Saved Rides — Historical Replay (${userTrips.length} rides)</option>`;
+
+    const tripOptions = userTrips.map(t => {
         const checkin = t.checkin || t.train || {};
         const line = checkin.lineName || checkin.number || t.line || 'Train';
         const origin = checkin.origin?.name || checkin.origin?.station?.name || t.origin || 'Origin';
         const dest = checkin.destination?.name || checkin.destination?.station?.name || t.destination || 'Destination';
         const dateRaw = checkin.origin?.departureReal || checkin.origin?.departurePlanned || t.createdAt;
         const date = dateRaw ? new Date(dateRaw).toLocaleDateString() : '';
-        const isSelected = String(t.id) === String(currentTripId);
+        const isSelected = currentMode !== 'all' && String(t.id) === String(currentTripId);
         return `<option value="${t.id}" ${isSelected ? 'selected' : ''}>${escapeHtml(line)}: ${escapeHtml(origin)} → ${escapeHtml(dest)} (${date})</option>`;
     }).join('');
+
+    select.innerHTML = allOption + tripOptions;
+}
+
+function updateAllModeSidebar(trips) {
+    if (!Array.isArray(trips) || trips.length === 0) return;
+
+    const lineEl = document.getElementById('sidebarLine');
+    const routeEl = document.getElementById('sidebarRoute');
+    const distEl = document.getElementById('sidebarDistance');
+    const delayEl = document.getElementById('sidebarDelay');
+    const durEl = document.getElementById('sidebarDuration');
+    const noteEl = document.getElementById('sidebarNote');
+
+    const sorted = sortTripsChronologically(trips);
+    let totalMeters = 0;
+    let totalDurationMin = 0;
+    let totalDelaySec = 0;
+
+    sorted.forEach(t => {
+        const checkin = t.checkin || t.train || {};
+        const rawDist = typeof checkin.distance === 'number'
+            ? checkin.distance
+            : (typeof checkin.totalDistance === 'number' ? checkin.totalDistance : 0);
+        totalMeters += rawDist;
+
+        const dMin = computeTripDurationMinutes(checkin);
+        if (typeof dMin === 'number' && dMin > 0) totalDurationMin += dMin;
+
+        const delays = deriveDelaySeconds(checkin);
+        const dSec = delays.arrival !== null ? delays.arrival : (delays.departure || 0);
+        if (dSec > 0) totalDelaySec += dSec;
+    });
+
+    const firstTrip = sorted[0];
+    const lastTrip = sorted[sorted.length - 1];
+    const firstCheckin = firstTrip?.checkin || firstTrip?.train || {};
+    const lastCheckin = lastTrip?.checkin || lastTrip?.train || {};
+    const firstOrig = firstCheckin.origin?.name || firstCheckin.origin?.station?.name || 'First Station';
+    const lastDest = lastCheckin.destination?.name || lastCheckin.destination?.station?.name || 'Latest Station';
+
+    const timing = computeAllModeTiming(sorted.length);
+    const clipSec = Math.round(timing.totalFrames / FPS);
+
+    if (lineEl) lineEl.textContent = `All Rides (${sorted.length})`;
+    if (routeEl) routeEl.textContent = `${firstOrig} → … → ${lastDest}`;
+    if (distEl) distEl.textContent = totalMeters > 0 ? `${(totalMeters / 1000).toFixed(1)} km` : '—';
+    if (delayEl) delayEl.textContent = `+${Math.round(totalDelaySec / 60)} min total`;
+    if (durEl) durEl.textContent = totalDurationMin > 0 ? formatHumanDuration(totalDurationMin) : '—';
+    if (noteEl) noteEl.textContent = `Chronological replay of all ${sorted.length} saved rides (${clipSec}s animation).`;
 }
 
 function updateTripSidebar(trip) {
@@ -424,6 +547,8 @@ function renderPlayer() {
         reactRoot = ReactDOM.createRoot(container);
     }
 
+    const activeDuration = getActiveDurationInFrames();
+
     reactRoot.render(html`
         <div class="player-wrapper">
             <${Player}
@@ -431,10 +556,12 @@ function renderPlayer() {
                 component=${TripStoryComposition}
                 inputProps=${{
                     trip: currentTrip,
+                    trips: userTrips,
+                    mode: currentMode,
                     username: currentUser,
                     mapStyle: currentMapStyle
                 }}
-                durationInFrames=${DURATION_IN_FRAMES}
+                durationInFrames=${activeDuration}
                 compositionWidth=${VIDEO_WIDTH}
                 compositionHeight=${VIDEO_HEIGHT}
                 fps=${FPS}
@@ -449,15 +576,17 @@ function renderPlayer() {
 }
 
 async function triggerVideoDownload() {
-    if (!playerRef || !currentTrip) return null;
+    if (!playerRef || (!currentTrip && currentMode !== 'all')) return null;
     const downloadBtn = document.getElementById('downloadVideoBtn');
     const progressWrap = document.getElementById('recordProgressWrap');
     const progressBar = document.getElementById('recordProgressBar');
     const statusText = document.getElementById('recordStatusText');
 
-    const checkin = currentTrip.checkin || currentTrip.train || {};
+    const checkin = currentTrip?.checkin || currentTrip?.train || {};
     const cleanLine = (checkin.lineName || checkin.number || 'trip').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
-    const filename = `traewelling-${currentUser || 'clip'}-${cleanLine}-${currentTrip.id || 'video'}.webm`;
+    const filename = currentMode === 'all'
+        ? `traewelling-${currentUser || 'clip'}-all-${userTrips.length}-rides.webm`
+        : `traewelling-${currentUser || 'clip'}-${cleanLine}-${currentTrip?.id || 'video'}.webm`;
 
     try {
         if (downloadBtn) {
@@ -467,9 +596,12 @@ async function triggerVideoDownload() {
         if (progressWrap) progressWrap.classList.remove('hidden');
         if (progressBar) progressBar.style.width = '5%';
 
-        const recorder = new VideoClipRecorder(playerRef, DURATION_IN_FRAMES);
+        const activeDuration = getActiveDurationInFrames();
+        const recorder = new VideoClipRecorder(playerRef, activeDuration);
         const result = await recorder.recordAndDownload({
             trip: currentTrip,
+            trips: userTrips,
+            mode: currentMode,
             mapStyle: currentMapStyle,
             width: VIDEO_WIDTH,
             height: VIDEO_HEIGHT,
@@ -513,8 +645,18 @@ function setupControls() {
 
     const tripSelect = document.getElementById('tripSelect');
     if (tripSelect) {
-        tripSelect.addEventListener('change', (e) => {
-            currentTripId = String(e.target.value);
+        tripSelect.addEventListener('change', async (e) => {
+            const val = String(e.target.value);
+            if (val === '__ALL__') {
+                currentMode = 'all';
+                await attachPolylinesToTrips(userTrips, 120);
+                updateAllModeSidebar(userTrips);
+                updateUrlParams();
+                renderPlayer();
+                return;
+            }
+            currentMode = 'single';
+            currentTripId = val;
             currentTrip = userTrips.find(t => String(t.id) === currentTripId);
             updateTripSidebar(currentTrip);
             updateUrlParams();
@@ -544,7 +686,11 @@ function setupControls() {
 function updateUrlParams() {
     const params = new URLSearchParams();
     if (currentUser) params.set('user', currentUser);
-    if (currentTripId) params.set('id', currentTripId);
+    if (currentMode === 'all') {
+        params.set('mode', 'all');
+    } else if (currentTripId) {
+        params.set('id', currentTripId);
+    }
     if (currentMapStyle && currentMapStyle !== 'traewelling-dark') params.set('map', currentMapStyle);
     window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
 }

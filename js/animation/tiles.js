@@ -136,12 +136,11 @@ export function loadSingleTileImage(primaryUrl, fallbackUrl) {
     return promise;
 }
 
-export async function preloadTripTiles(trip, mapStyle = 'traewelling-dark', width = 960, height = 960, onProgress = null) {
-    if (!trip) return { total: 0, loaded: 0 };
-    const coords = extractRouteCoordinates(trip);
-    const scene = buildMapScene(coords, width, height);
+export async function preloadSceneTiles(scene, mapStyle = 'traewelling-dark', onProgress = null) {
+    if (!scene || !Array.isArray(scene.tiles) || !scene.tiles.length) {
+        return { total: 0, loaded: 0 };
+    }
     const styleConfig = MAP_STYLES[mapStyle] || MAP_STYLES['traewelling-dark'];
-
     const total = scene.tiles.length;
     let loaded = 0;
     if (onProgress) onProgress({ loaded, total });
@@ -158,4 +157,12 @@ export async function preloadTripTiles(trip, mapStyle = 'traewelling-dark', widt
 
     return { total, loaded };
 }
+
+export async function preloadTripTiles(trip, mapStyle = 'traewelling-dark', width = 960, height = 960, onProgress = null) {
+    if (!trip) return { total: 0, loaded: 0 };
+    const coords = extractRouteCoordinates(trip);
+    const scene = buildMapScene(coords, width, height);
+    return preloadSceneTiles(scene, mapStyle, onProgress);
+}
+
 

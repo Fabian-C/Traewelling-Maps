@@ -63,7 +63,7 @@ export function resampleCoordinatesByDistance(coords, sampleCount = 180) {
     return out;
 }
 
-export function extractRouteCoordinates(trip) {
+export function extractRouteCoordinates(trip, sampleCount = 180) {
     const checkin = trip?.checkin || trip?.train || {};
     const poly = checkin?.polyline || trip?.polyline;
     let rawCoords = [];
@@ -81,7 +81,7 @@ export function extractRouteCoordinates(trip) {
     ).map(c => [Number(c[0]), Number(c[1])]);
 
     if (valid.length >= 2) {
-        return resampleCoordinatesByDistance(valid, 180);
+        return resampleCoordinatesByDistance(valid, sampleCount);
     }
 
     const orig = checkin?.origin?.station || checkin?.origin || {};
@@ -93,7 +93,7 @@ export function extractRouteCoordinates(trip) {
 
     if (Number.isFinite(lon1) && Number.isFinite(lat1) && Number.isFinite(lon2) && Number.isFinite(lat2)) {
         const curved = [];
-        const steps = 80;
+        const steps = Math.min(80, sampleCount);
         const dLon = lon2 - lon1;
         const dLat = lat2 - lat1;
         for (let i = 0; i <= steps; i++) {
@@ -346,3 +346,133 @@ export function getContrastingTextColor(hexColor, explicitTextColor) {
     }
     return '#ffffff';
 }
+
+/**
+ * Sort trips chronologically from oldest to newest for mode=all historical replay.
+ */
+export function sortTripsChronologically(trips = []) {
+    if (!Array.isArray(trips)) return [];
+    const getTs = (t) => {
+        const c = t?.checkin || t?.train || {};
+        const raw = c.origin?.departureReal || c.origin?.departurePlanned || t?.createdAt || '';
+        const parsed = raw ? Date.parse(raw) : NaN;
+        return Number.isFinite(parsed) ? parsed : 0;
+    };
+    return [...trips].sort((a, b) => {
+        const ta = getTs(a);
+        const tb = getTs(b);
+        if (ta !== tb) return ta - tb;
+        return (Number(a?.id) || 0) - (Number(b?.id) || 0);
+    });
+}
+
+/**
+ * Compute adaptive frame timing for mode=all so every ride is traversed sequentially.
+ */
+export function computeAllModeTiming(tripCount = 1) {
+    const count = Math.max(1, Number(tripCount) || 1);
+    let framesPerTrip = 48;
+    if (count > 300) {
+        framesPerTrip = 10;
+    } else if (count > 120) {
+        framesPerTrip = 14;
+    } else if (count > 45) {
+        framesPerTrip = 20;
+    } else if (count > 12) {
+        framesPerTrip = 30;
+    }
+    const finaleFrames = 75;
+    const totalFrames = Math.max(240, count * framesPerTrip + finaleFrames);
+    return {
+        tripCount: count,
+        framesPerTrip,
+        finaleFrames,
+        totalFrames
+    };
+}
+
+/**
+ * Build a unified Web Mercator scene covering an entire historical dataset of trips.
+ */
+export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeight = 960) {
+    const sorted = sortTripsChronologically(trips);
+    const sampleCount = sorted.length > 80 ? 36 : 64;
+    const allCoords = [];
+    const rawRides = sorted.map((trip) => {
+        const coords = extractRouteCoordinates(trip, sampleCount);
+        coords.forEach(pt => allCoords.push(pt));
+        const checkin = trip?.checkin || trip?.train || {};
+        const rawDist = typeof checkin.distance === 'number'
+            ? checkin.distance
+            : (typeof checkin.totalDistance === 'number' ? checkin.totalDistance : (trip?.distance || 0));
+        const distanceKm = rawDist > 0 ? rawDist / 1000 : computePolylineHaversineKm(coords);
+        return { trip, coords, distanceKm };
+    });
+
+    const baseScene = buildMapScene(
+        allCoords.length ? allCoords : [[13.3695, 52.5255]],
+        viewportWidth,
+        viewportHeight
+    );
+
+    let runningKm = 0;
+    const rides = rawRides.map(({ trip, coords, distanceKm }) => {
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+
+        const points = coords.map(([lon, lat]) => {
+            const x = lonToWorldX(lon, baseScene.z) - baseScene.originWX;
+            const y = latToWorldY(lat, baseScene.z) - baseScene.originWY;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+            return { x, y, lon, lat };
+        });
+
+        const cumDist = [0];
+        for (let i = 1; i < points.length; i++) {
+            const dx = points[i].x - points[i - 1].x;
+            const dy = points[i].y - points[i - 1].y;
+            cumDist.push(cumDist[i - 1] + Math.hypot(dx, dy));
+        }
+        const totalPathPx = Math.max(1, cumDist[cumDist.length - 1]);
+        const startKm = runningKm;
+        runningKm += distanceKm;
+
+        const spanX = Math.max(60, maxX - minX);
+        const spanY = Math.max(60, maxY - minY);
+        const rideCenterX = Number.isFinite(minX) ? (minX + maxX) / 2 : baseScene.centerSceneX;
+        const rideCenterY = Number.isFinite(minY) ? (minY + maxY) / 2 : baseScene.centerSceneY;
+        const usableW = viewportWidth * 0.62;
+        const usableH = (viewportHeight - 184) * 0.60;
+        const idealRideZoom = Math.min(usableW / spanX, usableH / spanY);
+        const clampedRideZoom = Math.min(
+            baseScene.fitScale * 2.15,
+            Math.max(baseScene.fitScale * 1.15, idealRideZoom)
+        );
+
+        return {
+            trip,
+            coords,
+            points,
+            cumDist,
+            totalPathPx,
+            distanceKm,
+            startKm,
+            endKm: runningKm,
+            rideCenterX,
+            rideCenterY,
+            rideZoom: clampedRideZoom
+        };
+    });
+
+    return {
+        ...baseScene,
+        rides,
+        totalDistanceKm: runningKm
+    };
+}
+
