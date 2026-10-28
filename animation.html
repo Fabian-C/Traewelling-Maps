@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journey Story Animator — Träwelling Maps</title>
+    <link rel="icon" type="image/x-icon" href="https://traewelling.de/favicon.ico">
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/animation.css">
+
+    <!-- Main Module Entry Point -->
+    <script type="module" src="js/animation/app.js"></script>
+</head>
+
+<body>
+    <!-- Top Sticky Header -->
+    <header class="anim-header" role="banner">
+        <a href="index.html" class="anim-brand" id="navHomeLink" aria-label="Return to Map">
+            <span class="anim-brand-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
+                    <line x1="9" y1="3" x2="9" y2="18"></line>
+                    <line x1="15" y1="6" x2="15" y2="21"></line>
+                </svg>
+            </span>
+            <span class="anim-brand-text">Träwelling Story</span>
+            <span class="anim-brand-badge">Remotion Studio</span>
+        </a>
+
+        <!-- Cross-view Navigation -->
+        <nav class="anim-nav-links" aria-label="Main Navigation">
+            <a href="index.html" class="anim-nav-btn" id="navMapLink" title="Return to Interactive Map">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
+                    <line x1="9" y1="3" x2="9" y2="18"></line>
+                    <line x1="15" y1="6" x2="15" y2="21"></line>
+                </svg>
+                <span>Interactive Map</span>
+            </a>
+            <a href="trips.html" class="anim-nav-btn" id="navTripsLink" title="View Trip Database">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                </svg>
+                <span>Database</span>
+            </a>
+            <a href="wrapped.html" class="anim-nav-btn" id="navWrappedLink" title="View Rail Wrapped">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
+                </svg>
+                <span>Wrapped</span>
+            </a>
+        </nav>
+    </header>
+
+    <!-- Studio Toolbar: User and Trip Selectors & Aspect Ratio Switcher -->
+    <section class="anim-toolbar" aria-label="Animation Controls">
+        <div class="anim-selector-group">
+            <label class="anim-select-label" for="userSelect">
+                <span>Account:</span>
+                <select id="userSelect" class="anim-select" aria-label="Select User Profile"></select>
+            </label>
+
+            <label class="anim-select-label" for="tripSelect">
+                <span>Journey:</span>
+                <select id="tripSelect" class="anim-select" aria-label="Select Journey to Animate" style="min-width: 260px;"></select>
+            </label>
+        </div>
+
+        <div class="anim-selector-group">
+            <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Format:</span>
+            <div class="aspect-pill-group" role="tablist" aria-label="Video Aspect Ratio">
+                <button type="button" class="aspect-pill active" data-aspect="story" role="tab" aria-selected="true">Story 9:16</button>
+                <button type="button" class="aspect-pill" data-aspect="square" role="tab" aria-selected="false">Square 1:1</button>
+                <button type="button" class="aspect-pill" data-aspect="landscape" role="tab" aria-selected="false">Landscape 16:9</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Studio Content Area -->
+    <main class="anim-layout">
+        <!-- Center Stage: Remotion Player Container -->
+        <section class="anim-stage" aria-label="Video Player Stage">
+            <div id="playerContainer">
+                <div class="anim-loading">
+                    <div class="spinner"></div>
+                    <div>Loading Remotion in-browser composition...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Inspector Sidebar -->
+        <aside class="anim-sidebar" aria-label="Journey Details & Export">
+            <div class="anim-card">
+                <h2 class="anim-card-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
+                        <rect width="20" height="14" x="2" y="5" rx="2"></rect>
+                        <line x1="2" x2="22" y1="10" y2="10"></line>
+                    </svg>
+                    <span>Journey Summary</span>
+                </h2>
+
+                <div class="trip-preview-grid">
+                    <div class="trip-preview-item">
+                        <label>Line</label>
+                        <strong id="sidebarLine">—</strong>
+                    </div>
+                    <div class="trip-preview-item">
+                        <label>Distance</label>
+                        <strong id="sidebarDistance">—</strong>
+                    </div>
+                    <div class="trip-preview-item" style="grid-column: span 2;">
+                        <label>Route</label>
+                        <strong id="sidebarRoute">—</strong>
+                    </div>
+                    <div class="trip-preview-item">
+                        <label>Departure Delay</label>
+                        <strong id="sidebarDelay">—</strong>
+                    </div>
+                    <div class="trip-preview-item">
+                        <label>Duration</label>
+                        <strong id="sidebarDuration">Calculated</strong>
+                    </div>
+                    <div class="trip-preview-item" style="grid-column: span 2;">
+                        <label>Note / Comment</label>
+                        <span id="sidebarNote" style="font-size: 11px; color: var(--text-secondary); font-style: italic;">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Card -->
+            <div class="anim-card">
+                <h2 class="anim-card-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-green);">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>Download Video</span>
+                </h2>
+                <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 14px 0; line-height: 1.4;">
+                    Render this animated journey directly in your browser as a high-definition video ready for sharing on social platforms.
+                </p>
+                <button type="button" class="btn-export-video" id="exportVideoBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <span>Export Video (.webm)</span>
+                </button>
+                <div id="exportStatus" style="font-size: 11px; color: var(--accent-amber); margin-top: 8px; text-align: center;"></div>
+            </div>
+
+            <!-- Features & Info -->
+            <div class="anim-card" style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+                <div style="font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">🎬 Playback Controls</div>
+                Use the on-canvas controls to scrub through individual frames, adjust speed (0.5x, 1x, 2x), or loop playback.
+            </div>
+        </aside>
+    </main>
+</body>
+
+</html>
+
