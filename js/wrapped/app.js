@@ -15,6 +15,7 @@ import {
     downloadWrappedCard,
     shareWrappedCard
 } from './socialCard.js';
+import { syncNavigationLinks } from '../ui/navigation.js';
 
 let allSessions = [];
 let activeSession = null;
@@ -275,15 +276,8 @@ function updateUrlParams() {
     }
     window.history.replaceState({}, '', url);
 
-    const userParam = activeSession?.username ? `?user=${encodeURIComponent(activeSession.username)}` : '';
-    const navTripsLink = document.getElementById('navTripsLink');
-    if (navTripsLink) {
-        navTripsLink.href = `trips.html${userParam}`;
-    }
-    const navMapLink = document.querySelector('a.nav-link-btn.primary[href*="index.html"]');
-    if (navMapLink) {
-        navMapLink.href = `index.html${userParam}`;
-    }
+    // Synchronize cross-view navigation links
+    syncNavigationLinks(activeSession?.username);
 }
 
 function renderProfileDropdown() {

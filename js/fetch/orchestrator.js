@@ -128,7 +128,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
     UI.toggleSetup(false);
     UI.toggleFetch(true);
     UI.acquireWakeLock();
-    FunFacts.start(); // Start fun facts flying text
+    FunFacts.start({ incremental }); // Start fun facts flying text (suppresses skeleton if incremental)
     
     document.getElementById('fetchError').classList.add('hidden');
     document.getElementById('retryFetchBtn').classList.add('hidden');
@@ -281,6 +281,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         if (state.cancelFetch) return showFetchError('Cancelled', false);
 
         if (allStatuses.length === 0) {
+            FunFacts.stop(); // Stop immediately so no skeleton or orphan facts linger
             if (incremental && cachedTrips && cachedTrips.length > 0) {
                 state.fetchedTrips = cachedTrips;
                 state.activeTrips = state.fetchedTrips;

@@ -15,6 +15,7 @@ import * as heatmap from './map/heatmap.js';
 
 import { UI } from './ui/ui.js';
 import { RateLimitUI } from './ui/rateLimit.js';
+import { syncNavigationLinks } from './ui/navigation.js';
 
 import { store, initializeState } from './state/store.js';
 
@@ -263,6 +264,9 @@ export async function initApp() {
     const urlParams = new URLSearchParams(window.location.search);
     const userParam = urlParams.get('user')?.toLowerCase();
     const deepTripId = urlParams.get('id') || urlParams.get('trip') || urlParams.get('statusId') || urlParams.get('status');
+
+    // Synchronize cross-view navigation links immediately with active ?user= context
+    syncNavigationLinks(userParam);
 
     let sessionToLoad = null;
     try {

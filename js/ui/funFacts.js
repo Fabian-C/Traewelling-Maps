@@ -25,13 +25,24 @@ export const FunFacts = {
         }
     },
     
-    start() {
+    start(options = {}) {
         this.isRunning = true;
         this.lastFactTime = 0;
         this.activeFacts = [];
         this.init();
         this.container.innerHTML = '';
-        this.showSkeleton();
+        if (this._skeletonTimer) {
+            clearTimeout(this._skeletonTimer);
+            this._skeletonTimer = null;
+        }
+        // Never show skeleton when fetching only new incremental check-ins
+        if (!options.incremental) {
+            this.showSkeleton();
+            // Safety timeout: auto-hide skeleton after 4 seconds if no facts are generated
+            this._skeletonTimer = setTimeout(() => {
+                this.hideSkeleton();
+            }, 4000);
+        }
     },
     
     showSkeleton() {
@@ -45,6 +56,10 @@ export const FunFacts = {
     },
 
     hideSkeleton() {
+        if (this._skeletonTimer) {
+            clearTimeout(this._skeletonTimer);
+            this._skeletonTimer = null;
+        }
         const skel = document.getElementById('funFactSkeleton');
         if (skel && skel.parentNode) {
             skel.parentNode.removeChild(skel);

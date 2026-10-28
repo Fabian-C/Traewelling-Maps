@@ -3,7 +3,12 @@
  * Powers Live Search, Pill Scrollspy, Clipboard Copy, and Schema Filtering
  */
 
+import { syncNavigationLinks } from './ui/navigation.js';
+
 document.addEventListener('DOMContentLoaded', () => {
+    // 0. Synchronize navigation links with any ?user= context
+    syncNavigationLinks();
+
     // 1. Live Documentation Search
     const searchInput = document.getElementById('docsSearchInput');
     const sections = Array.from(document.querySelectorAll('.docs-section, .feature-card, .code-card'));

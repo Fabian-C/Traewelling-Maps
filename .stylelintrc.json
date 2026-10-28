@@ -1,10 +1,8 @@
 {
-  "extends": "stylelint-config-standard",
+  "extends": "stylelint-config-recommended",
   "rules": {
-    "declaration-no-important": [true, { "severity": "warning" }],
-    "selector-class-pattern": null,
-    "custom-property-pattern": null,
-    "keyframes-name-pattern": null,
-    "no-descending-specificity": null
+    "no-descending-specificity": null,
+    "no-duplicate-selectors": null,
+    "declaration-no-important": [true, { "severity": "warning" }]
   }
 }

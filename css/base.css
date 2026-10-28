@@ -79,7 +79,17 @@ body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'S
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     list-style: none;
+    text-align: left;
+}
+.menu-summary-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    text-align: left;
 }
 .token-dropdown-summary::-webkit-details-marker,
 .setup-dropdown-summary::-webkit-details-marker {

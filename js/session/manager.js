@@ -9,6 +9,7 @@ import { OAuth } from './oauth.js';
 import { processAndDisplayData } from '../fetch/orchestrator.js';
 import * as analytics from '../analytics/statistics.js';
 import { startDataFetch } from '../fetch/orchestrator.js';
+import { syncNavigationLinks } from '../ui/navigation.js';
 
 export { OAuth };
 
@@ -81,6 +82,7 @@ export async function loadSessionByUsername(username) {
         
         UI.syncTokenInputs(session.token);
         UI.syncUsernameInput(session.username);
+        syncNavigationLinks(session.username);
         
         // Reset filters when switching accounts
         state.filters.fromDate = null;

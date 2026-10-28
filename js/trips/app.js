@@ -1,6 +1,7 @@
 import { SessionDB } from '../cache/session.js';
 import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { tripsToGeoJSON } from '../export/geojson.js';
+import { syncNavigationLinks } from '../ui/navigation.js';
 import { getTripBuddies, renderLinkedComment } from './formatters.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
 import { formatDelayMinutes, formatHumanDuration, formatTotalTime, calculateCO2Saved, formatSpeed, escapeHtml } from '../utils/format.js';
@@ -246,11 +247,8 @@ function renderProfileDropdown() {
         return `<option value="${escapeHtml(u)}" ${isSelected ? 'selected' : ''}>${escapeHtml(d)} (@${escapeHtml(u)} · ${count} trips)</option>`;
     }).join('');
 
-    // Update Wrapped link with active user
-    const wrappedLink = document.getElementById('navWrappedLink');
-    if (wrappedLink && activeSession?.username) {
-        wrappedLink.href = `wrapped.html?user=${encodeURIComponent(activeSession.username)}`;
-    }
+    // Update cross-page navigation links with active user
+    syncNavigationLinks(activeSession?.username);
 }
 
 /**
@@ -271,6 +269,7 @@ function setupEventListeners() {
                 populateBuddyDropdown(allTrips);
                 filterState.page = 1;
                 updateUrlParams();
+                syncNavigationLinks(activeSession.username);
                 if (appMode === 'studio') {
                     const currentSql = document.getElementById('sqlQueryInput')?.value || QUERY_RECIPES[0].sql;
                     runSqlQuery(currentSql);
