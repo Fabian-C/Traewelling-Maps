@@ -180,6 +180,7 @@ const VIDEO_WIDTH = 960;
 const VIDEO_HEIGHT = 960;
 const DURATION_IN_FRAMES = 240;
 const FPS = 30;
+const api = new TraewellingAPI();
 
 let currentMapStyle = 'traewelling-dark';
 let currentUser = '';
@@ -250,7 +251,7 @@ async function attachPolylinesToTrips(trips) {
 
     if (missingPolyIds.length === 0) return;
     try {
-        const polyData = await TraewellingAPI.getPolylines(missingPolyIds);
+        const polyData = await api.getPolylines(missingPolyIds);
         const features = polyData?.data?.features || [];
         const polyMap = new Map();
         features.forEach(f => {
@@ -285,7 +286,7 @@ async function loadUserTrips(username) {
     // Live API fallback if a real username was requested via URL but is not cached locally yet
     if (userTrips.length === 0 && username && username !== 'resu') {
         try {
-            const resp = await TraewellingAPI.getUserStatuses(username, 1);
+            const resp = await api.getUserStatuses(username, 1);
             if (resp && Array.isArray(resp.data) && resp.data.length > 0) {
                 userTrips = resp.data.map(t => normalizeTripStatus(t));
                 await attachPolylinesToTrips(userTrips);
@@ -298,13 +299,13 @@ async function loadUserTrips(username) {
     // If a specific check-in ID (?id=9245926) was requested and isn't in page 1, fetch that exact status
     if (currentTripId && !userTrips.some(t => String(t.id) === String(currentTripId))) {
         try {
-            const singleRes = await fetch(`https://traewelling.de/api/v1/status/${encodeURIComponent(currentTripId)}`);
-            if (singleRes.ok) {
-                const singleJson = await singleRes.json();
-                if (singleJson?.data) {
-                    const exactTrip = normalizeTripStatus(singleJson.data);
-                    await attachPolylinesToTrips([exactTrip]);
-                    userTrips.unshift(exactTrip);
+            const singleJson = await api.getStatus(currentTripId);
+            if (singleJson?.data) {
+                const exactTrip = normalizeTripStatus(singleJson.data);
+                await attachPolylinesToTrips([exactTrip]);
+                userTrips.unshift(exactTrip);
+                if (exactTrip.user?.username && !username) {
+                    currentUser = exactTrip.user.username.toLowerCase();
                 }
             }
         } catch (e) {

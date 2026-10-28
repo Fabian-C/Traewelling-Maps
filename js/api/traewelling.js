@@ -80,6 +80,7 @@ export class TraewellingAPI {
     }
 
     getUserStatuses(username, page = 1) { return this.request(`/user/${encodeURIComponent(username)}/statuses?page=${page}`); }
+    getStatus(statusId) { return this.request(`/status/${encodeURIComponent(statusId)}`).catch(() => null); }
     getPolyline(statusId) { return this.request(`/polyline/${statusId}`).catch(() => null); }
     getPolylines(statusIds) { return this.request(`/polyline/${statusIds.join(',')}`).catch(() => null); }
     getStopovers(statusIds) {

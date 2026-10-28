@@ -94,20 +94,36 @@ export class VideoClipRecorder {
         this.isRecording = true;
         this.playerRef.play();
 
+        let lastFrame = 0;
+        let hasProgressed = false;
+        const maxDurationMs = Math.ceil((totalFrames / 30) * 1000) + 2500;
+        const startTime = Date.now();
+
+        const stopRecording = () => {
+            clearInterval(checkEnd);
+            this.playerRef.pause();
+            if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+                this.mediaRecorder.stop();
+            }
+            this.isRecording = false;
+        };
+
         const checkEnd = setInterval(() => {
             const currentFrame = this.playerRef.getCurrentFrame();
-            const pct = 10 + Math.min(90, Math.round((currentFrame / totalFrames) * 90));
-            onProgress(pct, `Recording (${Math.round((currentFrame / totalFrames) * 100)}%)…`);
-
-            if (currentFrame >= totalFrames - 2) {
-                clearInterval(checkEnd);
-                this.playerRef.pause();
-                if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-                    this.mediaRecorder.stop();
-                }
-                this.isRecording = false;
+            if (currentFrame > 20) {
+                hasProgressed = true;
             }
-        }, 80);
+            const wrappedAround = hasProgressed && currentFrame < lastFrame;
+            const timedOut = Date.now() - startTime > maxDurationMs;
+            lastFrame = currentFrame;
+
+            const pct = wrappedAround ? 100 : 10 + Math.min(90, Math.round((currentFrame / totalFrames) * 90));
+            onProgress(pct, `Recording (${Math.min(100, Math.round((currentFrame / totalFrames) * 100))}%)…`);
+
+            if (currentFrame >= totalFrames - 2 || wrappedAround || timedOut) {
+                stopRecording();
+            }
+        }, 45);
 
         return recordingPromise;
     }

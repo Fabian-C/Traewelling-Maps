@@ -1,9 +1,8 @@
 /**
- * Animated Journey Video Clip Composition (1280x720 16:9 HD)
+ * Animated Journey Video Clip Composition (960x960 1:1 Square)
  * Built around the Träwelling API v1 'checkin' response model.
  * Preloads 100% of required Web Mercator map tiles silently in the background
- * and renders the multi-layer track, stopover waypoints, detailed vehicles,
- * and mobile-first telemetry onto a 1280x720 HTML5 Canvas.
+ * and renders the multi-layer track, real stopovers, vehicles, and HUD onto a 960x960 HTML5 Canvas.
  */
 
 import React from 'https://esm.sh/react@18.3.1';
@@ -24,24 +23,24 @@ import { formatHumanDuration } from '../utils/format.js';
 const html = htm.bind(React.createElement);
 
 export const CATEGORY_META = {
-    nationalExpress: { label: 'High-Speed Rail', color: '#ff2e55', accent: '#ffffff', vehicle: 'ice', emoji: '🚄' },
-    national: { label: 'InterCity', color: '#00c8ff', accent: '#ffffff', vehicle: 'ice', emoji: '🚆' },
-    regionalExp: { label: 'Regional Express', color: '#e11d48', accent: '#fecdd3', vehicle: 'train', emoji: '🚆' },
-    regional: { label: 'Regional Train', color: '#db2777', accent: '#fbcfe8', vehicle: 'train', emoji: '🚆' },
-    suburban: { label: 'S-Bahn', color: '#16a34a', accent: '#bbf7d0', vehicle: 'sbahn', emoji: '🚆' },
-    subway: { label: 'U-Bahn', color: '#8c6dab', accent: '#e9d5ff', vehicle: 'ubahn', emoji: '🚇' },
-    tram: { label: 'Tram / Streetcar', color: '#06b6d4', accent: '#cffafe', vehicle: 'tram', emoji: '🚊' },
-    bus: { label: 'Bus', color: '#22c55e', accent: '#dcfce7', vehicle: 'bus', emoji: '🚌' },
-    ferry: { label: 'Ferry', color: '#0284c7', accent: '#e0f2fe', vehicle: 'ferry', emoji: '⛴️' },
-    plane: { label: 'Flight', color: '#6366f1', accent: '#e0e7ff', vehicle: 'plane', emoji: '✈️' },
-    taxi: { label: 'Taxi', color: '#eab308', accent: '#fef9c3', vehicle: 'bus', emoji: '🚕' },
-    unknown: { label: 'Transit Journey', color: '#38bdf8', accent: '#e0f2fe', vehicle: 'train', emoji: '🚆' }
+    nationalExpress: { label: 'High-Speed Rail', color: '#ff2e55', accent: '#ffffff', vehicle: 'ice' },
+    national: { label: 'InterCity', color: '#00c8ff', accent: '#ffffff', vehicle: 'ice' },
+    regionalExp: { label: 'Regional Express', color: '#e11d48', accent: '#fecdd3', vehicle: 'train' },
+    regional: { label: 'Regional Train', color: '#db2777', accent: '#fbcfe8', vehicle: 'train' },
+    suburban: { label: 'S-Bahn', color: '#16a34a', accent: '#bbf7d0', vehicle: 'sbahn' },
+    subway: { label: 'U-Bahn', color: '#8c6dab', accent: '#e9d5ff', vehicle: 'ubahn' },
+    tram: { label: 'Tram / Streetcar', color: '#06b6d4', accent: '#cffafe', vehicle: 'tram' },
+    bus: { label: 'Bus', color: '#22c55e', accent: '#dcfce7', vehicle: 'bus' },
+    ferry: { label: 'Ferry', color: '#0284c7', accent: '#e0f2fe', vehicle: 'ferry' },
+    plane: { label: 'Flight', color: '#6366f1', accent: '#e0e7ff', vehicle: 'plane' },
+    taxi: { label: 'Taxi', color: '#eab308', accent: '#fef9c3', vehicle: 'bus' },
+    unknown: { label: 'Transit Journey', color: '#38bdf8', accent: '#e0f2fe', vehicle: 'train' }
 };
 
 const SUBDOMAINS = ['a', 'b', 'c'];
 
 /**
- * 7 Curated Map Tile Sets (CORS-enabled for seamless WebM canvas recording)
+ * 7 Curated Map Tile Sets (CORS-enabled for WebM canvas recording)
  */
 export const MAP_STYLES = {
     'traewelling-dark': {
@@ -130,6 +129,8 @@ function loadSingleTileImage(primaryUrl, fallbackUrl) {
             }
             if (loadedImg) {
                 TILE_IMAGE_CACHE.set(primaryUrl, loadedImg);
+            } else {
+                TILE_PROMISE_CACHE.delete(primaryUrl);
             }
             resolve(loadedImg);
         };
@@ -140,10 +141,10 @@ function loadSingleTileImage(primaryUrl, fallbackUrl) {
                 const fbImg = new Image();
                 fbImg.crossOrigin = 'anonymous';
                 fbImg.onload = () => finalize(fbImg);
-                fbImg.onerror = () => resolve(null);
+                fbImg.onerror = () => finalize(null);
                 fbImg.src = fallbackUrl;
             } else {
-                resolve(null);
+                finalize(null);
             }
         };
         img.src = primaryUrl;
@@ -193,6 +194,22 @@ function latToWorldY(lat, z) {
     return ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * scale;
 }
 
+function computePolylineHaversineKm(coords) {
+    if (!Array.isArray(coords) || coords.length < 2) return 0;
+    const R = 6371;
+    let totalKm = 0;
+    for (let i = 1; i < coords.length; i++) {
+        const [lon1, lat1] = coords[i - 1];
+        const [lon2, lat2] = coords[i];
+        const dLat = ((lat2 - lat1) * Math.PI) / 180;
+        const dLon = ((lon2 - lon1) * Math.PI) / 180;
+        const a = Math.sin(dLat / 2) ** 2
+            + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+        totalKm += 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+    return totalKm;
+}
+
 export function extractRouteCoordinates(trip) {
     const checkin = trip?.checkin || trip?.train || {};
     const poly = checkin?.polyline || trip?.polyline;
@@ -211,45 +228,69 @@ export function extractRouteCoordinates(trip) {
     ).map(c => [Number(c[0]), Number(c[1])]);
 
     if (valid.length >= 2) {
-        return densifyCoordinates(valid, 140);
+        return resampleCoordinatesByDistance(valid, 180);
     }
 
     const orig = checkin?.origin?.station || checkin?.origin || {};
     const dest = checkin?.destination?.station || checkin?.destination || {};
-    const lon1 = orig.longitude ?? orig.lon ?? orig.lng ?? 13.359059;
-    const lat1 = orig.latitude ?? orig.lat ?? 52.546448;
-    const lon2 = dest.longitude ?? dest.lon ?? dest.lng ?? 13.387608;
-    const lat2 = dest.latitude ?? dest.lat ?? 52.524410;
+    const lon1 = Number(orig.longitude ?? orig.lon ?? orig.lng);
+    const lat1 = Number(orig.latitude ?? orig.lat);
+    const lon2 = Number(dest.longitude ?? dest.lon ?? dest.lng);
+    const lat2 = Number(dest.latitude ?? dest.lat);
 
-    const curved = [];
-    const steps = 80;
-    const dLon = lon2 - lon1;
-    const dLat = lat2 - lat1;
-    for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-        const arc = Math.sin(t * Math.PI) * 0.06;
-        curved.push([
-            lon1 + dLon * t - dLat * arc,
-            lat1 + dLat * t + dLon * arc
-        ]);
+    if (Number.isFinite(lon1) && Number.isFinite(lat1) && Number.isFinite(lon2) && Number.isFinite(lat2)) {
+        const curved = [];
+        const steps = 80;
+        const dLon = lon2 - lon1;
+        const dLat = lat2 - lat1;
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const arc = Math.sin(t * Math.PI) * 0.06;
+            curved.push([
+                lon1 + dLon * t - dLat * arc,
+                lat1 + dLat * t + dLon * arc
+            ]);
+        }
+        return curved;
     }
-    return curved;
+
+    // Fallback central Europe coordinates only when trip has no coordinates at all
+    return [
+        [10.0069, 53.5533],
+        [11.68, 53.04],
+        [13.3695, 52.5255]
+    ];
 }
 
-function densifyCoordinates(coords, targetCount = 140) {
-    if (coords.length >= targetCount || coords.length < 2) return coords;
-    const out = [];
-    const segs = coords.length - 1;
-    const perSeg = Math.max(2, Math.ceil(targetCount / segs));
-    for (let i = 0; i < segs; i++) {
-        const [x1, y1] = coords[i];
-        const [x2, y2] = coords[i + 1];
-        for (let j = 0; j < perSeg; j++) {
-            const t = j / perSeg;
-            out.push([x1 + (x2 - x1) * t, y1 + (y2 - y1) * t]);
-        }
+/**
+ * Resample polyline by uniform arc-length so dense station switch vertices
+ * and long straight segments have smooth, consistent spacing.
+ */
+function resampleCoordinatesByDistance(coords, sampleCount = 180) {
+    if (coords.length < 2) return coords;
+    const dists = [0];
+    for (let i = 1; i < coords.length; i++) {
+        const dx = coords[i][0] - coords[i - 1][0];
+        const dy = coords[i][1] - coords[i - 1][1];
+        dists.push(dists[i - 1] + Math.hypot(dx, dy));
     }
-    out.push(coords[coords.length - 1]);
+    const totalLen = dists[dists.length - 1];
+    if (totalLen <= 1e-7) return coords;
+
+    const out = [];
+    let segIdx = 0;
+    for (let s = 0; s <= sampleCount; s++) {
+        const target = (s / sampleCount) * totalLen;
+        while (segIdx < dists.length - 2 && dists[segIdx + 1] < target) {
+            segIdx++;
+        }
+        const d0 = dists[segIdx];
+        const d1 = dists[segIdx + 1];
+        const t = d1 > d0 ? (target - d0) / (d1 - d0) : 0;
+        const [x0, y0] = coords[segIdx];
+        const [x1, y1] = coords[segIdx + 1];
+        out.push([x0 + (x1 - x0) * t, y0 + (y1 - y0) * t]);
+    }
     return out;
 }
 
@@ -273,11 +314,15 @@ export function buildMapScene(coords, viewportWidth, viewportHeight) {
         maxLat += 0.015;
     }
 
+    // Reserve top 116px for HUD header and bottom 56px for station pills/watermark
+    const usableW = viewportWidth * 0.62;
+    const usableH = (viewportHeight - 172) * 0.62;
+
     let chosenZ = 7;
     for (let z = 14; z >= 4; z--) {
         const w = Math.abs(lonToWorldX(maxLon, z) - lonToWorldX(minLon, z));
         const h = Math.abs(latToWorldY(minLat, z) - latToWorldY(maxLat, z));
-        if (w <= viewportWidth * 0.65 && h <= viewportHeight * 0.56) {
+        if (w <= usableW && h <= usableH) {
             chosenZ = z;
             break;
         }
@@ -291,8 +336,8 @@ export function buildMapScene(coords, viewportWidth, viewportHeight) {
     const centerWX = (minWX + maxWX) / 2;
     const centerWY = (minWY + maxWY) / 2;
 
-    const halfSpanX = Math.max(viewportWidth * 0.72, (maxWX - minWX) * 0.88);
-    const halfSpanY = Math.max(viewportHeight * 0.72, (maxWY - minWY) * 0.88);
+    const halfSpanX = Math.max(viewportWidth * 0.74, (maxWX - minWX) * 0.90);
+    const halfSpanY = Math.max(viewportHeight * 0.74, (maxWY - minWY) * 0.90);
 
     const startTileX = Math.floor((centerWX - halfSpanX) / 256) - 1;
     const endTileX = Math.floor((centerWX + halfSpanX) / 256) + 1;
@@ -339,12 +384,14 @@ export function buildMapScene(coords, viewportWidth, viewportHeight) {
     const routeBoundsW = Math.max(80, maxWX - minWX);
     const routeBoundsH = Math.max(80, maxWY - minWY);
     const fitScale = Math.min(
-        1.55,
-        Math.max(0.75, Math.min((viewportWidth * 0.58) / routeBoundsW, (viewportHeight * 0.48) / routeBoundsH))
+        1.50,
+        Math.max(0.75, Math.min(usableW / routeBoundsW, usableH / routeBoundsH))
     );
 
     return {
         z: chosenZ,
+        originWX,
+        originWY,
         tiles,
         points,
         cumDist,
@@ -357,34 +404,40 @@ export function buildMapScene(coords, viewportWidth, viewportHeight) {
     };
 }
 
+function getXYAtDistance(points, cumDist, distPx) {
+    const clamped = Math.max(0, Math.min(cumDist[cumDist.length - 1], distPx));
+    let idx = 0;
+    while (idx < cumDist.length - 2 && cumDist[idx + 1] < clamped) {
+        idx++;
+    }
+    const d0 = cumDist[idx];
+    const d1 = cumDist[idx + 1];
+    const segLen = Math.max(0.0001, d1 - d0);
+    const t = Math.max(0, Math.min(1, (clamped - d0) / segLen));
+    const p0 = points[idx];
+    const p1 = points[idx + 1];
+    return {
+        x: p0.x + (p1.x - p0.x) * t,
+        y: p0.y + (p1.y - p0.y) * t,
+        index: idx + t
+    };
+}
+
 function samplePointAlongRoute(scene, progress) {
     const { points, cumDist, totalPathPx } = scene;
     if (!points.length) return { x: 0, y: 0, angleRad: 0, index: 0 };
     if (points.length === 1) return { x: points[0].x, y: points[0].y, angleRad: 0, index: 0 };
 
     const targetDist = Math.max(0, Math.min(1, progress)) * totalPathPx;
-    let idx = 0;
-    while (idx < cumDist.length - 2 && cumDist[idx + 1] < targetDist) {
-        idx++;
-    }
+    const pos = getXYAtDistance(points, cumDist, targetDist);
 
-    const d0 = cumDist[idx];
-    const d1 = cumDist[idx + 1];
-    const segLen = Math.max(0.0001, d1 - d0);
-    const t = Math.max(0, Math.min(1, (targetDist - d0) / segLen));
+    // Smooth angle using a pixel-distance window along the route rather than raw vertex indices
+    const windowPx = Math.min(24, Math.max(6, totalPathPx * 0.05));
+    const behind = getXYAtDistance(points, cumDist, targetDist - windowPx);
+    const ahead = getXYAtDistance(points, cumDist, targetDist + windowPx);
+    const angleRad = Math.atan2(ahead.y - behind.y, ahead.x - behind.x);
 
-    const p0 = points[idx];
-    const p1 = points[idx + 1];
-    const x = p0.x + (p1.x - p0.x) * t;
-    const y = p0.y + (p1.y - p0.y) * t;
-
-    const lookAheadIdx = Math.min(points.length - 1, idx + 3);
-    const lookBackIdx = Math.max(0, idx - 2);
-    const dx = points[lookAheadIdx].x - points[lookBackIdx].x;
-    const dy = points[lookAheadIdx].y - points[lookBackIdx].y;
-    const angleRad = Math.atan2(dy, dx);
-
-    return { x, y, angleRad, index: idx + t };
+    return { x: pos.x, y: pos.y, angleRad, index: pos.index };
 }
 
 function shortenStationName(name) {
@@ -394,6 +447,24 @@ function shortenStationName(name) {
         .replace(/\s*,\s*Berlin$/gi, '')
         .replace(/\s*Bhf$/gi, '')
         .trim();
+}
+
+function getContrastingTextColor(hexColor, explicitTextColor) {
+    if (explicitTextColor) {
+        const clean = String(explicitTextColor).replace(/^#/, '').trim();
+        if (/^[0-9a-fA-F]{6}$/.test(clean) && clean.toLowerCase() !== '000000') {
+            return `#${clean}`;
+        }
+    }
+    const hex = String(hexColor || '').replace(/^#/, '').trim();
+    if (/^[0-9a-fA-F]{6}$/.test(hex)) {
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminance > 0.66 ? '#0f172a' : '#ffffff';
+    }
+    return '#ffffff';
 }
 
 function drawRoundedRect(ctx, x, y, w, h, r) {
@@ -408,14 +479,12 @@ function drawRoundedRect(ctx, x, y, w, h, r) {
 }
 
 /**
- * Restored Detailed Vehicle Design (ICE aerodynamic nose cone + carriages,
- * Ferry with water wake ripples, Plane with swept wings & contrails,
- * Regional/S-Bahn/U-Bahn/Tram/Bus with roof panel & headlights).
+ * Clean top-down vehicle models without artificial yellow headlight cones.
  */
 function drawVehicleOnCanvas(ctx, vehicleType, color, frame) {
     const pulse = Math.sin(frame * 0.35) * 0.5 + 0.5;
     ctx.save();
-    ctx.scale(1.25, 1.25);
+    ctx.scale(1.22, 1.22);
 
     if (vehicleType === 'ferry') {
         // Water Wake Ripples
@@ -432,14 +501,13 @@ function drawVehicleOnCanvas(ctx, vehicleType, color, frame) {
         ctx.stroke();
         ctx.restore();
 
-        // Pulsing wake ellipse
         ctx.fillStyle = 'rgba(224, 242, 254, 0.35)';
         ctx.beginPath();
         ctx.ellipse(-24, 0, 10 + pulse * 4, 6 + pulse * 2, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // Drop Shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
         ctx.beginPath();
         ctx.moveTo(-22, -6);
         ctx.lineTo(14, -6);
@@ -472,7 +540,6 @@ function drawVehicleOnCanvas(ctx, vehicleType, color, frame) {
         drawRoundedRect(ctx, -6, -5, 10, 10, 2);
         ctx.fill();
 
-        // Bow Accent
         ctx.fillStyle = color;
         ctx.beginPath();
         ctx.arc(18, 0, 2.5, 0, Math.PI * 2);
@@ -489,7 +556,6 @@ function drawVehicleOnCanvas(ctx, vehicleType, color, frame) {
         ctx.lineTo(-42, 5);
         ctx.stroke();
 
-        // Swept Wing Aircraft Fuselage
         const planePath = new Path2D(
             'M -22,-12 L -14,0 L -22,12 L -16,12 L -8,3 L 6,3 L 2,26 L 9,26 L 16,3 L 26,3 C 31,3 34,0 34,0 C 34,0 31,-3 26,-3 L 16,-3 L 9,-26 L 2,-26 L 6,-3 L -8,-3 L -16,-12 Z'
         );
@@ -507,18 +573,9 @@ function drawVehicleOnCanvas(ctx, vehicleType, color, frame) {
         ctx.fill(planePath);
         ctx.stroke(planePath);
     } else if (vehicleType === 'ice') {
-        // Headlight Beam Cone
-        ctx.fillStyle = 'rgba(254, 240, 138, 0.32)';
-        ctx.beginPath();
-        ctx.moveTo(28, 0);
-        ctx.lineTo(56, -14);
-        ctx.lineTo(56, 14);
-        ctx.closePath();
-        ctx.fill();
-
         // Drop Shadow
         const shadowPath = new Path2D('M -30,-4 L 16,-4 C 26,-4 32,1 32,5 C 32,9 26,14 16,14 L -30,14 Z');
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
         ctx.fill(shadowPath);
 
         // Rear Carriage
@@ -560,43 +617,27 @@ function drawVehicleOnCanvas(ctx, vehicleType, color, frame) {
         drawRoundedRect(ctx, -3, -3, 11, 6, 1.5);
         ctx.fill();
     } else {
-        // Default Regional / S-Bahn / U-Bahn / Tram / Bus Vehicle
-        ctx.fillStyle = 'rgba(253, 224, 71, 0.28)';
-        ctx.beginPath();
-        ctx.moveTo(24, 0);
-        ctx.lineTo(48, -12);
-        ctx.lineTo(48, 12);
-        ctx.closePath();
-        ctx.fill();
-
-        // Shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.48)';
-        drawRoundedRect(ctx, -26, -5, 52, 20, 7);
+        // Regional / S-Bahn / U-Bahn / Tram / Bus Vehicle (clean top-down without yellow cone)
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
+        drawRoundedRect(ctx, -24, -5, 48, 19, 7);
         ctx.fill();
 
         // Main Train Body
         ctx.fillStyle = color;
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2.5;
-        drawRoundedRect(ctx, -26, -10, 52, 20, 7);
+        drawRoundedRect(ctx, -24, -9.5, 48, 19, 7);
         ctx.fill();
         ctx.stroke();
 
-        // Silver Roof Panel
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
-        drawRoundedRect(ctx, -20, -6, 34, 12, 4);
+        // Roof Panel
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.24)';
+        drawRoundedRect(ctx, -18, -5.5, 30, 11, 3.5);
         ctx.fill();
 
         // Front Windshield
         ctx.fillStyle = '#0f172a';
-        drawRoundedRect(ctx, 14, -7, 8, 14, 3);
-        ctx.fill();
-
-        // Headlights
-        ctx.fillStyle = '#fef08a';
-        ctx.beginPath();
-        ctx.arc(24, -5, 2, 0, Math.PI * 2);
-        ctx.arc(24, 5, 2, 0, Math.PI * 2);
+        drawRoundedRect(ctx, 13, -6.5, 7.5, 13, 3);
         ctx.fill();
     }
 
@@ -604,9 +645,10 @@ function drawVehicleOnCanvas(ctx, vehicleType, color, frame) {
 }
 
 /**
- * Restored Origin & Destination Station Pins & Callout Flags
+ * Station Pin & Callout Pill placed on the outward side of the route
+ * so the track and vehicle never collide with the station text.
  */
-function drawStationPin(ctx, x, y, label, dotColor, isDest = false, frame = 0) {
+function drawStationPin(ctx, x, y, label, dotColor, isDest = false, placeAbove = true, frame = 0) {
     ctx.save();
     ctx.translate(x, y);
 
@@ -623,36 +665,36 @@ function drawStationPin(ctx, x, y, label, dotColor, isDest = false, frame = 0) {
         ctx.restore();
     }
 
-    // Station Circle (24px origin / 26px destination with 4px white border)
-    const radius = isDest ? 13 : 12;
+    // Station Circle
+    const radius = isDest ? 12.5 : 11.5;
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = 14;
-    ctx.shadowOffsetY = 4;
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 3;
     ctx.fillStyle = dotColor;
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3.5;
     ctx.beginPath();
     ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
 
-    // Callout Pill (Origin above pin, Destination below pin)
+    // Callout Pill placed away from the route track
     const shortName = shortenStationName(label);
-    ctx.font = '700 18px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '700 17px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
     const textW = ctx.measureText(shortName).width;
-    const pillW = textW + 40;
-    const pillH = 36;
+    const pillW = textW + 38;
+    const pillH = 34;
     const pillX = -pillW / 2;
-    const pillY = isDest ? 20 : -20 - pillH;
+    const pillY = placeAbove ? -18 - pillH : 18;
 
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = 14;
-    ctx.shadowOffsetY = 4;
-    ctx.fillStyle = '#0f172a';
-    drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 18);
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 3;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+    drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 17);
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
@@ -660,16 +702,16 @@ function drawStationPin(ctx, x, y, label, dotColor, isDest = false, frame = 0) {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Small status dot inside pill
+    // Status dot inside pill
     ctx.fillStyle = dotColor;
     ctx.beginPath();
-    ctx.arc(pillX + 16, pillY + pillH / 2, 5, 0, Math.PI * 2);
+    ctx.arc(pillX + 15, pillY + pillH / 2, 4.5, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(shortName, pillX + 27, pillY + pillH / 2 + 0.5);
+    ctx.fillText(shortName, pillX + 26, pillY + pillH / 2 + 0.5);
     ctx.restore();
 
     ctx.restore();
@@ -725,15 +767,15 @@ export function TripStoryComposition({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Focus on the new Träwelling API v1 'checkin' response model
+        // Focus on the Träwelling API v1 'checkin' response model
         const checkin = trip.checkin || trip.train || {};
         const categoryKey = checkin.category || 'regional';
         const catMeta = CATEGORY_META[categoryKey] || CATEGORY_META.unknown;
 
-        // Use official routeColor from new Träwelling API if provided (e.g. "8c6dab" for U6), otherwise category color
         const lineColor = checkin.routeColor
             ? `#${String(checkin.routeColor).replace(/^#/, '')}`
             : catMeta.color;
+        const badgeTextColor = getContrastingTextColor(lineColor, checkin.routeTextColor);
 
         const lineName = checkin.lineName || checkin.number || 'Train';
         const originName = checkin.origin?.name || checkin.origin?.station?.name || trip.origin || 'Origin';
@@ -741,7 +783,7 @@ export function TripStoryComposition({
         const rawDist = typeof checkin.distance === 'number'
             ? checkin.distance
             : (typeof checkin.totalDistance === 'number' ? checkin.totalDistance : (trip.distance || 0));
-        const totalDistanceKm = rawDist > 0 ? rawDist / 1000 : 3.1;
+        const totalDistanceKm = rawDist > 0 ? rawDist / 1000 : computePolylineHaversineKm(coords);
 
         const delays = deriveDelaySeconds(checkin);
         const delaySec = delays.arrival !== null ? delays.arrival : (delays.departure || 0);
@@ -778,10 +820,10 @@ export function TripStoryComposition({
         const chaseZoom = interpolate(
             frame,
             [0, 28, 100, 170],
-            [scene.fitScale * 1.68, scene.fitScale * 1.54, scene.fitScale * 1.40, scene.fitScale * 1.50],
+            [scene.fitScale * 1.56, scene.fitScale * 1.44, scene.fitScale * 1.32, scene.fitScale * 1.40],
             { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
         );
-        const camZoom = interpolate(finaleBlend, [0, 1], [chaseZoom, scene.fitScale * 1.02]);
+        const camZoom = interpolate(finaleBlend, [0, 1], [chaseZoom, scene.fitScale * 0.98]);
 
         const currentDistKm = (totalDistanceKm * travelProgress).toFixed(1);
 
@@ -790,9 +832,10 @@ export function TripStoryComposition({
         ctx.fillStyle = styleConfig.bg;
         ctx.fillRect(0, 0, width, height);
 
-        // 2. Camera transform
+        // 2. Camera transform (shifted down by 38px so the top HUD header never covers the northernmost station)
+        const viewCenterY = height / 2 + 38;
         ctx.save();
-        ctx.translate(width / 2, height / 2);
+        ctx.translate(width / 2, viewCenterY);
         ctx.scale(camZoom, camZoom);
         ctx.translate(-camTargetX, -camTargetY);
 
@@ -810,7 +853,7 @@ export function TripStoryComposition({
             }
         }
 
-        // 4. Restored 4-Layer Track Design
+        // 4. 4-Layer Track Design
         if (scene.points.length >= 2) {
             // Layer 4a: Subtle Unvisited Dashed Guide Track
             ctx.save();
@@ -843,84 +886,89 @@ export function TripStoryComposition({
 
             // Layer 4b: White Outer Casing with Drop Shadow
             ctx.save();
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.42)';
             ctx.shadowBlur = 10;
             ctx.shadowOffsetY = 4;
             ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 16 / camZoom;
+            ctx.lineWidth = 15 / camZoom;
             ctx.stroke();
             ctx.restore();
 
             // Layer 4c: Vibrant Line-Colored Core
             ctx.strokeStyle = lineColor;
-            ctx.lineWidth = 10 / camZoom;
+            ctx.lineWidth = 9.5 / camZoom;
             ctx.stroke();
 
             // Layer 4d: Inner Animated Dash Striping
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-            ctx.lineWidth = 3.5 / camZoom;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
+            ctx.lineWidth = 3 / camZoom;
             ctx.setLineDash([8 / camZoom, 14 / camZoom]);
             ctx.lineDashOffset = -(frame * 0.8) / camZoom;
             ctx.stroke();
             ctx.restore();
         }
 
-        // 5. Restored Intermediate Stopover Waypoint Dots (20%, 40%, 60%, 80%)
-        const milestoneFractions = [0.2, 0.4, 0.6, 0.8];
-        milestoneFractions.forEach((mPct) => {
-            if (travelProgress >= mPct) {
-                const mPt = samplePointAlongRoute(scene, mPct);
-                ctx.save();
-                ctx.translate(mPt.x, mPt.y);
-                ctx.scale(1 / camZoom, 1 / camZoom);
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-                ctx.shadowBlur = 8;
-                ctx.shadowOffsetY = 2;
-                ctx.fillStyle = '#ffffff';
-                ctx.strokeStyle = lineColor;
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                ctx.arc(0, 0, 8, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-                ctx.restore();
-            }
-        });
+        // 5. Real Intermediate Stopovers (drawn only when actual stopover coordinates exist in trip data)
+        const rawStops = checkin.stopovers || trip.stopovers || [];
+        if (Array.isArray(rawStops) && rawStops.length > 2) {
+            rawStops.slice(1, -1).forEach((stop) => {
+                const st = stop?.station || stop;
+                const sLon = Number(st?.longitude ?? st?.lon ?? st?.lng);
+                const sLat = Number(st?.latitude ?? st?.lat);
+                if (Number.isFinite(sLon) && Number.isFinite(sLat)) {
+                    const sx = lonToWorldX(sLon, scene.z) - scene.originWX;
+                    const sy = latToWorldY(sLat, scene.z) - scene.originWY;
+                    ctx.save();
+                    ctx.translate(sx, sy);
+                    ctx.scale(1 / camZoom, 1 / camZoom);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.strokeStyle = lineColor;
+                    ctx.lineWidth = 3.5;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            });
+        }
 
-        // 6. Restored Origin & Destination Station Pins & Callout Flags
+        // 6. Moving Directional Vehicle Model (drawn underneath station pins so it departs/arrives cleanly)
+        ctx.save();
+        ctx.translate(vehiclePose.x, vehiclePose.y);
+        ctx.scale(1.06 / camZoom, 1.06 / camZoom);
+        ctx.rotate(vehiclePose.angleRad || 0);
+        drawVehicleOnCanvas(ctx, catMeta.vehicle, lineColor, frame);
+        ctx.restore();
+
+        // 7. Origin & Destination Station Pins & Callout Pills (placed on the outward side of the route)
         const originPt = scene.points[0];
         const destPt = scene.points[scene.points.length - 1];
+        const originIsNorthOfDest = originPt && destPt ? originPt.y <= destPt.y : true;
+
         if (originPt) {
             ctx.save();
             ctx.translate(originPt.x, originPt.y);
             const pinScale = Math.max(0.01, introSpring) / camZoom;
             ctx.scale(pinScale, pinScale);
-            drawStationPin(ctx, 0, 0, originName, '#10b981', false, frame);
+            drawStationPin(ctx, 0, 0, originName, '#10b981', false, originIsNorthOfDest, frame);
             ctx.restore();
         }
         if (destPt) {
             ctx.save();
             ctx.translate(destPt.x, destPt.y);
-            const destScale = (travelProgress > 0.92 ? 1.08 : 0.88) / camZoom;
+            const destScale = (travelProgress > 0.92 ? 1.05 : 0.90) / camZoom;
             ctx.scale(destScale, destScale);
-            drawStationPin(ctx, 0, 0, destName, lineColor, true, frame);
+            drawStationPin(ctx, 0, 0, destName, lineColor, true, !originIsNorthOfDest, frame);
             ctx.restore();
         }
-
-        // 7. Restored Moving Directional Vehicle Model (without floating train number tag over vehicle)
-        ctx.save();
-        ctx.translate(vehiclePose.x, vehiclePose.y);
-        ctx.scale(1.08 / camZoom, 1.08 / camZoom);
-        ctx.rotate(vehiclePose.angleRad || 0);
-        drawVehicleOnCanvas(ctx, catMeta.vehicle, lineColor, frame);
-        ctx.restore();
 
         ctx.restore(); // End camera transform
 
         // 8. Vignette framing around edges
         const vig = ctx.createRadialGradient(width / 2, height / 2, width * 0.34, width / 2, height / 2, width * 0.70);
         vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        vig.addColorStop(1, 'rgba(4, 7, 15, 0.42)');
+        vig.addColorStop(1, 'rgba(4, 7, 15, 0.38)');
         ctx.fillStyle = vig;
         ctx.fillRect(0, 0, width, height);
 
@@ -929,7 +977,7 @@ export function TripStoryComposition({
         // =========================================================================
         const pad = 22;
         const headerH = 84;
-        const rightCardW = 284;
+        const rightCardW = 294;
         const leftCardW = width - pad * 2 - rightCardW - 14;
 
         ctx.save();
@@ -944,9 +992,9 @@ export function TripStoryComposition({
         ctx.stroke();
 
         // Line Badge Pill inside Header
-        ctx.font = '800 24px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.font = '800 23px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
         const badgeTextW = ctx.measureText(lineName).width;
-        const badgeW = Math.max(76, badgeTextW + 30);
+        const badgeW = Math.max(74, Math.min(160, badgeTextW + 28));
         const badgeH = 50;
         const badgeX = pad + 16;
         const badgeY = pad + (headerH - badgeH) / 2;
@@ -955,10 +1003,10 @@ export function TripStoryComposition({
         drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 12);
         ctx.fill();
 
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = badgeTextColor;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(lineName, badgeX + badgeW / 2, badgeY + badgeH / 2 + 1);
+        ctx.fillText(lineName, badgeX + badgeW / 2, badgeY + badgeH / 2 + 1, badgeW - 14);
 
         // Route Title & Subtitle
         const textStartX = badgeX + badgeW + 16;
@@ -967,7 +1015,7 @@ export function TripStoryComposition({
         const routeTitle = `${shortOrig} → ${shortDest}`;
 
         ctx.fillStyle = '#f8fafc';
-        ctx.font = '800 23px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.font = '800 22px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         ctx.fillText(routeTitle, textStartX, pad + 15, leftCardW - (textStartX - pad) - 16);
@@ -975,8 +1023,8 @@ export function TripStoryComposition({
         const delayLabel = delayMinutes > 0 ? ` • +${delayMinutes}m` : '';
         const subTitle = `@${resolvedUsername} • ${dateStr}${delayLabel}`;
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '600 17px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.fillText(subTitle, textStartX, pad + 49);
+        ctx.font = '600 16px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillText(subTitle, textStartX, pad + 49, leftCardW - (textStartX - pad) - 16);
         ctx.restore();
 
         // =========================================================================
@@ -1003,21 +1051,21 @@ export function TripStoryComposition({
         ctx.fillText('DISTANCE', rightCardX + 18, pad + 15);
 
         ctx.fillStyle = '#38bdf8';
-        ctx.font = '800 24px "JetBrains Mono", monospace';
-        ctx.fillText(`${currentDistKm} km`, rightCardX + 18, pad + 36);
+        ctx.font = '800 23px "JetBrains Mono", monospace';
+        ctx.fillText(`${currentDistKm} km`, rightCardX + 18, pad + 36, 134);
 
         // Divider
         ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-        ctx.fillRect(rightCardX + 152, pad + 16, 1.5, headerH - 32);
+        ctx.fillRect(rightCardX + 160, pad + 16, 1.5, headerH - 32);
 
         // Duration Column
         ctx.fillStyle = '#94a3b8';
         ctx.font = '700 12px Inter, sans-serif';
-        ctx.fillText('DURATION', rightCardX + 168, pad + 15);
+        ctx.fillText('DURATION', rightCardX + 176, pad + 15);
 
         ctx.fillStyle = '#4ade80';
-        ctx.font = '800 24px "JetBrains Mono", monospace';
-        ctx.fillText(durationFormatted, rightCardX + 168, pad + 36);
+        ctx.font = '800 23px "JetBrains Mono", monospace';
+        ctx.fillText(durationFormatted, rightCardX + 176, pad + 36, 104);
         ctx.restore();
 
         // =========================================================================
@@ -1030,9 +1078,9 @@ export function TripStoryComposition({
         const wmW = wmTextW + 22;
         const wmH = 26;
         const wmX = width - pad - 44 - wmW;
-        const wmY = height - 50 - wmH;
+        const wmY = height - 48 - wmH;
 
-        ctx.fillStyle = 'rgba(10, 14, 24, 0.80)';
+        ctx.fillStyle = 'rgba(10, 14, 24, 0.82)';
         drawRoundedRect(ctx, wmX, wmY, wmW, wmH, 13);
         ctx.fill();
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
@@ -1046,7 +1094,7 @@ export function TripStoryComposition({
         ctx.restore();
 
         ctx.restore();
-    }, [frame, fps, width, height, trip, username, mapStyle, scene, styleConfig, tilesReadyCount]);
+    }, [frame, fps, width, height, trip, username, mapStyle, coords, scene, styleConfig, tilesReadyCount]);
 
     return html`
         <${AbsoluteFill} style=${{ backgroundColor: styleConfig.bg }}>
