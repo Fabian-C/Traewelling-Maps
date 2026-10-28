@@ -723,7 +723,7 @@ function drawStationPin(ctx, x, y, label, dotColor, isDest = false, placeAbove =
     const pillW = textW + 38;
     const pillH = 34;
     const pillX = -pillW / 2;
-    const pillY = placeAbove ? -18 - pillH : 18;
+    const pillY = placeAbove ? -26 - pillH : 26;
 
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
@@ -932,24 +932,54 @@ export function TripStoryComposition({
             ctx.restore();
         }
 
-        // 5. Real Intermediate Stopovers (drawn only when actual stopover coordinates exist in trip data)
+        // 5. Intermediate Stopover Dots (real stopovers if present, otherwise milestone dots along the track)
         const rawStops = checkin.stopovers || trip.stopovers || [];
-        if (Array.isArray(rawStops) && rawStops.length > 2) {
-            rawStops.slice(1, -1).forEach((stop) => {
+        const validStops = Array.isArray(rawStops)
+            ? rawStops.slice(1, -1).filter((stop) => {
+                const st = stop?.station || stop;
+                return Number.isFinite(Number(st?.longitude ?? st?.lon ?? st?.lng))
+                    && Number.isFinite(Number(st?.latitude ?? st?.lat));
+            })
+            : [];
+
+        if (validStops.length > 0) {
+            validStops.forEach((stop) => {
                 const st = stop?.station || stop;
                 const sLon = Number(st?.longitude ?? st?.lon ?? st?.lng);
                 const sLat = Number(st?.latitude ?? st?.lat);
-                if (Number.isFinite(sLon) && Number.isFinite(sLat)) {
-                    const sx = lonToWorldX(sLon, scene.z) - scene.originWX;
-                    const sy = latToWorldY(sLat, scene.z) - scene.originWY;
+                const sx = lonToWorldX(sLon, scene.z) - scene.originWX;
+                const sy = latToWorldY(sLat, scene.z) - scene.originWY;
+                ctx.save();
+                ctx.translate(sx, sy);
+                ctx.scale(1 / camZoom, 1 / camZoom);
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+                ctx.shadowBlur = 8;
+                ctx.shadowOffsetY = 2;
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = lineColor;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            });
+        } else {
+            const milestoneFractions = [0.2, 0.4, 0.6, 0.8];
+            milestoneFractions.forEach((mPct) => {
+                if (travelProgress >= mPct) {
+                    const mPt = samplePointAlongRoute(scene, mPct);
                     ctx.save();
-                    ctx.translate(sx, sy);
+                    ctx.translate(mPt.x, mPt.y);
                     ctx.scale(1 / camZoom, 1 / camZoom);
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+                    ctx.shadowBlur = 8;
+                    ctx.shadowOffsetY = 2;
                     ctx.fillStyle = '#ffffff';
                     ctx.strokeStyle = lineColor;
-                    ctx.lineWidth = 3.5;
+                    ctx.lineWidth = 4;
                     ctx.beginPath();
-                    ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
+                    ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.stroke();
                     ctx.restore();
@@ -957,15 +987,7 @@ export function TripStoryComposition({
             });
         }
 
-        // 6. Moving Directional Vehicle Model (drawn underneath station pins so it departs/arrives cleanly)
-        ctx.save();
-        ctx.translate(vehiclePose.x, vehiclePose.y);
-        ctx.scale(1.06 / camZoom, 1.06 / camZoom);
-        ctx.rotate(vehiclePose.angleRad || 0);
-        drawVehicleOnCanvas(ctx, catMeta.vehicle, lineColor, frame);
-        ctx.restore();
-
-        // 7. Origin & Destination Station Pins & Callout Pills (placed on the outward side of the route)
+        // 6. Origin & Destination Station Pins & Callout Pills (drawn below the train)
         const originPt = scene.points[0];
         const destPt = scene.points[scene.points.length - 1];
         const originIsNorthOfDest = originPt && destPt ? originPt.y <= destPt.y : true;
@@ -987,6 +1009,14 @@ export function TripStoryComposition({
             drawStationPin(ctx, 0, 0, destName, lineColor, true, !originIsNorthOfDest, frame);
             ctx.restore();
         }
+
+        // 7. Moving Directional Vehicle Model (drawn ABOVE all dots and station pins on the map)
+        ctx.save();
+        ctx.translate(vehiclePose.x, vehiclePose.y);
+        ctx.scale(1.06 / camZoom, 1.06 / camZoom);
+        ctx.rotate(vehiclePose.angleRad || 0);
+        drawVehicleOnCanvas(ctx, catMeta.vehicle, lineColor, frame);
+        ctx.restore();
 
         ctx.restore(); // End camera transform
 
