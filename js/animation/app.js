@@ -1,6 +1,7 @@
 /**
- * Träwelling Journey Animation Controller
- * Coordinates SessionDB, URL parameters, trip selection, Remotion Player, and video recording
+ * TräwellBoast — Remotion Map Journey Animation Controller
+ * Coordinates SessionDB, live API fallback, URL parameters (?user=&id=),
+ * rectangular 1280x720 Remotion Player, map theme switching, and video export.
  */
 
 import React from 'https://esm.sh/react@18.3.1';
@@ -9,37 +10,22 @@ import htm from 'https://esm.sh/htm@3.1.1';
 import { Player } from 'https://esm.sh/@remotion/player@4.0.539?deps=react@18.3.1,remotion@4.0.539';
 
 import { SessionDB } from '../cache/session.js';
+import { TraewellingAPI } from '../api/traewelling.js';
 import { SAMPLE_FIXTURE_TRIPS } from '../app.js';
 import { syncNavigationLinks } from '../ui/navigation.js';
-import { escapeHtml } from '../utils/format.js';
+import { computeTripDurationMinutes } from '../utils/time.js';
+import { escapeHtml, formatHumanDuration } from '../utils/format.js';
 import { TripStoryComposition } from './composition.js';
 import { RemotionRecorder } from './recorder.js';
 
 const html = htm.bind(React.createElement);
 
-// Aspect ratio configurations
-const ASPECT_CONFIGS = {
-    story: {
-        label: 'Story (9:16)',
-        width: 720,
-        height: 1280,
-        playerStyle: { width: '337px', height: '600px' }
-    },
-    landscape: {
-        label: 'Widescreen (16:9)',
-        width: 1280,
-        height: 720,
-        playerStyle: { width: '640px', height: '360px' }
-    },
-    square: {
-        label: 'Square (1:1)',
-        width: 1080,
-        height: 1080,
-        playerStyle: { width: '460px', height: '460px' }
-    }
-};
+const COMPOSITION_WIDTH = 1280;
+const COMPOSITION_HEIGHT = 720;
+const DURATION_IN_FRAMES = 240;
+const FPS = 30;
 
-let currentAspect = 'story';
+let currentMapStyle = 'voyager';
 let currentUser = '';
 let currentTripId = '';
 let currentTrip = null;
@@ -49,17 +35,12 @@ let playerRef = null;
 let reactRoot = null;
 
 async function init() {
-    console.log('🎬 Initializing Träwelling Remotion Animation Studio...');
-
-    // 1. Read URL query parameters
     const urlParams = new URLSearchParams(window.location.search);
     currentUser = (urlParams.get('user') || '').toLowerCase().trim();
     currentTripId = urlParams.get('id') || urlParams.get('trip') || urlParams.get('statusId') || '';
 
-    // Synchronize navigation links (?user=...)
     syncNavigationLinks(currentUser);
 
-    // 2. Load stored sessions
     try {
         allSessions = await SessionDB.getAll();
     } catch (e) {
@@ -67,7 +48,6 @@ async function init() {
         allSessions = [];
     }
 
-    // Default to 'resu' demo if no cached sessions exist
     if (!currentUser && allSessions.length > 0) {
         currentUser = allSessions[0].username || '';
     } else if (!currentUser) {
@@ -76,15 +56,18 @@ async function init() {
 
     await loadUserTrips(currentUser);
 
-    // 3. Render Profile and Trip Dropdowns
     renderSessionSelect();
     renderTripSelect();
-
-    // 4. Mount Remotion Player
     renderPlayer();
-
-    // 5. Setup UI Listeners
     setupControls();
+
+    // Expose seek helper for automated visual inspection & testing
+    window.__seekAnimationFrame = (frameNum) => {
+        if (playerRef) {
+            playerRef.pause();
+            playerRef.seekTo(frameNum);
+        }
+    };
 }
 
 async function loadUserTrips(username) {
@@ -96,16 +79,43 @@ async function loadUserTrips(username) {
                 userTrips = session.trips;
             }
         } catch (e) {
-            console.warn('Failed to load trips for user:', username, e);
+            console.warn('Failed to load cached trips for user:', username, e);
         }
     }
 
-    // Fallback to sample fixture trips if user is demo or has no cached trips
+    // Live API fallback if a real username was requested via URL but is not cached locally yet
+    if (userTrips.length === 0 && username && username !== 'resu') {
+        try {
+            const resp = await TraewellingAPI.getUserStatuses(username, 1);
+            if (resp && Array.isArray(resp.data) && resp.data.length > 0) {
+                userTrips = resp.data;
+                // Fetch polylines for the first batch so routes follow real tracks
+                const ids = userTrips.slice(0, 15).map(t => t.id).filter(Boolean);
+                if (ids.length > 0) {
+                    const polyData = await TraewellingAPI.getPolylines(ids);
+                    const features = polyData?.data?.features || [];
+                    const polyMap = new Map();
+                    features.forEach(f => {
+                        const sid = f?.properties?.statusId ?? f?.properties?.id;
+                        if (sid) polyMap.set(String(sid), f);
+                    });
+                    userTrips.forEach(t => {
+                        if (t.train && polyMap.has(String(t.id))) {
+                            t.train.polyline = polyMap.get(String(t.id));
+                        }
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn('Live API fallback failed, using demo fixtures:', e);
+        }
+    }
+
+    // Fallback to sample fixture trips if demo user or offline
     if (userTrips.length === 0) {
         userTrips = SAMPLE_FIXTURE_TRIPS;
     }
 
-    // Resolve current trip
     if (currentTripId) {
         currentTrip = userTrips.find(t => String(t.id) === String(currentTripId));
     }
@@ -123,17 +133,20 @@ function renderSessionSelect() {
     if (!select) return;
 
     const options = [];
-    if (allSessions.length === 0) {
-        options.push(`<option value="resu" ${currentUser === 'resu' ? 'selected' : ''}>Resu (Demo)</option>`);
-    } else {
-        allSessions.forEach(s => {
-            const u = s.username || 'unknown';
-            const d = s.displayName || u;
-            const count = Array.isArray(s.trips) ? s.trips.length : 0;
-            const isSelected = u.toLowerCase() === currentUser.toLowerCase();
-            options.push(`<option value="${escapeHtml(u)}" ${isSelected ? 'selected' : ''}>${escapeHtml(d)} (@${escapeHtml(u)} · ${count} trips)</option>`);
-        });
+    const hasCurrentInSessions = allSessions.some(s => (s.username || '').toLowerCase() === currentUser.toLowerCase());
+
+    if (!hasCurrentInSessions && currentUser) {
+        const label = currentUser === 'resu' ? 'Resu (Demo)' : `@${currentUser}`;
+        options.push(`<option value="${escapeHtml(currentUser)}" selected>${escapeHtml(label)} (${userTrips.length} trips)</option>`);
     }
+
+    allSessions.forEach(s => {
+        const u = s.username || 'unknown';
+        const d = s.displayName || u;
+        const count = Array.isArray(s.trips) ? s.trips.length : 0;
+        const isSelected = u.toLowerCase() === currentUser.toLowerCase();
+        options.push(`<option value="${escapeHtml(u)}" ${isSelected ? 'selected' : ''}>${escapeHtml(d)} (@${escapeHtml(u)} · ${count} trips)</option>`);
+    });
 
     select.innerHTML = options.join('');
 }
@@ -164,6 +177,7 @@ function updateTripSidebar(trip) {
     const routeEl = document.getElementById('sidebarRoute');
     const distEl = document.getElementById('sidebarDistance');
     const delayEl = document.getElementById('sidebarDelay');
+    const durEl = document.getElementById('sidebarDuration');
     const noteEl = document.getElementById('sidebarNote');
 
     const train = trip.train || {};
@@ -172,12 +186,15 @@ function updateTripSidebar(trip) {
     const dest = train.destination?.name || trip.destination || 'Destination';
     const dist = train.totalDistance ? (train.totalDistance / 1000).toFixed(1) + ' km' : '—';
     const delay = typeof train.departureDelay === 'number' ? `${Math.round(train.departureDelay / 60)} min` : '0 min';
+    const durationMin = computeTripDurationMinutes(trip);
+    const durStr = durationMin !== null ? formatHumanDuration(durationMin) : '42m';
 
     if (lineEl) lineEl.textContent = line;
     if (routeEl) routeEl.textContent = `${origin} → ${dest}`;
     if (distEl) distEl.textContent = dist;
     if (delayEl) delayEl.textContent = delay;
-    if (noteEl) noteEl.textContent = trip.body ? `"${trip.body}"` : 'No notes attached';
+    if (durEl) durEl.textContent = durStr;
+    if (noteEl) noteEl.textContent = trip.body ? `"${trip.body}"` : 'No check-in note';
 }
 
 function renderPlayer() {
@@ -188,18 +205,20 @@ function renderPlayer() {
         reactRoot = ReactDOM.createRoot(container);
     }
 
-    const cfg = ASPECT_CONFIGS[currentAspect] || ASPECT_CONFIGS.story;
-
     reactRoot.render(html`
-        <div class="player-wrapper" style=${cfg.playerStyle}>
+        <div class="player-wrapper">
             <${Player}
                 ref=${(ref) => { playerRef = ref; }}
                 component=${TripStoryComposition}
-                inputProps=${{ trip: currentTrip, username: currentUser }}
-                durationInFrames=${180}
-                compositionWidth=${cfg.width}
-                compositionHeight=${cfg.height}
-                fps=${30}
+                inputProps=${{
+                    trip: currentTrip,
+                    username: currentUser,
+                    mapStyle: currentMapStyle
+                }}
+                durationInFrames=${DURATION_IN_FRAMES}
+                compositionWidth=${COMPOSITION_WIDTH}
+                compositionHeight=${COMPOSITION_HEIGHT}
+                fps=${FPS}
                 style=${{ width: '100%', height: '100%' }}
                 controls
                 autoPlay
@@ -211,7 +230,6 @@ function renderPlayer() {
 }
 
 function setupControls() {
-    // User Selector change
     const userSelect = document.getElementById('userSelect');
     if (userSelect) {
         userSelect.addEventListener('change', async (e) => {
@@ -225,7 +243,6 @@ function setupControls() {
         });
     }
 
-    // Trip Selector change
     const tripSelect = document.getElementById('tripSelect');
     if (tripSelect) {
         tripSelect.addEventListener('change', (e) => {
@@ -237,13 +254,29 @@ function setupControls() {
         });
     }
 
-    // Aspect Ratio Pills
-    document.querySelectorAll('.aspect-pill').forEach(btn => {
+    // Map Theme Switcher Pills
+    document.querySelectorAll('.map-style-pill').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.aspect-pill').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.map-style-pill').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            currentAspect = btn.dataset.aspect || 'story';
+            currentMapStyle = btn.dataset.style || 'voyager';
             renderPlayer();
+        });
+    });
+
+    // Scene Jump Buttons for inspecting keyframes or replaying
+    document.querySelectorAll('.scene-jump-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (!playerRef) return;
+            const action = btn.dataset.scene;
+            if (action === 'play') {
+                playerRef.seekTo(0);
+                playerRef.play();
+            } else {
+                const targetFrame = parseInt(btn.dataset.frame || '0', 10);
+                playerRef.pause();
+                playerRef.seekTo(targetFrame);
+            }
         });
     });
 
@@ -256,27 +289,28 @@ function setupControls() {
             if (!playerRef) return;
             exportBtn.disabled = true;
             exportBtn.textContent = '⏳ Recording Journey...';
+            if (exportStatus) exportStatus.textContent = '';
 
-            const recorder = new RemotionRecorder(playerRef);
+            const recorder = new RemotionRecorder(playerRef, DURATION_IN_FRAMES);
             const lineName = (currentTrip?.train?.lineName || 'trip').replace(/[^a-zA-Z0-9_-]/g, '_');
-            const filename = `traewelling-${currentUser}-${lineName}-${currentTripId}.webm`;
+            const filename = `traewellboast-${currentUser}-${lineName}-${currentTripId}.webm`;
 
             try {
                 await recorder.recordAndDownload({
                     filename,
                     onProgress: (pct) => {
-                        exportBtn.textContent = `⏳ Rendering: ${pct}%`;
+                        exportBtn.textContent = `⏳ Playing & Capturing: ${pct}%`;
                     }
                 });
-                exportBtn.textContent = '✓ Video Downloaded!';
+                exportBtn.textContent = '✓ Video Saved!';
                 setTimeout(() => {
                     exportBtn.disabled = false;
-                    exportBtn.textContent = '🎬 Export Video (.webm)';
+                    exportBtn.textContent = '🎬 Replay & Save Video';
                 }, 3000);
             } catch (err) {
                 console.error('Video recording failed:', err);
                 exportBtn.disabled = false;
-                exportBtn.textContent = '⚠️ Export Failed (Try Chrome)';
+                exportBtn.textContent = '🎬 Replay & Save Video';
                 if (exportStatus) exportStatus.textContent = err.message;
             }
         });
@@ -291,4 +325,3 @@ function updateUrlParams() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
-

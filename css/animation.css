@@ -1,6 +1,5 @@
 /* ==========================================================================
-   Träwelling Journey Story Animation Studio
-   Powered by Remotion in-browser composition & canvas playback
+   TräwellBoast — Remotion 16:9 Rectangular Map Animation Studio
    ========================================================================== */
 
 @import url('tokens.css');
@@ -59,19 +58,19 @@ body {
 
 .anim-brand-text {
     font-size: 16px;
-    font-weight: 700;
+    font-weight: 800;
     letter-spacing: -0.01em;
 }
 
 .anim-brand-badge {
     font-size: 10px;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    background: rgba(168, 85, 247, 0.2);
-    color: var(--accent-purple);
-    border: 1px solid rgba(168, 85, 247, 0.35);
-    padding: 2px 7px;
+    background: rgba(56, 189, 248, 0.16);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    padding: 2px 8px;
     border-radius: 12px;
     margin-left: 6px;
 }
@@ -138,7 +137,7 @@ body {
     border-radius: var(--radius-sm);
     font-size: 13px;
     min-width: 150px;
-    max-width: 320px;
+    max-width: 340px;
     cursor: pointer;
     outline: none;
 }
@@ -147,7 +146,7 @@ body {
     border-color: var(--accent-cyan);
 }
 
-/* Aspect Ratio Controls */
+/* Map Style Pill Controls */
 .aspect-pill-group {
     display: flex;
     align-items: center;
@@ -183,38 +182,85 @@ body {
 .anim-layout {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr 340px;
+    grid-template-columns: 1fr 330px;
     gap: 24px;
     padding: 24px;
     max-width: 1440px;
     width: 100%;
     margin: 0 auto;
+    align-items: start;
 }
 
-/* Video Stage */
+/* Rectangular 16:9 Video Stage */
 .anim-stage {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: radial-gradient(circle at center, rgba(30, 41, 69, 0.3) 0%, rgba(8, 10, 16, 0.8) 100%);
+    gap: 16px;
+    background: radial-gradient(circle at center, rgba(30, 41, 69, 0.35) 0%, rgba(8, 10, 16, 0.85) 100%);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
     padding: 24px;
     position: relative;
-    min-height: 580px;
+}
+
+.player-host {
+    width: 100%;
+    max-width: 920px;
+    display: flex;
+    justify-content: center;
 }
 
 .player-wrapper {
-    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 40px rgba(56, 189, 248, 0.15);
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.75), 0 0 40px rgba(56, 189, 248, 0.18);
     border-radius: 18px;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    transition: width 0.3s ease, height 0.3s ease;
-    background: #000;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: #090d16;
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Scene Phase Jump Bar */
+.scene-keyframe-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.scene-jump-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.scene-jump-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text-primary);
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+.scene-jump-btn.primary {
+    background: rgba(56, 189, 248, 0.18);
+    color: var(--accent-cyan);
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+.scene-jump-btn.primary:hover {
+    background: var(--accent-cyan);
+    color: #070913;
 }
 
 /* Details Sidebar */
@@ -267,35 +313,6 @@ body {
     color: var(--text-primary);
 }
 
-/* Action Buttons */
-.btn-export-video {
-    width: 100%;
-    padding: 12px 18px;
-    background: linear-gradient(135deg, var(--accent-cyan), #0284c7);
-    color: #070913;
-    border: none;
-    border-radius: var(--radius-sm);
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: transform 0.15s ease, filter 0.15s ease;
-}
-
-.btn-export-video:hover {
-    filter: brightness(1.1);
-    transform: translateY(-1px);
-}
-
-.btn-export-video:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-}
-
 /* Loading & Empty States */
 .anim-loading {
     display: flex;
@@ -326,7 +343,6 @@ body {
         grid-template-columns: 1fr;
     }
     .anim-stage {
-        min-height: 480px;
+        padding: 16px;
     }
 }
-

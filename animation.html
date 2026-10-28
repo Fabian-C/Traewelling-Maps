@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Journey Story Animator — Träwelling Maps</title>
+    <title>TräwellBoast — Animated Journey Map Studio</title>
     <link rel="icon" type="image/x-icon" href="https://traewelling.de/favicon.ico">
 
     <!-- Stylesheets -->
@@ -27,8 +27,8 @@
                     <line x1="15" y1="6" x2="15" y2="21"></line>
                 </svg>
             </span>
-            <span class="anim-brand-text">Träwelling Story</span>
-            <span class="anim-brand-badge">Remotion Studio</span>
+            <span class="anim-brand-text">TräwellBoast</span>
+            <span class="anim-brand-badge">Remotion Map Animator</span>
         </a>
 
         <!-- Cross-view Navigation -->
@@ -58,7 +58,7 @@
         </nav>
     </header>
 
-    <!-- Studio Toolbar: User and Trip Selectors & Aspect Ratio Switcher -->
+    <!-- Studio Toolbar: Account & Journey Selectors + Map Theme Switcher -->
     <section class="anim-toolbar" aria-label="Animation Controls">
         <div class="anim-selector-group">
             <label class="anim-select-label" for="userSelect">
@@ -68,41 +68,50 @@
 
             <label class="anim-select-label" for="tripSelect">
                 <span>Journey:</span>
-                <select id="tripSelect" class="anim-select" aria-label="Select Journey to Animate" style="min-width: 260px;"></select>
+                <select id="tripSelect" class="anim-select" aria-label="Select Journey to Animate" style="min-width: 280px;"></select>
             </label>
         </div>
 
         <div class="anim-selector-group">
-            <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Format:</span>
-            <div class="aspect-pill-group" role="tablist" aria-label="Video Aspect Ratio">
-                <button type="button" class="aspect-pill active" data-aspect="story" role="tab" aria-selected="true">Story 9:16</button>
-                <button type="button" class="aspect-pill" data-aspect="square" role="tab" aria-selected="false">Square 1:1</button>
-                <button type="button" class="aspect-pill" data-aspect="landscape" role="tab" aria-selected="false">Landscape 16:9</button>
+            <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Map Theme:</span>
+            <div class="aspect-pill-group" role="tablist" aria-label="Map Visual Theme">
+                <button type="button" class="aspect-pill map-style-pill active" data-style="voyager" role="tab">TravelBoast Bright</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="dark" role="tab">Night Rail</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="outdoors" role="tab">Topo &amp; Tracks</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="satellite" role="tab">Satellite</button>
             </div>
         </div>
     </section>
 
     <!-- Main Studio Content Area -->
     <main class="anim-layout">
-        <!-- Center Stage: Remotion Player Container -->
+        <!-- Center Stage: Rectangular 16:9 Remotion Map Player -->
         <section class="anim-stage" aria-label="Video Player Stage">
-            <div id="playerContainer">
+            <div id="playerContainer" class="player-host">
                 <div class="anim-loading">
                     <div class="spinner"></div>
-                    <div>Loading Remotion in-browser composition...</div>
+                    <div>Loading Remotion 3D Map Composition...</div>
                 </div>
+            </div>
+
+            <!-- Scene Keyframe Bar -->
+            <div class="scene-keyframe-bar" role="toolbar" aria-label="Scene Phase Shortcuts">
+                <button type="button" class="scene-jump-btn primary" data-scene="play">▶ Play Full Journey</button>
+                <button type="button" class="scene-jump-btn" data-frame="15">🟢 Origin Departure</button>
+                <button type="button" class="scene-jump-btn" data-frame="100">🚄 Mid-Journey Chase</button>
+                <button type="button" class="scene-jump-btn" data-frame="215">🏁 Finale Overview</button>
             </div>
         </section>
 
         <!-- Right Inspector Sidebar -->
-        <aside class="anim-sidebar" aria-label="Journey Details & Export">
+        <aside class="anim-sidebar" aria-label="Journey Details & Controls">
             <div class="anim-card">
                 <h2 class="anim-card-title">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
                         <rect width="20" height="14" x="2" y="5" rx="2"></rect>
                         <line x1="2" x2="22" y1="10" y2="10"></line>
                     </svg>
-                    <span>Journey Summary</span>
+                    <span>Journey Telemetry</span>
                 </h2>
 
                 <div class="trip-preview-grid">
@@ -124,45 +133,26 @@
                     </div>
                     <div class="trip-preview-item">
                         <label>Duration</label>
-                        <strong id="sidebarDuration">Calculated</strong>
+                        <strong id="sidebarDuration">—</strong>
                     </div>
                     <div class="trip-preview-item" style="grid-column: span 2;">
-                        <label>Note / Comment</label>
+                        <label>Check-in Note</label>
                         <span id="sidebarNote" style="font-size: 11px; color: var(--text-secondary); font-style: italic;">—</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Export Card -->
-            <div class="anim-card">
-                <h2 class="anim-card-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-green);">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    <span>Download Video</span>
-                </h2>
-                <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 14px 0; line-height: 1.4;">
-                    Render this animated journey directly in your browser as a high-definition video ready for sharing on social platforms.
-                </p>
-                <button type="button" class="btn-export-video" id="exportVideoBtn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                    </svg>
-                    <span>Export Video (.webm)</span>
-                </button>
-                <div id="exportStatus" style="font-size: 11px; color: var(--accent-amber); margin-top: 8px; text-align: center;"></div>
-            </div>
-
-            <!-- Features & Info -->
-            <div class="anim-card" style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
-                <div style="font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">🎬 Playback Controls</div>
-                Use the on-canvas controls to scrub through individual frames, adjust speed (0.5x, 1x, 2x), or loop playback.
+            <!-- How It Works / Choreography Card -->
+            <div class="anim-card" style="font-size: 12px; color: var(--text-secondary); line-height: 1.55;">
+                <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">🎥 3-Act Camera Choreography</div>
+                <ul style="margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 6px;">
+                    <li><strong>Act 1 (0–1s):</strong> 3D perspective zoom into the departure station with spring pin drop.</li>
+                    <li><strong>Act 2 (1–5.7s):</strong> Directional vehicle glides along real Mercator railway/ferry tracks while the camera chases it.</li>
+                    <li><strong>Act 3 (5.7–8s):</strong> Smooth zoom-out framing the complete route with summary badge.</li>
+                </ul>
             </div>
         </aside>
     </main>
 </body>
 
 </html>
-
