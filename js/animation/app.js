@@ -552,7 +552,7 @@ function renderPlayer() {
     reactRoot.render(html`
         <div class="player-wrapper">
             <${Player}
-                ref=${(ref) => { playerRef = ref; }}
+                ref=${(ref) => { playerRef = ref; window.playerRef = ref; }}
                 component=${TripStoryComposition}
                 inputProps=${{
                     trip: currentTrip,

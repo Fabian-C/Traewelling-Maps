@@ -14,7 +14,8 @@ import {
     getContrastingTextColor,
     sortTripsChronologically,
     computeAllModeTiming,
-    buildAllTripsScene
+    buildAllTripsScene,
+    computeHaversineKm
 } from '../../js/animation/geometry.js';
 
 describe('Animation Geometry & Camera Smoothing', () => {
@@ -169,6 +170,71 @@ describe('Animation Geometry & Camera Smoothing', () => {
         expect(allScene.rides[0].trip.id).toBe(10);
         expect(allScene.rides[1].trip.id).toBe(20);
         expect(allScene.totalDistanceKm).toBeCloseTo(287.1, 1);
+    });
+
+    it('computes point-to-point Haversine distance correctly', () => {
+        // Berlin Hbf (13.3695, 52.5255) to Hamburg Hbf (10.0069, 53.5533) ~ 255.5 km
+        const d = computeHaversineKm(13.3695, 52.5255, 10.0069, 53.5533);
+        expect(d).toBeGreaterThan(250);
+        expect(d).toBeLessThan(260);
+
+        // Same point distance is 0
+        expect(computeHaversineKm(13.4, 52.5, 13.4, 52.5)).toBeCloseTo(0, 5);
+    });
+
+    it('scales zoom progressively only when multiple rides streak in the same metropolitan area', () => {
+        // 3 consecutive Berlin rides followed by 1 isolated Munich ride
+        const berlinTrips = [
+            {
+                id: 1,
+                createdAt: '2026-10-01T08:00:00Z',
+                checkin: {
+                    distance: 2500,
+                    origin: { station: { longitude: 13.359, latitude: 52.546 } },
+                    destination: { station: { longitude: 13.387, latitude: 52.524 } }
+                }
+            },
+            {
+                id: 2,
+                createdAt: '2026-10-01T12:00:00Z',
+                checkin: {
+                    distance: 3000,
+                    origin: { station: { longitude: 13.387, latitude: 52.524 } },
+                    destination: { station: { longitude: 13.411, latitude: 52.521 } }
+                }
+            },
+            {
+                id: 3,
+                createdAt: '2026-10-01T16:00:00Z',
+                checkin: {
+                    distance: 1800,
+                    origin: { station: { longitude: 13.411, latitude: 52.521 } },
+                    destination: { station: { longitude: 13.435, latitude: 52.505 } }
+                }
+            },
+            {
+                id: 4,
+                createdAt: '2026-10-02T10:00:00Z',
+                checkin: {
+                    distance: 4000,
+                    origin: { station: { longitude: 11.558, latitude: 48.140 } },
+                    destination: { station: { longitude: 11.590, latitude: 48.155 } }
+                }
+            }
+        ];
+
+        const scene = buildAllTripsScene(berlinTrips, 960, 960);
+        expect(scene.rides).toHaveLength(4);
+
+        // The 3rd Berlin trip has streak >= 3 and should have higher zoom than the isolated Munich trip
+        const ride3Zoom = scene.rides[2].rideZoom;
+        const ride4Zoom = scene.rides[3].rideZoom;
+        expect(ride3Zoom).toBeGreaterThan(ride4Zoom);
+
+        // Detail tiles should be generated covering the city rides at higher zoom than base scene
+        expect(Array.isArray(scene.detailTiles)).toBe(true);
+        expect(scene.detailTiles.length).toBeGreaterThan(0);
+        expect(scene.detailTiles[0].z).toBeGreaterThan(scene.z);
     });
 });
 

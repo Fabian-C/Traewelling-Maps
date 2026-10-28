@@ -6,7 +6,7 @@
 
 import { computeTripDurationMinutes, deriveDelaySeconds } from '../utils/time.js';
 import { formatHumanDuration } from '../utils/format.js';
-import { CATEGORY_META, TILE_IMAGE_CACHE } from './tiles.js';
+import { CATEGORY_META, TILE_IMAGE_CACHE, loadSingleTileImage } from './tiles.js';
 import {
     lonToWorldX,
     latToWorldY,
@@ -817,23 +817,40 @@ export function renderAllTripsFrame({
         }
     }
 
-    if (camZoom > 1.75 && Array.isArray(allScene.detailTiles) && allScene.detailTiles.length > 0) {
-        const maxVisibleDetailZ = allScene.z + Math.log2(camZoom) + 1.25;
+    if (camZoom > 1.4 && Array.isArray(allScene.detailTiles) && allScene.detailTiles.length > 0) {
         for (const dTile of allScene.detailTiles) {
-            if (dTile.z > maxVisibleDetailZ) continue;
+            // Viewport frustum culling
+            const tileScreenLeft = (dTile.left - camTargetX) * camZoom + width / 2;
+            const tileScreenTop = (dTile.top - camTargetY) * camZoom + viewCenterY;
+            const tileScreenSize = dTile.size * camZoom;
+
+            if (
+                tileScreenLeft + tileScreenSize < -60 ||
+                tileScreenLeft > width + 60 ||
+                tileScreenTop + tileScreenSize < -60 ||
+                tileScreenTop > height + 60
+            ) {
+                continue;
+            }
+
             const dUrl = styleConfig.getTileUrl(dTile.z, dTile.x, dTile.y);
             const dImg = TILE_IMAGE_CACHE.get(dUrl);
             if (dImg) {
-                ctx.drawImage(dImg, dTile.left, dTile.top, dTile.size * 1.003, dTile.size * 1.003);
+                ctx.drawImage(dImg, dTile.left, dTile.top, dTile.size * 1.002, dTile.size * 1.002);
+            } else {
+                const fbUrl = styleConfig.getFallbackUrl ? styleConfig.getFallbackUrl(dTile.z, dTile.x, dTile.y) : null;
+                loadSingleTileImage(dUrl, fbUrl);
             }
         }
     }
 
-    // 4. Draw all previously completed historical rides (0 .. activeIdx - 1)
+    // 4. Draw completed historical network tracks
+    // When isFinale is reached, ALL rides (including the very last one) are drawn uniformly as completed network tracks!
+    const completedCount = isFinale ? rides.length : activeIdx;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    for (let i = 0; i < activeIdx; i++) {
+    for (let i = 0; i < completedCount; i++) {
         const pastRide = rides[i];
         if (!pastRide.points || pastRide.points.length < 2) continue;
         const pastCheckin = pastRide.trip?.checkin || pastRide.trip?.train || {};
@@ -857,9 +874,12 @@ export function renderAllTripsFrame({
     }
     ctx.restore();
 
-    // 5. Draw active ride track (4-layer design)
-    if (activeRide.points.length >= 2) {
+    // 5. Draw active ride track (only while ride is in progress, NOT in the finale zoom-out!)
+    if (!isFinale && finaleBlend < 0.8 && activeRide.points.length >= 2) {
         ctx.save();
+        if (finaleBlend > 0) {
+            ctx.globalAlpha = Math.max(0, 1 - finaleBlend / 0.8);
+        }
         ctx.beginPath();
         ctx.moveTo(activeRide.points[0].x, activeRide.points[0].y);
         for (let i = 1; i < activeRide.points.length; i++) {
@@ -877,6 +897,9 @@ export function renderAllTripsFrame({
         const wholeIdx = Math.floor(maxIdx);
 
         ctx.save();
+        if (finaleBlend > 0) {
+            ctx.globalAlpha = Math.max(0, 1 - finaleBlend / 0.8);
+        }
         ctx.beginPath();
         ctx.moveTo(activeRide.points[0].x, activeRide.points[0].y);
         for (let i = 1; i <= wholeIdx; i++) {
@@ -901,12 +924,12 @@ export function renderAllTripsFrame({
         ctx.restore();
     }
 
-    // 6. Active Ride Origin & Destination Station Pins (drawn below vehicle)
+    // 6. Active Ride Origin & Destination Station Pins (hidden during finale)
     const originPt = activeRide.points[0];
     const destPt = activeRide.points[activeRide.points.length - 1];
     const originIsNorthOfDest = originPt && destPt ? originPt.y <= destPt.y : true;
 
-    if (originPt && !isFinale) {
+    if (originPt && !isFinale && finaleBlend < 0.5) {
         const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
             originPt,
             camTargetX,
@@ -918,12 +941,15 @@ export function renderAllTripsFrame({
             originIsNorthOfDest
         );
         ctx.save();
+        if (finaleBlend > 0) {
+            ctx.globalAlpha = Math.max(0, 1 - finaleBlend / 0.5);
+        }
         ctx.translate(originPt.x, originPt.y);
         ctx.scale(1 / camZoom, 1 / camZoom);
         drawStationPin(ctx, originName, '#10b981', false, placeAbove, horizontalShiftPx, frame);
         ctx.restore();
     }
-    if (destPt && !isFinale) {
+    if (destPt && !isFinale && finaleBlend < 0.5) {
         const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
             destPt,
             camTargetX,
@@ -935,15 +961,21 @@ export function renderAllTripsFrame({
             !originIsNorthOfDest
         );
         ctx.save();
+        if (finaleBlend > 0) {
+            ctx.globalAlpha = Math.max(0, 1 - finaleBlend / 0.5);
+        }
         ctx.translate(destPt.x, destPt.y);
         ctx.scale(1 / camZoom, 1 / camZoom);
         drawStationPin(ctx, destName, lineColor, true, placeAbove, horizontalShiftPx, frame);
         ctx.restore();
     }
 
-    // 7. Moving Vehicle on Active Ride (drawn ABOVE all station dots and tracks)
-    if (!isFinale) {
+    // 7. Moving Vehicle on Active Ride (hidden during finale)
+    if (!isFinale && finaleBlend < 0.5) {
         ctx.save();
+        if (finaleBlend > 0) {
+            ctx.globalAlpha = Math.max(0, 1 - finaleBlend / 0.5);
+        }
         ctx.translate(vehiclePose.x, vehiclePose.y);
         ctx.scale(1.08 / camZoom, 1.08 / camZoom);
         ctx.rotate(vehiclePose.angleRad || 0);
@@ -1030,7 +1062,7 @@ export function renderAllTripsFrame({
     // 10. TOP-RIGHT LIVE CUMULATIVE METRICS CARD
     const rightCardX = width - pad - rightCardW;
     const cumulativeKm = (activeRide.startKm + activeRide.distanceKm * rideProgress).toFixed(1);
-    const completedCount = isFinale ? rides.length : activeIdx + 1;
+    const displayRidesCount = isFinale ? rides.length : activeIdx + 1;
 
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
@@ -1062,7 +1094,7 @@ export function renderAllTripsFrame({
 
     ctx.fillStyle = '#4ade80';
     ctx.font = '800 22px "JetBrains Mono", monospace';
-    ctx.fillText(`${completedCount}/${rides.length}`, rightCardX + 194, pad + 36, 96);
+    ctx.fillText(`${displayRidesCount}/${rides.length}`, rightCardX + 194, pad + 36, 96);
     ctx.restore();
 
     // 11. CORNER WATERMARK
