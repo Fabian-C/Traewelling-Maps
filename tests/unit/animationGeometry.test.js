@@ -226,10 +226,21 @@ describe('Animation Geometry & Camera Smoothing', () => {
         const scene = buildAllTripsScene(berlinTrips, 960, 960);
         expect(scene.rides).toHaveLength(4);
 
-        // The 3rd Berlin trip has streak >= 3 and should have higher zoom than the isolated Munich trip
-        const ride3Zoom = scene.rides[2].rideZoom;
-        const ride4Zoom = scene.rides[3].rideZoom;
-        expect(ride3Zoom).toBeGreaterThan(ride4Zoom);
+        // Continuous asymptotic creeping zoom:
+        // 1. Zoom is continuous across ride boundaries (ride[i].startZoom === ride[i-1].endZoom)
+        expect(scene.rides[1].startZoom).toBeCloseTo(scene.rides[0].endZoom, 5);
+        expect(scene.rides[2].startZoom).toBeCloseTo(scene.rides[1].endZoom, 5);
+
+        // 2. An isolated ride in a city creeps slowly and does not hit the target zoom at the end
+        expect(scene.rides[0].endZoom).toBeLessThan(scene.rides[0].targetZoom);
+        expect(scene.rides[0].endZoom).toBeLessThan(scene.rides[0].startZoom * 1.5);
+
+        // 3. Consecutive rides in the same city area progressively deepen the zoom
+        expect(scene.rides[1].endZoom).toBeGreaterThan(scene.rides[0].endZoom);
+        expect(scene.rides[2].endZoom).toBeGreaterThan(scene.rides[1].endZoom);
+
+        // 4. Ride 3 (deep into Berlin streak) has higher zoom than isolated Munich trip
+        expect(scene.rides[2].endZoom).toBeGreaterThan(scene.rides[3].endZoom);
 
         // Detail tiles should be generated covering the city rides at higher zoom than base scene
         expect(Array.isArray(scene.detailTiles)).toBe(true);

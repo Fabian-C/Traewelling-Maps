@@ -734,7 +734,14 @@ export function renderAllTripsFrame({
 
     let camTargetX = currChaseTarget.x;
     let camTargetY = currChaseTarget.y;
-    let camZoom = activeRide.rideZoom;
+
+    // Continuous creeping zoom: smoothly ease from activeRide.startZoom toward activeRide.endZoom across this ride
+    const rideProgressT = Math.max(0, Math.min(1, localFrame / Math.max(1, framesPerTrip)));
+    const zStart = typeof activeRide.startZoom === 'number' ? activeRide.startZoom : (activeRide.rideZoom || allScene.fitScale);
+    const zEnd = typeof activeRide.endZoom === 'number' ? activeRide.endZoom : (activeRide.rideZoom || allScene.fitScale);
+    const logZStart = Math.log(Math.max(0.1, zStart));
+    const logZEnd = Math.log(Math.max(0.1, zEnd));
+    let camZoom = Math.exp(logZStart + (logZEnd - logZStart) * smootherstep(0, 1, rideProgressT));
 
     // Smooth camera handoff from previous ride so there is never an abrupt jump between rides
     if (activeIdx > 0 && !isFinale) {
@@ -751,25 +758,19 @@ export function renderAllTripsFrame({
         camTargetX = prevEndTarget.x + (currChaseTarget.x - prevEndTarget.x) * handoffT;
         camTargetY = prevEndTarget.y + (currChaseTarget.y - prevEndTarget.y) * handoffT;
 
-        // Logarithmic zoom interpolation so large zoom changes between city and intercity scale evenly
-        const logZ0 = Math.log(Math.max(0.1, prevRide.rideZoom));
-        const logZ1 = Math.log(Math.max(0.1, activeRide.rideZoom));
-        let interpZoom = Math.exp(logZ0 + (logZ1 - logZ0) * handoffT);
-
         // If hopping between two distant cities while zoomed in, dip zoom slightly mid-hop;
         // if staying within the same city, hopDist is small so camera stays zoomed in on the city!
         const hopDistScenePx = Math.hypot(currChaseTarget.x - prevEndTarget.x, currChaseTarget.y - prevEndTarget.y);
-        const hopScreenPx = hopDistScenePx * Math.min(prevRide.rideZoom, activeRide.rideZoom);
+        const hopScreenPx = hopDistScenePx * Math.min(zStart, zEnd);
         if (hopScreenPx > 520) {
             const midHopZoom = Math.max(allScene.fitScale * 1.15, (width * 0.65) / Math.max(1, hopDistScenePx));
             const hopArch = Math.sin(handoffT * Math.PI);
-            if (midHopZoom < interpZoom) {
+            if (midHopZoom < camZoom) {
                 const logMid = Math.log(Math.max(0.1, midHopZoom));
-                const logCur = Math.log(Math.max(0.1, interpZoom));
-                interpZoom = Math.exp(logCur + (logMid - logCur) * hopArch * 0.72);
+                const logCur = Math.log(Math.max(0.1, camZoom));
+                camZoom = Math.exp(logCur + (logMid - logCur) * hopArch * 0.72);
             }
         }
-        camZoom = interpZoom;
     }
 
     // Smooth intro zoom-in from full network overview and finale zoom-out to full network overview

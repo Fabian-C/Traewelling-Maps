@@ -493,72 +493,66 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         };
     });
 
-    // Step 2: Detect consecutive local streaks so we only zoom in fully when multiple rides are in an area
-    const CITY_AREA_KM = 45;
-    const rawZooms = rideInfos.map((info, i) => {
-        let streakCount = 1;
-        let p = i - 1;
-        while (p >= 0) {
-            const d = computeHaversineKm(info.centerLon, info.centerLat, rideInfos[p].centerLon, rideInfos[p].centerLat);
-            if (d <= CITY_AREA_KM) {
-                streakCount++;
-                p--;
-            } else {
-                break;
-            }
-        }
-        let n = i + 1;
-        while (n < rideInfos.length) {
-            const d = computeHaversineKm(info.centerLon, info.centerLat, rideInfos[n].centerLon, rideInfos[n].centerLat);
-            if (d <= CITY_AREA_KM) {
-                streakCount++;
-                n++;
-            } else {
-                break;
-            }
-        }
+    // Step 2: Asymptotic Camera Creep toward each ride's zoom target
+    // Each ride has an ideal target zoom (deep for local city transit, wide for regional/intercity trips).
+    // Rather than snapping or finishing zoom during a single ride, the camera continuously and smoothly
+    // creeps toward the target across time. An isolated single bus ride in a city barely changes zoom
+    // (almost imperceptible), whereas consecutive rides in the same metropolitan area progressively deepen
+    // the zoom into intimate street level.
+    const maxAllowedCityZoom = Math.pow(2, Math.max(1.5, 11.5 - baseScene.z));
 
-        // Streak 1 (isolated ride): keep gentle regional zoom
-        if (streakCount <= 1) {
-            return Math.min(baseScene.fitScale * 1.55, Math.max(baseScene.fitScale * 1.05, info.idealRideZoom));
-        }
-        // Streak 2 (two consecutive rides): moderate overview
-        if (streakCount === 2) {
-            return Math.min(baseScene.fitScale * 2.3, Math.max(baseScene.fitScale * 1.25, info.idealRideZoom * 0.45));
-        }
-        // Streak 3+ (multiple rides in an area): deep city zoom
-        const streakFactor = Math.min(1, (streakCount - 2) / 2); // 3 -> 0.5, 4+ -> 1.0
-        const minCityZoom = baseScene.fitScale * 2.3;
-        const maxCityZoom = Math.min(
-            Math.pow(2, Math.max(1.5, 12.5 - baseScene.z)), // effective zoom level ~12.5
-            Math.max(baseScene.fitScale * 2.8, info.idealRideZoom)
+    let currentZoom = baseScene.fitScale * 1.0;
+    const creepingZooms = rideInfos.map((info, i) => {
+        const targetZoom = Math.min(
+            maxAllowedCityZoom,
+            Math.max(baseScene.fitScale * 0.95, info.idealRideZoom)
         );
-        return minCityZoom + (maxCityZoom - minCityZoom) * streakFactor;
+
+        // If jumping across distant regions (> 80km) to an isolated new city without an intermediate trip:
+        if (i > 0) {
+            const jumpDistKm = computeHaversineKm(
+                rideInfos[i - 1].centerLon,
+                rideInfos[i - 1].centerLat,
+                info.centerLon,
+                info.centerLat
+            );
+            if (jumpDistKm > 80) {
+                currentZoom = Math.min(currentZoom, baseScene.fitScale * 1.15);
+            }
+        }
+
+        const startZoom = currentZoom;
+        // Inward creep is slow and patient (lambda = 0.09) so an isolated ride barely changes zoom.
+        // Outward easing when departing on a long trip is moderately paced (lambda = 0.22) to reveal corridors.
+        const lambda = targetZoom > startZoom ? 0.09 : 0.22;
+        const logStart = Math.log(startZoom);
+        const logTarget = Math.log(targetZoom);
+        const endZoom = Math.exp(logStart + (logTarget - logStart) * lambda);
+
+        currentZoom = endZoom;
+        return {
+            startZoom,
+            endZoom,
+            targetZoom,
+            rideZoom: endZoom
+        };
     });
 
-    // Step 3: Boxcar smoothing on zoom so camera transitions between rides are calm and cinematic
-    const smoothedZooms = rawZooms.map((z, idx) => {
-        const prev = idx > 0 ? rawZooms[idx - 1] : z;
-        const next = idx < rawZooms.length - 1 ? rawZooms[idx + 1] : z;
-        return prev * 0.25 + z * 0.50 + next * 0.25;
-    });
-
-    // Step 4: Register high-resolution detail tiles for city clusters
+    // Step 3: Register high-resolution detail tiles for city clusters
     // detailZ is scaled relative to baseScene.z so tiles match visible viewport resolution seamlessly
     const detailTileMap = new Map();
     if (baseScene.z < 11) {
         rideInfos.forEach((info, idx) => {
-            const zTarget = smoothedZooms[idx];
-            if (zTarget >= baseScene.fitScale * 1.8 && Number.isFinite(info.minLon)) {
-                const zoomDelta = zTarget >= baseScene.fitScale * 3.5 ? 3 : 2;
-                const detailZ = Math.min(13, baseScene.z + zoomDelta);
+            const zActive = Math.max(creepingZooms[idx].startZoom, creepingZooms[idx].endZoom);
+            if (zActive >= baseScene.fitScale * 1.5 && Number.isFinite(info.minLon)) {
+                const detailZ = Math.min(12, Math.max(baseScene.z + 2, Math.round(baseScene.z + Math.log2(zActive) + 0.5)));
                 if (detailZ <= baseScene.z) return;
 
                 const scaleToBase = Math.pow(2, baseScene.z - detailZ);
                 const maxDetailIdx = Math.pow(2, detailZ);
 
                 // Determine visible geographical half-span for this city viewport in detail tile units
-                const halfScreenBasePx = (viewportWidth * 0.55) / zTarget;
+                const halfScreenBasePx = (viewportWidth * 0.55) / zActive;
                 const tileRadius = Math.min(3, Math.max(2, Math.ceil(halfScreenBasePx / (256 * scaleToBase))));
 
                 const centerTX = Math.floor(lonToWorldX(info.centerLon, detailZ) / 256);
@@ -599,7 +593,10 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         endKm: info.endKm,
         rideCenterX: info.rideCenterX,
         rideCenterY: info.rideCenterY,
-        rideZoom: smoothedZooms[idx]
+        startZoom: creepingZooms[idx].startZoom,
+        endZoom: creepingZooms[idx].endZoom,
+        targetZoom: creepingZooms[idx].targetZoom,
+        rideZoom: creepingZooms[idx].endZoom
     }));
 
     const detailTiles = Array.from(detailTileMap.values()).sort((a, b) => a.z - b.z);
