@@ -751,71 +751,81 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
         }
     }
 
+    const isStacked = Boolean(stack && stack.length > 1);
     let stackNavHtml = '';
-    if (stack && stack.length > 1) {
+    if (isStacked) {
+        const maxDots = 7;
+        const dotsHtml = stack.length <= maxDots
+            ? `<div class="stack-nav-dots" aria-hidden="true">${stack.map((_, idx) => `<span class="stack-dot${idx === stackIndex ? ' active' : ''}" data-idx="${idx}"></span>`).join('')}</div>`
+            : '';
         stackNavHtml = `
             <div class="popup-stack-nav" role="toolbar" aria-label="Stacked check-ins navigation">
                 <button type="button" class="stack-nav-btn prev" id="stackNavPrevBtn" aria-label="Previous check-in" title="Previous check-in (Left Arrow or [)">◀</button>
                 <div class="stack-nav-info">
-                    <span class="stack-nav-badge">Stacked</span>
-                    <span class="stack-nav-count">Trip <strong>${stackIndex + 1}</strong> of <strong>${stack.length}</strong></span>
+                    <div class="stack-nav-top-row">
+                        <span class="stack-nav-badge">Stacked</span>
+                        <span class="stack-nav-count">Trip <strong>${stackIndex + 1}</strong> of <strong>${stack.length}</strong></span>
+                    </div>
+                    ${dotsHtml}
                 </div>
                 <button type="button" class="stack-nav-btn next" id="stackNavNextBtn" aria-label="Next check-in" title="Next check-in (Right Arrow or ])">▶</button>
             </div>
         `;
     }
 
-    const html = `<div class="popup-content">
+    const html = `<div class="popup-content${isStacked ? ' is-stacked' : ''}">
         ${stackNavHtml}
-        <div class="popup-title">
-            <span class="popup-badge">${category}</span>
-            <span>${lineName}</span>
-            ${isApproximated ? `<span class="popup-approx-badge" title="Approximated track (straight-line fallback)"><span class="dashed-preview-pill"></span>Approx.</span>` : ''}
-        </div>
-        ${matchBannerHtml}
-        <div class="popup-route">
-            <div class="popup-stop">
-                <label>Origin</label>
-                <strong>${origin}</strong>
-                <div class="popup-stop-time">
-                    ${departureTimestamp}
+        <div class="popup-body-scroll">
+            <div class="popup-title">
+                <span class="popup-badge">${category}</span>
+                <span>${lineName}</span>
+                ${isApproximated ? `<span class="popup-approx-badge" title="Approximated track (straight-line fallback)"><span class="dashed-preview-pill"></span>Approx.</span>` : ''}
+            </div>
+            ${matchBannerHtml}
+            <div class="popup-route">
+                <div class="popup-stop">
+                    <label>Origin</label>
+                    <strong>${origin}</strong>
+                    <div class="popup-stop-time">
+                        ${departureTimestamp}
+                    </div>
+                </div>
+                <div class="popup-arrow">→</div>
+                <div class="popup-stop">
+                    <label>Destination</label>
+                    <strong>${dest}</strong>
+                    <div class="popup-stop-time">
+                        ${arrivalTimestamp}
+                    </div>
                 </div>
             </div>
-            <div class="popup-arrow">→</div>
-            <div class="popup-stop">
-                <label>Destination</label>
-                <strong>${dest}</strong>
-                <div class="popup-stop-time">
-                    ${arrivalTimestamp}
+            <div class="popup-meta" id="popupMeta">
+                <div class="meta-item">
+                    <label>Distance</label>
+                    <span>${distance} km</span>
+                </div>
+                <div class="meta-item">
+                    <label>Duration</label>
+                    <span>${durationDisplay}</span>
+                </div>
+                <div class="meta-item meta-toggle-btn" id="popupMetaToggle" role="button" tabindex="0" title="Show operator & platform details" aria-expanded="false">
+                    <label>Details</label>
+                    <span class="meta-toggle-text">more…</span>
+                </div>
+                <div class="meta-item meta-extra">
+                    <label>Operator</label>
+                    <span title="${escapeHtml(operator || '—')}">${operator || '—'}</span>
+                </div>
+                <div class="meta-item meta-extra">
+                    <label>Platform</label>
+                    <span>${platform || '—'}</span>
                 </div>
             </div>
+            ${commentHtml}
+            ${timingDetails}
+            ${seatDetails}
+            ${tagsDetails}
         </div>
-        <div class="popup-meta" id="popupMeta">
-            <div class="meta-item">
-                <label>Distance</label>
-                <span>${distance} km</span>
-            </div>
-            <div class="meta-item">
-                <label>Duration</label>
-                <span>${durationDisplay}</span>
-            </div>
-            <div class="meta-item meta-toggle-btn" id="popupMetaToggle" role="button" tabindex="0" title="Show operator & platform details" aria-expanded="false">
-                <label>Details</label>
-                <span class="meta-toggle-text">more…</span>
-            </div>
-            <div class="meta-item meta-extra">
-                <label>Operator</label>
-                <span title="${escapeHtml(operator || '—')}">${operator || '—'}</span>
-            </div>
-            <div class="meta-item meta-extra">
-                <label>Platform</label>
-                <span>${platform || '—'}</span>
-            </div>
-        </div>
-        ${commentHtml}
-        ${timingDetails}
-        ${seatDetails}
-        ${tagsDetails}
         <div class="popup-actions">
             ${shareUrl ? `<a class="primary" href="${shareUrl}" target="_blank">View on Träwelling</a>` : ''}
         </div>
@@ -860,6 +870,41 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
                     goToStackedIndex(stackIndex + 1);
                 });
             }
+
+            popupEl.querySelectorAll('.stack-dot').forEach((dot) => {
+                dot.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const idx = parseInt(dot.getAttribute('data-idx'), 10);
+                    if (!Number.isNaN(idx) && idx !== stackIndex) {
+                        goToStackedIndex(idx);
+                    }
+                });
+            });
+
+            // Touch swipe left/right to cycle through stacked check-ins
+            let touchStartX = null;
+            let touchStartY = null;
+            popupEl.addEventListener('touchstart', (e) => {
+                if (e.touches && e.touches.length === 1) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                }
+            }, { passive: true });
+
+            popupEl.addEventListener('touchend', (e) => {
+                if (touchStartX === null || touchStartY === null || !e.changedTouches || !e.changedTouches.length) return;
+                const dx = e.changedTouches[0].clientX - touchStartX;
+                const dy = e.changedTouches[0].clientY - touchStartY;
+                touchStartX = null;
+                touchStartY = null;
+                if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+                    if (dx < 0) {
+                        goToStackedIndex(stackIndex + 1);
+                    } else {
+                        goToStackedIndex(stackIndex - 1);
+                    }
+                }
+            }, { passive: true });
 
             const handleStackKeyNav = (e) => {
                 // Only handle if popup is currently open and not typing into an input

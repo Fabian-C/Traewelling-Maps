@@ -1035,7 +1035,9 @@ body.stats-open .active-filter-badges {
 
 .route-popup .mapboxgl-popup-content {
     padding: 8px 9px;
-    max-width: min(240px, calc(100vw - 28px));
+    width: min(244px, calc(100vw - 28px));
+    min-width: min(244px, calc(100vw - 28px));
+    max-width: min(244px, calc(100vw - 28px));
     font-size: 11px;
     background: rgba(10, 14, 22, 0.23);
     color: var(--text-primary);
@@ -1045,6 +1047,35 @@ body.stats-open .active-filter-badges {
     -webkit-backdrop-filter: blur(8px);
     box-shadow: 0 16px 36px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.12);
     z-index: 9999;
+}
+
+.route-popup .popup-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.route-popup .popup-content.is-stacked {
+    height: min(258px, 56vh);
+    min-height: min(258px, 56vh);
+    max-height: min(258px, 56vh);
+}
+
+.route-popup .popup-body-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(56, 189, 248, 0.35) transparent;
+}
+
+.route-popup .popup-body-scroll::-webkit-scrollbar {
+    width: 4px;
+}
+
+.route-popup .popup-body-scroll::-webkit-scrollbar-thumb {
+    background: rgba(56, 189, 248, 0.35);
+    border-radius: 4px;
 }
 
 .route-popup.mapboxgl-popup-anchor-top .mapboxgl-popup-tip {
@@ -2332,10 +2363,11 @@ body.drag-over::after {
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 8px;
-    padding: 3px 6px;
+    padding: 4px 6px;
     margin-bottom: 6px;
     gap: 6px;
     user-select: none;
+    flex-shrink: 0;
 }
 
 .popup-stack-nav .stack-nav-btn {
@@ -2352,6 +2384,7 @@ body.drag-over::after {
     cursor: pointer;
     transition: all 0.15s ease;
     padding: 0;
+    flex-shrink: 0;
 }
 
 .popup-stack-nav .stack-nav-btn:hover {
@@ -2362,10 +2395,37 @@ body.drag-over::after {
 
 .popup-stack-nav .stack-nav-info {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 3px;
     font-size: 10px;
     color: var(--text-secondary);
+}
+
+.popup-stack-nav .stack-nav-top-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.popup-stack-nav .stack-nav-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.popup-stack-nav .stack-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.popup-stack-nav .stack-dot.active {
+    background: var(--accent-cyan, #38bdf8);
+    transform: scale(1.25);
 }
 
 .popup-stack-nav .stack-nav-badge {
