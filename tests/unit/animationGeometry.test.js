@@ -185,10 +185,10 @@ describe('Animation Geometry & Camera Smoothing', () => {
         expect(sorted.map(t => t.id)).toEqual([10, 20]);
 
         const timing = computeAllModeTiming(sorted.length, 30);
-        expect(timing.framesPerTrip).toBe(48);
+        expect(timing.framesPerTrip).toBe(96);
         expect(timing.finaleStaticHoldFrames).toBe(90); // 3 seconds static hold at 30fps
         expect(timing.finaleFrames).toBe(135);
-        expect(timing.totalFrames).toBeGreaterThanOrEqual(240);
+        expect(timing.totalFrames).toBeGreaterThanOrEqual(300);
 
         const allScene = buildAllTripsScene(sorted, 960, 960);
         expect(allScene.rides).toHaveLength(2);
@@ -267,15 +267,15 @@ describe('Animation Geometry & Camera Smoothing', () => {
         expect(scene.rides[3].startZoom).toBeCloseTo(scene.rides[2].endZoom, 5);
 
         // 2. City rides zoom in deeply so stations, streets, and routes are clearly visible
-        expect(scene.rides[0].rideZoom).toBeGreaterThan(scene.fitScale * 2);
-        expect(scene.rides[1].rideZoom).toBeGreaterThan(scene.fitScale * 2);
+        expect(scene.rides[0].rideZoom).toBeGreaterThan(scene.fitScale * 3);
+        expect(scene.rides[1].rideZoom).toBeGreaterThan(scene.fitScale * 3);
 
         // 3. Long-distance ICE (ride 3) has wide landscape zoom compared to tight city rides
         expect(scene.rides[1].rideZoom).toBeGreaterThan(scene.rides[3].rideZoom * 2);
 
         // 4. Adaptive timing: long-distance ICE and large zoom transitions receive extra duration frames
-        expect(scene.rides[3].durationFrames).toBeGreaterThan(30);
-        expect(scene.travelTotalFrames).toBeGreaterThanOrEqual(120);
+        expect(scene.rides[3].durationFrames).toBeGreaterThan(60);
+        expect(scene.travelTotalFrames).toBeGreaterThanOrEqual(240);
 
         // Detail tiles should be generated covering the city rides at higher zoom than base scene
         expect(Array.isArray(scene.detailTiles)).toBe(true);

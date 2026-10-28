@@ -761,7 +761,7 @@ export function renderAllTripsFrame({
             centerSceneY: prevRide.rideCenterY
         };
         const prevEndTarget = sampleSmoothedCameraTarget(prevRideScene, 1);
-        const handoffDuration = Math.min(rideDuration * 0.70, Math.max(8, 24 * 0.40));
+        const handoffDuration = Math.min(rideDuration * 0.70, Math.max(12, 40 * 0.40));
         const handoffT = smootherstep(0, handoffDuration, localFrame);
         camTargetX = prevEndTarget.x + (currChaseTarget.x - prevEndTarget.x) * handoffT;
         camTargetY = prevEndTarget.y + (currChaseTarget.y - prevEndTarget.y) * handoffT;
@@ -782,7 +782,7 @@ export function renderAllTripsFrame({
     }
 
     // Smooth intro zoom-in from full network overview
-    const introDuration = Math.min(40, (rides[0]?.durationFrames || 30) * 0.85);
+    const introDuration = Math.min(60, (rides[0]?.durationFrames || 40) * 0.85);
     const introBlend = 1 - smootherstep(0, introDuration, frame);
 
     // Finale zoom-out: 1.5s (45 frames) smooth glide to overview, followed by 3.0s (90 frames) completely static hold
