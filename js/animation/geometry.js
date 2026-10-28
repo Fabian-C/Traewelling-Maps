@@ -531,16 +531,13 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
     if (baseScene.z < 12) {
         rideInfos.forEach((info, idx) => {
             const zTarget = smoothedZooms[idx];
-            if (zTarget >= baseScene.fitScale * 1.6 && Number.isFinite(info.minLon)) {
+            if (info.distanceKm <= 40 && zTarget >= baseScene.fitScale * 1.6 && Number.isFinite(info.minLon)) {
                 const detailZ = Math.min(13, Math.max(baseScene.z + 2, Math.round(baseScene.z + Math.log2(zTarget) + 0.4)));
                 if (detailZ <= baseScene.z) return;
 
                 const scaleToBase = Math.pow(2, baseScene.z - detailZ);
                 const maxDetailIdx = Math.pow(2, detailZ);
-
-                // Determine visible geographical half-span for this city viewport in detail tile units
-                const halfScreenBasePx = (viewportWidth * 0.55) / zTarget;
-                const tileRadius = Math.min(3, Math.max(2, Math.ceil(halfScreenBasePx / (256 * scaleToBase))));
+                const tileRadius = 1; // 3x3 grid around city transit center is optimal and fast to preload
 
                 const centerTX = Math.floor(lonToWorldX(info.centerLon, detailZ) / 256);
                 const centerTY = Math.floor(latToWorldY(info.centerLat, detailZ) / 256);

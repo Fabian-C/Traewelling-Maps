@@ -69,6 +69,7 @@ export function TripStoryComposition({
 
     // Silently preload 100% of scene tiles before rendering/recording starts
     React.useEffect(() => {
+        if (styleConfig.isVector) return;
         if ((!trip && !isAllMode) || !scene.tiles.length) return;
         let cancelled = false;
         const handle = delayRender(`Preloading ${scene.tiles.length} map tiles`);
@@ -77,7 +78,7 @@ export function TripStoryComposition({
             if (!cancelled) {
                 try { continueRender(handle); } catch { /* ignore */ }
             }
-        }, 6500);
+        }, 12000);
 
         preloadSceneTiles(scene, mapStyle, ({ loaded }) => {
             if (!cancelled) {

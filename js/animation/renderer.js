@@ -7,6 +7,7 @@
 import { computeTripDurationMinutes, deriveDelaySeconds } from '../utils/time.js';
 import { formatHumanDuration } from '../utils/format.js';
 import { CATEGORY_META, TILE_IMAGE_CACHE, loadSingleTileImage } from './tiles.js';
+import { drawVectorBaseMap } from './vectorRenderer.js';
 import {
     lonToWorldX,
     latToWorldY,
@@ -311,6 +312,47 @@ function computeSafeStationPillPlacement(pt, camTargetX, camTargetY, camZoom, wi
     return { placeAbove, horizontalShiftPx };
 }
 
+/**
+ * Draws a tile with hierarchical parent-tile fallback.
+ * If the exact tile is not yet loaded in cache, it searches upwards for parent tiles (z-1, z-2)
+ * and draws the corresponding sub-quadrant seamlessly so blank holes never appear.
+ */
+function drawTileWithParentFallback(ctx, styleConfig, tile, baseZ) {
+    const tileZ = tile.z ?? baseZ;
+    const tileX = tile.x;
+    const tileY = tile.y;
+    const tileSize = tile.size ?? 256;
+    if (typeof styleConfig.getTileUrl !== 'function') return;
+
+    const url = styleConfig.getTileUrl(tileZ, tileX, tileY);
+    const img = TILE_IMAGE_CACHE.get(url);
+    if (img) {
+        ctx.drawImage(img, tile.left, tile.top, tileSize * 1.002, tileSize * 1.002);
+        return;
+    }
+
+    for (let pz = tileZ - 1; pz >= baseZ; pz--) {
+        const factor = Math.pow(2, tileZ - pz);
+        const px = Math.floor(tileX / factor);
+        const py = Math.floor(tileY / factor);
+        const pUrl = styleConfig.getTileUrl(pz, px, py);
+        const pImg = TILE_IMAGE_CACHE.get(pUrl);
+        if (pImg) {
+            const remX = ((tileX % factor) + factor) % factor;
+            const remY = ((tileY % factor) + factor) % factor;
+            const subW = 256 / factor;
+            const subH = 256 / factor;
+            const sx = remX * subW;
+            const sy = remY * subH;
+            ctx.drawImage(pImg, sx, sy, subW, subH, tile.left, tile.top, tileSize * 1.002, tileSize * 1.002);
+            return;
+        }
+    }
+
+    ctx.fillStyle = styleConfig.bg;
+    ctx.fillRect(tile.left, tile.top, tileSize, tileSize);
+}
+
 export function renderTripFrame({
     ctx,
     frame,
@@ -380,17 +422,19 @@ export function renderTripFrame({
     ctx.scale(camZoom, camZoom);
     ctx.translate(-camTargetX, -camTargetY);
 
-    // 3. Draw preloaded Map Tiles
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    for (const tile of scene.tiles) {
-        const url = styleConfig.getTileUrl(scene.z, tile.x, tile.y);
-        const img = TILE_IMAGE_CACHE.get(url);
-        if (img) {
-            ctx.drawImage(img, tile.left, tile.top, 256.5, 256.5);
-        } else {
-            ctx.fillStyle = styleConfig.bg;
-            ctx.fillRect(tile.left, tile.top, 256, 256);
+    // 3. Draw Base Map (Vector or Tiles)
+    if (styleConfig.isVector) {
+        drawVectorBaseMap({
+            ctx,
+            baseScene: scene,
+            camZoom,
+            styleConfig
+        });
+    } else {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        for (const tile of scene.tiles) {
+            drawTileWithParentFallback(ctx, styleConfig, { ...tile, z: scene.z, size: 256 }, scene.z);
         }
     }
 
@@ -814,43 +858,43 @@ export function renderAllTripsFrame({
     ctx.scale(camZoom, camZoom);
     ctx.translate(-camTargetX, -camTargetY);
 
-    // 3. Draw preloaded Map Tiles (base overview tiles + high-res city detail tiles when zoomed in)
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    for (const tile of allScene.tiles) {
-        const url = styleConfig.getTileUrl(allScene.z, tile.x, tile.y);
-        const img = TILE_IMAGE_CACHE.get(url);
-        if (img) {
-            ctx.drawImage(img, tile.left, tile.top, 256.5, 256.5);
-        } else {
-            ctx.fillStyle = styleConfig.bg;
-            ctx.fillRect(tile.left, tile.top, 256, 256);
+    // 3. Draw Base Map (Vector or Tiles)
+    if (styleConfig.isVector) {
+        drawVectorBaseMap({
+            ctx,
+            baseScene: allScene,
+            camZoom,
+            styleConfig
+        });
+    } else {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        for (const tile of allScene.tiles) {
+            drawTileWithParentFallback(ctx, styleConfig, { ...tile, z: allScene.z, size: 256 }, allScene.z);
         }
-    }
 
-    if (camZoom > 1.4 && Array.isArray(allScene.detailTiles) && allScene.detailTiles.length > 0) {
-        for (const dTile of allScene.detailTiles) {
-            // Viewport frustum culling
-            const tileScreenLeft = (dTile.left - camTargetX) * camZoom + width / 2;
-            const tileScreenTop = (dTile.top - camTargetY) * camZoom + viewCenterY;
-            const tileScreenSize = dTile.size * camZoom;
+        if (camZoom > 1.4 && Array.isArray(allScene.detailTiles) && allScene.detailTiles.length > 0) {
+            for (const dTile of allScene.detailTiles) {
+                // Viewport frustum culling
+                const tileScreenLeft = (dTile.left - camTargetX) * camZoom + width / 2;
+                const tileScreenTop = (dTile.top - camTargetY) * camZoom + viewCenterY;
+                const tileScreenSize = dTile.size * camZoom;
 
-            if (
-                tileScreenLeft + tileScreenSize < -60 ||
-                tileScreenLeft > width + 60 ||
-                tileScreenTop + tileScreenSize < -60 ||
-                tileScreenTop > height + 60
-            ) {
-                continue;
-            }
+                if (
+                    tileScreenLeft + tileScreenSize < -60 ||
+                    tileScreenLeft > width + 60 ||
+                    tileScreenTop + tileScreenSize < -60 ||
+                    tileScreenTop > height + 60
+                ) {
+                    continue;
+                }
 
-            const dUrl = styleConfig.getTileUrl(dTile.z, dTile.x, dTile.y);
-            const dImg = TILE_IMAGE_CACHE.get(dUrl);
-            if (dImg) {
-                ctx.drawImage(dImg, dTile.left, dTile.top, dTile.size * 1.002, dTile.size * 1.002);
-            } else {
-                const fbUrl = styleConfig.getFallbackUrl ? styleConfig.getFallbackUrl(dTile.z, dTile.x, dTile.y) : null;
-                loadSingleTileImage(dUrl, fbUrl);
+                drawTileWithParentFallback(ctx, styleConfig, dTile, allScene.z);
+                const dUrl = styleConfig.getTileUrl(dTile.z, dTile.x, dTile.y);
+                if (!TILE_IMAGE_CACHE.has(dUrl)) {
+                    const fbUrl = styleConfig.getFallbackUrl ? styleConfig.getFallbackUrl(dTile.z, dTile.x, dTile.y) : null;
+                    loadSingleTileImage(dUrl, fbUrl);
+                }
             }
         }
     }

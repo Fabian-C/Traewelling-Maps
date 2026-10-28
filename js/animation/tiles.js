@@ -83,6 +83,24 @@ export const MAP_STYLES = {
         },
         bg: '#ebe9e1',
         isDark: false
+    },
+    'vector-dark': {
+        name: 'Vector Dark',
+        isVector: true,
+        bg: '#080d1a',
+        isDark: true
+    },
+    'vector-light': {
+        name: 'Vector Light',
+        isVector: true,
+        bg: '#dbeafe',
+        isDark: false
+    },
+    vector: {
+        name: 'Vector Dark',
+        isVector: true,
+        bg: '#080d1a',
+        isDark: true
     }
 };
 
@@ -90,6 +108,7 @@ export const TILE_IMAGE_CACHE = new Map();
 const TILE_PROMISE_CACHE = new Map();
 
 export function loadSingleTileImage(primaryUrl, fallbackUrl) {
+    if (!primaryUrl) return Promise.resolve(null);
     if (TILE_IMAGE_CACHE.has(primaryUrl)) {
         return Promise.resolve(TILE_IMAGE_CACHE.get(primaryUrl));
     }
@@ -98,10 +117,13 @@ export function loadSingleTileImage(primaryUrl, fallbackUrl) {
     }
 
     const promise = new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
+        let settled = false;
+        let timer = null;
 
         const finalize = async (loadedImg) => {
+            if (settled) return;
+            settled = true;
+            if (timer) clearTimeout(timer);
             try {
                 if (loadedImg && typeof loadedImg.decode === 'function') {
                     await loadedImg.decode();
@@ -117,8 +139,7 @@ export function loadSingleTileImage(primaryUrl, fallbackUrl) {
             resolve(loadedImg);
         };
 
-        img.onload = () => finalize(img);
-        img.onerror = () => {
+        const tryFallback = () => {
             if (fallbackUrl && fallbackUrl !== primaryUrl) {
                 const fbImg = new Image();
                 fbImg.crossOrigin = 'anonymous';
@@ -129,6 +150,17 @@ export function loadSingleTileImage(primaryUrl, fallbackUrl) {
                 finalize(null);
             }
         };
+
+        timer = setTimeout(() => {
+            if (!settled) {
+                tryFallback();
+            }
+        }, 3500);
+
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => finalize(img);
+        img.onerror = () => tryFallback();
         img.src = primaryUrl;
     });
 
@@ -137,10 +169,14 @@ export function loadSingleTileImage(primaryUrl, fallbackUrl) {
 }
 
 export async function preloadSceneTiles(scene, mapStyle = 'traewelling-dark', onProgress = null) {
+    const styleConfig = MAP_STYLES[mapStyle] || MAP_STYLES['traewelling-dark'];
+    if (styleConfig.isVector) {
+        if (onProgress) onProgress({ loaded: 1, total: 1 });
+        return { total: 0, loaded: 0 };
+    }
     if (!scene || !Array.isArray(scene.tiles) || !scene.tiles.length) {
         return { total: 0, loaded: 0 };
     }
-    const styleConfig = MAP_STYLES[mapStyle] || MAP_STYLES['traewelling-dark'];
     const allTiles = Array.isArray(scene.detailTiles) && scene.detailTiles.length > 0
         ? [...scene.tiles, ...scene.detailTiles]
         : scene.tiles;
@@ -148,17 +184,22 @@ export async function preloadSceneTiles(scene, mapStyle = 'traewelling-dark', on
     let loaded = 0;
     if (onProgress) onProgress({ loaded, total });
 
-    await Promise.all(
-        allTiles.map(async (tile) => {
+    const CONCURRENCY = 8;
+    const queue = [...allTiles];
+    const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+        while (queue.length > 0) {
+            const tile = queue.shift();
+            if (!tile) break;
             const tileZ = tile.z ?? scene.z;
             const primaryUrl = styleConfig.getTileUrl(tileZ, tile.x, tile.y);
             const fallbackUrl = styleConfig.getFallbackUrl ? styleConfig.getFallbackUrl(tileZ, tile.x, tile.y) : null;
             await loadSingleTileImage(primaryUrl, fallbackUrl);
             loaded += 1;
             if (onProgress) onProgress({ loaded, total });
-        })
-    );
+        }
+    });
 
+    await Promise.all(workers);
     return { total, loaded };
 }
 
