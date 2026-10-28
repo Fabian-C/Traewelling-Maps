@@ -21,7 +21,8 @@
         }
     </style>
 
-    <!-- Stylesheet -->
+    <!-- Stylesheets -->
+    <link href="css/tokens.css" rel="stylesheet">
     <link href="css/wrapped.css" rel="stylesheet">
 
     <!-- Application Script -->
@@ -32,7 +33,9 @@
     <!-- Global Header -->
     <header class="wrapped-header" role="banner">
         <a href="index.html" class="wrapped-brand" aria-label="Träwelling Map Home">
-            <span class="wrapped-brand-icon">✨</span>
+            <span class="wrapped-brand-icon" aria-hidden="true" style="display: inline-flex; align-items: center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-purple);"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
+            </span>
             <div>
                 <span class="wrapped-brand-title">Träwelling</span>
                 <span class="wrapped-brand-badge">Rail Wrapped</span>
@@ -54,8 +57,12 @@
 
             <!-- Main Map Link -->
             <a href="index.html" class="nav-link-btn primary" title="Return to Interactive Map">
-                <span>🗺️</span>
-                <span>Interactive Map</span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;">
+                    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
+                    <line x1="9" y1="3" x2="9" y2="18"></line>
+                    <line x1="15" y1="6" x2="15" y2="21"></line>
+                </svg>
+                <span>Map</span>
             </a>
 
             <!-- Trip Database Link -->
@@ -66,7 +73,10 @@
 
             <!-- Documentation Link -->
             <a href="docs.html" class="nav-link-btn" title="View Documentation">
-                <span>📖</span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;">
+                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"></path>
+                    <path d="M6 2v20"></path>
+                </svg>
                 <span>Docs</span>
             </a>
 

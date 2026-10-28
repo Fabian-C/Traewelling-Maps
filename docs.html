@@ -13,7 +13,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
 
-    <!-- Stylesheet -->
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/docs.css">
 
     <!-- Interactive Docs Logic -->
@@ -28,14 +29,18 @@
     <header class="docs-header" role="banner">
         <div class="docs-header-inner">
             <a href="index.html" class="docs-brand" aria-label="Träwelling Map Explorer Home">
-                <span class="docs-brand-logo">🗺️</span>
+                <span class="docs-brand-logo" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
+                </span>
                 <span class="docs-brand-title">Träwelling Maps</span>
                 <span class="docs-brand-badge">Guide</span>
             </a>
 
             <!-- Live Docs Instant Search -->
             <div class="docs-search-container" role="search">
-                <span class="docs-search-icon" aria-hidden="true">🔍</span>
+                <span class="docs-search-icon" aria-hidden="true">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </span>
                 <input type="search" class="docs-search-input" id="docsSearchInput" placeholder="Search guide (e.g. map, delay, sql)..." aria-label="Search Documentation">
                 <span class="docs-search-kbd">/</span>
             </div>
@@ -43,7 +48,11 @@
             <!-- Top Nav Navigation Links -->
             <nav class="docs-nav-links" aria-label="Main Navigation">
                 <a href="index.html" class="docs-nav-btn primary" title="Open Interactive Map Explorer">
-                    <span>🗺️</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;">
+                        <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
+                        <line x1="9" y1="3" x2="9" y2="18"></line>
+                        <line x1="15" y1="6" x2="15" y2="21"></line>
+                    </svg>
                     <span>Map</span>
                 </a>
                 <a href="trips.html" class="docs-nav-btn" title="Open Trip Database &amp; SQL Studio">
@@ -55,7 +64,9 @@
                     <span>Database</span>
                 </a>
                 <a href="wrapped.html" class="docs-nav-btn" title="Open Rail Wrapped">
-                    <span>✨</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;">
+                        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
+                    </svg>
                     <span>Wrapped</span>
                 </a>
                 <a href="https://github.com/fabian-c/Traewelling-Maps" target="_blank" rel="noopener noreferrer" class="docs-nav-btn" title="GitHub Repository">
@@ -71,13 +82,34 @@
     <!-- Sticky Pill Quick Navigation -->
     <nav class="docs-pill-nav" aria-label="Section Quick Jump">
         <div class="docs-pill-nav-inner">
-            <a href="#map-explorer" class="pill-link active">🗺️ Route Map Explorer</a>
-            <a href="#getting-started" class="pill-link">🚀 Getting Started</a>
-            <a href="#sql-studio" class="pill-link">🗄️ Database Studio</a>
-            <a href="#schema-reference" class="pill-link">📊 SQL Schema</a>
-            <a href="#rail-wrapped" class="pill-link">✨ Rail Wrapped</a>
-            <a href="#data-exports" class="pill-link">📦 GeoJSON &amp; Exports</a>
-            <a href="#privacy-faq" class="pill-link">🔒 Privacy &amp; FAQ</a>
+            <a href="#map-explorer" class="pill-link active">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
+                <span>Route Map Explorer</span>
+            </a>
+            <a href="#getting-started" class="pill-link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path></svg>
+                <span>Getting Started</span>
+            </a>
+            <a href="#sql-studio" class="pill-link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+                <span>Database Studio</span>
+            </a>
+            <a href="#schema-reference" class="pill-link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>
+                <span>SQL Schema</span>
+            </a>
+            <a href="#rail-wrapped" class="pill-link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
+                <span>Rail Wrapped</span>
+            </a>
+            <a href="#data-exports" class="pill-link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>GeoJSON &amp; Exports</span>
+            </a>
+            <a href="#privacy-faq" class="pill-link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                <span>Privacy &amp; FAQ</span>
+            </a>
         </div>
     </nav>
 

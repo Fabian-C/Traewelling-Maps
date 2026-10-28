@@ -33,6 +33,7 @@
         .setup-screen.hidden { opacity: 0; pointer-events: none; }
     </style>
     <!-- Local stylesheets loaded first with zero roundtrip latency -->
+    <link href="css/tokens.css" rel="stylesheet">
     <link href="css/base.css" rel="stylesheet">
     <link href="css/cargo-animation.css" rel="stylesheet">
     <link href="css/map-ui.css" rel="stylesheet">
@@ -396,7 +397,10 @@
             <div class="menu-divider"></div>
 
             <a href="wrapped.html" class="menu-item" id="menuWrappedBtn" style="text-decoration: none; color: inherit;">
-                <span>✨ Rail Wrapped</span>
+                <span style="display: inline-flex; align-items: center; gap: 8px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
+                    Rail Wrapped
+                </span>
             </a>
             <a href="trips.html" class="menu-item" id="menuTripsBtn" style="text-decoration: none; color: inherit;">
                 <span style="display: inline-flex; align-items: center; gap: 8px;">
@@ -405,11 +409,24 @@
                 </span>
             </a>
             <a href="docs.html" class="menu-item" id="menuDocsBtn" style="text-decoration: none; color: inherit;">
-                <span>📖 Documentation</span>
+                <span style="display: inline-flex; align-items: center; gap: 8px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"></path><path d="M6 2v20"></path></svg>
+                    Documentation
+                </span>
             </a>
-            <div class="menu-item active" id="statsToggle"><span>📊 Statistics</span></div>
+            <div class="menu-item active" id="statsToggle">
+                <span style="display: inline-flex; align-items: center; gap: 8px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><rect width="4" height="7" x="7" y="10" rx="1"></rect><rect width="4" height="12" x="15" y="5" rx="1"></rect></svg>
+                    Statistics
+                </span>
+            </div>
             <details class="menu-submenu">
-                <summary>📅 Time Filter</summary>
+                <summary>
+                    <span style="display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                        Time Filter
+                    </span>
+                </summary>
                 <div class="menu-submenu-content">
                     <div class="time-filter">
                         <div class="time-input-group"><label for="dateFrom">From</label><input type="date"
@@ -422,7 +439,12 @@
                 </div>
             </details>
             <details class="menu-submenu" id="tripTypeSubmenu">
-                <summary>💼 Trip Type</summary>
+                <summary>
+                    <span style="display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                        Trip Type
+                    </span>
+                </summary>
                 <div class="menu-submenu-content">
                     <div class="business-filter">
                         <label class="menu-item toggle-row" for="businessPersonal"
@@ -513,7 +535,12 @@
                 </div>
             </details>
             <details class="menu-submenu">
-                <summary>🔥 HeatMap</summary>
+                <summary>
+                    <span style="display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>
+                        HeatMap
+                    </span>
+                </summary>
                 <div class="menu-submenu-content">
                     <div class="menu-item" style="padding: 12px 16px;">
                         <span style="margin-right: 10px;">Show</span>
@@ -539,10 +566,18 @@
                 </div>
             </details>
             <div class="menu-item" id="railwayToggle" role="button" tabindex="0">
-                <span>🛤️ Railway Map</span>
+                <span style="display: inline-flex; align-items: center; gap: 8px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
+                    Railway Map
+                </span>
             </div>
             <details class="menu-submenu" id="exportSubmenu">
-                <summary>📤 Export &amp; Import</summary>
+                <summary>
+                    <span style="display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Export &amp; Import
+                    </span>
+                </summary>
                 <div class="menu-submenu-content export-section">
                     <p class="section-sub" style="margin: 0 16px 10px;">Export your travel routes and polylines as a
                         standardized GeoJSON FeatureCollection, or upload a saved file.</p>
