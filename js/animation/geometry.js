@@ -139,7 +139,7 @@ export function buildMapScene(coords, viewportWidth = 960, viewportHeight = 960)
     const usableH = (viewportHeight - 184) * 0.60;
 
     let chosenZ = 7;
-    for (let z = 14; z >= 4; z--) {
+    for (let z = 15; z >= 4; z--) {
         const w = Math.abs(lonToWorldX(maxLon, z) - lonToWorldX(minLon, z));
         const h = Math.abs(latToWorldY(minLat, z) - latToWorldY(maxLat, z));
         if (w <= usableW && h <= usableH) {
@@ -156,8 +156,22 @@ export function buildMapScene(coords, viewportWidth = 960, viewportHeight = 960)
     const centerWX = (minWX + maxWX) / 2;
     const centerWY = (minWY + maxWY) / 2;
 
-    const halfSpanX = Math.max(viewportWidth * 0.74, (maxWX - minWX) * 0.90);
-    const halfSpanY = Math.max(viewportHeight * 0.74, (maxWY - minWY) * 0.90);
+    const routeBoundsW = Math.max(80, maxWX - minWX);
+    const routeBoundsH = Math.max(80, maxWY - minWY);
+    const fitScale = Math.min(
+        1.48,
+        Math.max(0.75, Math.min(usableW / routeBoundsW, usableH / routeBoundsH))
+    );
+
+    const minCamZoom = Math.max(0.65, fitScale * 0.90);
+    const halfSpanX = Math.max(
+        viewportWidth * 0.78,
+        (maxWX - minWX) * 0.50 + (viewportWidth * 0.56) / minCamZoom
+    );
+    const halfSpanY = Math.max(
+        viewportHeight * 0.78,
+        (maxWY - minWY) * 0.50 + (viewportHeight * 0.56) / minCamZoom
+    );
 
     const startTileX = Math.floor((centerWX - halfSpanX) / 256) - 1;
     const endTileX = Math.floor((centerWX + halfSpanX) / 256) + 1;
@@ -200,13 +214,6 @@ export function buildMapScene(coords, viewportWidth = 960, viewportHeight = 960)
         cumDist.push(cumDist[i - 1] + Math.hypot(dx, dy));
     }
     const totalPathPx = Math.max(1, cumDist[cumDist.length - 1]);
-
-    const routeBoundsW = Math.max(80, maxWX - minWX);
-    const routeBoundsH = Math.max(80, maxWY - minWY);
-    const fitScale = Math.min(
-        1.48,
-        Math.max(0.75, Math.min(usableW / routeBoundsW, usableH / routeBoundsH))
-    );
 
     return {
         z: chosenZ,
@@ -276,8 +283,8 @@ export function sampleSmoothedCameraTarget(scene, progress) {
     const { points, cumDist, totalPathPx, centerSceneX, centerSceneY } = scene;
     if (!points.length) return { x: centerSceneX, y: centerSceneY };
 
-    const offsets = [-0.14, -0.07, 0, 0.07, 0.14];
-    const weights = [0.12, 0.24, 0.28, 0.24, 0.12];
+    const offsets = [-0.10, -0.05, 0, 0.05, 0.10];
+    const weights = [0.15, 0.22, 0.26, 0.22, 0.15];
     let sumX = 0;
     let sumY = 0;
 
@@ -289,9 +296,33 @@ export function sampleSmoothedCameraTarget(scene, progress) {
     }
 
     return {
-        x: sumX * 0.55 + centerSceneX * 0.45,
-        y: sumY * 0.55 + centerSceneY * 0.45
+        x: sumX * 0.86 + centerSceneX * 0.14,
+        y: sumY * 0.86 + centerSceneY * 0.14
     };
+}
+
+/**
+ * Multi-phase C2-continuous camera zoom multiplier:
+ * - Frame 0..52: Zoom IN from full-route overview (0.98x) to close departure chase (2.20x)
+ * - Frame 52..108: Zoom OUT to mid-journey regional overview (1.22x)
+ * - Frame 108..154: Zoom IN for destination approach (2.05x)
+ * - Frame 154..212: Zoom OUT to full-route finale overview (0.94x)
+ */
+export function computeCameraZoomMultiplier(frame) {
+    if (frame <= 52) {
+        const t = smootherstep(0, 52, frame);
+        return 0.98 + (2.20 - 0.98) * t;
+    }
+    if (frame <= 108) {
+        const t = smootherstep(52, 108, frame);
+        return 2.20 + (1.22 - 2.20) * t;
+    }
+    if (frame <= 154) {
+        const t = smootherstep(108, 154, frame);
+        return 1.22 + (2.05 - 1.22) * t;
+    }
+    const t = smootherstep(154, 212, frame);
+    return 2.05 + (0.94 - 2.05) * t;
 }
 
 export function shortenStationName(name) {

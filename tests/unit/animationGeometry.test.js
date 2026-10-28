@@ -9,6 +9,7 @@ import {
     smootherstep,
     samplePointAlongRoute,
     sampleSmoothedCameraTarget,
+    computeCameraZoomMultiplier,
     shortenStationName,
     getContrastingTextColor
 } from '../../js/animation/geometry.js';
@@ -77,7 +78,7 @@ describe('Animation Geometry & Camera Smoothing', () => {
         ];
         const scene = buildMapScene(coords, 960, 960);
         expect(scene.z).toBeGreaterThanOrEqual(4);
-        expect(scene.z).toBeLessThanOrEqual(14);
+        expect(scene.z).toBeLessThanOrEqual(15);
         expect(scene.tiles.length).toBeGreaterThan(0);
         expect(scene.points).toHaveLength(3);
         expect(scene.totalPathPx).toBeGreaterThan(10);
@@ -116,6 +117,19 @@ describe('Animation Geometry & Camera Smoothing', () => {
         expect(shortenStationName('Berlin Ostbahnhof Bhf')).toBe('Berlin Ostbahnhof');
         expect(getContrastingTextColor('#8c6dab', '000000')).toBe('#ffffff');
         expect(getContrastingTextColor('#fef08a', '')).toBe('#0f172a');
+    });
+
+    it('zooms in on departure, out mid-journey, in on arrival approach, and out for finale', () => {
+        const zStart = computeCameraZoomMultiplier(0);
+        const zDepartPeak = computeCameraZoomMultiplier(52);
+        const zMidCruise = computeCameraZoomMultiplier(108);
+        const zArrivalApproach = computeCameraZoomMultiplier(154);
+        const zFinale = computeCameraZoomMultiplier(220);
+
+        expect(zDepartPeak).toBeGreaterThan(zStart + 0.8);
+        expect(zMidCruise).toBeLessThan(zDepartPeak - 0.5);
+        expect(zArrivalApproach).toBeGreaterThan(zMidCruise + 0.5);
+        expect(zFinale).toBeLessThan(1.0);
     });
 });
 

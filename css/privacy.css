@@ -8,6 +8,20 @@
 @layer layout, components, utilities;
 
 @layer layout {
+    *, *::before, *::after {
+        box-sizing: border-box;
+    }
+
+    html {
+        margin: 0;
+        padding: 0;
+        background-color: var(--bg-page);
+        color: var(--text-primary);
+        overflow-x: clip;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
     body {
         margin: 0;
         padding: 0;
@@ -15,9 +29,12 @@
         background-color: var(--bg-page);
         color: var(--text-primary);
         min-block-size: 100dvh;
+        block-size: auto;
+        position: static;
+        overflow-x: clip;
+        overflow-y: visible;
         display: flex;
         flex-direction: column;
-        overflow-x: clip;
     }
 
     .priv-header {
@@ -552,3 +569,4 @@
         display: none;
     }
 }
+

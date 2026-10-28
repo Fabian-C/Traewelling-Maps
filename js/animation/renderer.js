@@ -14,6 +14,7 @@ import {
     smootherstep,
     samplePointAlongRoute,
     sampleSmoothedCameraTarget,
+    computeCameraZoomMultiplier,
     shortenStationName,
     getContrastingTextColor
 } from './geometry.js';
@@ -352,17 +353,18 @@ export function renderTripFrame({
         ? new Date(dateRaw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
         : '';
 
-    // C2-continuous quintic smootherstep curves
+    // C2-continuous quintic smootherstep curves with multi-phase zoom in/out
     const travelProgress = smootherstep(22, 176, frame);
-    const finaleBlend = smootherstep(120, 212, frame);
+    const introOverviewBlend = 1 - smootherstep(0, 44, frame);
+    const finaleBlend = smootherstep(148, 212, frame);
+    const overviewBlend = Math.max(introOverviewBlend, finaleBlend);
 
     const vehiclePose = samplePointAlongRoute(scene, travelProgress);
     const smoothChaseTarget = sampleSmoothedCameraTarget(scene, travelProgress);
-    const camTargetX = smoothChaseTarget.x + (scene.centerSceneX - smoothChaseTarget.x) * finaleBlend;
-    const camTargetY = smoothChaseTarget.y + (scene.centerSceneY - smoothChaseTarget.y) * finaleBlend;
+    const camTargetX = smoothChaseTarget.x + (scene.centerSceneX - smoothChaseTarget.x) * overviewBlend;
+    const camTargetY = smoothChaseTarget.y + (scene.centerSceneY - smoothChaseTarget.y) * overviewBlend;
 
-    const zoomProgress = smootherstep(12, 212, frame);
-    const camZoom = scene.fitScale * (1.22 + (0.98 - 1.22) * zoomProgress);
+    const camZoom = scene.fitScale * computeCameraZoomMultiplier(frame);
 
     const currentDistKm = (totalDistanceKm * travelProgress).toFixed(1);
     const viewCenterY = height / 2 + 42;

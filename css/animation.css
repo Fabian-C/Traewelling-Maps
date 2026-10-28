@@ -8,6 +8,20 @@
 @layer layout, components, utilities;
 
 @layer layout {
+    *, *::before, *::after {
+        box-sizing: border-box;
+    }
+
+    html {
+        margin: 0;
+        padding: 0;
+        background-color: var(--bg-page);
+        color: var(--text-primary);
+        overflow-x: clip;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
     body {
         margin: 0;
         padding: 0;
@@ -15,9 +29,12 @@
         background-color: var(--bg-page);
         color: var(--text-primary);
         min-block-size: 100dvh;
+        block-size: auto;
+        position: static;
+        overflow-x: clip;
+        overflow-y: visible;
         display: flex;
         flex-direction: column;
-        overflow-x: clip;
     }
 
     .anim-header {
@@ -86,6 +103,33 @@
 
         .anim-stage {
             padding: 16px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .anim-header {
+            position: static;
+            padding-block: 10px;
+            padding-inline: 12px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .anim-toolbar {
+            padding-block: 10px;
+            padding-inline: 12px;
+            gap: 10px;
+        }
+
+        .anim-layout {
+            padding-block: 12px 36px;
+            padding-inline: 12px;
+            gap: 14px;
+        }
+
+        .anim-stage {
+            padding: 8px;
+            border-radius: 14px;
         }
     }
 }
@@ -412,6 +456,96 @@
 
     @keyframes spin {
         to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 768px) {
+        .anim-brand {
+            gap: 8px;
+        }
+
+        .anim-brand-icon {
+            inline-size: 28px;
+            block-size: 28px;
+        }
+
+        .anim-brand-text {
+            font-size: 14px;
+        }
+
+        .anim-brand-badge {
+            font-size: 9px;
+            padding-inline: 6px;
+        }
+
+        .anim-nav-links {
+            inline-size: 100%;
+            gap: 6px;
+        }
+
+        .anim-nav-btn {
+            flex: 1 1 0;
+            justify-content: center;
+            padding-block: 6px;
+            padding-inline: 8px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .anim-selector-group {
+            inline-size: 100%;
+            gap: 8px;
+        }
+
+        .anim-select-label {
+            inline-size: 100%;
+            gap: 8px;
+        }
+
+        .anim-select-label > span {
+            min-inline-size: 58px;
+            font-weight: 600;
+        }
+
+        .anim-select,
+        .anim-select-trip {
+            flex: 1 1 auto;
+            min-inline-size: 0;
+            max-inline-size: 100%;
+            inline-size: 100%;
+            font-size: 14px;
+            padding-block: 8px;
+        }
+
+        .aspect-pill-group {
+            inline-size: 100%;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+            padding: 3px;
+            gap: 4px;
+        }
+
+        .aspect-pill-group::-webkit-scrollbar {
+            display: none;
+        }
+
+        .aspect-pill {
+            flex: 0 0 auto;
+            white-space: nowrap;
+            padding-block: 7px;
+            padding-inline: 12px;
+            font-size: 12px;
+        }
+
+        .player-wrapper {
+            border-radius: 12px;
+        }
+
+        .anim-download-btn {
+            padding-block: 13px;
+            font-size: 14px;
+        }
     }
 }
 
