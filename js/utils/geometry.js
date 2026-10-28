@@ -42,7 +42,7 @@ export function getTapTolerancePx(zoom = null) {
  * Snap a point to the nearest position on a line using turf.js
  */
 export function snapLngLatToLine(lngLat, featureOrGeometry) {
-    if (!lngLat || !featureOrGeometry || !window.turf) return null;
+    if (!lngLat || !featureOrGeometry || typeof window === 'undefined' || !window.turf) return null;
     const geometry = featureOrGeometry.geometry || featureOrGeometry;
     if (geometry?.type !== 'LineString' || !Array.isArray(geometry.coordinates)) return null;
     try {

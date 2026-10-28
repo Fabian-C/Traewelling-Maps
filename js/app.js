@@ -405,20 +405,35 @@ function handlePreviewMode() {
     } else {
         const setupEl = document.getElementById('setupScreen');
         if (setupEl) setupEl.classList.add('hidden');
+        const m = document.getElementById('mainMenu');
+        if (m && previewMode !== 'stats') {
+            m.style.display = '';
+            m.setAttribute('open', '');
+            m.open = true;
+        }
+        if (previewMode === 'search') {
+            const s = document.getElementById('searchTripsSubmenu');
+            if (s) { s.setAttribute('open', ''); s.open = true; }
+        } else if (previewMode === 'layers') {
+            const l = document.getElementById('transportLayersSubmenu');
+            if (l) { l.setAttribute('open', ''); l.open = true; }
+        }
 
         import('./fetch/orchestrator.js').then(async ({ processAndDisplayData }) => {
-            await processAndDisplayData(sampleTrips, true);
+            try {
+                await processAndDisplayData(sampleTrips, true);
+            } catch (err) {
+                console.warn('Preview processAndDisplayData error:', err);
+            }
 
             if (previewMode === 'layers') {
-                const m = document.getElementById('mainMenu');
-                if (m) { m.setAttribute('open', ''); m.open = true; }
+                if (m) { m.style.display = ''; m.setAttribute('open', ''); m.open = true; }
                 const l = document.getElementById('transportLayersSubmenu');
                 if (l) { l.setAttribute('open', ''); l.open = true; }
             } else if (previewMode === 'search') {
-                const m = document.getElementById('mainMenu');
-                if (m) { m.setAttribute('open', ''); m.open = true; }
-                const s = document.querySelectorAll('.menu-submenu');
-                s.forEach(el => { if (el.textContent.includes('Search Trips')) { el.setAttribute('open', ''); el.open = true; } });
+                if (m) { m.style.display = ''; m.setAttribute('open', ''); m.open = true; }
+                const s = document.getElementById('searchTripsSubmenu');
+                if (s) { s.setAttribute('open', ''); s.open = true; }
             } else if (previewMode === 'stats') {
                 const panel = document.getElementById('statsPanel');
                 if (panel) {
@@ -427,13 +442,12 @@ function handlePreviewMode() {
                     panel.style.opacity = '1';
                     document.body.classList.add('stats-open');
                 }
-                const m = document.getElementById('mainMenu');
                 if (m) {
                     m.open = false;
                     m.removeAttribute('open');
                 }
             }
-        });
+        }).catch(e => console.warn('Preview orchestrator import error:', e));
     }
 }
 
