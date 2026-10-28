@@ -1054,30 +1054,6 @@ body.stats-open .active-filter-badges {
     flex-direction: column;
 }
 
-.route-popup .popup-content.is-stacked {
-    height: min(258px, 56vh);
-    min-height: min(258px, 56vh);
-    max-height: min(258px, 56vh);
-}
-
-.route-popup .popup-body-scroll {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(56, 189, 248, 0.35) transparent;
-}
-
-.route-popup .popup-body-scroll::-webkit-scrollbar {
-    width: 4px;
-}
-
-.route-popup .popup-body-scroll::-webkit-scrollbar-thumb {
-    background: rgba(56, 189, 248, 0.35);
-    border-radius: 4px;
-}
-
 .route-popup.mapboxgl-popup-anchor-top .mapboxgl-popup-tip {
     border-bottom-color: rgba(10, 14, 22, 0.28);
 }
@@ -1540,7 +1516,8 @@ body.stats-open .active-filter-badges {
 .route-popup .popup-actions {
     display: flex;
     gap: 5px;
-    margin-top: 5px;
+    margin-top: auto;
+    padding-top: 5px;
 }
 
 .route-popup .popup-actions button,

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TräwellBoast — Animated Journey Map Studio</title>
+    <title>Trip Clip — Träwelling Map Explorer</title>
     <link rel="icon" type="image/x-icon" href="https://traewelling.de/favicon.ico">
 
     <!-- Stylesheets -->
@@ -22,13 +22,15 @@
         <a href="index.html" class="anim-brand" id="navHomeLink" aria-label="Return to Map">
             <span class="anim-brand-icon" aria-hidden="true">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
-                    <line x1="9" y1="3" x2="9" y2="18"></line>
-                    <line x1="15" y1="6" x2="15" y2="21"></line>
+                    <rect x="4" y="3" width="16" height="14" rx="2"></rect>
+                    <path d="M4 11h16"></path>
+                    <path d="M12 3v8"></path>
+                    <path d="m8 19-2 3"></path>
+                    <path d="m16 19 2 3"></path>
                 </svg>
             </span>
-            <span class="anim-brand-text">TräwellBoast</span>
-            <span class="anim-brand-badge">Remotion Map Animator</span>
+            <span class="anim-brand-text">Träwelling Map Explorer</span>
+            <span class="anim-brand-badge">Trip Clip</span>
         </a>
 
         <!-- Cross-view Navigation -->
@@ -58,8 +60,8 @@
         </nav>
     </header>
 
-    <!-- Studio Toolbar: Account & Journey Selectors + Map Theme Switcher -->
-    <section class="anim-toolbar" aria-label="Animation Controls">
+    <!-- Toolbar: Account & Journey Selectors + 7 Map Tile Sets + Tile Readiness Indicator -->
+    <section class="anim-toolbar" aria-label="Clip Controls">
         <div class="anim-selector-group">
             <label class="anim-select-label" for="userSelect">
                 <span>Account:</span>
@@ -68,50 +70,48 @@
 
             <label class="anim-select-label" for="tripSelect">
                 <span>Journey:</span>
-                <select id="tripSelect" class="anim-select" aria-label="Select Journey to Animate" style="min-width: 280px;"></select>
+                <select id="tripSelect" class="anim-select" aria-label="Select Journey to Animate" style="min-width: 270px;"></select>
             </label>
         </div>
 
         <div class="anim-selector-group">
-            <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Map Theme:</span>
+            <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Map Style:</span>
             <div class="aspect-pill-group" role="tablist" aria-label="Map Visual Theme">
-                <button type="button" class="aspect-pill map-style-pill active" data-style="voyager" role="tab">TravelBoast Bright</button>
-                <button type="button" class="aspect-pill map-style-pill" data-style="dark" role="tab">Night Rail</button>
-                <button type="button" class="aspect-pill map-style-pill" data-style="outdoors" role="tab">Topo &amp; Tracks</button>
-                <button type="button" class="aspect-pill map-style-pill" data-style="satellite" role="tab">Satellite</button>
+                <button type="button" class="aspect-pill map-style-pill active" data-style="traewelling-dark" role="tab">Träwelling Dark</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="traewelling-light" role="tab">Träwelling Light</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="db-light" role="tab">DB Modern Light</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="db-dark" role="tab">DB Strecken Night</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="voyager" role="tab">Classic Streets</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="topo" role="tab">Rail &amp; Topo</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="osm-de" role="tab">Free OSM Rail</button>
             </div>
+
+            <span id="tilePreloadBadge" class="tile-preload-badge" aria-live="polite">⏳ Preloading tiles…</span>
         </div>
     </section>
 
-    <!-- Main Studio Content Area -->
+    <!-- Main Content Area -->
     <main class="anim-layout">
-        <!-- Center Stage: Rectangular 16:9 Remotion Map Player -->
+        <!-- Center Stage: Rectangular 16:9 HD Video Player -->
         <section class="anim-stage" aria-label="Video Player Stage">
-            <div id="playerContainer" class="player-host">
+            <div id="playerContainer" class="player-host ratio-landscape">
                 <div class="anim-loading">
                     <div class="spinner"></div>
-                    <div>Loading Remotion 3D Map Composition...</div>
+                    <div>Loading Journey Video Clip...</div>
                 </div>
-            </div>
-
-            <!-- Scene Keyframe Bar -->
-            <div class="scene-keyframe-bar" role="toolbar" aria-label="Scene Phase Shortcuts">
-                <button type="button" class="scene-jump-btn primary" data-scene="play">▶ Play Full Journey</button>
-                <button type="button" class="scene-jump-btn" data-frame="15">🟢 Origin Departure</button>
-                <button type="button" class="scene-jump-btn" data-frame="100">🚄 Mid-Journey Chase</button>
-                <button type="button" class="scene-jump-btn" data-frame="215">🏁 Finale Overview</button>
             </div>
         </section>
 
         <!-- Right Inspector Sidebar -->
-        <aside class="anim-sidebar" aria-label="Journey Details & Controls">
+        <aside class="anim-sidebar" aria-label="Journey Details, Download & Mastodon Share">
+            <!-- Card 1: Journey Details -->
             <div class="anim-card">
                 <h2 class="anim-card-title">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
                         <rect width="20" height="14" x="2" y="5" rx="2"></rect>
                         <line x1="2" x2="22" y1="10" y2="10"></line>
                     </svg>
-                    <span>Journey Telemetry</span>
+                    <span>Journey Details</span>
                 </h2>
 
                 <div class="trip-preview-grid">
@@ -128,7 +128,7 @@
                         <strong id="sidebarRoute">—</strong>
                     </div>
                     <div class="trip-preview-item">
-                        <label>Departure Delay</label>
+                        <label>Delay</label>
                         <strong id="sidebarDelay">—</strong>
                     </div>
                     <div class="trip-preview-item">
@@ -142,14 +142,57 @@
                 </div>
             </div>
 
-            <!-- How It Works / Choreography Card -->
-            <div class="anim-card" style="font-size: 12px; color: var(--text-secondary); line-height: 1.55;">
-                <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">🎥 3-Act Camera Choreography</div>
-                <ul style="margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 6px;">
-                    <li><strong>Act 1 (0–1s):</strong> 3D perspective zoom into the departure station with spring pin drop.</li>
-                    <li><strong>Act 2 (1–5.7s):</strong> Directional vehicle glides along real Mercator railway/ferry tracks while the camera chases it.</li>
-                    <li><strong>Act 3 (5.7–8s):</strong> Smooth zoom-out framing the complete route with summary badge.</li>
-                </ul>
+            <!-- Card 2: Download Video Clip -->
+            <div class="anim-card">
+                <h2 class="anim-card-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>Download Video Clip</span>
+                </h2>
+                <p style="margin: 0 0 10px 0; font-size: 12px; color: var(--text-secondary); line-height: 1.45;">
+                    Export a rectangular 16:9 HD video (1280×720) with all map tiles preloaded, ready to upload to Twitter / X, Mastodon, or Bluesky.
+                </p>
+                <button type="button" id="downloadVideoBtn" class="anim-download-btn">
+                    ⬇ Download Video Clip (16:9 HD)
+                </button>
+                <div id="recordProgressWrap" class="record-progress-wrap hidden">
+                    <div class="record-progress-track">
+                        <div id="recordProgressBar" class="record-progress-fill" style="width: 0%;"></div>
+                    </div>
+                    <div id="recordStatusText" class="record-status-text">Preparing video…</div>
+                </div>
+            </div>
+
+            <!-- Card 3: Prepopulated Mastodon Post Share -->
+            <div class="anim-card">
+                <h2 class="anim-card-title">
+                    <span style="font-size: 16px;" aria-hidden="true">🐘</span>
+                    <span>Share on Mastodon</span>
+                </h2>
+                <label class="mastodon-field-label" for="mastodonInstanceInput">Mastodon Instance</label>
+                <div class="mastodon-instance-row">
+                    <input type="text" id="mastodonInstanceInput" class="mastodon-input" value="mastodon.social" placeholder="e.g. mastodon.social" />
+                    <div class="mastodon-quick-instances">
+                        <button type="button" class="instance-chip" data-instance="mastodon.social">mastodon.social</button>
+                        <button type="button" class="instance-chip" data-instance="chaos.social">chaos.social</button>
+                        <button type="button" class="instance-chip" data-instance="bahn.social">bahn.social</button>
+                    </div>
+                </div>
+
+                <label class="mastodon-field-label" for="mastodonPostText">Prepopulated Post (with Träwelling Link)</label>
+                <textarea id="mastodonPostText" class="mastodon-textarea" rows="4"></textarea>
+
+                <div class="mastodon-actions">
+                    <button type="button" id="shareMastodonBtn" class="anim-mastodon-btn">
+                        🐘 Download Video &amp; Open Mastodon Post
+                    </button>
+                    <button type="button" id="copyMastodonTextBtn" class="anim-secondary-btn">
+                        📋 Copy Post Text
+                    </button>
+                </div>
             </div>
         </aside>
     </main>
