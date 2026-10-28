@@ -423,6 +423,11 @@ function getXYAtDistance(points, cumDist, distPx) {
     };
 }
 
+function smootherstep(edge0, edge1, x) {
+    const t = Math.max(0, Math.min(1, (x - edge0) / Math.max(0.0001, edge1 - edge0)));
+    return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
 function samplePointAlongRoute(scene, progress) {
     const { points, cumDist, totalPathPx } = scene;
     if (!points.length) return { x: 0, y: 0, angleRad: 0, index: 0 };
@@ -431,13 +436,44 @@ function samplePointAlongRoute(scene, progress) {
     const targetDist = Math.max(0, Math.min(1, progress)) * totalPathPx;
     const pos = getXYAtDistance(points, cumDist, targetDist);
 
-    // Smooth angle using a pixel-distance window along the route rather than raw vertex indices
-    const windowPx = Math.min(24, Math.max(6, totalPathPx * 0.05));
-    const behind = getXYAtDistance(points, cumDist, targetDist - windowPx);
-    const ahead = getXYAtDistance(points, cumDist, targetDist + windowPx);
-    const angleRad = Math.atan2(ahead.y - behind.y, ahead.x - behind.x);
+    // Multi-tap Gaussian-smoothed tangent so vehicle rotation is completely fluid around bends
+    const windowPx = Math.min(32, Math.max(8, totalPathPx * 0.065));
+    const b2 = getXYAtDistance(points, cumDist, targetDist - windowPx);
+    const b1 = getXYAtDistance(points, cumDist, targetDist - windowPx * 0.5);
+    const a1 = getXYAtDistance(points, cumDist, targetDist + windowPx * 0.5);
+    const a2 = getXYAtDistance(points, cumDist, targetDist + windowPx);
+    const dx = (a1.x - b1.x) * 0.65 + (a2.x - b2.x) * 0.35;
+    const dy = (a1.y - b1.y) * 0.65 + (a2.y - b2.y) * 0.35;
+    const angleRad = Math.atan2(dy, dx);
 
     return { x: pos.x, y: pos.y, angleRad, index: pos.index };
+}
+
+/**
+ * Low-pass spatial filter for the camera target along the route so track bends
+ * never cause lateral camera shake.
+ */
+function sampleSmoothedCameraTarget(scene, progress) {
+    const { points, cumDist, totalPathPx, centerSceneX, centerSceneY } = scene;
+    if (!points.length) return { x: centerSceneX, y: centerSceneY };
+
+    const offsets = [-0.14, -0.07, 0, 0.07, 0.14];
+    const weights = [0.12, 0.24, 0.28, 0.24, 0.12];
+    let sumX = 0;
+    let sumY = 0;
+
+    for (let i = 0; i < offsets.length; i++) {
+        const p = Math.max(0, Math.min(1, progress + offsets[i]));
+        const pt = getXYAtDistance(points, cumDist, p * totalPathPx);
+        sumX += pt.x * weights[i];
+        sumY += pt.y * weights[i];
+    }
+
+    // Blend 28% toward the overall route center even during the chase for gentle, cinematic framing
+    return {
+        x: sumX * 0.72 + centerSceneX * 0.28,
+        y: sumY * 0.72 + centerSceneY * 0.28
+    };
 }
 
 function shortenStationName(name) {
@@ -797,33 +833,21 @@ export function TripStoryComposition({
             ? new Date(dateRaw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
             : '';
 
-        // Choreography (240 frames @ 30fps = 8.0s)
-        const introSpring = spring({ frame, fps, config: { damping: 13, stiffness: 110 } });
-        const rawTravel = interpolate(frame, [28, 172], [0, 1], {
-            extrapolateLeft: 'clamp',
-            extrapolateRight: 'clamp'
-        });
-        const travelProgress = rawTravel < 0.5
-            ? 4 * rawTravel * rawTravel * rawTravel
-            : 1 - Math.pow(-2 * rawTravel + 2, 3) / 2;
+        // Choreography (240 frames @ 30fps = 8.0s) — C2-continuous quintic smootherstep curves
+        const introSpring = spring({ frame, fps, config: { damping: 18, stiffness: 90 } });
+        const travelProgress = smootherstep(22, 176, frame);
 
-        const finaleBlend = spring({
-            frame: frame - 170,
-            fps,
-            config: { damping: 16, stiffness: 70, mass: 1.1 }
-        });
+        // Overlapping quintic blend to full-route overview (starts gently at frame 120, settles smoothly by 212)
+        const finaleBlend = smootherstep(120, 212, frame);
 
         const vehiclePose = samplePointAlongRoute(scene, travelProgress);
-        const camTargetX = interpolate(finaleBlend, [0, 1], [vehiclePose.x, scene.centerSceneX]);
-        const camTargetY = interpolate(finaleBlend, [0, 1], [vehiclePose.y, scene.centerSceneY]);
+        const smoothChaseTarget = sampleSmoothedCameraTarget(scene, travelProgress);
+        const camTargetX = interpolate(finaleBlend, [0, 1], [smoothChaseTarget.x, scene.centerSceneX]);
+        const camTargetY = interpolate(finaleBlend, [0, 1], [smoothChaseTarget.y, scene.centerSceneY]);
 
-        const chaseZoom = interpolate(
-            frame,
-            [0, 28, 100, 170],
-            [scene.fitScale * 1.56, scene.fitScale * 1.44, scene.fitScale * 1.32, scene.fitScale * 1.40],
-            { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-        );
-        const camZoom = interpolate(finaleBlend, [0, 1], [chaseZoom, scene.fitScale * 0.98]);
+        // Single continuous, non-reversing zoom glide from 1.36x down to 0.98x fitScale
+        const zoomProgress = smootherstep(12, 212, frame);
+        const camZoom = interpolate(zoomProgress, [0, 1], [scene.fitScale * 1.36, scene.fitScale * 0.98]);
 
         const currentDistKm = (totalDistanceKm * travelProgress).toFixed(1);
 
@@ -957,7 +981,8 @@ export function TripStoryComposition({
         if (destPt) {
             ctx.save();
             ctx.translate(destPt.x, destPt.y);
-            const destScale = (travelProgress > 0.92 ? 1.05 : 0.90) / camZoom;
+            const destPulse = smootherstep(0.84, 1.0, travelProgress);
+            const destScale = (0.94 + destPulse * 0.08) / camZoom;
             ctx.scale(destScale, destScale);
             drawStationPin(ctx, 0, 0, destName, lineColor, true, !originIsNorthOfDest, frame);
             ctx.restore();
