@@ -302,27 +302,22 @@ export function sampleSmoothedCameraTarget(scene, progress) {
 }
 
 /**
- * Multi-phase C2-continuous camera zoom multiplier:
- * - Frame 0..52: Zoom IN from full-route overview (0.98x) to close departure chase (2.20x)
- * - Frame 52..108: Zoom OUT to mid-journey regional overview (1.22x)
- * - Frame 108..154: Zoom IN for destination approach (2.05x)
- * - Frame 154..212: Zoom OUT to full-route finale overview (0.94x)
+ * Single-arc C2-continuous camera zoom multiplier:
+ * - Frame 0..48: Zoom IN from full-route overview (0.98x) to close chase zoom (2.15x)
+ * - Frame 48..152: Hold close chase zoom along the track (gentle 2.15x -> 2.00x)
+ * - Frame 152..212: Zoom OUT to full-route finale overview (0.94x)
  */
 export function computeCameraZoomMultiplier(frame) {
-    if (frame <= 52) {
-        const t = smootherstep(0, 52, frame);
-        return 0.98 + (2.20 - 0.98) * t;
+    if (frame <= 48) {
+        const t = smootherstep(0, 48, frame);
+        return 0.98 + (2.15 - 0.98) * t;
     }
-    if (frame <= 108) {
-        const t = smootherstep(52, 108, frame);
-        return 2.20 + (1.22 - 2.20) * t;
+    if (frame <= 152) {
+        const t = smootherstep(48, 152, frame);
+        return 2.15 + (2.00 - 2.15) * t;
     }
-    if (frame <= 154) {
-        const t = smootherstep(108, 154, frame);
-        return 1.22 + (2.05 - 1.22) * t;
-    }
-    const t = smootherstep(154, 212, frame);
-    return 2.05 + (0.94 - 2.05) * t;
+    const t = smootherstep(152, 212, frame);
+    return 2.00 + (0.94 - 2.00) * t;
 }
 
 export function shortenStationName(name) {

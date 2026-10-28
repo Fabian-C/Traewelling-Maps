@@ -119,16 +119,16 @@ describe('Animation Geometry & Camera Smoothing', () => {
         expect(getContrastingTextColor('#fef08a', '')).toBe('#0f172a');
     });
 
-    it('zooms in on departure, out mid-journey, in on arrival approach, and out for finale', () => {
+    it('zooms in on departure, holds close chase zoom during travel, and zooms out for finale', () => {
         const zStart = computeCameraZoomMultiplier(0);
-        const zDepartPeak = computeCameraZoomMultiplier(52);
-        const zMidCruise = computeCameraZoomMultiplier(108);
-        const zArrivalApproach = computeCameraZoomMultiplier(154);
+        const zDepartPeak = computeCameraZoomMultiplier(48);
+        const zMidCruise = computeCameraZoomMultiplier(100);
+        const zPreFinale = computeCameraZoomMultiplier(152);
         const zFinale = computeCameraZoomMultiplier(220);
 
-        expect(zDepartPeak).toBeGreaterThan(zStart + 0.8);
-        expect(zMidCruise).toBeLessThan(zDepartPeak - 0.5);
-        expect(zArrivalApproach).toBeGreaterThan(zMidCruise + 0.5);
+        expect(zDepartPeak).toBeGreaterThan(zStart + 1.0);
+        expect(zMidCruise).toBeGreaterThan(2.0);
+        expect(zPreFinale).toBeCloseTo(2.0, 2);
         expect(zFinale).toBeLessThan(1.0);
     });
 });
