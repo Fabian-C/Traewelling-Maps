@@ -18,8 +18,8 @@
 
 <body>
     <!-- Top Sticky Header -->
-    <header class="anim-header" role="banner">
-        <a href="index.html" class="anim-brand" id="navHomeLink" aria-label="Return to Map">
+    <header class="anim-header">
+        <a href="index.html" class="anim-brand" id="navHomeLink" aria-label="Return to Interactive Map">
             <span class="anim-brand-icon" aria-hidden="true">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="4" y="3" width="16" height="14" rx="2"></rect>
@@ -29,13 +29,13 @@
                     <path d="m16 19 2 3"></path>
                 </svg>
             </span>
-            <span class="anim-brand-text">Träwelling Map Explorer</span>
+            <h1 class="anim-brand-text">Träwelling Map Explorer</h1>
             <span class="anim-brand-badge">Trip Clip</span>
         </a>
 
         <!-- Cross-view Navigation -->
-        <nav class="anim-nav-links" aria-label="Main Navigation">
-            <a href="index.html" class="anim-nav-btn" id="navMapLink" title="Return to Interactive Map">
+        <nav class="anim-nav-links" aria-label="Primary">
+            <a href="index.html" class="anim-nav-btn" id="navMapLink">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
                     <line x1="9" y1="3" x2="9" y2="18"></line>
@@ -43,7 +43,7 @@
                 </svg>
                 <span>Interactive Map</span>
             </a>
-            <a href="trips.html" class="anim-nav-btn" id="navTripsLink" title="View Trip Database">
+            <a href="trips.html" class="anim-nav-btn" id="navTripsLink">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
                     <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
@@ -51,7 +51,7 @@
                 </svg>
                 <span>Database</span>
             </a>
-            <a href="wrapped.html" class="anim-nav-btn" id="navWrappedLink" title="View Rail Wrapped">
+            <a href="wrapped.html" class="anim-nav-btn" id="navWrappedLink">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
                 </svg>
@@ -61,86 +61,86 @@
     </header>
 
     <!-- Toolbar: Account & Journey Selectors + 7 Map Tile Sets -->
-    <section class="anim-toolbar" aria-label="Clip Controls">
+    <div class="anim-toolbar" role="toolbar" aria-label="Clip controls">
         <div class="anim-selector-group">
             <label class="anim-select-label" for="userSelect">
                 <span>Account:</span>
-                <select id="userSelect" class="anim-select" aria-label="Select User Profile"></select>
+                <select id="userSelect" class="anim-select"></select>
             </label>
 
             <label class="anim-select-label" for="tripSelect">
                 <span>Journey:</span>
-                <select id="tripSelect" class="anim-select" aria-label="Select Journey to Animate" style="min-width: 270px;"></select>
+                <select id="tripSelect" class="anim-select anim-select-trip"></select>
             </label>
         </div>
 
         <div class="anim-selector-group">
-            <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Map Style:</span>
-            <div class="aspect-pill-group" role="tablist" aria-label="Map Visual Theme">
-                <button type="button" class="aspect-pill map-style-pill active" data-style="traewelling-dark" role="tab">Träwelling Dark</button>
-                <button type="button" class="aspect-pill map-style-pill" data-style="traewelling-light" role="tab">Träwelling Light</button>
-                <button type="button" class="aspect-pill map-style-pill" data-style="db-light" role="tab">Modern Light</button>
-                <button type="button" class="aspect-pill map-style-pill" data-style="db-dark" role="tab">Modern Night</button>
-                <button type="button" class="aspect-pill map-style-pill" data-style="voyager" role="tab">Classic Streets</button>
-                <button type="button" class="aspect-pill map-style-pill" data-style="topo" role="tab">Rail &amp; Topo</button>
-                <button type="button" class="aspect-pill map-style-pill" data-style="osm-de" role="tab">Free OSM Rail</button>
+            <span class="anim-toolbar-label" id="mapStyleGroupLabel">Map Style:</span>
+            <div class="aspect-pill-group" role="group" aria-labelledby="mapStyleGroupLabel">
+                <button type="button" class="aspect-pill map-style-pill active" data-style="traewelling-dark" aria-pressed="true">Träwelling Dark</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="traewelling-light" aria-pressed="false">Träwelling Light</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="db-light" aria-pressed="false">Modern Light</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="db-dark" aria-pressed="false">Modern Night</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="voyager" aria-pressed="false">Classic Streets</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="topo" aria-pressed="false">Rail &amp; Topo</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="osm-de" aria-pressed="false">Free OSM Rail</button>
             </div>
         </div>
-    </section>
+    </div>
 
     <!-- Main Content Area -->
     <main class="anim-layout">
         <!-- Center Stage: Square 1:1 Video Player -->
-        <section class="anim-stage" aria-label="Video Player">
+        <div class="anim-stage">
             <div id="playerContainer" class="player-host ratio-square">
                 <div class="anim-loading">
-                    <div class="spinner"></div>
+                    <div class="spinner" aria-hidden="true"></div>
                     <div>Loading clip…</div>
                 </div>
             </div>
-        </section>
+        </div>
 
         <!-- Right Sidebar -->
-        <aside class="anim-sidebar" aria-label="Trip Details">
+        <aside class="anim-sidebar" aria-label="Trip details">
             <div class="anim-card">
                 <h2 class="anim-card-title">Trip Details</h2>
 
-                <div class="trip-preview-grid">
+                <dl class="trip-preview-grid">
                     <div class="trip-preview-item">
-                        <label>Line</label>
-                        <strong id="sidebarLine">—</strong>
-                    </div>
-                    <div class="trip-preview-item">
-                        <label>Distance</label>
-                        <strong id="sidebarDistance">—</strong>
-                    </div>
-                    <div class="trip-preview-item" style="grid-column: span 2;">
-                        <label>Route</label>
-                        <strong id="sidebarRoute">—</strong>
+                        <dt>Line</dt>
+                        <dd id="sidebarLine">—</dd>
                     </div>
                     <div class="trip-preview-item">
-                        <label>Delay</label>
-                        <strong id="sidebarDelay">—</strong>
+                        <dt>Distance</dt>
+                        <dd id="sidebarDistance">—</dd>
+                    </div>
+                    <div class="trip-preview-item trip-preview-span-full">
+                        <dt>Route</dt>
+                        <dd id="sidebarRoute">—</dd>
                     </div>
                     <div class="trip-preview-item">
-                        <label>Duration</label>
-                        <strong id="sidebarDuration">—</strong>
+                        <dt>Delay</dt>
+                        <dd id="sidebarDelay">—</dd>
                     </div>
-                    <div class="trip-preview-item" style="grid-column: span 2;">
-                        <label>Note</label>
-                        <span id="sidebarNote" style="font-size: 12px; color: var(--text-secondary);">—</span>
+                    <div class="trip-preview-item">
+                        <dt>Duration</dt>
+                        <dd id="sidebarDuration">—</dd>
                     </div>
-                </div>
+                    <div class="trip-preview-item trip-preview-span-full">
+                        <dt>Note</dt>
+                        <dd id="sidebarNote" class="trip-preview-note">—</dd>
+                    </div>
+                </dl>
 
-                <div style="margin-top: 14px;">
+                <div class="anim-download-actions">
                     <button type="button" id="downloadVideoBtn" class="anim-download-btn">
                         Download .webm
                     </button>
                     <div id="recordProgressWrap" class="record-progress-wrap hidden">
                         <div class="record-progress-track">
-                            <div id="recordProgressBar" class="record-progress-fill" style="width: 0%;"></div>
+                            <div id="recordProgressBar" class="record-progress-fill"></div>
                         </div>
-                        <div id="recordStatusText" class="record-status-text">Preparing…</div>
+                        <div id="recordStatusText" class="record-status-text" aria-live="polite">Preparing…</div>
                     </div>
                 </div>
             </div>

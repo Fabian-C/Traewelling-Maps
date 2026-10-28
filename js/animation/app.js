@@ -235,7 +235,9 @@ async function init() {
 
 function syncToolbarPills() {
     document.querySelectorAll('.map-style-pill').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.style === currentMapStyle);
+        const isActive = btn.dataset.style === currentMapStyle;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
 }
 
@@ -523,9 +525,8 @@ function setupControls() {
     // 7 Map Theme Switcher Pills
     document.querySelectorAll('.map-style-pill').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.map-style-pill').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
             currentMapStyle = btn.dataset.style || 'traewelling-dark';
+            syncToolbarPills();
             updateUrlParams();
             renderPlayer();
         });
