@@ -1,5 +1,6 @@
 // Event listeners module
 import { store } from '../state/store.js';
+import { escapeHtml } from '../utils/format.js';
 import { RouteAnimation } from '../map/routeAnimation.js';
 import { UI } from '../ui/ui.js';
 import { TraewellingAPI } from '../api/traewelling.js';
@@ -799,13 +800,6 @@ export function updateFilterBadges() {
 
     const resetAllBtn = badgesContainer.querySelector('#badgeResetAllBtn');
     if (resetAllBtn) resetAllBtn.onclick = resetAllActiveFilters;
-}
-
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    })[m]);
 }
 
 

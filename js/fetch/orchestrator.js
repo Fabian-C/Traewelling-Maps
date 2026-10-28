@@ -1,5 +1,6 @@
 // Data fetch orchestration module
 import { CONFIG } from '../config/config.js';
+import { escapeHtml } from '../utils/format.js';
 import { store } from '../state/store.js';
 import { SessionDB } from '../cache/session.js';
 import { TraewellingAPI } from '../api/traewelling.js';

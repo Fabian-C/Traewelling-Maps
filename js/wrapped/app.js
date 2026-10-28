@@ -1,5 +1,6 @@
 // Main application controller for Träwelling Rail Wrapped
 import { SessionDB } from '../cache/session.js';
+import { escapeHtml } from '../utils/format.js';
 import {
     extractAvailableYears,
     filterTripsByYear,
@@ -655,7 +656,7 @@ function renderDuelSection() {
 }
 
 function showEmptyState() {
-    const main = document.querySelector('.wrapped-container') || document.querySelector('.insights-container');
+    const main = document.querySelector('.wrapped-container');
     if (main) {
         main.innerHTML = `
             <div class="panel-card" style="text-align: center; padding: 60px 20px; max-width: 600px; margin: 60px auto;">
@@ -674,12 +675,3 @@ function showEmptyState() {
     }
 }
 
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}

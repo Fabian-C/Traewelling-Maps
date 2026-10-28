@@ -235,6 +235,7 @@ export async function fetchStopoversForTrips(trips = [], onProgress = null) {
     const cachedMap = await SessionDB.getStopoversBatch(ids);
 
     const stillMissing = [];
+    const newlyFetched = {};
     needsLookup.forEach(t => {
         if (cachedMap[t.id]) {
             const raw = cachedMap[t.id];

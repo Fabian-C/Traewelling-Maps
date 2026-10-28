@@ -63,7 +63,7 @@ body {
    Header & Navigation
    ========================================================================== */
 
-.insights-header, .wrapped-header {
+.wrapped-header {
     position: sticky;
     top: 0;
     z-index: 100;
@@ -81,7 +81,7 @@ body {
     max-width: 100vw;
 }
 
-.insights-brand, .wrapped-brand {
+.wrapped-brand {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -89,12 +89,12 @@ body {
     color: var(--text-primary);
 }
 
-.insights-brand-icon {
+.wrapped-brand-icon {
     font-size: 24px;
     line-height: 1;
 }
 
-.insights-brand-title {
+.wrapped-brand-title {
     font-family: var(--font-heading);
     font-weight: 700;
     font-size: 1.25rem;
@@ -104,7 +104,7 @@ body {
     -webkit-text-fill-color: transparent;
 }
 
-.insights-brand-badge {
+.wrapped-brand-badge {
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
@@ -116,7 +116,7 @@ body {
     color: var(--accent-cyan);
 }
 
-.insights-nav-actions, .wrapped-nav-actions {
+.wrapped-nav-actions {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -222,7 +222,7 @@ body {
    Main Container
    ========================================================================== */
 
-.insights-container, .wrapped-container {
+.wrapped-container {
     max-width: 1200px;
     margin: 0 auto;
     padding: 36px 20px 80px;
@@ -1075,12 +1075,12 @@ body {
    ========================================================================== */
 
 @media (max-width: 768px) {
-    .insights-header, .wrapped-header {
+    .wrapped-header {
         padding: 12px 14px;
         gap: 10px;
     }
 
-    .insights-nav-actions, .wrapped-nav-actions {
+    .wrapped-nav-actions {
         width: 100%;
         justify-content: space-between;
         gap: 8px;
@@ -1097,7 +1097,7 @@ body {
         display: none;
     }
 
-    .insights-container, .wrapped-container {
+    .wrapped-container {
         padding: 18px 14px 60px;
         gap: 22px;
     }
