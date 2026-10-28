@@ -158,3 +158,4 @@ export async function preloadTripTiles(trip, mapStyle = 'traewelling-dark', widt
 
     return { total, loaded };
 }
+

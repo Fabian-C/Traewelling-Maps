@@ -32,7 +32,7 @@ export class TraewellingAPI {
         }
     }
 
-    async request(endpoint, requireAuth = false, maxRetries = 2) {
+    async request(endpoint, requireAuth = false, maxRetries = 2, fetchOptions = {}) {
         if (requireAuth && !this.token) {
             throw new Error('API Error: Authentication token required');
         }
@@ -40,9 +40,12 @@ export class TraewellingAPI {
         let attempt = 0;
         while (true) {
             await this.waitForRateLimit();
-            const headers = { 'Accept': 'application/json' };
+            const headers = { 'Accept': 'application/json', ...(fetchOptions.headers || {}) };
             if (this.token) {
                 headers['Authorization'] = `Bearer ${this.token}`;
+            }
+            if (fetchOptions.body && !headers['Content-Type']) {
+                headers['Content-Type'] = 'application/json';
             }
 
             const controller = new AbortController();
@@ -50,7 +53,11 @@ export class TraewellingAPI {
 
             try {
                 const response = await fetch(`${CONFIG.API_BASE_URL}${endpoint}`, {
+                    method: fetchOptions.method || 'GET',
                     headers,
+                    body: fetchOptions.body
+                        ? (typeof fetchOptions.body === 'string' ? fetchOptions.body : JSON.stringify(fetchOptions.body))
+                        : undefined,
                     signal: controller.signal
                 });
                 clearTimeout(timeoutId);
@@ -62,7 +69,16 @@ export class TraewellingAPI {
                         await new Promise(r => setTimeout(r, 1500 * attempt));
                         continue;
                     }
-                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                    let errorDetail = `${response.status} ${response.statusText}`;
+                    try {
+                        const errJson = await response.json();
+                        if (errJson?.message) {
+                            errorDetail = `${response.status}: ${errJson.message}`;
+                        }
+                    } catch {
+                        // Ignore non-JSON error body
+                    }
+                    throw new Error(`API Error: ${errorDetail}`);
                 }
                 return await response.json();
             } catch (err) {
@@ -81,6 +97,12 @@ export class TraewellingAPI {
 
     getUserStatuses(username, page = 1) { return this.request(`/user/${encodeURIComponent(username)}/statuses?page=${page}`); }
     getStatus(statusId) { return this.request(`/status/${encodeURIComponent(statusId)}`).catch(() => null); }
+    updateStatus(statusId, payload) {
+        return this.request(`/status/${encodeURIComponent(statusId)}`, true, 2, {
+            method: 'PUT',
+            body: payload
+        });
+    }
     getPolyline(statusId) { return this.request(`/polyline/${statusId}`).catch(() => null); }
     getPolylines(statusIds) { return this.request(`/polyline/${statusIds.join(',')}`).catch(() => null); }
     getStopovers(statusIds) {

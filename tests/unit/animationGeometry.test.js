@@ -118,3 +118,4 @@ describe('Animation Geometry & Camera Smoothing', () => {
         expect(getContrastingTextColor('#fef08a', '')).toBe('#0f172a');
     });
 });
+
