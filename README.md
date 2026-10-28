@@ -143,13 +143,7 @@ npx serve
 
 ## CI/CD
 
-GitLab CI/CD pipeline configured for:
-- Linting
-- Testing
-- Building (optional)
-- Deployment to Netlify/GitHub Pages
-
-See [`.gitlab-ci.yml`](.gitlab-ci.yml) for configuration.
+GitHub Actions (`.github/workflows`): `ci.yml` runs lint + tests on every push/PR; `pages.yml` deploys the repository root to GitHub Pages (no build step).
 
 ## Performance
 
@@ -167,12 +161,8 @@ See [`.gitlab-ci.yml`](.gitlab-ci.yml) for configuration.
 
 ## License
 
-See LICENSE file for details.
+No license has been chosen yet.
 
 ## Contributing
 
-1. Follow the existing code style
-2. Add error handling for new features
-3. Include validation for user inputs
-4. Update documentation
-
+See [CONTRIBUTING.md](CONTRIBUTING.md).
