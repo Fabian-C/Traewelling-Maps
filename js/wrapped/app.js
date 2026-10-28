@@ -1,5 +1,6 @@
 // Main application controller for Träwelling Rail Wrapped
 import { SessionDB } from '../cache/session.js';
+import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { escapeHtml } from '../utils/format.js';
 import {
     extractAvailableYears,
@@ -38,17 +39,12 @@ export async function initWrapped() {
     const requestedYear = urlParams.get('year') || 'all';
     const fixtureUrl = urlParams.get('fixture');
 
-    // Synchronous localStorage session fallback (for instant loading and offline/test setups)
+    // Synchronous storage session fallback (for instant loading and offline/test setups)
     if (allSessions.length === 0) {
-        try {
-            const cachedRaw = localStorage.getItem('tw_cached_sessions_data');
-            if (cachedRaw) {
-                const parsed = JSON.parse(cachedRaw);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    allSessions = parsed;
-                }
-            }
-        } catch (e) {}
+        const parsed = Storage.getJSON(STORAGE_KEYS.SESSIONS_DATA, null);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            allSessions = parsed;
+        }
     }
 
     // Fixture / Preview fallback for testing / previews

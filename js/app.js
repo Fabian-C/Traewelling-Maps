@@ -1,4 +1,5 @@
 import { CONFIG } from './config/config.js';
+import { Storage, STORAGE_KEYS } from './storage/storage.js';
 import * as geometry from './utils/geometry.js';
 import * as color from './utils/color.js';
 import * as math from './utils/math.js';
@@ -133,13 +134,13 @@ export async function initApp() {
     // Intermediate stopovers persistence toggle synchronization
     const setupStopoversToggle = document.getElementById('fetchIncludeStopovers');
     const menuStopoversToggle = document.getElementById('menuFetchIncludeStopovers');
-    const savedFetchStopovers = localStorage.getItem('tw_fetch_stopovers');
+    const savedFetchStopovers = Storage.get(STORAGE_KEYS.FETCH_STOPOVERS);
     const initialFetchStopovers = savedFetchStopovers !== null ? savedFetchStopovers === 'true' : true;
     if (setupStopoversToggle) setupStopoversToggle.checked = initialFetchStopovers;
     if (menuStopoversToggle) menuStopoversToggle.checked = initialFetchStopovers;
 
     const onStopoverToggleChange = (checked) => {
-        try { localStorage.setItem('tw_fetch_stopovers', checked ? 'true' : 'false'); } catch (e) {}
+        Storage.set(STORAGE_KEYS.FETCH_STOPOVERS, checked ? 'true' : 'false');
         if (setupStopoversToggle) setupStopoversToggle.checked = checked;
         if (menuStopoversToggle) menuStopoversToggle.checked = checked;
     };
@@ -238,7 +239,7 @@ export async function initApp() {
     }
 
     // Auto-validate stored token
-    const storedToken = localStorage.getItem('tw_token');
+    const storedToken = Storage.get(STORAGE_KEYS.TOKEN);
     if (storedToken) {
         validateStoredToken(storedToken);
     }

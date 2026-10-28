@@ -1,5 +1,6 @@
 // OAuth 2.0 PKCE authentication module for Träwelling
 import { CONFIG } from '../config/config.js';
+import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 
 function generateRandomString(length = 64) {
     const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
@@ -52,8 +53,8 @@ export const OAuth = {
         const state = generateRandomString(32);
         const redirectUri = CONFIG.OAUTH.getRedirectUri();
 
-        sessionStorage.setItem('tw_oauth_verifier', verifier);
-        sessionStorage.setItem('tw_oauth_state', state);
+        Storage.setSession(STORAGE_KEYS.OAUTH_VERIFIER, verifier);
+        Storage.setSession(STORAGE_KEYS.OAUTH_STATE, state);
 
         const params = new URLSearchParams({
             client_id: CONFIG.OAUTH.CLIENT_ID,
@@ -93,12 +94,12 @@ export const OAuth = {
             return null;
         }
 
-        const savedState = sessionStorage.getItem('tw_oauth_state');
-        const verifier = sessionStorage.getItem('tw_oauth_verifier');
+        const savedState = Storage.getSession(STORAGE_KEYS.OAUTH_STATE);
+        const verifier = Storage.getSession(STORAGE_KEYS.OAUTH_VERIFIER);
 
         // Always clean up sessionStorage state
-        sessionStorage.removeItem('tw_oauth_state');
-        sessionStorage.removeItem('tw_oauth_verifier');
+        Storage.removeSession(STORAGE_KEYS.OAUTH_STATE);
+        Storage.removeSession(STORAGE_KEYS.OAUTH_VERIFIER);
 
         // Clean query parameters from URL bar without reloading
         window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);

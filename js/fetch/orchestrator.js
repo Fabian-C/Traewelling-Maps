@@ -1,5 +1,6 @@
 // Data fetch orchestration module
 import { CONFIG } from '../config/config.js';
+import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { escapeHtml } from '../utils/format.js';
 import { store } from '../state/store.js';
 import { SessionDB } from '../cache/session.js';
@@ -456,7 +457,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         // =========================================================================
         const shouldFetchStopovers = options.fetchStopovers !== undefined
             ? !!options.fetchStopovers
-            : ((typeof document !== 'undefined' && (document.getElementById('fetchIncludeStopovers')?.checked ?? document.getElementById('menuFetchIncludeStopovers')?.checked)) ?? (localStorage.getItem('tw_fetch_stopovers') !== 'false'));
+            : ((typeof document !== 'undefined' && (document.getElementById('fetchIncludeStopovers')?.checked ?? document.getElementById('menuFetchIncludeStopovers')?.checked)) ?? (Storage.get(STORAGE_KEYS.FETCH_STOPOVERS) !== 'false'));
 
         let stopoverCount = 0;
         const allTripsWithTrain = allStatuses.filter(s => s && s.train);

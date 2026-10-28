@@ -1,4 +1,5 @@
 // State store with pub/sub pattern
+import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 
 class StateStore {
     constructor() {
@@ -8,6 +9,7 @@ class StateStore {
 
     // Initialize the state with default values
     initialize(createEmptyStats) {
+        const savedFilter = Storage.get(STORAGE_KEYS.FILTER_LEVEL);
         this.state = {
             map: null,
             deck: null,
@@ -17,7 +19,7 @@ class StateStore {
             isMapMoving: false,
             lastMoveEndTime: 0,
             token: null,
-            authMethod: typeof localStorage !== 'undefined' ? localStorage.getItem('tw_auth_method') : null,
+            authMethod: Storage.get(STORAGE_KEYS.AUTH_METHOD),
             username: null,
             datasetVersion: 0,
             fetchedTrips: [],
@@ -26,11 +28,11 @@ class StateStore {
                 fromDate: null, 
                 toDate: null, 
                 searchQuery: '', 
-                filterLevel: typeof localStorage !== 'undefined' && localStorage.getItem('tw_filter_level') !== null ? parseInt(localStorage.getItem('tw_filter_level'), 10) : 1,
+                filterLevel: savedFilter !== null ? parseInt(savedFilter, 10) : 1,
                 buddies: [],
                 get buddy() { return this.buddies?.[0] || null; },
                 set buddy(val) { this.buddies = val ? (Array.isArray(val) ? val : [val]) : []; },
-                includeNoteMentions: typeof localStorage !== 'undefined' ? localStorage.getItem('tw_include_notes') !== 'false' : true,
+                includeNoteMentions: Storage.get(STORAGE_KEYS.INCLUDE_NOTES) !== 'false',
                 business: { personal: true, work: true, commute: true } 
             },
             railway: { enabled: false },

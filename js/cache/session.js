@@ -1,12 +1,13 @@
 // IndexedDB for session storage
 import { CONFIG } from '../config/config.js';
+import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 
 export const SessionDB = {
     DB_NAME: 'TraewellingMap',
     STORE_NAME: 'sessions',
     STOPOVERS_STORE: 'stopovers',
     POLYLINES_STORE: 'polylines',
-    META_CACHE_KEY: 'tw_cached_sessions_meta',
+    META_CACHE_KEY: STORAGE_KEYS.SESSIONS_META,
     VERSION: 3,
     MAX_SESSIONS: 15,
     _db: null,
@@ -21,30 +22,20 @@ export const SessionDB = {
 
     // Fast synchronous cache for instant UI rendering in setup menu
     getStoredMetadata() {
-        try {
-            const raw = localStorage.getItem(this.META_CACHE_KEY);
-            if (!raw) return [];
-            const list = JSON.parse(raw);
-            const now = Date.now();
-            return Array.isArray(list) ? list.filter(item => !this.isExpired(item, now)) : [];
-        } catch (e) {
-            return [];
-        }
+        const list = Storage.getJSON(this.META_CACHE_KEY, []);
+        const now = Date.now();
+        return Array.isArray(list) ? list.filter(item => !this.isExpired(item, now)) : [];
     },
 
     saveStoredMetadata(sessions = []) {
-        try {
-            const meta = sessions.map(s => ({
-                username: s.username,
-                displayName: s.displayName || s.username,
-                avatar: s.avatar || null,
-                tripCount: s.tripCount || (s.trips ? s.trips.length : 0),
-                timestamp: s.timestamp || Date.now()
-            }));
-            localStorage.setItem(this.META_CACHE_KEY, JSON.stringify(meta));
-        } catch (e) {
-            console.warn('Failed to save session metadata cache:', e);
-        }
+        const meta = sessions.map(s => ({
+            username: s.username,
+            displayName: s.displayName || s.username,
+            avatar: s.avatar || null,
+            tripCount: s.tripCount || (s.trips ? s.trips.length : 0),
+            timestamp: s.timestamp || Date.now()
+        }));
+        Storage.setJSON(this.META_CACHE_KEY, meta);
     },
     
     // Open database connection
@@ -211,10 +202,8 @@ export const SessionDB = {
             }
 
             tx.oncomplete = () => {
-                try {
-                    const existing = this.getStoredMetadata().filter(s => s.username !== username);
-                    localStorage.setItem(this.META_CACHE_KEY, JSON.stringify(existing));
-                } catch (e) {}
+                const existing = this.getStoredMetadata().filter(s => s.username !== username);
+                Storage.setJSON(this.META_CACHE_KEY, existing);
                 resolve();
             };
             tx.onerror = () => reject(tx.error);
@@ -232,9 +221,7 @@ export const SessionDB = {
             const tx = db.transaction(stores, 'readwrite');
             stores.forEach(s => tx.objectStore(s).clear());
             tx.oncomplete = () => {
-                try {
-                    localStorage.removeItem(this.META_CACHE_KEY);
-                } catch (e) {}
+                Storage.remove(this.META_CACHE_KEY);
                 resolve();
             };
             tx.onerror = () => reject(tx.error);

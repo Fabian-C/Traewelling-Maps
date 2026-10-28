@@ -1,4 +1,5 @@
 import { SessionDB } from '../cache/session.js';
+import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { tripsToGeoJSON } from '../export/geojson.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
 import { formatDelayMinutes, formatHumanDuration, formatTotalTime, calculateCO2Saved, formatSpeed, escapeHtml } from '../utils/format.js';
@@ -24,7 +25,7 @@ let durationDisplayMode = 'standard'; // 'standard' | 'days' | 'months'
 // Studio state
 let appMode = 'standard'; // 'standard' | 'studio'
 let studioTab = 'visual'; // 'visual' | 'sql'
-let studioTableMode = localStorage.getItem('tw_studio_table_mode') || 'unified'; // 'unified' | 'raw'
+let studioTableMode = Storage.get(STORAGE_KEYS.STUDIO_TABLE_MODE, 'unified'); // 'unified' | 'raw'
 let visualRules = [
     { column: 'delay_dep', operator: 'greater_than', value: '15' }
 ];
@@ -60,17 +61,12 @@ export async function initTripExplorer() {
         allSessions = [];
     }
 
-    // Synchronous localStorage session fallback
+    // Synchronous storage session fallback
     if (allSessions.length === 0) {
-        try {
-            const cachedRaw = localStorage.getItem('tw_cached_sessions_data');
-            if (cachedRaw) {
-                const parsed = JSON.parse(cachedRaw);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    allSessions = parsed;
-                }
-            }
-        } catch (e) {}
+        const parsed = Storage.getJSON(STORAGE_KEYS.SESSIONS_DATA, null);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            allSessions = parsed;
+        }
     }
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -781,14 +777,14 @@ function setupStudioEventListeners() {
     if (btnTableUnified && btnTableRawSql) {
         btnTableUnified.addEventListener('click', () => {
             studioTableMode = 'unified';
-            localStorage.setItem('tw_studio_table_mode', 'unified');
+            Storage.set(STORAGE_KEYS.STUDIO_TABLE_MODE, 'unified');
             updateSqlTableModeButtons();
             renderResults();
         });
 
         btnTableRawSql.addEventListener('click', () => {
             studioTableMode = 'raw';
-            localStorage.setItem('tw_studio_table_mode', 'raw');
+            Storage.set(STORAGE_KEYS.STUDIO_TABLE_MODE, 'raw');
             updateSqlTableModeButtons();
             renderResults();
         });

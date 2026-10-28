@@ -1,6 +1,7 @@
 // UI module
 import { store } from '../state/store.js';
 import { CONFIG } from '../config/config.js';
+import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { clearAllSessions } from '../session/manager.js';
 
 export const UI = {
@@ -1178,7 +1179,7 @@ export const UI = {
         }
         if (!this.refs?.menuApiTokenDetails) return;
         const authMethod = (typeof window !== 'undefined' && window.state?.authMethod) 
-            || (typeof localStorage !== 'undefined' ? localStorage.getItem('tw_auth_method') : null);
+            || Storage.get(STORAGE_KEYS.AUTH_METHOD);
         // Only display if user explicitly entered via dedicated API token
         this.refs.menuApiTokenDetails.style.display = (authMethod === 'token') ? 'block' : 'none';
     },

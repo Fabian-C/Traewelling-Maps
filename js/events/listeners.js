@@ -1,5 +1,6 @@
 // Event listeners module
 import { store } from '../state/store.js';
+import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { escapeHtml } from '../utils/format.js';
 import { RouteAnimation } from '../map/routeAnimation.js';
 import { UI } from '../ui/ui.js';
@@ -114,9 +115,7 @@ export function setupEventListeners() {
         const target = Math.max(0, Math.min(2, Math.round(level)));
         const changed = state.filters.filterLevel !== target;
         state.filters.filterLevel = target;
-        try {
-            localStorage.setItem('tw_filter_level', target);
-        } catch (_) {}
+        Storage.set(STORAGE_KEYS.FILTER_LEVEL, target);
         setAccuracyFilterUI(target);
         if (changed) {
             applyFiltersAndRefresh({ debounceMs: 75 });
@@ -124,9 +123,8 @@ export function setupEventListeners() {
     };
 
     if (filterSlider) {
-        const savedLevel = typeof localStorage !== 'undefined' && localStorage.getItem('tw_filter_level') !== null 
-            ? parseInt(localStorage.getItem('tw_filter_level'), 10) 
-            : 1;
+        const savedRaw = Storage.get(STORAGE_KEYS.FILTER_LEVEL);
+        const savedLevel = savedRaw !== null ? parseInt(savedRaw, 10) : 1;
         state.filters.filterLevel = savedLevel;
         setAccuracyFilterUI(savedLevel);
 
@@ -272,9 +270,7 @@ export function setupEventListeners() {
         menuIncludeNoteMentions.onchange = (e) => {
             const checked = e.target.checked;
             state.filters.includeNoteMentions = checked;
-            try {
-                localStorage.setItem('tw_include_notes', checked ? 'true' : 'false');
-            } catch (err) {}
+            Storage.set(STORAGE_KEYS.INCLUDE_NOTES, checked ? 'true' : 'false');
 
             // If trips are loaded, refresh buddy list and active filters
             if (state.fetchedTrips?.length) {
@@ -417,7 +413,7 @@ export function setupEventListeners() {
             
             // Incremental fetch by default if cached user data exists, Shift+click for fresh re-scrape
             const menuStopoversEl = document.getElementById('menuFetchIncludeStopovers') || document.getElementById('fetchIncludeStopovers');
-            const shouldFetchStopovers = menuStopoversEl ? menuStopoversEl.checked : (localStorage.getItem('tw_fetch_stopovers') !== 'false');
+            const shouldFetchStopovers = menuStopoversEl ? menuStopoversEl.checked : (Storage.get(STORAGE_KEYS.FETCH_STOPOVERS) !== 'false');
             startDataFetch(false, false, { forceFresh: Boolean(e?.shiftKey), fetchStopovers: shouldFetchStopovers });
         };
     }
@@ -666,9 +662,7 @@ export function resetAllActiveFilters() {
     state.filters.searchQuery = '';
     state.filters.business = { personal: true, work: true, commute: true };
     state.filters.filterLevel = 1;
-    try {
-        localStorage.setItem('tw_filter_level', '1');
-    } catch (_) {}
+    Storage.set(STORAGE_KEYS.FILTER_LEVEL, '1');
 
     // Reset UI inputs
     analytics.initializeDateInputs(state.fetchedTrips);

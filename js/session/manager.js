@@ -1,5 +1,6 @@
 // Session management module
 import { CONFIG } from '../config/config.js';
+import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { store } from '../state/store.js';
 import { SessionDB } from '../cache/session.js';
 import { TraewellingAPI } from '../api/traewelling.js';
@@ -163,7 +164,7 @@ export async function clearAllSessions() {
         if (state.cache?.clear) state.cache.clear();
         if (state.cacheTimestamps?.clear) state.cacheTimestamps.clear();
         state.queriedUserProfile = null;
-        localStorage.removeItem('tw_token');
+        Storage.remove(STORAGE_KEYS.TOKEN);
         logout();
         await updateMenuAccountList();
         alert('All cached sessions and offline data have been removed from this device.');
@@ -263,15 +264,11 @@ export async function updateMenuAccountList() {
 
 export function rememberToken(token, { autoValidate = true, authMethod = 'token' } = {}) {
     if (!token) return;
-    try {
-        localStorage.setItem('tw_token', token);
-        if (authMethod) {
-            localStorage.setItem('tw_auth_method', authMethod);
-            const state = store.get();
-            if (state) state.authMethod = authMethod;
-        }
-    } catch (error) {
-        console.warn('Failed to persist API token for auto-validation:', error);
+    Storage.set(STORAGE_KEYS.TOKEN, token);
+    if (authMethod) {
+        Storage.set(STORAGE_KEYS.AUTH_METHOD, authMethod);
+        const state = store.get();
+        if (state) state.authMethod = authMethod;
     }
     if (autoValidate) {
         validateStoredToken(token);
@@ -292,7 +289,7 @@ export async function validateStoredToken(token) {
         };
         state.token = token;
         if (!state.authMethod) {
-            state.authMethod = localStorage.getItem('tw_auth_method') || 'token';
+            state.authMethod = Storage.get(STORAGE_KEYS.AUTH_METHOD, 'token');
         }
         UI.setTokenOwner(state.tokenOwner);
         UI.setTokenStatus('Token valid', 'success');
@@ -300,8 +297,8 @@ export async function validateStoredToken(token) {
     } catch (error) {
         console.warn('Auto-validation failed:', error);
         UI.setTokenStatus('Token expired', 'error');
-        localStorage.removeItem('tw_token');
-        localStorage.removeItem('tw_auth_method');
+        Storage.remove(STORAGE_KEYS.TOKEN);
+        Storage.remove(STORAGE_KEYS.AUTH_METHOD);
         state.token = null;
         state.authMethod = null;
         UI.updateTokenVisibility();
@@ -310,10 +307,8 @@ export async function validateStoredToken(token) {
 
 export function logout() {
     const state = store.get();
-    try {
-        localStorage.removeItem('tw_token');
-        localStorage.removeItem('tw_auth_method');
-    } catch (e) {}
+    Storage.remove(STORAGE_KEYS.TOKEN);
+    Storage.remove(STORAGE_KEYS.AUTH_METHOD);
     state.token = null; state.authMethod = null; state.username = null; state.fetchedTrips = [];
     state.tokenOwner = { username: null, displayName: null, avatar: null, profileUrl: null, validated: false };
     state.layers.data.clear();
@@ -341,9 +336,7 @@ export async function handleOAuthCallbackProcess() {
 
         const state = store.get();
         state.authMethod = 'oauth';
-        try {
-            localStorage.setItem('tw_auth_method', 'oauth');
-        } catch (e) {}
+        Storage.set(STORAGE_KEYS.AUTH_METHOD, 'oauth');
 
         const api = new TraewellingAPI(result.accessToken);
         const user = await api.getAuthenticatedUser();

@@ -1,5 +1,6 @@
 // Layer management module
 import { CONFIG } from '../config/config.js';
+import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { store } from '../state/store.js';
 import { refreshActiveTrips } from '../fetch/orchestrator.js';
 import * as dataProcessing from '../data/processing.js';
@@ -54,21 +55,14 @@ export function loadLayers() {
         return;
     }
 
-    // Restore persisted layer order from localStorage if available
-    try {
-        const savedOrderJson = localStorage.getItem('tw_layer_order');
-        if (savedOrderJson) {
-            const parsedOrder = JSON.parse(savedOrderJson);
-            if (Array.isArray(parsedOrder) && parsedOrder.length > 0) {
-                // Ensure unique values and valid format
-                const uniqueSaved = [...new Set(parsedOrder.filter(id => typeof id === 'string'))];
-                if (uniqueSaved.length > 0) {
-                    state.layers.order = uniqueSaved;
-                }
-            }
+    // Restore persisted layer order from storage if available
+    const parsedOrder = Storage.getJSON(STORAGE_KEYS.LAYER_ORDER, null);
+    if (Array.isArray(parsedOrder) && parsedOrder.length > 0) {
+        // Ensure unique values and valid format
+        const uniqueSaved = [...new Set(parsedOrder.filter(id => typeof id === 'string'))];
+        if (uniqueSaved.length > 0) {
+            state.layers.order = uniqueSaved;
         }
-    } catch (e) {
-        console.warn('Failed to parse tw_layer_order from localStorage:', e);
     }
 
     // Migrate legacy 'ship' layer to 'ferry' if present
@@ -149,12 +143,8 @@ export function loadLayers() {
 
         state.layers.order.splice(insertIndex, 0, draggedLayerId);
 
-        // Persist new layer order to localStorage
-        try {
-            localStorage.setItem('tw_layer_order', JSON.stringify(state.layers.order));
-        } catch (e) {
-            console.warn('Failed to save tw_layer_order to localStorage:', e);
-        }
+        // Persist new layer order to storage
+        Storage.setJSON(STORAGE_KEYS.LAYER_ORDER, state.layers.order);
 
         // Instantly sync visual map rendering order and reload UI
         syncMapLayerOrder();
