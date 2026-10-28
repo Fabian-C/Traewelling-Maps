@@ -1,0 +1,22 @@
+{
+  "name": "traewelling-maps",
+  "private": true,
+  "type": "module",
+  "description": "Static, no-build web app to explore Träwelling journeys on a map. Deployed on GitHub Pages.",
+  "scripts": {
+    "dev": "npx --yes http-server . -p 8000 -c-1",
+    "lint": "eslint js tests",
+    "lint:css": "stylelint \"css/**/*.css\"",
+    "format": "prettier --check \"{js,css,tests}/**/*.{js,css}\" \"*.html\"",
+    "format:fix": "prettier --write \"{js,css,tests}/**/*.{js,css}\" \"*.html\"",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "prettier": "^3.3.0",
+    "stylelint": "^16.8.0",
+    "stylelint-config-standard": "^36.0.0",
+    "vitest": "^2.0.0"
+  }
+}
