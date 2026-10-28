@@ -159,6 +159,10 @@ GitHub Actions (`.github/workflows`): `ci.yml` runs lint + tests on every push/P
 - Safari 14+
 - Mobile browsers (iOS Safari, Chrome Mobile)
 
+## AI Usage Disclosure
+
+Parts of this codebase—including architectural modularization, automated unit and end-to-end test suites, UI/UX refinements, and documentation—have been developed with the assistance of AI pair programming agents (such as Google DeepMind's Antigravity and Gemini models). All AI-assisted contributions are subject to human review, linting, and automated continuous integration verification.
+
 ## License
 
 No license has been chosen yet.

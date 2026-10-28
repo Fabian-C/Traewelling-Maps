@@ -3,6 +3,10 @@ scratch/
 scratchpad*
 *.tmp
 *.log
+tests/scratch/
+tests/*_test_run.js
+tests/visual_*.js
+tests/*_audit*.js
 
 # Test screenshots & image captures
 screenshot*.png
