@@ -63,11 +63,11 @@ export const QUERY_RECIPES = [
  * @returns {Object} Column dictionary
  */
 export function flattenTripRecord(trip) {
-    const train = trip.train || {};
+    const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || trip.properties || trip || {};
     const origin = train.origin || {};
     const dest = train.destination || {};
-    const depTime = origin.departureReal || origin.departure || trip.createdAt || '';
-    const arrTime = dest.arrivalReal || dest.arrival || '';
+    const depTime = origin.departureReal || origin.departure || origin.departurePlanned || train.departure || train.plannedDeparture || train.manualDeparture || trip.createdAt || '';
+    const arrTime = dest.arrivalReal || dest.arrival || dest.arrivalPlanned || train.arrival || train.plannedArrival || train.manualArrival || '';
     const delays = deriveDelaySeconds(train);
     const depDelaySec = delays.departure !== null ? delays.departure : (delays.worst || 0);
     const arrDelaySec = delays.arrival !== null ? delays.arrival : (delays.worst || 0);
@@ -105,6 +105,7 @@ export function flattenTripRecord(trip) {
     const businessStr = bType === 1 ? 'business' : (bType === 2 ? 'commute' : 'private');
 
     const yr = depTime ? new Date(depTime).getFullYear() : null;
+    const rawDist = typeof train.totalDistance === 'number' ? train.totalDistance : (typeof train.distance === 'number' ? train.distance : 0);
 
     return {
         _rawTrip: trip,
@@ -118,9 +119,9 @@ export function flattenTripRecord(trip) {
         year: yr,
         delay_dep: Math.round(depDelaySec / 60),
         delay_arr: Math.round(arrDelaySec / 60),
-        distance_km: train.totalDistance ? Math.round((train.totalDistance / 1000) * 10) / 10 : 0,
+        distance_km: rawDist > 0 ? Math.round((rawDist / 1000) * 10) / 10 : 0,
         duration_min: computeTripDurationMinutes(train) || 0,
-        operator: train.operator?.name || train.operator || 'Unknown',
+        operator: train.operator?.name || (typeof train.operator === 'string' ? train.operator : 'Unknown'),
         business: businessStr,
         buddies: buddiesStr,
         buddy_count: buddyCount,

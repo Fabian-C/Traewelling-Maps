@@ -109,17 +109,17 @@ export function sanitizeTripDistanceKm(rawKm, originLat, originLon, destLat, des
 
     // Realistic physical maximum single trip distances by transit mode
     const MAX_BY_CATEGORY = {
-        highspeed: 1400, // ICE/TGV single trip max in Central Europe
-        regional: 600,   // RE/IC regional max
+        highspeed: 3000, // ICE/TGV/Nightjet long-distance single trip max
+        regional: 800,   // RE/IC regional max
         suburban: 160,   // S-Bahn max
         subway: 80,      // U-Bahn max
         tram: 80,        // Tram / Strab
-        bus: 200,        // Bus
-        ferry: 800,      // Ferry
+        bus: 400,        // Bus
+        ferry: 1200,     // Ferry
         cablecar: 30,    // Seilbahn
-        other: 1500
+        other: 3000
     };
-    const maxAllowedKm = MAX_BY_CATEGORY[category] || 1500;
+    const maxAllowedKm = MAX_BY_CATEGORY[category] || 3000;
 
     if (haversineKm !== null && haversineKm > 0) {
         // If raw distance is missing or zero, estimate track distance as ~1.25x straight line

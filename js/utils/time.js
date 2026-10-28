@@ -16,15 +16,50 @@ export function computeTripDurationMinutes(train = {}) {
     if (!train) return null;
     const origin = train.origin || {};
     const dest = train.destination || {};
-    const departure = getDelayDate(origin.departureReal || origin.departure || train.departure || train.plannedDeparture);
-    const arrival = getDelayDate(dest.arrivalReal || dest.arrival || train.arrival || train.plannedArrival);
-    if (departure && arrival) {
-        return Math.max(1, Math.round((arrival - departure) / 60000));
+
+    // 1. First check actual / real-time departure and arrival
+    const actualDeparture = getDelayDate(origin.departureReal || origin.departure || train.departure || train.manualDeparture);
+    const actualArrival = getDelayDate(dest.arrivalReal || dest.arrival || train.arrival || train.manualArrival);
+
+    if (actualDeparture && actualArrival) {
+        const diffMs = actualArrival.getTime() - actualDeparture.getTime();
+        if (diffMs > 0) {
+            return Math.max(1, Math.round(diffMs / 60000));
+        }
     }
-    const duration = typeof train.totalDuration === 'number' ? train.totalDuration : train.duration;
+
+    // 2. Fall back to planned timetable schedule if real-time times are identical, inverted, or missing
+    const plannedDeparture = getDelayDate(origin.departurePlanned || train.plannedDeparture || train.manualDeparture);
+    const plannedArrival = getDelayDate(dest.arrivalPlanned || train.plannedArrival || train.manualArrival);
+
+    if (plannedDeparture && plannedArrival) {
+        const plannedDiffMs = plannedArrival.getTime() - plannedDeparture.getTime();
+        if (plannedDiffMs > 0) {
+            return Math.max(1, Math.round(plannedDiffMs / 60000));
+        }
+    }
+
+    // 3. Fall back to any combination of departure/arrival
+    const anyDeparture = actualDeparture || plannedDeparture;
+    const anyArrival = actualArrival || plannedArrival;
+    if (anyDeparture && anyArrival) {
+        const diffMs = anyArrival.getTime() - anyDeparture.getTime();
+        if (diffMs > 0) {
+            return Math.max(1, Math.round(diffMs / 60000));
+        }
+    }
+
+    // 4. Fall back to train.duration or train.totalDuration (provided in minutes in Träwelling API)
+    const duration = typeof train.totalDuration === 'number' ? train.totalDuration : (typeof train.duration === 'number' ? train.duration : null);
     if (typeof duration === 'number' && duration > 0) {
         return Math.round(duration);
     }
+
+    // 5. If origin and dest are distinct valid stations, minimum transit time is 1 min
+    if (origin.name && dest.name && origin.name !== dest.name) {
+        return 1;
+    }
+
     return null;
 }
 
@@ -36,10 +71,10 @@ export function deriveDelaySeconds(train = {}) {
     const origin = train.origin || {};
     const dest = train.destination || {};
 
-    const plannedDeparture = getDelayDate(origin.departurePlanned || train.plannedDeparture);
-    const actualDeparture = getDelayDate(origin.departureReal || origin.departure || train.departure);
-    const plannedArrival = getDelayDate(dest.arrivalPlanned || train.plannedArrival);
-    const actualArrival = getDelayDate(dest.arrivalReal || dest.arrival || train.arrival);
+    const plannedDeparture = getDelayDate(origin.departurePlanned || train.plannedDeparture || train.manualDeparture);
+    const actualDeparture = getDelayDate(origin.departureReal || origin.departure || train.departure || train.manualDeparture);
+    const plannedArrival = getDelayDate(dest.arrivalPlanned || train.plannedArrival || train.manualArrival);
+    const actualArrival = getDelayDate(dest.arrivalReal || dest.arrival || train.arrival || train.manualArrival);
 
     const derivedDepartureDelay = (plannedDeparture && actualDeparture) ? Math.round((actualDeparture - plannedDeparture) / 1000) : null;
     const derivedArrivalDelay = (plannedArrival && actualArrival) ? Math.round((actualArrival - plannedArrival) / 1000) : null;

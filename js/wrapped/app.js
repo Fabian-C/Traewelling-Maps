@@ -157,11 +157,23 @@ function setupEventListeners() {
             const container = document.getElementById('duelContainer');
             const isActive = container.classList.toggle('active');
             duelToggleBtn.classList.toggle('active', isActive);
-            if (isActive && !duelOpponentSession && allSessions.length > 1) {
-                const currentNorm = normUser(activeSession?.username);
-                duelOpponentSession = allSessions.find(s => normUser(s.username) !== currentNorm) || allSessions[1];
+            if (isActive) {
+                if (!duelOpponentSession && allSessions.length > 1) {
+                    const currentNorm = normUser(activeSession?.username);
+                    duelOpponentSession = allSessions.find(s => normUser(s.username) !== currentNorm) || allSessions[1];
+                }
                 renderDuelSection();
+                container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
+        });
+    }
+
+    const duelCloseBtn = document.getElementById('duelCloseBtn');
+    if (duelCloseBtn) {
+        duelCloseBtn.addEventListener('click', () => {
+            const container = document.getElementById('duelContainer');
+            if (container) container.classList.remove('active');
+            if (duelToggleBtn) duelToggleBtn.classList.remove('active');
         });
     }
 
@@ -630,6 +642,15 @@ function renderDuelSection() {
     const nameB = document.getElementById('duelPlayerBName');
     if (nameA) nameA.textContent = comparison.userA.name;
     if (nameB) nameB.textContent = comparison.userB.name;
+
+    const avatarA = document.getElementById('duelPlayerAAvatar');
+    const avatarB = document.getElementById('duelPlayerBAvatar');
+    if (avatarA) {
+        avatarA.textContent = (comparison.userA.name || '1').charAt(0).toUpperCase();
+    }
+    if (avatarB) {
+        avatarB.textContent = (comparison.userB.name || '2').charAt(0).toUpperCase();
+    }
 
     const tbody = document.getElementById('duelTableBody');
     if (tbody) {

@@ -120,6 +120,52 @@
             </div>
         </section>
 
+        <!-- Side-by-Side Duel Mode (Revealed immediately below hero actions) -->
+        <section class="duel-container" id="duelContainer" aria-label="Traveler Comparison Mode">
+            <div class="duel-top-bar">
+                <span class="duel-title-badge">Traveler Duel Arena</span>
+                <button type="button" class="duel-close-btn" id="duelCloseBtn" title="Close Duel Mode" aria-label="Close duel">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="duel-versus-header">
+                <div class="duel-player duel-player-a">
+                    <div class="duel-player-avatar" id="duelPlayerAAvatar" style="background: var(--accent-cyan); color: #080a10;">1</div>
+                    <div class="duel-player-info">
+                        <div class="duel-player-label">You</div>
+                        <div class="duel-player-name" id="duelPlayerAName">User A</div>
+                    </div>
+                </div>
+
+                <div class="duel-vs-badge" aria-hidden="true">VS</div>
+
+                <div class="duel-player duel-player-b">
+                    <div class="duel-player-avatar" id="duelPlayerBAvatar" style="background: var(--accent-purple); color: #080a10;">2</div>
+                    <div class="duel-player-info">
+                        <div class="duel-player-label">Opponent</div>
+                        <div class="duel-select-wrap">
+                            <select id="duelOpponentSelect" class="profile-select duel-select" aria-label="Select Opponent"></select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="duel-table-wrap">
+                <table class="duel-comparison-table">
+                    <thead>
+                        <tr>
+                            <th class="duel-th-a" style="width: 38%;">You</th>
+                            <th class="duel-th-metric" style="width: 24%;">Metric</th>
+                            <th class="duel-th-b" style="width: 38%;">Opponent</th>
+                        </tr>
+                    </thead>
+                    <tbody id="duelTableBody">
+                        <!-- Dynamic duel rows populated by app.js -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
         <!-- KPI Summary Cards (2x2 Grid) -->
         <section class="kpi-grid" aria-label="Key Performance Indicators">
             <article class="kpi-card cyan">
@@ -157,42 +203,6 @@
                 <div class="kpi-value" id="kpiCo2">0 kg</div>
                 <div class="kpi-subtext" id="kpiCo2Sub">vs equivalent car and air travel</div>
             </article>
-        </section>
-
-        <!-- Side-by-Side Duel Mode (Revealed on click) -->
-        <section class="duel-container" id="duelContainer" aria-label="Traveler Comparison Mode">
-            <div class="duel-versus-header">
-                <div class="duel-player">
-                    <div class="duel-player-avatar" style="background: var(--accent-cyan); color: #080a10;">1</div>
-                    <div>
-                        <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Player 1</div>
-                        <div style="font-weight: 700; font-size: 1.1rem;" id="duelPlayerAName">User A</div>
-                    </div>
-                </div>
-
-                <div class="duel-vs-badge">VS</div>
-
-                <div class="duel-player" style="flex-direction: row-reverse; text-align: right;">
-                    <div class="duel-player-avatar" style="background: var(--accent-purple); color: #080a10;">2</div>
-                    <div>
-                        <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Opponent</div>
-                        <select id="duelOpponentSelect" class="profile-select" aria-label="Select Opponent"></select>
-                    </div>
-                </div>
-            </div>
-
-            <table class="duel-comparison-table">
-                <thead>
-                    <tr>
-                        <th style="width: 40%;">Primary Traveler</th>
-                        <th style="width: 20%;">Metric</th>
-                        <th style="width: 40%;">Opponent</th>
-                    </tr>
-                </thead>
-                <tbody id="duelTableBody">
-                    <!-- Dynamic duel rows populated by app.js -->
-                </tbody>
-            </table>
         </section>
 
         <!-- Analytics Row 1: Habits Heatmap & Category Breakdown -->

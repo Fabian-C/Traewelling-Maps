@@ -481,6 +481,13 @@ describe('Comprehensive Filters & Functions Test Suite', () => {
             it('sanitizeTripDistanceKm cleans up erroneous distance anomalies', () => {
                 const validKm = sanitizeTripDistanceKm(250, 53.551, 9.993, 52.520, 13.405, 'regional');
                 expect(validKm).toBeCloseTo(250, 0);
+
+                // Long distance train journeys up to 3000 km are supported
+                const longDistanceTrip = sanitizeTripDistanceKm(2400, null, null, null, null, 'highspeed');
+                expect(longDistanceTrip).toBe(2400);
+
+                const overCeilingTrip = sanitizeTripDistanceKm(4500, null, null, null, null, 'highspeed');
+                expect(overCeilingTrip).toBe(3000);
             });
 
             it('calculateWrappedInsights computes complete summary statistics', () => {

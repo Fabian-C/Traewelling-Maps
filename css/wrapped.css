@@ -880,25 +880,83 @@ body {
     background: var(--bg-panel);
     border: 1px solid var(--border-glow);
     border-radius: var(--radius-lg);
-    padding: 32px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    padding: 24px 28px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
     flex-direction: column;
-    gap: 24px;
+    gap: 18px;
     max-width: 100%;
-    overflow-x: auto;
     box-sizing: border-box;
+    position: relative;
+    animation: duelFadeSlide 0.25s ease-out;
+}
+
+@keyframes duelFadeSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .duel-container.active {
     display: flex;
 }
 
-.duel-versus-header {
+.duel-top-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    width: 100%;
+}
+
+.duel-title-badge {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--accent-cyan);
+    background: rgba(102, 224, 255, 0.1);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(102, 224, 255, 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.duel-close-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.duel-close-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--text-primary);
+    transform: scale(1.05);
+}
+
+.duel-versus-header {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
     gap: 16px;
-    flex-wrap: wrap;
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
 }
 
 .duel-player {
@@ -907,25 +965,82 @@ body {
     gap: 12px;
 }
 
+.duel-player.duel-player-b {
+    justify-content: flex-end;
+    flex-direction: row-reverse;
+    text-align: right;
+}
+
+.duel-player-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.duel-player-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.duel-player-name {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.duel-select-wrap {
+    margin-top: 2px;
+}
+
+.duel-select {
+    font-size: 13px;
+    padding: 6px 10px;
+    background: rgba(16, 20, 32, 0.8);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    color: var(--text-primary);
+    cursor: pointer;
+    max-width: 220px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.duel-select:focus {
+    border-color: var(--accent-purple);
+}
+
 .duel-player-avatar {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 700;
+    flex-shrink: 0;
 }
 
 .duel-vs-badge {
     font-family: var(--font-heading);
     font-weight: 900;
-    font-size: 28px;
+    font-size: 24px;
     background: linear-gradient(135deg, #f39c12, #e74c3c);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    padding: 0 16px;
+    padding: 0 12px;
+    text-align: center;
+}
+
+.duel-table-wrap {
+    width: 100%;
+    overflow-x: auto;
 }
 
 .duel-comparison-table {
@@ -935,7 +1050,7 @@ body {
 
 .duel-comparison-table th,
 .duel-comparison-table td {
-    padding: 14px 16px;
+    padding: 12px 14px;
     text-align: center;
     border-bottom: 1px solid var(--border-subtle);
 }
@@ -944,12 +1059,15 @@ body {
     color: var(--text-muted);
     font-size: 12px;
     text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.5px;
 }
 
 .duel-comparison-table td.winner {
     color: var(--accent-cyan);
     font-weight: 700;
     background: rgba(102, 224, 255, 0.05);
+    border-radius: 4px;
 }
 
 /* ==========================================================================
@@ -1176,13 +1294,78 @@ body {
     }
 
     .duel-container {
-        padding: 18px 12px;
+        padding: 12px 10px;
+        gap: 12px;
+        margin-top: 10px;
+        border-radius: var(--radius-md);
+    }
+
+    .duel-versus-header {
+        grid-template-columns: 1fr auto 1fr;
+        gap: 6px;
+        padding: 8px 6px;
+    }
+
+    .duel-player {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 4px;
+    }
+
+    .duel-player.duel-player-b {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        justify-content: center;
+    }
+
+    .duel-player-info {
+        align-items: center;
+        width: 100%;
+    }
+
+    .duel-player-avatar {
+        width: 34px;
+        height: 34px;
+        font-size: 13px;
+    }
+
+    .duel-player-name {
+        font-size: 12px;
+        max-width: 105px;
+    }
+
+    .duel-player-label {
+        font-size: 9px;
+    }
+
+    .duel-select-wrap {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+    }
+
+    .duel-select {
+        font-size: 11px;
+        padding: 4px 6px;
+        max-width: 115px;
+        width: 100%;
+    }
+
+    .duel-vs-badge {
+        font-size: 16px;
+        padding: 0 4px;
     }
 
     .duel-comparison-table th,
     .duel-comparison-table td {
-        padding: 10px 6px;
-        font-size: 12px;
+        padding: 8px 4px;
+        font-size: 11px;
+    }
+
+    .duel-comparison-table th {
+        font-size: 10px;
     }
 
     .delay-telemetry-grid {
