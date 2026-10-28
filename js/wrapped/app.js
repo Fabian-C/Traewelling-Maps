@@ -198,7 +198,7 @@ function setupEventListeners() {
                 alert('Could not generate story card. Please try again.');
             } finally {
                 shareBtn.disabled = false;
-                shareBtn.innerHTML = '<span>✨</span><span>Share My Year</span>';
+                shareBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg><span>Share My Year</span>';
             }
         });
     }
@@ -346,16 +346,16 @@ function renderWrapped() {
 
     // 2. KPI Cards
     setVal('kpiDistance', `${currentInsights.totalKm.toLocaleString()} km`);
-    setVal('kpiDistanceSub', `🌍 ${currentInsights.earthCircumferences}× Earth circumferences · 🌙 ${currentInsights.moonDistancePercent}% to Moon`);
+    setVal('kpiDistanceSub', `${currentInsights.earthCircumferences}× Earth circumferences · ${currentInsights.moonDistancePercent}% to Moon`);
 
     setVal('kpiTrips', currentInsights.totalTrips.toLocaleString());
-    setVal('kpiTripsSub', `⏱️ ~${currentInsights.totalDurationHours} hours spent on tracks`);
+    setVal('kpiTripsSub', `~${currentInsights.totalDurationHours} hours spent on tracks`);
 
     setVal('kpiPunctuality', `${currentInsights.punctuality.rate}%`);
-    setVal('kpiPunctualitySub', `⚠️ ${currentInsights.punctuality.delayedCount} delayed trips (${currentInsights.punctuality.totalDelayMinutes.toLocaleString()} min total)`);
+    setVal('kpiPunctualitySub', `${currentInsights.punctuality.delayedCount} delayed trips (${currentInsights.punctuality.totalDelayMinutes.toLocaleString()} min total)`);
 
     setVal('kpiCo2', `${currentInsights.co2SavedKg.toLocaleString()} kg`);
-    setVal('kpiCo2Sub', `🌱 Saved vs driving equivalent distance`);
+    setVal('kpiCo2Sub', `Saved vs driving equivalent distance`);
 
     // 3. Habits Heatmap
     renderHeatmap(currentInsights.habits);
@@ -481,7 +481,7 @@ function renderHighlights(records, punctuality) {
     const longestEl = document.getElementById('longestTripRoute');
     const longestSub = document.getElementById('longestTripSub');
     if (longestEl) {
-        longestEl.textContent = records.longestTrip ? `${records.longestTrip.origin} ➔ ${records.longestTrip.destination}` : 'None';
+        longestEl.textContent = records.longestTrip ? `${records.longestTrip.origin} → ${records.longestTrip.destination}` : 'None';
     }
     if (longestSub) {
         if (records.longestTrip) {
@@ -503,18 +503,18 @@ function renderHighlights(records, punctuality) {
 
     if (punctuality.worstDelay) {
         if (worstDelayEl) worstDelayEl.textContent = `+${punctuality.worstDelay.delayMinutes} min`;
-        if (worstDelayRoute) worstDelayRoute.textContent = `${punctuality.worstDelay.origin} ➔ ${punctuality.worstDelay.destination}`;
-        if (worstDelayTrain) worstDelayTrain.textContent = `🚆 ${punctuality.worstDelay.lineName}`;
+        if (worstDelayRoute) worstDelayRoute.textContent = `${punctuality.worstDelay.origin} → ${punctuality.worstDelay.destination}`;
+        if (worstDelayTrain) worstDelayTrain.textContent = punctuality.worstDelay.lineName;
         if (worstDelayDate) {
             const d = punctuality.worstDelay.date ? new Date(punctuality.worstDelay.date) : null;
             worstDelayDate.textContent = (d && !isNaN(d.getTime()))
-                ? `📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+                ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
                 : '';
         }
     } else {
         if (worstDelayEl) worstDelayEl.textContent = '0 min';
         if (worstDelayRoute) worstDelayRoute.textContent = 'Zero significant delays recorded!';
-        if (worstDelayTrain) worstDelayTrain.textContent = '🎉 Fully on-time';
+        if (worstDelayTrain) worstDelayTrain.textContent = 'Fully on-time';
         if (worstDelayDate) worstDelayDate.textContent = '';
     }
 
@@ -598,7 +598,7 @@ function renderHighlights(records, punctuality) {
             buddiesContainer.innerHTML = records.topBuddies.map(b => `
                 <div class="top-item-row">
                     <div class="top-item-left">
-                        <span style="font-size: 16px;">👥</span>
+                        <span style="display: inline-flex; align-items: center; color: var(--accent-purple);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
                         <span class="top-item-name">@${escapeHtml(b.username)}</span>
                     </div>
                     <span class="top-item-badge">${b.sharedTrips} trips (${Math.round(b.sharedKm)} km)</span>
@@ -643,9 +643,9 @@ function renderDuelSection() {
 
         tbody.innerHTML = rows.map(r => `
             <tr>
-                <td class="${r.win === 'userA' ? 'winner' : ''}">${r.win === 'userA' ? '👑 ' : ''}${r.a}</td>
+                <td class="${r.win === 'userA' ? 'winner' : ''}">${r.win === 'userA' ? '★ ' : ''}${r.a}</td>
                 <td style="font-weight: 600; color: var(--text-secondary);">${r.label}</td>
-                <td class="${r.win === 'userB' ? 'winner' : ''}">${r.win === 'userB' ? '👑 ' : ''}${r.b}</td>
+                <td class="${r.win === 'userB' ? 'winner' : ''}">${r.win === 'userB' ? '★ ' : ''}${r.b}</td>
             </tr>
         `).join('');
     }
@@ -656,7 +656,9 @@ function showEmptyState() {
     if (main) {
         main.innerHTML = `
             <div class="panel-card" style="text-align: center; padding: 60px 20px; max-width: 600px; margin: 60px auto;">
-                <div style="font-size: 54px; margin-bottom: 16px;">✨</div>
+                <div style="margin-bottom: 16px; color: var(--accent-purple); display: flex; justify-content: center;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                </div>
                 <h2 style="font-family: var(--font-heading); margin: 0 0 12px; font-size: 1.8rem;">No Travel Journeys Found Yet</h2>
                 <p style="color: var(--text-secondary); font-size: 15px; margin: 0 0 24px;">
                     Start by exploring any Träwelling user profile or uploading exported GeoJSON data on the main map.

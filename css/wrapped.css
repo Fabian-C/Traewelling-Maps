@@ -123,6 +123,13 @@ body {
     flex-wrap: wrap;
 }
 
+.wrapped-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 .nav-link-btn {
     display: inline-flex;
     align-items: center;
@@ -1084,6 +1091,25 @@ body {
         width: 100%;
         justify-content: space-between;
         gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .wrapped-nav-links {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+    }
+
+    .wrapped-nav-links .nav-link-btn {
+        flex: 1;
+        min-width: 0;
+        padding: 6px 6px;
+        min-height: 36px;
+        font-size: 11px;
+        white-space: nowrap;
+        justify-content: center;
+        gap: 4px;
     }
 
     .control-pill-group {

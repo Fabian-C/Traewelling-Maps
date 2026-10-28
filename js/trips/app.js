@@ -653,7 +653,7 @@ function initStudioWorkbench() {
     // Populate Recipes dropdown
     const recipeSelect = document.getElementById('sqlRecipeSelect');
     if (recipeSelect) {
-        recipeSelect.innerHTML = '<option value="">⚡ Quick Recipes...</option>' +
+        recipeSelect.innerHTML = '<option value="">Quick Recipes...</option>' +
             QUERY_RECIPES.map((r, i) => `<option value="${i}">${escapeHtml(r.title)}</option>`).join('');
     }
 
@@ -1121,19 +1121,19 @@ window.executeTripQuery = executeTripQuery;
 window.visualFilterToSQL = visualFilterToSQL;
 
 const VISUAL_CATEGORY_OPTIONS = [
-    { value: 'highspeed', label: '🚄 High-Speed (ICE/TGV)' },
-    { value: 'regional', label: '🚆 Regional (RE/RB)' },
-    { value: 'suburban', label: '🚈 Suburban (S-Bahn)' },
-    { value: 'subway', label: '🚇 Subway (U-Bahn)' },
-    { value: 'tram', label: '🚊 Tram / Streetcar' },
-    { value: 'bus', label: '🚌 Bus' },
-    { value: 'ferry', label: '⛴️ Ferry' }
+    { value: 'highspeed', label: 'High-Speed (ICE/TGV)' },
+    { value: 'regional', label: 'Regional (RE/RB)' },
+    { value: 'suburban', label: 'Suburban (S-Bahn)' },
+    { value: 'subway', label: 'Subway (U-Bahn)' },
+    { value: 'tram', label: 'Tram / Streetcar' },
+    { value: 'bus', label: 'Bus' },
+    { value: 'ferry', label: 'Ferry' }
 ];
 
 const VISUAL_BUSINESS_OPTIONS = [
-    { value: 'private', label: '🌴 Private / Leisure' },
-    { value: 'commute', label: '💼 Commute' },
-    { value: 'business', label: '👔 Business / Work' }
+    { value: 'private', label: 'Private / Leisure' },
+    { value: 'commute', label: 'Commute' },
+    { value: 'business', label: 'Business / Work' }
 ];
 
 /**
@@ -1144,7 +1144,7 @@ function renderVisualRules() {
     if (!container) return;
 
     if (!visualRules.length) {
-        container.innerHTML = `<div class="visual-rules-empty">No conditions set. All journeys match. Click <strong>➕ Add Condition</strong> above.</div>`;
+        container.innerHTML = `<div class="visual-rules-empty">No conditions set. All journeys match. Click <strong>Add Condition</strong> above.</div>`;
         return;
     }
 
@@ -1173,8 +1173,8 @@ function renderVisualRules() {
             ];
         } else if (isDate) {
             operators = [
-                { id: 'after', label: '📅 on or after (>=)' },
-                { id: 'before', label: '📅 on or before (<=)' },
+                { id: 'after', label: 'on or after (>=)' },
+                { id: 'before', label: 'on or before (<=)' },
                 { id: 'equals', label: '= exact date' },
                 { id: 'is_empty', label: 'is empty (NULL)' },
                 { id: 'is_not_empty', label: 'is not empty' }
@@ -1696,10 +1696,13 @@ function renderResults() {
         if (pageItems.length === 0) {
             const colSpan = isScalarCount ? 1 : (isRawSqlMode ? Math.max(1, rawCols.length + 1) : 10);
             const errorMsg = isStudio && sqlQueryResult?.error;
+            const emptyIcon = errorMsg
+                ? '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-bottom: 8px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'
+                : '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-bottom: 8px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
             tbody.innerHTML = `
                 <tr>
                     <td colspan="${colSpan}" style="text-align: center; padding: 48px 16px;">
-                        <div style="font-size: 38px; margin-bottom: 8px;">${errorMsg ? '⚠️' : '🔍'}</div>
+                        <div>${emptyIcon}</div>
                         <div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">
                             ${errorMsg ? 'SQL Query Error' : (isStudio ? 'No records match your SQL query' : 'No journeys match your active filters')}
                         </div>
@@ -1790,7 +1793,7 @@ function renderResults() {
                 const buddies = getTripBuddies(trip, activeSession?.username);
                 const bodyText = (trip.body || trip.properties?.body || '').trim();
                 const bType = getTripBusinessType(trip);
-                const purposeText = bType === 1 ? '💼 Work' : (bType === 2 ? '🚇 Commute' : '🌴 Leisure / Personal');
+                const purposeText = bType === 1 ? 'Work' : (bType === 2 ? 'Commute' : 'Leisure / Personal');
 
                 const originPlanned = train.origin?.departurePlanned ? formatTime(train.origin.departurePlanned) : '—';
                 const originReal = train.origin?.departureReal ? formatTime(train.origin.departureReal) : originPlanned;
@@ -1804,7 +1807,7 @@ function renderResults() {
                 const buddyBadgesHtml = buddies.length > 0
                     ? `<div class="buddy-pills-list">${buddies.map(b => `
                         <a href="https://traewelling.de/profile/${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" title="Open @${escapeHtml(b.username)} profile on Träwelling" onclick="event.stopPropagation()">
-                            <span class="buddy-badge-icon">👤</span>
+                            <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
                             <span>@${escapeHtml(b.username)}</span>
                         </a>
                     `).join('')}</div>`
@@ -1825,7 +1828,8 @@ function renderResults() {
                         <td data-label="Companions" style="max-width: 170px;">${buddyBadgesHtml}</td>
                         <td data-label="Actions">
                             <button type="button" class="nav-link-btn inspect-trip-btn" data-trip-id="${trip.id}" style="padding: 4px 8px; font-size: 11px;">
-                                🔍 Inspect
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                <span>Inspect</span>
                             </button>
                         </td>
                     </tr>
@@ -1833,19 +1837,25 @@ function renderResults() {
                         <td colspan="10" class="trip-expand-cell">
                             <div class="expand-card-container">
                                 <div class="expand-comment-card ${bodyText ? '' : 'empty'}">
-                                    <span class="comment-icon">💬</span>
+                                    <span class="comment-icon">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                    </span>
                                     <div class="comment-body-text">
                                         ${bodyText ? renderLinkedComment(bodyText) : '<em>No checkin note or comment was attached to this journey.</em>'}
                                     </div>
                                 </div>
                                 ${buddies.length > 0 ? `
                                     <div class="expand-buddies-row">
-                                        <span class="expand-buddies-label">👥 Travel Companions (${buddies.length}):</span>
+                                        <span class="expand-buddies-label">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                                            <span>Travel Companions (${buddies.length}):</span>
+                                        </span>
                                         <div class="expand-buddies-chips">
                                             ${buddies.map(b => `
                                                 <div class="buddy-chip-wrapper">
                                                     <a href="https://traewelling.de/profile/${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-link-pill" title="View @${escapeHtml(b.username)} on Träwelling" onclick="event.stopPropagation()">
-                                                        <span>👤 @${escapeHtml(b.username)}</span>
+                                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                                        <span>@${escapeHtml(b.username)}</span>
                                                     </a>
                                                     <button type="button" class="buddy-filter-btn" data-username="${escapeHtml(b.username.toLowerCase())}" title="Filter trips with @${escapeHtml(b.username)}">Filter</button>
                                                 </div>
@@ -1881,13 +1891,16 @@ function renderResults() {
                                 </div>
                                 <div class="expand-actions-row">
                                     <a href="index.html?user=${encodeURIComponent(activeSession?.username || '')}&trip=${trip.id}" class="nav-link-btn primary" style="padding: 6px 14px; font-size: 12px;">
-                                        🗺️ View on Map
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
+                                        <span>View on Map</span>
                                     </a>
                                     <button type="button" class="nav-link-btn inspect-trip-btn" data-trip-id="${trip.id}" style="padding: 6px 14px; font-size: 12px;">
-                                        🔍 Full Details
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                        <span>Full Details</span>
                                     </button>
                                     <a href="https://traewelling.de/status/${trip.id}" target="_blank" rel="noopener noreferrer" class="nav-link-btn" style="padding: 6px 14px; font-size: 12px;" onclick="event.stopPropagation()">
-                                        🌐 Träwelling.de
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                                        <span>Träwelling.de</span>
                                     </a>
                                 </div>
                             </div>
@@ -1903,9 +1916,12 @@ function renderResults() {
     if (cardsGrid) {
         if (pageItems.length === 0) {
             const errorMsg = isStudio && sqlQueryResult?.error;
+            const emptyCardsIcon = errorMsg
+                ? '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-bottom: 8px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'
+                : '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-bottom: 8px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
             cardsGrid.innerHTML = `
                 <div style="grid-column: 1 / -1; text-align: center; padding: 48px 16px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
-                    <div style="font-size: 38px; margin-bottom: 8px;">${errorMsg ? '⚠️' : '🔍'}</div>
+                    <div>${emptyCardsIcon}</div>
                     <div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">
                         ${errorMsg ? 'SQL Query Error' : (isStudio ? 'No records match your SQL query' : 'No journeys match your active filters')}
                     </div>
@@ -1965,13 +1981,19 @@ function renderResults() {
                             <span class="trip-card-date">${dateStr}</span>
                         </div>
                         <div class="trip-card-route">
-                            <div class="trip-card-station">📍 ${escapeHtml(origin)}</div>
+                            <div class="trip-card-station">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                <span>${escapeHtml(origin)}</span>
+                            </div>
                             <div class="trip-card-arrow">↓</div>
-                            <div class="trip-card-station">🏁 ${escapeHtml(dest)}</div>
+                            <div class="trip-card-station">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                <span>${escapeHtml(dest)}</span>
+                            </div>
                         </div>
                         ${bodyText ? `
                             <div class="trip-card-comment" style="padding: 8px 12px; font-size: 12.5px; background: rgba(15, 23, 42, 0.6); border-radius: 6px; border-left: 2px solid var(--accent-primary); margin: 6px 0; color: var(--text-primary); line-height: 1.4;">
-                                <span style="font-size: 13px; margin-right: 4px;">💬</span>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle; margin-right: 4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                                 <span>${renderLinkedComment(bodyText)}</span>
                             </div>
                         ` : ''}
@@ -1981,7 +2003,7 @@ function renderResults() {
                                 <div class="buddy-pills-list">
                                     ${buddies.map(b => `
                                         <a href="https://traewelling.de/profile/${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" onclick="event.stopPropagation()">
-                                            <span class="buddy-badge-icon">👤</span>
+                                            <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
                                             <span>@${escapeHtml(b.username)}</span>
                                         </a>
                                     `).join('')}
@@ -2131,7 +2153,7 @@ export function openTripDetailModal(trip) {
     // Modal elements
     document.getElementById('modalLineBadge').textContent = lineName;
     document.getElementById('modalLineBadge').className = `line-badge ${cat}`;
-    document.getElementById('modalTripTitle').textContent = `${origin} ➔ ${dest}`;
+    document.getElementById('modalTripTitle').textContent = `${origin} → ${dest}`;
 
     document.getElementById('modalOrigin').textContent = origin;
     document.getElementById('modalDepartureTime').textContent = `Sched: ${originPlanned} · Actual: ${originReal}`;
@@ -2156,7 +2178,7 @@ export function openTripDetailModal(trip) {
         buddiesSec.style.display = 'block';
         buddiesList.innerHTML = buddies.map(b => {
             return `<a href="https://traewelling.de/profile/${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 4px 10px; font-size: 12px;" title="Open @${escapeHtml(b.username)} profile on Träwelling">
-                <span class="buddy-badge-icon">👤</span>
+                <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
                 <span>@${escapeHtml(b.username)}</span>
             </a>`;
         }).join('');
@@ -2226,7 +2248,9 @@ function showEmptyState() {
     if (main) {
         main.innerHTML = `
             <div style="text-align: center; padding: 60px 20px; max-width: 600px; margin: 60px auto; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);">
-                <div style="font-size: 54px; margin-bottom: 16px;">🗂️</div>
+                <div style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; justify-content: center;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+                </div>
                 <h2 style="font-family: var(--font-heading); margin: 0 0 12px; font-size: 1.8rem;">No Travel Journeys Found Yet</h2>
                 <p style="color: var(--text-secondary); font-size: 15px; margin: 0 0 24px;">
                     Start by exploring any Träwelling user profile or uploading exported GeoJSON data on the main interactive map.
