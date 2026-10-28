@@ -1,7 +1,7 @@
 /**
- * In-Browser Video Clip Recorder
- * Preloads 100% of required map tiles, then captures the 1280x720 HTML5 canvas stream
- * into a downloadable video file (.webm / .mp4) suitable for Twitter/X, Mastodon, and Bluesky.
+ * In-Browser WebM Video Clip Recorder
+ * Silently preloads 100% of required map tiles, then captures the 1280x720 HTML5 canvas stream
+ * into a downloadable .webm video file.
  */
 
 import { preloadTripTiles } from './composition.js';
@@ -27,13 +27,10 @@ export class VideoClipRecorder {
             throw new Error('Video player is not initialized yet.');
         }
 
-        // Step 1: Guarantee 100% of map tiles for this trip & map style are loaded and decoded
+        // Silently ensure all map tiles for the scene are loaded and decoded before recording
         if (trip) {
-            await preloadTripTiles(trip, mapStyle, width, height, ({ loaded, total }) => {
-                if (total > 0) {
-                    onProgress(Math.round((loaded / total) * 15), `Preloading map tiles (${loaded}/${total})...`);
-                }
-            });
+            onProgress(5, 'Preparing video clip…');
+            await preloadTripTiles(trip, mapStyle, width, height);
         }
 
         const container = document.getElementById('playerContainer');
@@ -52,7 +49,6 @@ export class VideoClipRecorder {
         const stream = canvas.captureStream(30);
 
         const mimeCandidates = [
-            'video/mp4;codecs=avc1',
             'video/webm;codecs=vp9',
             'video/webm;codecs=vp8',
             'video/webm'
@@ -65,8 +61,7 @@ export class VideoClipRecorder {
             }
         }
 
-        const ext = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
-        const finalFilename = filename.replace(/\.(webm|mp4)$/i, '') + '.' + ext;
+        const finalFilename = filename.replace(/\.(webm|mp4)$/i, '') + '.webm';
 
         this.chunks = [];
         this.mediaRecorder = new MediaRecorder(stream, {
@@ -103,8 +98,8 @@ export class VideoClipRecorder {
 
         const checkEnd = setInterval(() => {
             const currentFrame = this.playerRef.getCurrentFrame();
-            const pct = 15 + Math.min(85, Math.round((currentFrame / totalFrames) * 85));
-            onProgress(pct, `Recording video (${Math.round((currentFrame / totalFrames) * 100)}%)...`);
+            const pct = 10 + Math.min(90, Math.round((currentFrame / totalFrames) * 90));
+            onProgress(pct, `Rendering WebM video (${Math.round((currentFrame / totalFrames) * 100)}%)…`);
 
             if (currentFrame >= totalFrames - 2) {
                 clearInterval(checkEnd);

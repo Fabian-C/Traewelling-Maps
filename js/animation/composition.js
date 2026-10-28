@@ -1,7 +1,9 @@
 /**
  * Animated Journey Video Clip Composition (1280x720 16:9 HD)
- * Renders preloaded Web Mercator map tiles, glowing transit route, directional vehicles,
- * and mobile-first high-contrast telemetry onto an HTML5 Canvas driven by the player timeline.
+ * Built around the Träwelling API v1 'checkin' response model.
+ * Preloads 100% of required Web Mercator map tiles silently in the background
+ * and renders the multi-layer track, stopover waypoints, detailed vehicles,
+ * and mobile-first telemetry onto a 1280x720 HTML5 Canvas.
  */
 
 import React from 'https://esm.sh/react@18.3.1';
@@ -39,11 +41,7 @@ export const CATEGORY_META = {
 const SUBDOMAINS = ['a', 'b', 'c'];
 
 /**
- * 7 Curated Map Tile Sets:
- * - Träwelling Default Maps (traewelling-dark, traewelling-light)
- * - 2 Modern DB-Style Maps (db-light, db-dark)
- * - Classic Free & High-Detail Maps (voyager, topo, osm-de)
- * Every tile source supports CORS (Access-Control-Allow-Origin: *) for canvas video recording.
+ * 7 Curated Map Tile Sets (CORS-enabled for seamless WebM canvas recording)
  */
 export const MAP_STYLES = {
     'traewelling-dark': {
@@ -51,8 +49,7 @@ export const MAP_STYLES = {
         getTileUrl: (z, x, y) => `https://api.mapbox.com/styles/v1/mapbox/dark-v10/tiles/256/${z}/${x}/${y}@2x?access_token=${CONFIG.MAPBOX_TOKEN}`,
         getFallbackUrl: (z, x, y) => `https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/${z}/${y}/${x}`,
         bg: '#11141a',
-        isDark: true,
-        attribution: 'Träwelling Dark • OpenStreetMap'
+        isDark: true
     },
     'traewelling-light': {
         name: 'Träwelling Light',
@@ -62,32 +59,28 @@ export const MAP_STYLES = {
         },
         getFallbackUrl: (z, x, y) => `https://tile.openstreetmap.de/${z}/${x}/${y}.png`,
         bg: '#f5f4f0',
-        isDark: false,
-        attribution: 'Träwelling Transit • Humanitarian OSM'
+        isDark: false
     },
     'db-light': {
-        name: 'DB Modern Light',
+        name: 'Modern Light',
         getTileUrl: (z, x, y) => `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/256/${z}/${x}/${y}@2x?access_token=${CONFIG.MAPBOX_TOKEN}`,
         getFallbackUrl: (z, x, y) => `https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/${z}/${y}/${x}`,
         bg: '#eef2f6',
-        isDark: false,
-        attribution: 'DB Clean Light • OpenStreetMap'
+        isDark: false
     },
     'db-dark': {
-        name: 'DB Strecken Night',
+        name: 'Modern Night',
         getTileUrl: (z, x, y) => `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/256/${z}/${x}/${y}@2x?access_token=${CONFIG.MAPBOX_TOKEN}`,
         getFallbackUrl: (z, x, y) => `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/${z}/${x}/${y}@2x?access_token=${CONFIG.MAPBOX_TOKEN}`,
         bg: '#0c1322',
-        isDark: true,
-        attribution: 'DB Strecken Night • OpenStreetMap'
+        isDark: true
     },
     voyager: {
         name: 'Classic Streets',
         getTileUrl: (z, x, y) => `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/${z}/${x}/${y}@2x?access_token=${CONFIG.MAPBOX_TOKEN}`,
         getFallbackUrl: (z, x, y) => `https://tile.openstreetmap.de/${z}/${x}/${y}.png`,
         bg: '#cad2d3',
-        isDark: false,
-        attribution: 'Classic Streets • OpenStreetMap'
+        isDark: false
     },
     topo: {
         name: 'Rail & Topo',
@@ -97,8 +90,7 @@ export const MAP_STYLES = {
             return `https://${sub}.tile-cyclosm.openstreetmap.fr/cyclosm/${z}/${x}/${y}.png`;
         },
         bg: '#e6e4dd',
-        isDark: false,
-        attribution: 'Rail & Topo • OpenStreetMap'
+        isDark: false
     },
     'osm-de': {
         name: 'Free OSM Rail',
@@ -108,12 +100,11 @@ export const MAP_STYLES = {
             return `https://${sub}.tile.openstreetmap.fr/osmfr/${z}/${x}/${y}.png`;
         },
         bg: '#ebe9e1',
-        isDark: false,
-        attribution: 'OpenStreetMap DE'
+        isDark: false
     }
 };
 
-// Global in-memory decoded tile cache so tiles are loaded once and drawn synchronously onto canvas
+// Silent in-memory decoded tile cache
 const TILE_IMAGE_CACHE = new Map();
 const TILE_PROMISE_CACHE = new Map();
 
@@ -135,7 +126,7 @@ function loadSingleTileImage(primaryUrl, fallbackUrl) {
                     await loadedImg.decode();
                 }
             } catch {
-                // Ignore decode warnings on already loaded images
+                // Ignore decode warnings
             }
             if (loadedImg) {
                 TILE_IMAGE_CACHE.set(primaryUrl, loadedImg);
@@ -163,8 +154,8 @@ function loadSingleTileImage(primaryUrl, fallbackUrl) {
 }
 
 /**
- * Preload 100% of Web Mercator tiles required across the entire camera trajectory of a trip
- * before video playback or recording begins.
+ * Silently preload 100% of Web Mercator tiles required across the trip trajectory
+ * before playback or WebM video recording starts.
  */
 export async function preloadTripTiles(trip, mapStyle = 'traewelling-dark', width = 1280, height = 720, onProgress = null) {
     if (!trip) return { total: 0, loaded: 0 };
@@ -203,8 +194,8 @@ function latToWorldY(lat, z) {
 }
 
 export function extractRouteCoordinates(trip) {
-    const train = trip?.train || trip?.checkin || {};
-    const poly = train?.polyline || trip?.polyline;
+    const checkin = trip?.checkin || trip?.train || {};
+    const poly = checkin?.polyline || trip?.polyline;
     let rawCoords = [];
 
     if (poly?.geometry?.coordinates && Array.isArray(poly.geometry.coordinates)) {
@@ -223,8 +214,8 @@ export function extractRouteCoordinates(trip) {
         return densifyCoordinates(valid, 140);
     }
 
-    const orig = train?.origin?.station || train?.origin || {};
-    const dest = train?.destination?.station || train?.destination || {};
+    const orig = checkin?.origin?.station || checkin?.origin || {};
+    const dest = checkin?.destination?.station || checkin?.destination || {};
     const lon1 = orig.longitude ?? orig.lon ?? orig.lng ?? 13.359059;
     const lat1 = orig.latitude ?? orig.lat ?? 52.546448;
     const lon2 = dest.longitude ?? dest.lon ?? dest.lng ?? 13.387608;
@@ -368,8 +359,8 @@ export function buildMapScene(coords, viewportWidth, viewportHeight) {
 
 function samplePointAlongRoute(scene, progress) {
     const { points, cumDist, totalPathPx } = scene;
-    if (!points.length) return { x: 0, y: 0, angleDeg: 0, index: 0 };
-    if (points.length === 1) return { x: points[0].x, y: points[0].y, angleDeg: 0, index: 0 };
+    if (!points.length) return { x: 0, y: 0, angleRad: 0, index: 0 };
+    if (points.length === 1) return { x: points[0].x, y: points[0].y, angleRad: 0, index: 0 };
 
     const targetDist = Math.max(0, Math.min(1, progress)) * totalPathPx;
     let idx = 0;
@@ -416,124 +407,254 @@ function drawRoundedRect(ctx, x, y, w, h, r) {
     ctx.closePath();
 }
 
-function drawVehicleOnCanvas(ctx, vehicleType, color) {
+/**
+ * Restored Detailed Vehicle Design (ICE aerodynamic nose cone + carriages,
+ * Ferry with water wake ripples, Plane with swept wings & contrails,
+ * Regional/S-Bahn/U-Bahn/Tram/Bus with roof panel & headlights).
+ */
+function drawVehicleOnCanvas(ctx, vehicleType, color, frame) {
+    const pulse = Math.sin(frame * 0.35) * 0.5 + 0.5;
     ctx.save();
-    // Scale 1.4x so the vehicle stands out clearly on mobile screens
-    ctx.scale(1.4, 1.4);
+    ctx.scale(1.25, 1.25);
 
-    // Headlight beam
-    const grad = ctx.createLinearGradient(20, 0, 58, 0);
-    grad.addColorStop(0, 'rgba(253, 224, 71, 0.42)');
-    grad.addColorStop(1, 'rgba(253, 224, 71, 0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.moveTo(18, -5);
-    ctx.lineTo(58, -18);
-    ctx.lineTo(58, 18);
-    ctx.lineTo(18, 5);
-    ctx.closePath();
-    ctx.fill();
-
-    // Drop shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    drawRoundedRect(ctx, -30, -9, 60, 22, 10);
-    ctx.fill();
-
-    if (vehicleType === 'ice') {
-        // Aerodynamic High-Speed Train
-        ctx.fillStyle = '#f8fafc';
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.lineWidth = 2;
-        drawRoundedRect(ctx, -32, -11, 64, 22, 11);
-        ctx.fill();
+    if (vehicleType === 'ferry') {
+        // Water Wake Ripples
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(-18, -8);
+        ctx.lineTo(-38, -20);
+        ctx.moveTo(-18, 8);
+        ctx.lineTo(-38, 20);
         ctx.stroke();
+        ctx.restore();
 
-        // Red/Category racing stripe
-        ctx.fillStyle = color;
-        drawRoundedRect(ctx, -28, -3, 52, 6, 3);
+        // Pulsing wake ellipse
+        ctx.fillStyle = 'rgba(224, 242, 254, 0.35)';
+        ctx.beginPath();
+        ctx.ellipse(-24, 0, 10 + pulse * 4, 6 + pulse * 2, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Cockpit windshield
-        ctx.fillStyle = '#0f172a';
-        drawRoundedRect(ctx, 14, -7, 12, 14, 5);
+        // Drop Shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.beginPath();
+        ctx.moveTo(-22, -6);
+        ctx.lineTo(14, -6);
+        ctx.lineTo(28, 5);
+        ctx.lineTo(14, 16);
+        ctx.lineTo(-22, 16);
+        ctx.closePath();
         ctx.fill();
-    } else if (vehicleType === 'ferry') {
-        // Ferry hull
+
+        // Ferry Hull (Pointed Bow)
         ctx.fillStyle = '#ffffff';
         ctx.strokeStyle = color;
         ctx.lineWidth = 3;
-        drawRoundedRect(ctx, -28, -12, 56, 24, 10);
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-22, -11);
+        ctx.lineTo(14, -11);
+        ctx.lineTo(28, 0);
+        ctx.lineTo(14, 11);
+        ctx.lineTo(-22, 11);
+        ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
+        // Blue Deck & Cabin
         ctx.fillStyle = color;
-        drawRoundedRect(ctx, -16, -7, 28, 14, 4);
+        drawRoundedRect(ctx, -16, -7, 24, 14, 3);
+        ctx.fill();
+        ctx.fillStyle = '#e0f2fe';
+        drawRoundedRect(ctx, -6, -5, 10, 10, 2);
+        ctx.fill();
+
+        // Bow Accent
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(18, 0, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+    } else if (vehicleType === 'plane') {
+        // Jet Contrails
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-22, -5);
+        ctx.lineTo(-42, -5);
+        ctx.moveTo(-22, 5);
+        ctx.lineTo(-42, 5);
+        ctx.stroke();
+
+        // Swept Wing Aircraft Fuselage
+        const planePath = new Path2D(
+            'M -22,-12 L -14,0 L -22,12 L -16,12 L -8,3 L 6,3 L 2,26 L 9,26 L 16,3 L 26,3 C 31,3 34,0 34,0 C 34,0 31,-3 26,-3 L 16,-3 L 9,-26 L 2,-26 L 6,-3 L -8,-3 L -16,-12 Z'
+        );
+        ctx.save();
+        ctx.translate(8, 14);
+        ctx.scale(0.85, 0.85);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.fill(planePath);
+        ctx.restore();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.fill(planePath);
+        ctx.stroke(planePath);
+    } else if (vehicleType === 'ice') {
+        // Headlight Beam Cone
+        ctx.fillStyle = 'rgba(254, 240, 138, 0.32)';
+        ctx.beginPath();
+        ctx.moveTo(28, 0);
+        ctx.lineTo(56, -14);
+        ctx.lineTo(56, 14);
+        ctx.closePath();
+        ctx.fill();
+
+        // Drop Shadow
+        const shadowPath = new Path2D('M -30,-4 L 16,-4 C 26,-4 32,1 32,5 C 32,9 26,14 16,14 L -30,14 Z');
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fill(shadowPath);
+
+        // Rear Carriage
+        ctx.fillStyle = '#f8fafc';
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.5;
+        drawRoundedRect(ctx, -32, -9, 22, 18, 3);
+        ctx.fill();
+        ctx.stroke();
+
+        // Aerodynamic ICE Nose Cone
+        const nosePath = new Path2D('M -8,-9 L 16,-9 C 26,-9 33,-4 33,0 C 33,4 26,9 16,9 L -8,9 Z');
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 1.5;
+        ctx.fill(nosePath);
+        ctx.stroke(nosePath);
+
+        // Iconic Dual Speed Stripes along sides
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-30, -6);
+        ctx.lineTo(24, -6);
+        ctx.moveTo(-30, 6);
+        ctx.lineTo(24, 6);
+        ctx.stroke();
+
+        // Cockpit Windshield
+        const windPath = new Path2D('M 15,-5 C 21,-5 25,-2 25,0 C 25,2 21,5 15,5 L 12,4 L 12,-4 Z');
+        ctx.fillStyle = '#0f172a';
+        ctx.fill(windPath);
+
+        // Roof Louvers
+        ctx.fillStyle = '#94a3b8';
+        drawRoundedRect(ctx, -24, -3, 12, 6, 1.5);
+        ctx.fill();
+        drawRoundedRect(ctx, -3, -3, 11, 6, 1.5);
         ctx.fill();
     } else {
-        // U-Bahn / S-Bahn / Regional / Tram / Bus
+        // Default Regional / S-Bahn / U-Bahn / Tram / Bus Vehicle
+        ctx.fillStyle = 'rgba(253, 224, 71, 0.28)';
+        ctx.beginPath();
+        ctx.moveTo(24, 0);
+        ctx.lineTo(48, -12);
+        ctx.lineTo(48, 12);
+        ctx.closePath();
+        ctx.fill();
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.48)';
+        drawRoundedRect(ctx, -26, -5, 52, 20, 7);
+        ctx.fill();
+
+        // Main Train Body
         ctx.fillStyle = color;
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3;
-        drawRoundedRect(ctx, -28, -11, 56, 22, 8);
+        ctx.lineWidth = 2.5;
+        drawRoundedRect(ctx, -26, -10, 52, 20, 7);
         ctx.fill();
         ctx.stroke();
 
-        // Roof panel
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.26)';
+        // Silver Roof Panel
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
         drawRoundedRect(ctx, -20, -6, 34, 12, 4);
         ctx.fill();
 
-        // Windshield
+        // Front Windshield
         ctx.fillStyle = '#0f172a';
-        drawRoundedRect(ctx, 15, -8, 9, 16, 3);
+        drawRoundedRect(ctx, 14, -7, 8, 14, 3);
+        ctx.fill();
+
+        // Headlights
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath();
+        ctx.arc(24, -5, 2, 0, Math.PI * 2);
+        ctx.arc(24, 5, 2, 0, Math.PI * 2);
         ctx.fill();
     }
-
-    // Headlights
-    ctx.fillStyle = '#fef08a';
-    ctx.beginPath();
-    ctx.arc(26, -5, 2.5, 0, Math.PI * 2);
-    ctx.arc(26, 5, 2.5, 0, Math.PI * 2);
-    ctx.fill();
 
     ctx.restore();
 }
 
-function drawStationPin(ctx, x, y, label, dotColor, isDest = false) {
+/**
+ * Restored Origin & Destination Station Pins & Callout Flags
+ */
+function drawStationPin(ctx, x, y, label, dotColor, isDest = false, frame = 0) {
     ctx.save();
     ctx.translate(x, y);
 
-    // Outer halo pulse
-    ctx.fillStyle = isDest ? 'rgba(255, 46, 85, 0.28)' : 'rgba(34, 197, 94, 0.28)';
-    ctx.beginPath();
-    ctx.arc(0, 0, 22, 0, Math.PI * 2);
-    ctx.fill();
+    // Destination arrival celebration ring
+    if (isDest && frame >= 168) {
+        const ringProgress = Math.min(1, (frame - 168) / 35);
+        ctx.save();
+        ctx.strokeStyle = dotColor;
+        ctx.globalAlpha = Math.max(0, 1 - ringProgress);
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(0, 0, 14 + ringProgress * 32, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
 
-    // Pin circle
+    // Station Circle (24px origin / 26px destination with 4px white border)
+    const radius = isDest ? 13 : 12;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 4;
     ctx.fillStyle = dotColor;
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    ctx.restore();
 
-    // Station Name Pill above pin (large font for mobile!)
+    // Callout Flag Pill (🟢 Origin above pin, 🏁 Destination below pin)
     const shortName = shortenStationName(label);
-    ctx.font = '800 22px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    const textW = ctx.measureText(shortName).width;
-    const pillW = textW + 34;
-    const pillH = 42;
+    const pillText = isDest ? `🏁 ${shortName}` : `🟢 ${shortName}`;
+    ctx.font = '800 20px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    const textW = ctx.measureText(pillText).width;
+    const pillW = textW + 28;
+    const pillH = 38;
     const pillX = -pillW / 2;
-    const pillY = -58;
+    const pillY = isDest ? 22 : -22 - pillH;
 
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
     ctx.shadowBlur = 16;
     ctx.shadowOffsetY = 6;
-    ctx.fillStyle = 'rgba(10, 14, 24, 0.94)';
-    drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 21);
+    ctx.fillStyle = '#0f172a';
+    drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 19);
     ctx.fill();
-
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
     ctx.strokeStyle = dotColor;
@@ -543,7 +664,8 @@ function drawStationPin(ctx, x, y, label, dotColor, isDest = false) {
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(shortName, 0, pillY + pillH / 2 + 1);
+    ctx.fillText(pillText, 0, pillY + pillH / 2 + 1);
+    ctx.restore();
 
     ctx.restore();
 }
@@ -551,8 +673,7 @@ function drawStationPin(ctx, x, y, label, dotColor, isDest = false) {
 export function TripStoryComposition({
     trip,
     username = 'Traveler',
-    mapStyle = 'traewelling-dark',
-    onTilesProgress = null
+    mapStyle = 'traewelling-dark'
 }) {
     const frame = useCurrentFrame();
     const { fps, width, height } = useVideoConfig();
@@ -563,7 +684,7 @@ export function TripStoryComposition({
     const scene = React.useMemo(() => buildMapScene(coords, width, height), [coords, width, height]);
     const styleConfig = MAP_STYLES[mapStyle] || MAP_STYLES['traewelling-dark'];
 
-    // Preload all scene tiles and gate Remotion rendering until tiles are ready
+    // Silently preload 100% of scene tiles before rendering/recording starts
     React.useEffect(() => {
         if (!trip || !scene.tiles.length) return;
         let cancelled = false;
@@ -575,10 +696,9 @@ export function TripStoryComposition({
             }
         }, 6500);
 
-        preloadTripTiles(trip, mapStyle, width, height, ({ loaded, total }) => {
+        preloadTripTiles(trip, mapStyle, width, height, ({ loaded }) => {
             if (!cancelled) {
                 setTilesReadyCount(loaded);
-                if (onTilesProgress) onTilesProgress({ loaded, total });
             }
         }).then(() => {
             clearTimeout(safetyTimer);
@@ -594,38 +714,45 @@ export function TripStoryComposition({
         };
     }, [trip, mapStyle, width, height, scene]);
 
-    // Draw the complete 1280x720 frame onto the canvas whenever frame, trip, mapStyle, or tilesReadyCount updates
     React.useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas || !trip) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        const train = trip.train || trip.checkin || {};
-        const categoryKey = train.category || 'regional';
+        // Focus on the new Träwelling API v1 'checkin' response model
+        const checkin = trip.checkin || trip.train || {};
+        const categoryKey = checkin.category || 'regional';
         const catMeta = CATEGORY_META[categoryKey] || CATEGORY_META.unknown;
 
-        const lineName = train.lineName || train.number || 'Train';
-        const originName = train.origin?.name || trip.origin || 'Origin';
-        const destName = train.destination?.name || trip.destination || 'Destination';
-        const rawDist = typeof train.totalDistance === 'number'
-            ? train.totalDistance
-            : (typeof train.distance === 'number' ? train.distance : (trip.distance || 0));
+        // Use official routeColor from new Träwelling API if provided (e.g. "8c6dab" for U6), otherwise category color
+        const lineColor = checkin.routeColor
+            ? `#${String(checkin.routeColor).replace(/^#/, '')}`
+            : catMeta.color;
+
+        const lineName = checkin.lineName || checkin.number || 'Train';
+        const originName = checkin.origin?.name || checkin.origin?.station?.name || trip.origin || 'Origin';
+        const destName = checkin.destination?.name || checkin.destination?.station?.name || trip.destination || 'Destination';
+        const rawDist = typeof checkin.distance === 'number'
+            ? checkin.distance
+            : (typeof checkin.totalDistance === 'number' ? checkin.totalDistance : (trip.distance || 0));
         const totalDistanceKm = rawDist > 0 ? rawDist / 1000 : 3.1;
 
-        const delays = deriveDelaySeconds(train);
+        const delays = deriveDelaySeconds(checkin);
         const delaySec = delays.arrival !== null ? delays.arrival : (delays.departure || 0);
         const delayMinutes = Math.round(delaySec / 60);
 
-        const durationMin = computeTripDurationMinutes(train);
+        const durationMin = computeTripDurationMinutes(checkin);
         const durationFormatted = durationMin !== null ? formatHumanDuration(durationMin) : '—';
         const note = (trip.body || '').trim();
-        const dateRaw = train.origin?.departureReal || train.origin?.departurePlanned || trip.createdAt;
+        const resolvedUsername = trip.user?.username || username || 'Traveler';
+        const dateRaw = checkin.origin?.departureReal || checkin.origin?.departurePlanned || trip.createdAt;
         const dateStr = dateRaw
             ? new Date(dateRaw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
             : '';
 
         // Choreography (240 frames @ 30fps = 8.0s)
+        const introSpring = spring({ frame, fps, config: { damping: 13, stiffness: 110 } });
         const rawTravel = interpolate(frame, [28, 172], [0, 1], {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp'
@@ -685,31 +812,27 @@ export function TripStoryComposition({
             }
         }
 
-        // Subtle contrast/readability wash over light maps so glowing route & badges pop on mobile
-        if (!styleConfig.isDark) {
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.06)';
-            ctx.fillRect(0, 0, scene.sceneWidth, scene.sceneHeight);
-        }
-
-        // 4. Draw Upcoming Dashed Route Path
+        // 4. Restored 4-Layer Track Design
         if (scene.points.length >= 2) {
+            // Layer 4a: Subtle Unvisited Dashed Guide Track
             ctx.save();
             ctx.beginPath();
             ctx.moveTo(scene.points[0].x, scene.points[0].y);
             for (let i = 1; i < scene.points.length; i++) {
                 ctx.lineTo(scene.points[i].x, scene.points[i].y);
             }
-            ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(15, 23, 42, 0.28)';
-            ctx.lineWidth = 8 / camZoom;
+            ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.20)' : 'rgba(15, 23, 42, 0.24)';
+            ctx.lineWidth = 10 / camZoom;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
-            ctx.setLineDash([14 / camZoom, 12 / camZoom]);
+            ctx.setLineDash([10 / camZoom, 10 / camZoom]);
             ctx.stroke();
             ctx.restore();
 
-            // 5. Draw Active Traveled Route Path with Glow
+            // Build traveled path up to vehiclePose
             const maxIdx = Math.max(0, Math.min(scene.points.length - 1, vehiclePose.index));
             const wholeIdx = Math.floor(maxIdx);
+
             ctx.save();
             ctx.beginPath();
             ctx.moveTo(scene.points[0].x, scene.points[0].y);
@@ -717,89 +840,96 @@ export function TripStoryComposition({
                 ctx.lineTo(scene.points[i].x, scene.points[i].y);
             }
             ctx.lineTo(vehiclePose.x, vehiclePose.y);
-
-            // Outer glow
-            ctx.shadowColor = catMeta.color;
-            ctx.shadowBlur = 24;
-            ctx.strokeStyle = catMeta.color;
-            ctx.lineWidth = 13 / camZoom;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
+
+            // Layer 4b: White Outer Casing with Drop Shadow
+            ctx.save();
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetY = 4;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 16 / camZoom;
+            ctx.stroke();
+            ctx.restore();
+
+            // Layer 4c: Vibrant Line-Colored Core
+            ctx.strokeStyle = lineColor;
+            ctx.lineWidth = 10 / camZoom;
             ctx.stroke();
 
-            // Inner bright core
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 4.5 / camZoom;
+            // Layer 4d: Inner Animated Dash Striping
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.lineWidth = 3.5 / camZoom;
+            ctx.setLineDash([8 / camZoom, 14 / camZoom]);
+            ctx.lineDashOffset = -(frame * 0.8) / camZoom;
             ctx.stroke();
             ctx.restore();
         }
 
-        // 6. Draw Origin & Destination Pins (in world space, inverse-scaled so text is always crisp)
+        // 5. Restored Intermediate Stopover Waypoint Dots (20%, 40%, 60%, 80%)
+        const milestoneFractions = [0.2, 0.4, 0.6, 0.8];
+        milestoneFractions.forEach((mPct) => {
+            if (travelProgress >= mPct) {
+                const mPt = samplePointAlongRoute(scene, mPct);
+                ctx.save();
+                ctx.translate(mPt.x, mPt.y);
+                ctx.scale(1 / camZoom, 1 / camZoom);
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+                ctx.shadowBlur = 8;
+                ctx.shadowOffsetY = 2;
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = lineColor;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+        });
+
+        // 6. Restored Origin & Destination Station Pins & Callout Flags
         const originPt = scene.points[0];
         const destPt = scene.points[scene.points.length - 1];
         if (originPt) {
             ctx.save();
             ctx.translate(originPt.x, originPt.y);
-            ctx.scale(1 / camZoom, 1 / camZoom);
-            drawStationPin(ctx, 0, 0, originName, '#22c55e', false);
+            const pinScale = Math.max(0.01, introSpring) / camZoom;
+            ctx.scale(pinScale, pinScale);
+            drawStationPin(ctx, 0, 0, originName, '#10b981', false, frame);
             ctx.restore();
         }
-        if (destPt && (frame >= 155 || travelProgress > 0.85)) {
+        if (destPt) {
             ctx.save();
             ctx.translate(destPt.x, destPt.y);
-            ctx.scale(1 / camZoom, 1 / camZoom);
-            drawStationPin(ctx, 0, 0, destName, catMeta.color, true);
+            const destScale = (travelProgress > 0.92 ? 1.08 : 0.88) / camZoom;
+            ctx.scale(destScale, destScale);
+            drawStationPin(ctx, 0, 0, destName, lineColor, true, frame);
             ctx.restore();
         }
 
-        // 7. Draw Directional Vehicle + Floating Telemetry Callout
-        if (travelProgress < 0.995) {
-            ctx.save();
-            ctx.translate(vehiclePose.x, vehiclePose.y);
-            ctx.scale(1 / camZoom, 1 / camZoom);
-
-            ctx.save();
-            ctx.rotate(vehiclePose.angleRad || 0);
-            drawVehicleOnCanvas(ctx, catMeta.vehicle, catMeta.color);
-            ctx.restore();
-
-            // Floating Callout Pill above Vehicle (Big 22px bold font for mobile!)
-            const calloutText = `${lineName} • ${currentDistKm} km`;
-            ctx.font = '800 22px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-            const cw = ctx.measureText(calloutText).width + 36;
-            const ch = 42;
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-            ctx.shadowBlur = 14;
-            ctx.fillStyle = catMeta.color;
-            drawRoundedRect(ctx, -cw / 2, -74, cw, ch, 21);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2.5;
-            ctx.stroke();
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(calloutText, 0, -74 + ch / 2 + 1);
-
-            ctx.restore();
-        }
+        // 7. Restored Moving Directional Vehicle Model (without floating train number tag over vehicle)
+        ctx.save();
+        ctx.translate(vehiclePose.x, vehiclePose.y);
+        ctx.scale(1.08 / camZoom, 1.08 / camZoom);
+        ctx.rotate(vehiclePose.angleRad || 0);
+        drawVehicleOnCanvas(ctx, catMeta.vehicle, lineColor, frame);
+        ctx.restore();
 
         ctx.restore(); // End camera transform
 
         // 8. Vignette framing around edges
-        const vig = ctx.createRadialGradient(width / 2, height / 2, width * 0.32, width / 2, height / 2, width * 0.68);
+        const vig = ctx.createRadialGradient(width / 2, height / 2, width * 0.34, width / 2, height / 2, width * 0.70);
         vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        vig.addColorStop(1, 'rgba(4, 7, 15, 0.45)');
+        vig.addColorStop(1, 'rgba(4, 7, 15, 0.42)');
         ctx.fillStyle = vig;
         ctx.fillRect(0, 0, width, height);
 
         // =========================================================================
-        // 9. MOBILE-OPTIMIZED TOP HUD HEADER BAR (Large 26-30px fonts!)
+        // 9. TOP HUD HEADER BAR (Mobile-friendly large typography)
         // =========================================================================
         const pad = 28;
-        const bottomSafePad = 74;
         const headerH = 92;
         const rightCardW = 336;
         const leftCardW = width - pad * 2 - rightCardW - 18;
@@ -823,7 +953,7 @@ export function TripStoryComposition({
         const badgeX = pad + 18;
         const badgeY = pad + (headerH - badgeH) / 2;
 
-        ctx.fillStyle = catMeta.color;
+        ctx.fillStyle = lineColor;
         drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 14);
         ctx.fill();
 
@@ -844,14 +974,14 @@ export function TripStoryComposition({
         ctx.textBaseline = 'top';
         ctx.fillText(routeTitle, textStartX, pad + 16, leftCardW - (textStartX - pad) - 20);
 
-        const subTitle = `@${username}  •  ${dateStr}  •  ${catMeta.label}`;
+        const subTitle = `@${resolvedUsername}  •  ${dateStr}  •  ${catMeta.label}`;
         ctx.fillStyle = '#94a3b8';
         ctx.font = '600 19px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.fillText(subTitle, textStartX, pad + 54);
         ctx.restore();
 
         // =========================================================================
-        // 10. TOP-RIGHT LIVE METRICS CARD (Distance + Duration, 30px bold!)
+        // 10. TOP-RIGHT LIVE METRICS CARD (Distance + Duration, no CO2!)
         // =========================================================================
         const rightCardX = width - pad - rightCardW;
 
@@ -881,7 +1011,7 @@ export function TripStoryComposition({
         ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
         ctx.fillRect(rightCardX + 178, pad + 18, 2, headerH - 36);
 
-        // Duration Column (Real computed duration, e.g. 8m!)
+        // Duration Column
         ctx.fillStyle = '#94a3b8';
         ctx.font = '800 14px Inter, sans-serif';
         ctx.fillText('DURATION', rightCardX + 196, pad + 16);
@@ -892,47 +1022,11 @@ export function TripStoryComposition({
         ctx.restore();
 
         // =========================================================================
-        // 11. BOTTOM PROGRESS BAR OR FINALE SUMMARY BANNER
+        // 11. FINALE SUMMARY BANNER (Only at end of clip; no bottom progress bar!)
         // =========================================================================
-        if (frame < 178) {
-            const barH = 52;
-            const barY = height - bottomSafePad - barH;
-            const barW = width - pad * 2;
-
-            ctx.save();
-            ctx.fillStyle = 'rgba(10, 14, 24, 0.88)';
-            drawRoundedRect(ctx, pad, barY, barW, barH, 26);
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-
-            ctx.font = '700 19px Inter, sans-serif';
-            ctx.fillStyle = '#4ade80';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(shortOrig, pad + 24, barY + barH / 2);
-
-            ctx.fillStyle = '#f8fafc';
-            ctx.textAlign = 'right';
-            ctx.fillText(shortDest, pad + barW - 24, barY + barH / 2);
-
-            const trackLeft = pad + 260;
-            const trackRight = pad + barW - 260;
-            const trackW = Math.max(120, trackRight - trackLeft);
-            const trackY = barY + barH / 2 - 5;
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
-            drawRoundedRect(ctx, trackLeft, trackY, trackW, 10, 5);
-            ctx.fill();
-
-            ctx.fillStyle = catMeta.color;
-            drawRoundedRect(ctx, trackLeft, trackY, Math.max(12, trackW * travelProgress), 10, 5);
-            ctx.fill();
-            ctx.restore();
-        } else {
-            // Finale Summary Card (Big, mobile-friendly summary banner above player controls)
-            const cardH = 104;
+        if (frame >= 178) {
+            const bottomSafePad = 82;
+            const cardH = 100;
             const slideOffset = interpolate(cardPopupSpring, [0, 1], [50, 0]);
             const cardY = height - bottomSafePad - cardH + slideOffset;
             const cardW = width - pad * 2;
@@ -945,47 +1039,69 @@ export function TripStoryComposition({
             drawRoundedRect(ctx, pad, cardY, cardW, cardH, 24);
             ctx.fill();
             ctx.shadowBlur = 0;
-            ctx.strokeStyle = catMeta.color;
+            ctx.strokeStyle = lineColor;
             ctx.lineWidth = 3;
             ctx.stroke();
 
-            // Emoji / Category Icon Box
-            const iconBox = 68;
+            const iconBox = 64;
             const iconX = pad + 20;
             const iconY = cardY + (cardH - iconBox) / 2;
-            ctx.fillStyle = catMeta.color;
-            drawRoundedRect(ctx, iconX, iconY, iconBox, iconBox, 18);
+            ctx.fillStyle = lineColor;
+            drawRoundedRect(ctx, iconX, iconY, iconBox, iconBox, 16);
             ctx.fill();
 
-            ctx.font = '36px sans-serif';
+            ctx.font = '34px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(catMeta.emoji, iconX + iconBox / 2, iconY + iconBox / 2 + 2);
 
-            // Traveler + Delay Badge + Note
             const infoX = iconX + iconBox + 22;
             ctx.fillStyle = '#ffffff';
-            ctx.font = '800 26px Inter, sans-serif';
+            ctx.font = '800 25px Inter, sans-serif';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
             const statusLabel = delayMinutes > 0 ? `+${delayMinutes} min delay` : 'On Time';
-            ctx.fillText(`@${username}  •  ${statusLabel}`, infoX, cardY + 20);
+            ctx.fillText(`@${resolvedUsername}  •  ${statusLabel}`, infoX, cardY + 18);
 
             const noteDisplay = note
                 ? `"${note.slice(0, 58)}${note.length > 58 ? '…' : ''}"`
                 : `Checked in on Träwelling • ${shortOrig} → ${shortDest}`;
             ctx.fillStyle = '#cbd5e1';
-            ctx.font = '600 21px Inter, sans-serif';
-            ctx.fillText(noteDisplay, infoX, cardY + 58);
+            ctx.font = '600 20px Inter, sans-serif';
+            ctx.fillText(noteDisplay, infoX, cardY + 54);
 
-            // Right-side Finale Totals
             const statRightX = pad + cardW - 28;
             ctx.textAlign = 'right';
             ctx.fillStyle = '#4ade80';
-            ctx.font = '900 32px "JetBrains Mono", monospace';
-            ctx.fillText(`${totalDistanceKm.toFixed(1)} km  •  ${durationFormatted}`, statRightX, cardY + 36);
+            ctx.font = '900 30px "JetBrains Mono", monospace';
+            ctx.fillText(`${totalDistanceKm.toFixed(1)} km  •  ${durationFormatted}`, statRightX, cardY + 34);
             ctx.restore();
         }
+
+        // =========================================================================
+        // 12. CORNER WATERMARK: "Generated on fabian-c.github.io/Traewelling-Maps"
+        // =========================================================================
+        ctx.save();
+        const wmText = 'Generated on fabian-c.github.io/Traewelling-Maps';
+        ctx.font = '600 14px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+        const wmTextW = ctx.measureText(wmText).width;
+        const wmW = wmTextW + 24;
+        const wmH = 28;
+        const wmX = width - pad - 46 - wmW;
+        const wmY = frame >= 178 ? (height - 82 - 100 - wmH - 10) : (height - 52 - wmH);
+
+        ctx.fillStyle = 'rgba(10, 14, 24, 0.82)';
+        drawRoundedRect(ctx, wmX, wmY, wmW, wmH, 14);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(226, 232, 240, 0.92)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(wmText, wmX + wmW / 2, wmY + wmH / 2 + 0.5);
+        ctx.restore();
 
         ctx.restore();
     }, [frame, fps, width, height, trip, username, mapStyle, scene, styleConfig, tilesReadyCount]);

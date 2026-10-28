@@ -1,8 +1,8 @@
 /**
  * Journey Video Clip Controller
- * Coordinates SessionDB, live Träwelling API & single-status fetch, URL parameters (?user=&id=),
- * 16:9 rectangular HD canvas player, 7 map tile sets with 100% tile preloading,
- * video file download, and prepopulated Mastodon post sharing.
+ * Built around the Träwelling API v1 'checkin' response model.
+ * Coordinates SessionDB, live API & single-status fetch, URL parameters (?user=&id=),
+ * 16:9 rectangular HD canvas player, 7 map tile sets, and WebM video download.
  */
 
 import React from 'https://esm.sh/react@18.3.1';
@@ -16,7 +16,7 @@ import { normalizeTripStatus } from '../data/processing.js';
 import { syncNavigationLinks } from '../ui/navigation.js';
 import { computeTripDurationMinutes, deriveDelaySeconds } from '../utils/time.js';
 import { escapeHtml, formatHumanDuration } from '../utils/format.js';
-import { TripStoryComposition, MAP_STYLES, CATEGORY_META } from './composition.js';
+import { TripStoryComposition, MAP_STYLES } from './composition.js';
 import { VideoClipRecorder } from './recorder.js';
 
 const html = htm.bind(React.createElement);
@@ -27,9 +27,14 @@ const DEMO_FIXTURE_TRIPS = [
         body: 'Mit @Floxy',
         bodyMentions: [{ user: { username: 'Floxy', displayName: 'Floxy' } }],
         createdAt: '2026-10-05T15:32:00+00:00',
-        train: {
+        user: { username: 'Hash', displayName: 'Fabi' },
+        checkin: {
             category: 'subway',
+            mode: 'SUBWAY',
+            number: 'U6',
             lineName: 'U6',
+            routeColor: '8c6dab',
+            routeTextColor: '000000',
             distance: 3055,
             duration: 8,
             origin: {
@@ -65,12 +70,14 @@ const DEMO_FIXTURE_TRIPS = [
         id: 8877665,
         body: 'High-speed rail run across Northern Germany 🚄',
         createdAt: '2026-10-12T10:00:00+00:00',
-        train: {
+        user: { username: 'resu', displayName: 'Resu' },
+        checkin: {
             category: 'nationalExpress',
+            mode: 'HIGH_SPEED_TRAIN',
+            number: 'ICE 605',
             lineName: 'ICE 605',
-            totalDistance: 284000,
+            distance: 284000,
             duration: 104,
-            departureDelay: 180,
             origin: {
                 name: 'Hamburg Hbf',
                 departurePlanned: '2026-10-12T10:00:00+00:00',
@@ -103,14 +110,16 @@ const DEMO_FIXTURE_TRIPS = [
     {
         id: 9309802,
         body: 'Evening S-Bahn ride through the Berlin Stadtbahn with @Fabi',
-        bodyMentions: [{ id: 1, username: 'Fabi' }],
+        bodyMentions: [{ user: { username: 'Fabi' } }],
         createdAt: '2026-10-11T18:46:00+00:00',
-        train: {
+        user: { username: 'resu', displayName: 'Resu' },
+        checkin: {
             category: 'suburban',
+            mode: 'SUBURBAN_TRAIN',
+            number: 'S9',
             lineName: 'S9',
-            totalDistance: 4400,
+            distance: 4400,
             duration: 9,
-            departureDelay: 60,
             origin: {
                 name: 'Berlin Friedrichstraße',
                 departurePlanned: '2026-10-11T18:46:00+00:00',
@@ -140,14 +149,16 @@ const DEMO_FIXTURE_TRIPS = [
     {
         id: 325374,
         body: 'Harbor ferry cruise on the Elbe with @Fabi',
-        bodyMentions: [{ id: 1, username: 'Fabi' }],
+        bodyMentions: [{ user: { username: 'Fabi' } }],
         createdAt: '2022-04-16T16:49:46+00:00',
-        train: {
+        user: { username: 'resu', displayName: 'Resu' },
+        checkin: {
             category: 'ferry',
+            mode: 'FERRY',
+            number: 'Fähre 62',
             lineName: 'Fähre 62',
-            totalDistance: 6200,
+            distance: 6200,
             duration: 24,
-            departureDelay: 0,
             origin: { name: 'Hamburg Landungsbrücken' },
             destination: { name: 'Finkenwerder' },
             polyline: {
@@ -181,7 +192,6 @@ let userTrips = [];
 let allSessions = [];
 let playerRef = null;
 let reactRoot = null;
-let lastRecordedVideo = null;
 
 async function init() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -191,12 +201,6 @@ async function init() {
     const mapParam = urlParams.get('map');
     if (mapParam && MAP_STYLES[mapParam]) {
         currentMapStyle = mapParam;
-    }
-
-    const savedInstance = localStorage.getItem('trwl_mastodon_instance');
-    const instInput = document.getElementById('mastodonInstanceInput');
-    if (savedInstance && instInput) {
-        instInput.value = savedInstance;
     }
 
     syncNavigationLinks(currentUser);
@@ -240,8 +244,8 @@ function syncToolbarPills() {
 async function attachPolylinesToTrips(trips) {
     const missingPolyIds = trips
         .filter(t => {
-            const tr = t.train || t.checkin || {};
-            return !tr.polyline;
+            const checkin = t.checkin || t.train || {};
+            return !checkin.polyline;
         })
         .slice(0, 20)
         .map(t => t.id)
@@ -258,8 +262,9 @@ async function attachPolylinesToTrips(trips) {
         });
         trips.forEach(t => {
             normalizeTripStatus(t);
-            if (t.train && polyMap.has(String(t.id))) {
-                t.train.polyline = polyMap.get(String(t.id));
+            const checkin = t.checkin || t.train;
+            if (checkin && polyMap.has(String(t.id))) {
+                checkin.polyline = polyMap.get(String(t.id));
             }
         });
     } catch (e) {
@@ -316,7 +321,7 @@ async function loadUserTrips(username) {
 
     if (currentTripId) {
         currentTrip = userTrips.find(t => String(t.id) === String(currentTripId))
-            || DEMO_FIXTURE_TRIPS.find(t => String(t.id) === String(currentTripId));
+            || DEMO_FIXTURE_TRIPS.map(t => normalizeTripStatus(t)).find(t => String(t.id) === String(currentTripId));
         if (currentTrip && !userTrips.includes(currentTrip)) {
             userTrips.unshift(currentTrip);
         }
@@ -327,7 +332,6 @@ async function loadUserTrips(username) {
         currentTripId = String(currentTrip.id);
     }
 
-    lastRecordedVideo = null;
     updateTripSidebar(currentTrip);
 }
 
@@ -364,43 +368,15 @@ function renderTripSelect() {
     }
 
     select.innerHTML = userTrips.map(t => {
-        const train = t.train || t.checkin || {};
-        const line = train.lineName || train.number || t.line || 'Train';
-        const origin = train.origin?.name || t.origin || 'Origin';
-        const dest = train.destination?.name || t.destination || 'Destination';
-        const dateRaw = train.origin?.departureReal || train.origin?.departurePlanned || t.createdAt;
+        const checkin = t.checkin || t.train || {};
+        const line = checkin.lineName || checkin.number || t.line || 'Train';
+        const origin = checkin.origin?.name || checkin.origin?.station?.name || t.origin || 'Origin';
+        const dest = checkin.destination?.name || checkin.destination?.station?.name || t.destination || 'Destination';
+        const dateRaw = checkin.origin?.departureReal || checkin.origin?.departurePlanned || t.createdAt;
         const date = dateRaw ? new Date(dateRaw).toLocaleDateString() : '';
         const isSelected = String(t.id) === String(currentTripId);
         return `<option value="${t.id}" ${isSelected ? 'selected' : ''}>${escapeHtml(line)}: ${escapeHtml(origin)} → ${escapeHtml(dest)} (${date})</option>`;
     }).join('');
-}
-
-function buildMastodonPostText(trip) {
-    if (!trip) return '';
-    const train = trip.train || trip.checkin || {};
-    const catMeta = CATEGORY_META[train.category] || CATEGORY_META.unknown;
-    const line = train.lineName || train.number || 'Train';
-    const origin = train.origin?.name || trip.origin || 'Origin';
-    const dest = train.destination?.name || trip.destination || 'Destination';
-    const rawDist = typeof train.totalDistance === 'number'
-        ? train.totalDistance
-        : (typeof train.distance === 'number' ? train.distance : 0);
-    const distStr = rawDist > 0 ? `${(rawDist / 1000).toFixed(1)} km` : '';
-    const durationMin = computeTripDurationMinutes(train);
-    const durStr = durationMin !== null ? formatHumanDuration(durationMin) : '';
-    const statsPart = [distStr, durStr].filter(Boolean).join(' in ');
-    const note = (trip.body || '').trim();
-    const statusUrl = `https://traewelling.de/status/${trip.id}`;
-
-    const lines = [
-        `${catMeta.emoji} ${line}: ${origin} → ${dest}${statsPart ? ` (${statsPart})` : ''}`
-    ];
-    if (note) {
-        lines.push(`💬 "${note}"`);
-    }
-    lines.push(statusUrl);
-    lines.push('#Träwelling #Trainspotting #ÖPNV');
-    return lines.join('\n\n');
 }
 
 function updateTripSidebar(trip) {
@@ -412,23 +388,22 @@ function updateTripSidebar(trip) {
     const delayEl = document.getElementById('sidebarDelay');
     const durEl = document.getElementById('sidebarDuration');
     const noteEl = document.getElementById('sidebarNote');
-    const mastodonTextEl = document.getElementById('mastodonPostText');
 
-    const train = trip.train || trip.checkin || {};
-    const line = train.lineName || train.number || 'Train';
-    const origin = train.origin?.name || trip.origin || 'Origin';
-    const dest = train.destination?.name || trip.destination || 'Destination';
-    const rawDist = typeof train.totalDistance === 'number'
-        ? train.totalDistance
-        : (typeof train.distance === 'number' ? train.distance : 0);
+    const checkin = trip.checkin || trip.train || {};
+    const line = checkin.lineName || checkin.number || 'Train';
+    const origin = checkin.origin?.name || checkin.origin?.station?.name || trip.origin || 'Origin';
+    const dest = checkin.destination?.name || checkin.destination?.station?.name || trip.destination || 'Destination';
+    const rawDist = typeof checkin.distance === 'number'
+        ? checkin.distance
+        : (typeof checkin.totalDistance === 'number' ? checkin.totalDistance : 0);
     const dist = rawDist > 0 ? (rawDist / 1000).toFixed(1) + ' km' : '—';
 
-    const delays = deriveDelaySeconds(train);
+    const delays = deriveDelaySeconds(checkin);
     const delaySec = delays.arrival !== null ? delays.arrival : (delays.departure || 0);
     const delayMin = Math.round(delaySec / 60);
     const delayStr = delayMin > 0 ? `+${delayMin} min` : (delayMin < 0 ? `${delayMin} min` : 'On time (0 min)');
 
-    const durationMin = computeTripDurationMinutes(train);
+    const durationMin = computeTripDurationMinutes(checkin);
     const durStr = durationMin !== null ? formatHumanDuration(durationMin) : '—';
 
     if (lineEl) lineEl.textContent = line;
@@ -437,19 +412,6 @@ function updateTripSidebar(trip) {
     if (delayEl) delayEl.textContent = delayStr;
     if (durEl) durEl.textContent = durStr;
     if (noteEl) noteEl.textContent = trip.body ? `"${trip.body}"` : 'No check-in note';
-    if (mastodonTextEl) mastodonTextEl.value = buildMastodonPostText(trip);
-}
-
-function handleTilesProgress({ loaded, total }) {
-    const badge = document.getElementById('tilePreloadBadge');
-    if (!badge) return;
-    if (loaded >= total && total > 0) {
-        badge.textContent = `✓ ${total}/${total} Map Tiles Loaded`;
-        badge.classList.add('ready');
-    } else {
-        badge.textContent = `⏳ Preloading Tiles (${loaded}/${total})…`;
-        badge.classList.remove('ready');
-    }
 }
 
 function renderPlayer() {
@@ -470,8 +432,7 @@ function renderPlayer() {
                 inputProps=${{
                     trip: currentTrip,
                     username: currentUser,
-                    mapStyle: currentMapStyle,
-                    onTilesProgress: handleTilesProgress
+                    mapStyle: currentMapStyle
                 }}
                 durationInFrames=${DURATION_IN_FRAMES}
                 compositionWidth=${VIDEO_WIDTH}
@@ -494,14 +455,14 @@ async function triggerVideoDownload() {
     const progressBar = document.getElementById('recordProgressBar');
     const statusText = document.getElementById('recordStatusText');
 
-    const train = currentTrip.train || currentTrip.checkin || {};
-    const cleanLine = (train.lineName || 'trip').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+    const checkin = currentTrip.checkin || currentTrip.train || {};
+    const cleanLine = (checkin.lineName || checkin.number || 'trip').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
     const filename = `traewelling-${currentUser || 'clip'}-${cleanLine}-${currentTrip.id || 'video'}.webm`;
 
     try {
         if (downloadBtn) {
             downloadBtn.disabled = true;
-            downloadBtn.textContent = '⏳ Rendering & Downloading Video…';
+            downloadBtn.textContent = '⏳ Rendering WebM Video…';
         }
         if (progressWrap) progressWrap.classList.remove('hidden');
         if (progressBar) progressBar.style.width = '5%';
@@ -519,11 +480,10 @@ async function triggerVideoDownload() {
             }
         });
 
-        lastRecordedVideo = result;
         if (statusText) statusText.textContent = `✓ Downloaded ${result.filename} (${Math.round(result.blob.size / 1024)} KB)`;
         if (downloadBtn) {
             downloadBtn.disabled = false;
-            downloadBtn.textContent = '✓ Video Downloaded! (Click to Download Again)';
+            downloadBtn.textContent = '⬇ Download Video (.webm)';
         }
         return result;
     } catch (e) {
@@ -531,7 +491,7 @@ async function triggerVideoDownload() {
         if (statusText) statusText.textContent = `Error: ${e.message}`;
         if (downloadBtn) {
             downloadBtn.disabled = false;
-            downloadBtn.textContent = '⬇ Download Video Clip (16:9 HD)';
+            downloadBtn.textContent = '⬇ Download Video (.webm)';
         }
         return null;
     }
@@ -556,7 +516,6 @@ function setupControls() {
         tripSelect.addEventListener('change', (e) => {
             currentTripId = String(e.target.value);
             currentTrip = userTrips.find(t => String(t.id) === currentTripId);
-            lastRecordedVideo = null;
             updateTripSidebar(currentTrip);
             updateUrlParams();
             renderPlayer();
@@ -569,86 +528,16 @@ function setupControls() {
             document.querySelectorAll('.map-style-pill').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentMapStyle = btn.dataset.style || 'traewelling-dark';
-            lastRecordedVideo = null;
             updateUrlParams();
             renderPlayer();
         });
     });
 
-    // Download Video Button
+    // Download Video Button (.webm default)
     const downloadBtn = document.getElementById('downloadVideoBtn');
     if (downloadBtn) {
         downloadBtn.addEventListener('click', () => {
             triggerVideoDownload();
-        });
-    }
-
-    // Mastodon Instance Chips
-    const instInput = document.getElementById('mastodonInstanceInput');
-    document.querySelectorAll('.instance-chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-            if (instInput && chip.dataset.instance) {
-                instInput.value = chip.dataset.instance;
-                localStorage.setItem('trwl_mastodon_instance', instInput.value.trim());
-            }
-        });
-    });
-    if (instInput) {
-        instInput.addEventListener('change', () => {
-            localStorage.setItem('trwl_mastodon_instance', instInput.value.trim());
-        });
-    }
-
-    // Share on Mastodon Button (Downloads video + opens Mastodon share composer with Träwelling link)
-    const shareMastodonBtn = document.getElementById('shareMastodonBtn');
-    if (shareMastodonBtn) {
-        shareMastodonBtn.addEventListener('click', async () => {
-            const postText = (document.getElementById('mastodonPostText')?.value || buildMastodonPostText(currentTrip)).trim();
-            const rawInstance = (document.getElementById('mastodonInstanceInput')?.value || 'mastodon.social')
-                .trim()
-                .replace(/^https?:\/\//i, '')
-                .replace(/\/.*$/, '');
-            const instance = rawInstance || 'mastodon.social';
-            localStorage.setItem('trwl_mastodon_instance', instance);
-
-            // Ensure video file is downloaded so user has the video clip ready to attach
-            let videoRes = lastRecordedVideo;
-            if (!videoRes) {
-                videoRes = await triggerVideoDownload();
-            }
-
-            // Try native Web Share API with video file on mobile if supported
-            if (videoRes?.blob && navigator.canShare) {
-                try {
-                    const file = new File([videoRes.blob], videoRes.filename, { type: videoRes.mimeType });
-                    if (navigator.canShare({ files: [file], text: postText })) {
-                        await navigator.share({ text: postText, files: [file] });
-                        return;
-                    }
-                } catch {
-                    // Fall back to opening Mastodon instance share intent
-                }
-            }
-
-            const mastodonShareUrl = `https://${encodeURIComponent(instance)}/share?text=${encodeURIComponent(postText)}`;
-            window.open(mastodonShareUrl, '_blank', 'noopener,noreferrer');
-        });
-    }
-
-    // Copy Mastodon Post Text Button
-    const copyMastodonTextBtn = document.getElementById('copyMastodonTextBtn');
-    if (copyMastodonTextBtn) {
-        copyMastodonTextBtn.addEventListener('click', async () => {
-            const postText = (document.getElementById('mastodonPostText')?.value || buildMastodonPostText(currentTrip)).trim();
-            try {
-                await navigator.clipboard.writeText(postText);
-                copyMastodonTextBtn.textContent = '✓ Post Text Copied!';
-                setTimeout(() => {
-                    copyMastodonTextBtn.textContent = '📋 Copy Post Text';
-                }, 2200);
-            } catch (e) {
-                console.warn('Clipboard copy failed:', e);
-            }
         });
     }
 }

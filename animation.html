@@ -60,7 +60,7 @@
         </nav>
     </header>
 
-    <!-- Toolbar: Account & Journey Selectors + 7 Map Tile Sets + Tile Readiness Indicator -->
+    <!-- Toolbar: Account & Journey Selectors + 7 Map Tile Sets -->
     <section class="anim-toolbar" aria-label="Clip Controls">
         <div class="anim-selector-group">
             <label class="anim-select-label" for="userSelect">
@@ -79,14 +79,12 @@
             <div class="aspect-pill-group" role="tablist" aria-label="Map Visual Theme">
                 <button type="button" class="aspect-pill map-style-pill active" data-style="traewelling-dark" role="tab">Träwelling Dark</button>
                 <button type="button" class="aspect-pill map-style-pill" data-style="traewelling-light" role="tab">Träwelling Light</button>
-                <button type="button" class="aspect-pill map-style-pill" data-style="db-light" role="tab">DB Modern Light</button>
-                <button type="button" class="aspect-pill map-style-pill" data-style="db-dark" role="tab">DB Strecken Night</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="db-light" role="tab">Modern Light</button>
+                <button type="button" class="aspect-pill map-style-pill" data-style="db-dark" role="tab">Modern Night</button>
                 <button type="button" class="aspect-pill map-style-pill" data-style="voyager" role="tab">Classic Streets</button>
                 <button type="button" class="aspect-pill map-style-pill" data-style="topo" role="tab">Rail &amp; Topo</button>
                 <button type="button" class="aspect-pill map-style-pill" data-style="osm-de" role="tab">Free OSM Rail</button>
             </div>
-
-            <span id="tilePreloadBadge" class="tile-preload-badge" aria-live="polite">⏳ Preloading tiles…</span>
         </div>
     </section>
 
@@ -103,7 +101,7 @@
         </section>
 
         <!-- Right Inspector Sidebar -->
-        <aside class="anim-sidebar" aria-label="Journey Details, Download & Mastodon Share">
+        <aside class="anim-sidebar" aria-label="Journey Details & Video Download">
             <!-- Card 1: Journey Details -->
             <div class="anim-card">
                 <h2 class="anim-card-title">
@@ -142,7 +140,7 @@
                 </div>
             </div>
 
-            <!-- Card 2: Download Video Clip -->
+            <!-- Card 2: Download Video Clip (.webm) -->
             <div class="anim-card">
                 <h2 class="anim-card-title">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-cyan);">
@@ -153,45 +151,16 @@
                     <span>Download Video Clip</span>
                 </h2>
                 <p style="margin: 0 0 10px 0; font-size: 12px; color: var(--text-secondary); line-height: 1.45;">
-                    Export a rectangular 16:9 HD video (1280×720) with all map tiles preloaded, ready to upload to Twitter / X, Mastodon, or Bluesky.
+                    Export a rectangular 16:9 HD video (<code>.webm</code>, 1280×720) ready for posting on social media.
                 </p>
                 <button type="button" id="downloadVideoBtn" class="anim-download-btn">
-                    ⬇ Download Video Clip (16:9 HD)
+                    ⬇ Download Video (.webm)
                 </button>
                 <div id="recordProgressWrap" class="record-progress-wrap hidden">
                     <div class="record-progress-track">
                         <div id="recordProgressBar" class="record-progress-fill" style="width: 0%;"></div>
                     </div>
                     <div id="recordStatusText" class="record-status-text">Preparing video…</div>
-                </div>
-            </div>
-
-            <!-- Card 3: Prepopulated Mastodon Post Share -->
-            <div class="anim-card">
-                <h2 class="anim-card-title">
-                    <span style="font-size: 16px;" aria-hidden="true">🐘</span>
-                    <span>Share on Mastodon</span>
-                </h2>
-                <label class="mastodon-field-label" for="mastodonInstanceInput">Mastodon Instance</label>
-                <div class="mastodon-instance-row">
-                    <input type="text" id="mastodonInstanceInput" class="mastodon-input" value="mastodon.social" placeholder="e.g. mastodon.social" />
-                    <div class="mastodon-quick-instances">
-                        <button type="button" class="instance-chip" data-instance="mastodon.social">mastodon.social</button>
-                        <button type="button" class="instance-chip" data-instance="chaos.social">chaos.social</button>
-                        <button type="button" class="instance-chip" data-instance="bahn.social">bahn.social</button>
-                    </div>
-                </div>
-
-                <label class="mastodon-field-label" for="mastodonPostText">Prepopulated Post (with Träwelling Link)</label>
-                <textarea id="mastodonPostText" class="mastodon-textarea" rows="4"></textarea>
-
-                <div class="mastodon-actions">
-                    <button type="button" id="shareMastodonBtn" class="anim-mastodon-btn">
-                        🐘 Download Video &amp; Open Mastodon Post
-                    </button>
-                    <button type="button" id="copyMastodonTextBtn" class="anim-secondary-btn">
-                        📋 Copy Post Text
-                    </button>
                 </div>
             </div>
         </aside>

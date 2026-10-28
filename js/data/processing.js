@@ -24,15 +24,29 @@ export function normalizeCategory(category) {
 }
 
 /**
- * Normalize trip/status object so both s.train and s.checkin are always available,
- * handling API differences where Träwelling returns 'checkin' instead of 'train'.
+ * Normalize trip/status object around the current Träwelling API v1 'checkin' response model
+ * (checkin.distance, checkin.duration, checkin.routeColor, checkin.lineName/number, checkin.origin/destination)
+ * while maintaining backward-compatible aliases on trip.train.
  */
 export function normalizeTripStatus(trip) {
     if (!trip || typeof trip !== 'object') return trip;
-    const trainData = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin;
-    if (trainData) {
-        if (!trip.train) trip.train = trainData;
-        if (!trip.checkin) trip.checkin = trainData;
+    const checkinData = trip.checkin || trip.train || trip.properties?.checkin || trip.properties?.train;
+    if (checkinData && typeof checkinData === 'object') {
+        if (typeof checkinData.distance === 'number' && typeof checkinData.totalDistance !== 'number') {
+            checkinData.totalDistance = checkinData.distance;
+        } else if (typeof checkinData.totalDistance === 'number' && typeof checkinData.distance !== 'number') {
+            checkinData.distance = checkinData.totalDistance;
+        }
+        if (typeof checkinData.duration === 'number' && typeof checkinData.totalDuration !== 'number') {
+            checkinData.totalDuration = checkinData.duration;
+        } else if (typeof checkinData.totalDuration === 'number' && typeof checkinData.duration !== 'number') {
+            checkinData.duration = checkinData.totalDuration;
+        }
+        if (!checkinData.lineName && checkinData.number) {
+            checkinData.lineName = checkinData.number;
+        }
+        if (!trip.checkin) trip.checkin = checkinData;
+        if (!trip.train) trip.train = checkinData;
     }
     return trip;
 }
