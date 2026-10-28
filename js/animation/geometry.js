@@ -276,15 +276,26 @@ export function samplePointAlongRoute(scene, progress) {
     const targetDist = Math.max(0, Math.min(1, progress)) * totalPathPx;
     const pos = getXYAtDistance(points, cumDist, targetDist);
 
-    const windowPx = Math.min(32, Math.max(8, totalPathPx * 0.065));
-    const b2 = getXYAtDistance(points, cumDist, targetDist - windowPx);
-    const b1 = getXYAtDistance(points, cumDist, targetDist - windowPx * 0.5);
-    const a1 = getXYAtDistance(points, cumDist, targetDist + windowPx * 0.5);
-    const a2 = getXYAtDistance(points, cumDist, targetDist + windowPx);
-    const dx = (a1.x - b1.x) * 0.65 + (a2.x - b2.x) * 0.35;
-    const dy = (a1.y - b1.y) * 0.65 + (a2.y - b2.y) * 0.35;
-    const angleRad = Math.atan2(dy, dx);
+    // Adaptive lookahead window:
+    // Scales down smoothly with route length so short city rides accurately follow street corners
+    // and track curves without freezing or under-rotating, while long rail journeys retain silky smooth tangent gliding.
+    const windowPx = Math.min(20, Math.max(0.4, totalPathPx * 0.035));
+    const ahead1 = getXYAtDistance(points, cumDist, Math.min(totalPathPx, targetDist + windowPx * 0.5));
+    const behind1 = getXYAtDistance(points, cumDist, Math.max(0, targetDist - windowPx * 0.5));
+    const ahead2 = getXYAtDistance(points, cumDist, Math.min(totalPathPx, targetDist + windowPx));
+    const behind2 = getXYAtDistance(points, cumDist, Math.max(0, targetDist - windowPx));
 
+    let dx = (ahead1.x - behind1.x) * 0.65 + (ahead2.x - behind2.x) * 0.35;
+    let dy = (ahead1.y - behind1.y) * 0.65 + (ahead2.y - behind2.y) * 0.35;
+
+    // Fallback to local segment tangent if ahead/behind collapse
+    if (Math.hypot(dx, dy) < 0.0001) {
+        const segIdx = Math.min(points.length - 2, Math.max(0, Math.floor(pos.index)));
+        dx = points[segIdx + 1].x - points[segIdx].x;
+        dy = points[segIdx + 1].y - points[segIdx].y;
+    }
+
+    const angleRad = Math.atan2(dy, dx);
     return { x: pos.x, y: pos.y, angleRad, index: pos.index };
 }
 

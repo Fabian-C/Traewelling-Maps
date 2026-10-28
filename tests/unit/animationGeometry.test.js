@@ -139,6 +139,27 @@ describe('Animation Geometry & Camera Smoothing', () => {
         expect(Number.isFinite(camMid.y)).toBe(true);
     });
 
+    it('accurately rotates vehicle on short city rides with turns without freezing angle', () => {
+        // Short city ride: East (0 rad) -> South (PI/2 rad)
+        const scene = {
+            points: [
+                { x: 0, y: 0 },
+                { x: 4, y: 0 },
+                { x: 4, y: 4 }
+            ],
+            cumDist: [0, 4, 8],
+            totalPathPx: 8
+        };
+
+        const poseLeg1 = samplePointAlongRoute(scene, 0.2);
+        const poseLeg2 = samplePointAlongRoute(scene, 0.8);
+
+        // Leg 1 should be heading East (0 radians / 0 degrees)
+        expect(poseLeg1.angleRad).toBeCloseTo(0, 1);
+        // Leg 2 should be heading South (PI/2 radians / 90 degrees)
+        expect(poseLeg2.angleRad).toBeCloseTo(Math.PI / 2, 1);
+    });
+
     it('shortens station names and computes contrasting text color', () => {
         expect(shortenStationName('U Leopoldplatz (Berlin)')).toBe('U Leopoldplatz');
         expect(shortenStationName('Berlin Ostbahnhof Bhf')).toBe('Berlin Ostbahnhof');
