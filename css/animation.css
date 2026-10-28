@@ -1,0 +1,514 @@
+/* ==========================================================================
+   Trip Clip — Social Journey Video Studio (Default 1:1 Square Format)
+   ========================================================================== */
+
+@import url('tokens.css');
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+}
+
+/* Header & Top Navigation */
+.anim-header {
+    background: rgba(10, 14, 24, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.anim-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.anim-brand-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(168, 85, 247, 0.25));
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    color: var(--accent-cyan);
+}
+
+.anim-brand-text {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.anim-brand-badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: rgba(56, 189, 248, 0.16);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 6px;
+}
+
+.anim-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.anim-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s ease;
+}
+
+.anim-nav-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Toolbar & Trip Selector */
+.anim-toolbar {
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 12px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.anim-selector-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.anim-select-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.anim-select {
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    min-width: 150px;
+    max-width: 340px;
+    cursor: pointer;
+    outline: none;
+}
+
+.anim-select:focus {
+    border-color: var(--accent-cyan);
+}
+
+/* Pill Controls */
+.aspect-pill-group {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    gap: 2px;
+}
+
+.aspect-pill {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.aspect-pill:hover {
+    color: var(--text-primary);
+}
+
+.aspect-pill.active {
+    background: var(--accent-cyan);
+    color: #070913;
+}
+
+/* Main Layout */
+.anim-layout {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 24px;
+    padding: 24px;
+    max-width: 1320px;
+    width: 100%;
+    margin: 0 auto;
+    align-items: start;
+}
+
+/* Video Stage */
+.anim-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at center, rgba(30, 41, 69, 0.35) 0%, rgba(8, 10, 16, 0.85) 100%);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    position: relative;
+}
+
+.player-host {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.player-host.ratio-square {
+    max-width: 620px;
+}
+
+.player-host.ratio-landscape {
+    max-width: 880px;
+}
+
+.player-host.ratio-vertical {
+    max-width: 400px;
+}
+
+.player-wrapper {
+    width: 100%;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.75), 0 0 40px rgba(56, 189, 248, 0.18);
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: #090d16;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.player-host.ratio-square .player-wrapper {
+    aspect-ratio: 1 / 1;
+}
+
+.player-host.ratio-landscape .player-wrapper {
+    aspect-ratio: 16 / 9;
+}
+
+.player-host.ratio-vertical .player-wrapper {
+    aspect-ratio: 9 / 16;
+}
+
+/* Details Sidebar */
+.anim-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.anim-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 16px;
+}
+
+.anim-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-primary);
+}
+
+.trip-preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.trip-preview-item {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.trip-preview-item label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.trip-preview-item strong {
+    color: var(--text-primary);
+}
+
+.tile-preload-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(245, 158, 11, 0.14);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #fbbf24;
+    white-space: nowrap;
+}
+
+.tile-preload-badge.ready {
+    background: rgba(34, 197, 94, 0.14);
+    border-color: rgba(34, 197, 94, 0.38);
+    color: #4ade80;
+}
+
+.anim-download-btn {
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, #38bdf8, #0284c7);
+    border: 1px solid rgba(56, 189, 248, 0.5);
+    color: #040812;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.anim-download-btn:hover:not(:disabled) {
+    filter: brightness(1.1);
+}
+
+.anim-download-btn:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
+
+.record-progress-wrap {
+    margin-top: 10px;
+}
+
+.record-progress-wrap.hidden {
+    display: none;
+}
+
+.record-progress-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.record-progress-fill {
+    height: 100%;
+    background: var(--accent-cyan);
+    border-radius: 999px;
+    transition: width 0.15s ease;
+}
+
+.record-status-text {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.mastodon-field-label {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin: 8px 0 4px 0;
+}
+
+.mastodon-instance-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.mastodon-input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 7px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    outline: none;
+}
+
+.mastodon-input:focus {
+    border-color: #6364ff;
+}
+
+.mastodon-quick-instances {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.instance-chip {
+    background: rgba(99, 100, 255, 0.12);
+    border: 1px solid rgba(99, 100, 255, 0.3);
+    color: #a5b4fc;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.instance-chip:hover {
+    background: rgba(99, 100, 255, 0.25);
+    color: #ffffff;
+}
+
+.mastodon-textarea {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-family: inherit;
+    line-height: 1.4;
+    resize: vertical;
+    margin-bottom: 10px;
+    outline: none;
+}
+
+.mastodon-textarea:focus {
+    border-color: #6364ff;
+}
+
+.mastodon-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.anim-mastodon-btn {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, #6364ff, #563acc);
+    border: 1px solid rgba(99, 100, 255, 0.55);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.anim-mastodon-btn:hover {
+    filter: brightness(1.1);
+}
+
+.anim-secondary-btn {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.anim-secondary-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+/* Loading State */
+.anim-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+}
+
+.spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(56, 189, 248, 0.2);
+    border-top-color: var(--accent-cyan);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .anim-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .anim-stage {
+        padding: 16px;
+    }
+}

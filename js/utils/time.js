@@ -10,10 +10,11 @@ export function getDelayDate(value) {
 }
 
 /**
- * Compute trip duration in minutes from train data
+ * Compute trip duration in minutes from trip or train/checkin data
  */
-export function computeTripDurationMinutes(train = {}) {
-    if (!train) return null;
+export function computeTripDurationMinutes(tripOrTrain = {}) {
+    if (!tripOrTrain) return null;
+    const train = tripOrTrain.train || tripOrTrain.checkin || tripOrTrain.properties?.train || tripOrTrain.properties?.checkin || tripOrTrain;
     const origin = train.origin || {};
     const dest = train.destination || {};
 
@@ -64,10 +65,11 @@ export function computeTripDurationMinutes(train = {}) {
 }
 
 /**
- * Derive delay seconds from train data
+ * Derive delay seconds from trip or train/checkin data
  */
-export function deriveDelaySeconds(train = {}) {
-    if (!train) return { departure: null, arrival: null, worst: null };
+export function deriveDelaySeconds(tripOrTrain = {}) {
+    if (!tripOrTrain) return { departure: null, arrival: null, worst: null };
+    const train = tripOrTrain.train || tripOrTrain.checkin || tripOrTrain.properties?.train || tripOrTrain.properties?.checkin || tripOrTrain;
     const origin = train.origin || {};
     const dest = train.destination || {};
 
