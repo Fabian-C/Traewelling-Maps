@@ -301,9 +301,20 @@ export const RouteAnimation = {
         const sizeMultiplier = Math.pow(1.12, zoom - 12);
         const dotSize = baseSize * Math.min(1.8, Math.max(0.4, sizeMultiplier));
         
-        // Pre-allocate particle array (2 particles per route: glow + core)
+        // Pre-allocate or reuse particle pool to eliminate per-frame GC allocations
         const totalParticles = routes.reduce((sum, route) => sum + (route.particleCount || 1), 0);
-        const particles = new Array(totalParticles * 2);
+        const requiredCount = totalParticles * 2;
+        if (!this._particlePool || this._particlePool.length !== requiredCount) {
+            this._particlePool = new Array(requiredCount);
+            for (let k = 0; k < requiredCount; k++) {
+                this._particlePool[k] = {
+                    position: [0, 0],
+                    radius: 0,
+                    color: [255, 255, 255, 255]
+                };
+            }
+        }
+        const particles = this._particlePool;
         
         let particleIndex = 0;
         for (let i = 0; i < routes.length; i++) {
@@ -334,17 +345,23 @@ export const RouteAnimation = {
                 const x = positions[idx2] + (positions[idx2 + 2] - positions[idx2]) * frac;
                 const y = positions[idx2 + 1] + (positions[idx2 + 3] - positions[idx2 + 1]) * frac;
                 
-                particles[particleIndex * 2] = {
-                    position: [x, y],
-                    radius: dotSize * 1.8,
-                    color: [color[0], color[1], color[2], 50]
-                };
+                const pGlow = particles[particleIndex * 2];
+                pGlow.position[0] = x;
+                pGlow.position[1] = y;
+                pGlow.radius = dotSize * 1.8;
+                pGlow.color[0] = color[0];
+                pGlow.color[1] = color[1];
+                pGlow.color[2] = color[2];
+                pGlow.color[3] = 50;
                 
-                particles[particleIndex * 2 + 1] = {
-                    position: [x, y],
-                    radius: dotSize,
-                    color: [color[0], color[1], color[2], 255]
-                };
+                const pCore = particles[particleIndex * 2 + 1];
+                pCore.position[0] = x;
+                pCore.position[1] = y;
+                pCore.radius = dotSize;
+                pCore.color[0] = color[0];
+                pCore.color[1] = color[1];
+                pCore.color[2] = color[2];
+                pCore.color[3] = 255;
                 
                 particleIndex++;
             }

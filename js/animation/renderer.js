@@ -251,36 +251,36 @@ export function drawStationPin(
 
     // Callout Pill placed away from the route track and clamped within the canvas viewport
     const shortName = shortenStationName(label);
-    ctx.font = '700 17px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '700 22px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
     const textW = ctx.measureText(shortName).width;
-    const pillW = textW + 38;
-    const pillH = 34;
+    const pillW = textW + 48;
+    const pillH = 42;
     const pillX = -pillW / 2 + horizontalShiftPx;
-    const pillY = placeAbove ? -28 - pillH : 28;
+    const pillY = placeAbove ? -32 - pillH : 32;
 
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.48)';
     ctx.shadowBlur = 12;
     ctx.shadowOffsetY = 3;
     ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
-    drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 17);
+    drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 21);
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
     ctx.strokeStyle = dotColor;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.2;
     ctx.stroke();
 
     // Status dot inside pill
     ctx.fillStyle = dotColor;
     ctx.beginPath();
-    ctx.arc(pillX + 15, pillY + pillH / 2, 4.5, 0, Math.PI * 2);
+    ctx.arc(pillX + 18, pillY + pillH / 2, 5.5, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(shortName, pillX + 26, pillY + pillH / 2 + 0.5);
+    ctx.fillText(shortName, pillX + 32, pillY + pillH / 2 + 1);
     ctx.restore();
 
     ctx.restore();
@@ -296,9 +296,9 @@ function computeSafeStationPillPlacement(pt, camTargetX, camTargetY, camZoom, wi
 
     let placeAbove = preferAbove;
     // Top HUD occupies y = 0..118; bottom watermark/controls occupy y = height-64..height
-    if (placeAbove && screenY - 68 < 118) {
+    if (placeAbove && screenY - 76 < 118) {
         placeAbove = false;
-    } else if (!placeAbove && screenY + 68 > height - 56) {
+    } else if (!placeAbove && screenY + 76 > height - 56) {
         placeAbove = true;
     }
 
@@ -677,9 +677,9 @@ export function renderTripFrame({
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    ctx.font = '800 23px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '800 24px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
     const badgeTextW = ctx.measureText(lineName).width;
-    const badgeW = Math.max(74, Math.min(160, badgeTextW + 28));
+    const badgeW = Math.max(76, Math.min(164, badgeTextW + 30));
     const badgeH = 50;
     const badgeX = pad + 16;
     const badgeY = pad + (headerH - badgeH) / 2;
@@ -699,16 +699,16 @@ export function renderTripFrame({
     const routeTitle = `${shortOrig} → ${shortDest}`;
 
     ctx.fillStyle = '#f8fafc';
-    ctx.font = '800 22px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '800 24px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(routeTitle, textStartX, pad + 15, leftCardW - (textStartX - pad) - 16);
+    ctx.fillText(routeTitle, textStartX, pad + 14, leftCardW - (textStartX - pad) - 16);
 
     const delayLabel = delayMinutes > 0 ? ` • +${delayMinutes}m` : '';
     const subTitle = `@${resolvedUsername} • ${dateStr}${delayLabel}`;
     ctx.fillStyle = '#94a3b8';
-    ctx.font = '600 16px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText(subTitle, textStartX, pad + 49, leftCardW - (textStartX - pad) - 16);
+    ctx.font = '600 17px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText(subTitle, textStartX, pad + 48, leftCardW - (textStartX - pad) - 16);
     ctx.restore();
 
     // 10. TOP-RIGHT LIVE METRICS CARD (Distance + Duration)
@@ -726,31 +726,31 @@ export function renderTripFrame({
     ctx.stroke();
 
     ctx.fillStyle = '#94a3b8';
-    ctx.font = '700 12px Inter, sans-serif';
+    ctx.font = '700 13px Inter, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText('DISTANCE', rightCardX + 18, pad + 15);
+    ctx.fillText('DISTANCE', rightCardX + 18, pad + 14);
 
     ctx.fillStyle = '#38bdf8';
-    ctx.font = '800 23px "JetBrains Mono", monospace';
-    ctx.fillText(`${currentDistKm} km`, rightCardX + 18, pad + 36, 134);
+    ctx.font = '800 25px "JetBrains Mono", monospace';
+    ctx.fillText(`${currentDistKm} km`, rightCardX + 18, pad + 35, 134);
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
     ctx.fillRect(rightCardX + 160, pad + 16, 1.5, headerH - 32);
 
     ctx.fillStyle = '#94a3b8';
-    ctx.font = '700 12px Inter, sans-serif';
-    ctx.fillText('DURATION', rightCardX + 176, pad + 15);
+    ctx.font = '700 13px Inter, sans-serif';
+    ctx.fillText('DURATION', rightCardX + 176, pad + 14);
 
     ctx.fillStyle = '#4ade80';
-    ctx.font = '800 23px "JetBrains Mono", monospace';
-    ctx.fillText(durationFormatted, rightCardX + 176, pad + 36, 104);
+    ctx.font = '800 25px "JetBrains Mono", monospace';
+    ctx.fillText(durationFormatted, rightCardX + 176, pad + 35, 104);
     ctx.restore();
 
     // 11. CORNER WATERMARK: "Generated on fabian-c.github.io/Traewelling-Maps"
     ctx.save();
     const wmText = 'Generated on fabian-c.github.io/Traewelling-Maps';
-    ctx.font = '600 13px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '600 14px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
     const wmTextW = ctx.measureText(wmText).width;
     const wmW = wmTextW + 22;
     const wmH = 26;
@@ -1087,9 +1087,9 @@ export function renderAllTripsFrame({
     ctx.stroke();
 
     const badgeLabel = isFinale ? 'ALL' : lineName;
-    ctx.font = '800 22px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '800 24px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
     const badgeTextW = ctx.measureText(badgeLabel).width;
-    const badgeW = Math.max(72, Math.min(156, badgeTextW + 26));
+    const badgeW = Math.max(76, Math.min(160, badgeTextW + 28));
     const badgeH = 50;
     const badgeX = pad + 16;
     const badgeY = pad + (headerH - badgeH) / 2;
@@ -1111,10 +1111,10 @@ export function renderAllTripsFrame({
         : `${shortOrig} → ${shortDest}`;
 
     ctx.fillStyle = '#f8fafc';
-    ctx.font = '800 21px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '800 23px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(routeTitle, textStartX, pad + 15, leftCardW - (textStartX - pad) - 16);
+    ctx.fillText(routeTitle, textStartX, pad + 14, leftCardW - (textStartX - pad) - 16);
 
     const resolvedUsername = activeTrip.user?.username || username || 'Traveler';
     const dateRaw = checkin.origin?.departureReal || checkin.origin?.departurePlanned || activeTrip.createdAt;
@@ -1126,8 +1126,8 @@ export function renderAllTripsFrame({
         : `@${resolvedUsername} • Ride #${activeIdx + 1}/${rides.length}${dateStr ? ` • ${dateStr}` : ''}`;
 
     ctx.fillStyle = '#94a3b8';
-    ctx.font = '600 15px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText(subTitle, textStartX, pad + 49, leftCardW - (textStartX - pad) - 16);
+    ctx.font = '600 16px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText(subTitle, textStartX, pad + 48, leftCardW - (textStartX - pad) - 16);
     ctx.restore();
 
     // 10. TOP-RIGHT LIVE CUMULATIVE METRICS CARD
@@ -1149,31 +1149,31 @@ export function renderAllTripsFrame({
     ctx.stroke();
 
     ctx.fillStyle = '#94a3b8';
-    ctx.font = '700 12px Inter, sans-serif';
+    ctx.font = '700 13px Inter, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText('TOTAL DISTANCE', rightCardX + 18, pad + 15);
+    ctx.fillText('TOTAL DISTANCE', rightCardX + 18, pad + 14);
 
     ctx.fillStyle = '#38bdf8';
-    ctx.font = '800 22px "JetBrains Mono", monospace';
-    ctx.fillText(`${cumulativeKm} km`, rightCardX + 18, pad + 36, 152);
+    ctx.font = '800 24px "JetBrains Mono", monospace';
+    ctx.fillText(`${cumulativeKm} km`, rightCardX + 18, pad + 35, 152);
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
     ctx.fillRect(rightCardX + 180, pad + 16, 1.5, headerH - 32);
 
     ctx.fillStyle = '#94a3b8';
-    ctx.font = '700 12px Inter, sans-serif';
-    ctx.fillText('RIDE', rightCardX + 194, pad + 15);
+    ctx.font = '700 13px Inter, sans-serif';
+    ctx.fillText('RIDE', rightCardX + 194, pad + 14);
 
     ctx.fillStyle = '#4ade80';
-    ctx.font = '800 22px "JetBrains Mono", monospace';
-    ctx.fillText(`${displayRidesCount}/${rides.length}`, rightCardX + 194, pad + 36, 96);
+    ctx.font = '800 24px "JetBrains Mono", monospace';
+    ctx.fillText(`${displayRidesCount}/${rides.length}`, rightCardX + 194, pad + 35, 96);
     ctx.restore();
 
     // 11. CORNER WATERMARK
     ctx.save();
     const wmText = 'Generated on fabian-c.github.io/Traewelling-Maps';
-    ctx.font = '600 13px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '600 14px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
     const wmTextW = ctx.measureText(wmText).width;
     const wmW = wmTextW + 22;
     const wmH = 26;

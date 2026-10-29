@@ -237,7 +237,7 @@ async function init() {
         currentTimeframe = 'custom';
     }
 
-    const mapParam = urlParams.get('map');
+    const mapParam = urlParams.get('map') || urlParams.get('mapStyle') || urlParams.get('style');
     if (mapParam && MAP_STYLES[mapParam]) {
         currentMapStyle = mapParam;
     }

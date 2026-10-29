@@ -117,12 +117,17 @@ export function toggleHeatmap(enabled) {
 export function updateRouteDensity(force = false) {
     const state = store.get();
     if (!state.heatmap.enabled || !state.useDeckGL) return;
-    RouteAnimation.invalidateCache();
     const lines = buildRouteDensityLines(state, force);
     if (!lines?.length) {
         removeRouteDensityOverlay();
         return;
     }
+    const hasLayer = state.deckLayers.some(l => l.id === state.heatmap.layerId);
+    if (!force && hasLayer && state.heatmap.appliedCacheKey === state.heatmap.cacheKey) {
+        return;
+    }
+    RouteAnimation.invalidateCache();
+    state.heatmap.appliedCacheKey = state.heatmap.cacheKey;
     const overlayLayer = new deck.LineLayer({
         id: state.heatmap.layerId,
         data: lines,
@@ -151,6 +156,7 @@ export function removeRouteDensityOverlay() {
     state.deckLayers = state.deckLayers.filter(l => l.id !== state.heatmap.layerId);
     if (state.deck?.setProps) state.deck.setProps({ layers: state.deckLayers });
     state.heatmap.lineData = null;
+    state.heatmap.appliedCacheKey = null;
     state.heatmap.overlayFeatureCollection = null;
     state.heatmap.overlayLookup = new Map();
 }

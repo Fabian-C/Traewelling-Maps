@@ -432,7 +432,6 @@ export function setupMapInteractions() {
     state.map.on('moveend', () => { 
         state.isMapMoving = false; 
         state.lastMoveEndTime = Date.now();
-        if (state.heatmap.enabled) setTimeout(() => updateRouteDensity(), 200); 
     });
 }
 

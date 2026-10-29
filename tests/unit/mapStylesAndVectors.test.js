@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { MAP_STYLES, preloadSceneTiles } from '../../js/animation/tiles.js';
 import { drawVectorBaseMap } from '../../js/animation/vectorRenderer.js';
-import { VECTOR_COUNTRIES, VECTOR_GERMAN_STATES } from '../../js/animation/vectorData.js';
+import {
+    VECTOR_COUNTRIES,
+    VECTOR_GERMAN_STATES,
+    VECTOR_RIVERS,
+    VECTOR_CITIES,
+    VECTOR_RAIL_CORRIDORS
+} from '../../js/animation/vectorData.js';
 
 describe('Map Styles & Vector Map Engine', () => {
     it('defines vector map styles with isVector flag', () => {
@@ -24,6 +30,21 @@ describe('Map Styles & Vector Map Engine', () => {
         expect(deu.geometry.type).toMatch(/Polygon|MultiPolygon/);
 
         expect(VECTOR_GERMAN_STATES.length).toBe(16);
+    });
+
+    it('contains major waterways, tiered reference cities, and rail corridors', () => {
+        expect(VECTOR_RIVERS.length).toBeGreaterThanOrEqual(5);
+        const rhine = VECTOR_RIVERS.find(r => r.name === 'Rhine');
+        expect(rhine).toBeDefined();
+        expect(rhine.coordinates.length).toBeGreaterThan(15);
+
+        expect(VECTOR_CITIES.length).toBeGreaterThanOrEqual(40);
+        const tier1Cities = VECTOR_CITIES.filter(c => c.tier === 1);
+        const tier2Cities = VECTOR_CITIES.filter(c => c.tier === 2);
+        expect(tier1Cities.length).toBeGreaterThanOrEqual(10);
+        expect(tier2Cities.length).toBeGreaterThanOrEqual(25);
+
+        expect(VECTOR_RAIL_CORRIDORS.length).toBeGreaterThanOrEqual(8);
     });
 
     it('bypasses network tile preloading for vector map styles', async () => {
@@ -52,6 +73,7 @@ describe('Map Styles & Vector Map Engine', () => {
             stroke: vi.fn(() => drawCommands.push('stroke')),
             arc: vi.fn(() => drawCommands.push('arc')),
             fillText: vi.fn((text) => drawCommands.push(`fillText(${text})`)),
+            strokeText: vi.fn((text) => drawCommands.push(`strokeText(${text})`)),
             setLineDash: vi.fn()
         };
 

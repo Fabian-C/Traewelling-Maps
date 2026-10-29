@@ -1,12 +1,92 @@
 /**
  * Vector Map Canvas Renderer
  * Renders European continental landmasses, country boundaries, German states,
- * graticule gridlines, and major cities with pure vector paths.
+ * major rivers/waterways, trunk railway corridors, graticule gridlines, and
+ * multi-tier reference cities with pure vector paths and Path2D hardware acceleration.
  * 100% offline, zero network tile requests, infinite mathematical resolution.
  */
 
-import { VECTOR_COUNTRIES, VECTOR_GERMAN_STATES } from './vectorData.js';
+import {
+    VECTOR_COUNTRIES,
+    VECTOR_GERMAN_STATES,
+    VECTOR_RIVERS,
+    VECTOR_CITIES,
+    VECTOR_RAIL_CORRIDORS
+} from './vectorData.js';
 import { lonToWorldX, latToWorldY } from './geometry.js';
+
+// Global Path2D Cache keyed by baseScene signature
+const SCENE_PATH_CACHE = new Map();
+
+/**
+ * Get or build cached Path2D objects for countries, states, rivers, and railways.
+ * Pre-baking these eliminates thousands of trigonometric Mercator projections per frame.
+ */
+function getOrCreateScenePaths(baseScene) {
+    if (typeof Path2D === 'undefined') return null;
+    if (!baseScene || typeof baseScene.z !== 'number') return null;
+    const cacheKey = `${baseScene.z}_${Math.round(baseScene.originWX)}_${Math.round(baseScene.originWY)}`;
+
+    if (SCENE_PATH_CACHE.has(cacheKey)) {
+        return SCENE_PATH_CACHE.get(cacheKey);
+    }
+
+    // 1. Countries (separated into DE and other countries)
+    const countries = [];
+    for (const country of VECTOR_COUNTRIES) {
+        const path = new Path2D();
+        buildGeometryPath2D(path, country.geometry, baseScene);
+        countries.push({
+            id: country.id,
+            isDE: country.id === 'DEU',
+            path
+        });
+    }
+
+    // 2. German Bundesländer (combined single path for maximum performance)
+    const statesPath = new Path2D();
+    for (const state of VECTOR_GERMAN_STATES) {
+        buildGeometryPath2D(statesPath, state.geometry, baseScene);
+    }
+
+    // 3. Major Rivers / Waterways
+    const riversPath = new Path2D();
+    for (const river of VECTOR_RIVERS) {
+        if (!river.coordinates || river.coordinates.length < 2) continue;
+        const pts = river.coordinates;
+        const x0 = lonToWorldX(pts[0][0], baseScene.z) - baseScene.originWX;
+        const y0 = latToWorldY(pts[0][1], baseScene.z) - baseScene.originWY;
+        riversPath.moveTo(x0, y0);
+        for (let i = 1; i < pts.length; i++) {
+            const xi = lonToWorldX(pts[i][0], baseScene.z) - baseScene.originWX;
+            const yi = latToWorldY(pts[i][1], baseScene.z) - baseScene.originWY;
+            riversPath.lineTo(xi, yi);
+        }
+    }
+
+    // 4. Trunk Rail Corridors
+    const railPath = new Path2D();
+    for (const line of VECTOR_RAIL_CORRIDORS) {
+        if (!line || line.length < 2) continue;
+        const x0 = lonToWorldX(line[0][0], baseScene.z) - baseScene.originWX;
+        const y0 = latToWorldY(line[0][1], baseScene.z) - baseScene.originWY;
+        railPath.moveTo(x0, y0);
+        for (let i = 1; i < line.length; i++) {
+            const xi = lonToWorldX(line[i][0], baseScene.z) - baseScene.originWX;
+            const yi = latToWorldY(line[i][1], baseScene.z) - baseScene.originWY;
+            railPath.lineTo(xi, yi);
+        }
+    }
+
+    const scenePaths = { countries, statesPath, riversPath, railPath };
+
+    // Limit cache size to prevent memory leaks across long sessions
+    if (SCENE_PATH_CACHE.size > 8) {
+        SCENE_PATH_CACHE.clear();
+    }
+    SCENE_PATH_CACHE.set(cacheKey, scenePaths);
+    return scenePaths;
+}
 
 export function drawVectorBaseMap({
     ctx,
@@ -19,46 +99,123 @@ export function drawVectorBaseMap({
     const landColor = isDark ? '#141c2e' : '#f8fafc';
     const countryBorderColor = isDark ? 'rgba(71, 85, 105, 0.55)' : 'rgba(148, 163, 184, 0.65)';
     const targetCountryColor = isDark ? '#1a243a' : '#ffffff';
-    const stateBorderColor = isDark ? 'rgba(96, 165, 250, 0.35)' : 'rgba(100, 116, 139, 0.45)';
+    const stateBorderColor = isDark ? 'rgba(96, 165, 250, 0.40)' : 'rgba(100, 116, 139, 0.50)';
+    const riverColor = isDark ? 'rgba(56, 189, 248, 0.32)' : 'rgba(14, 165, 233, 0.42)';
+    const railColor = isDark ? 'rgba(148, 163, 184, 0.25)' : 'rgba(100, 116, 139, 0.35)';
     const graticuleColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
-    const graticuleText = isDark ? 'rgba(148, 163, 184, 0.45)' : 'rgba(100, 116, 139, 0.60)';
+    const graticuleText = isDark ? 'rgba(148, 163, 184, 0.55)' : 'rgba(100, 116, 139, 0.70)';
 
-    // 1. European Countries
+    const cached = getOrCreateScenePaths(baseScene);
+
+    // 1. European Countries (fills & borders)
     ctx.save();
-    for (const country of VECTOR_COUNTRIES) {
-        const isDE = country.id === 'DEU';
-        ctx.fillStyle = isDE ? targetCountryColor : landColor;
-        ctx.strokeStyle = countryBorderColor;
-        ctx.lineWidth = 1.6 / camZoom;
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
+    ctx.lineWidth = 1.6 / camZoom;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
 
-        ctx.beginPath();
-        drawGeometryPath(ctx, country.geometry, baseScene);
-        ctx.fill();
-        ctx.stroke();
+    if (cached) {
+        for (const c of cached.countries) {
+            ctx.fillStyle = c.isDE ? targetCountryColor : landColor;
+            ctx.strokeStyle = countryBorderColor;
+            ctx.fill(c.path);
+            ctx.stroke(c.path);
+        }
+    } else {
+        for (const country of VECTOR_COUNTRIES) {
+            const isDE = country.id === 'DEU';
+            ctx.fillStyle = isDE ? targetCountryColor : landColor;
+            ctx.strokeStyle = countryBorderColor;
+            ctx.beginPath();
+            drawGeometryPath(ctx, country.geometry, baseScene);
+            ctx.fill();
+            ctx.stroke();
+        }
     }
     ctx.restore();
 
-    // 2. German Bundesländer (States)
+    // 2. Major Waterways / Rivers (Level of Detail: appears at regional zoom)
+    if (camZoom >= 1.0) {
+        ctx.save();
+        ctx.strokeStyle = riverColor;
+        ctx.lineWidth = Math.max(1.8, 2.8 / Math.pow(camZoom, 0.6)) / camZoom;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        if (cached) {
+            ctx.stroke(cached.riversPath);
+        } else {
+            ctx.beginPath();
+            for (const river of VECTOR_RIVERS) {
+                const pts = river.coordinates;
+                if (!pts || pts.length < 2) continue;
+                ctx.moveTo(
+                    lonToWorldX(pts[0][0], baseScene.z) - baseScene.originWX,
+                    latToWorldY(pts[0][1], baseScene.z) - baseScene.originWY
+                );
+                for (let i = 1; i < pts.length; i++) {
+                    ctx.lineTo(
+                        lonToWorldX(pts[i][0], baseScene.z) - baseScene.originWX,
+                        latToWorldY(pts[i][1], baseScene.z) - baseScene.originWY
+                    );
+                }
+            }
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    // 3. German Bundesländer (States)
     ctx.save();
     ctx.strokeStyle = stateBorderColor;
-    ctx.lineWidth = 1.1 / camZoom;
+    ctx.lineWidth = 1.2 / camZoom;
     ctx.setLineDash([4 / camZoom, 4 / camZoom]);
     ctx.lineJoin = 'round';
-    for (const state of VECTOR_GERMAN_STATES) {
+    if (cached) {
+        ctx.stroke(cached.statesPath);
+    } else {
         ctx.beginPath();
-        drawGeometryPath(ctx, state.geometry, baseScene);
+        for (const state of VECTOR_GERMAN_STATES) {
+            drawGeometryPath(ctx, state.geometry, baseScene);
+        }
         ctx.stroke();
     }
     ctx.restore();
 
-    // 3. Graticule Grid Lines (Parallels & Meridians)
+    // 4. Trunk Rail Corridors (Level of Detail: subtle track network at mid/high zoom)
+    if (camZoom >= 1.5) {
+        ctx.save();
+        ctx.strokeStyle = railColor;
+        ctx.lineWidth = 1.1 / camZoom;
+        ctx.lineJoin = 'round';
+        ctx.setLineDash([5 / camZoom, 4 / camZoom]);
+        if (cached) {
+            ctx.stroke(cached.railPath);
+        } else {
+            ctx.beginPath();
+            for (const line of VECTOR_RAIL_CORRIDORS) {
+                if (!line || line.length < 2) continue;
+                ctx.moveTo(
+                    lonToWorldX(line[0][0], baseScene.z) - baseScene.originWX,
+                    latToWorldY(line[0][1], baseScene.z) - baseScene.originWY
+                );
+                for (let i = 1; i < line.length; i++) {
+                    ctx.lineTo(
+                        lonToWorldX(line[i][0], baseScene.z) - baseScene.originWX,
+                        latToWorldY(line[i][1], baseScene.z) - baseScene.originWY
+                    );
+                }
+            }
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    // 5. Graticule Grid Lines (Parallels & Meridians) with enlarged text
     ctx.save();
     ctx.strokeStyle = graticuleColor;
     ctx.lineWidth = 1.0 / camZoom;
     ctx.fillStyle = graticuleText;
-    ctx.font = `${Math.max(9, 11 / camZoom)}px Inter, sans-serif`;
+    const gratFontSize = 13 / camZoom;
+    ctx.font = `600 ${gratFontSize}px Inter, sans-serif`;
 
     const lonStep = camZoom > 4 ? 0.5 : (camZoom > 1.5 ? 1 : 2);
     const minLon = 2;
@@ -85,39 +242,76 @@ export function drawVectorBaseMap({
     }
     ctx.restore();
 
-    // 4. Major Reference Cities
-    const CITIES = [
-        { name: 'Berlin', lon: 13.4050, lat: 52.5200 },
-        { name: 'Hamburg', lon: 9.9937, lat: 53.5511 },
-        { name: 'München', lon: 11.5820, lat: 48.1351 },
-        { name: 'Köln', lon: 6.9603, lat: 50.9375 },
-        { name: 'Frankfurt', lon: 8.6821, lat: 50.1109 },
-        { name: 'Stuttgart', lon: 9.1829, lat: 48.7758 },
-        { name: 'Düsseldorf', lon: 6.7735, lat: 51.2277 },
-        { name: 'Leipzig', lon: 12.3731, lat: 51.3397 },
-        { name: 'Dresden', lon: 13.7373, lat: 51.0504 },
-        { name: 'Hannover', lon: 9.7320, lat: 52.3759 },
-        { name: 'Nürnberg', lon: 11.0767, lat: 49.4521 },
-        { name: 'Bremen', lon: 8.8017, lat: 53.0793 }
-    ];
-
+    // 6. Reference Cities (Multi-Tier LOD with bigger, high-contrast labels)
     ctx.save();
-    for (const city of CITIES) {
+    const haloColor = isDark ? 'rgba(10, 16, 28, 0.92)' : 'rgba(255, 255, 255, 0.92)';
+    const textColor = isDark ? '#f1f5f9' : '#0f172a';
+    const tier2TextColor = isDark ? 'rgba(203, 213, 225, 0.88)' : 'rgba(51, 65, 85, 0.88)';
+
+    for (const city of VECTOR_CITIES) {
+        const isTier1 = (city.tier || 1) === 1;
+        // Level of Detail: Tier 2 regional cities fade in at camZoom >= 1.7
+        if (!isTier1 && camZoom < 1.7) continue;
+
         const cx = lonToWorldX(city.lon, baseScene.z) - baseScene.originWX;
         const cy = latToWorldY(city.lat, baseScene.z) - baseScene.originWY;
 
-        ctx.fillStyle = isDark ? '#60a5fa' : '#2563eb';
+        const dotRadius = (isTier1 ? 4.2 : 3.0) / camZoom;
+        ctx.fillStyle = isDark
+            ? (isTier1 ? '#60a5fa' : '#38bdf8')
+            : (isTier1 ? '#2563eb' : '#0284c7');
         ctx.beginPath();
-        ctx.arc(cx, cy, 3.5 / camZoom, 0, Math.PI * 2);
+        ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.font = `600 ${Math.max(8, 12 / camZoom)}px Inter, sans-serif`;
-        ctx.fillStyle = isDark ? 'rgba(226, 232, 240, 0.75)' : 'rgba(30, 41, 59, 0.85)';
+        // High-contrast, larger typography
+        const fontSizePx = (isTier1 ? 19 : 15) / camZoom;
+        const fontWeight = isTier1 ? '700' : '600';
+        ctx.font = `${fontWeight} ${fontSizePx}px Inter, -apple-system, BlinkMacSystemFont, sans-serif`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(city.name, cx + 6 / camZoom, cy);
+
+        const labelX = cx + (isTier1 ? 7 : 5.5) / camZoom;
+        const labelY = cy;
+
+        // Protective text halo so letters are legible over borders & lines
+        ctx.strokeStyle = haloColor;
+        ctx.lineWidth = 3.5 / camZoom;
+        ctx.lineJoin = 'round';
+        if (typeof ctx.strokeText === 'function') {
+            ctx.strokeText(city.name, labelX, labelY);
+        }
+
+        ctx.fillStyle = isTier1 ? textColor : tier2TextColor;
+        ctx.fillText(city.name, labelX, labelY);
     }
     ctx.restore();
+}
+
+function buildGeometryPath2D(targetPath, geometry, baseScene) {
+    if (!geometry) return;
+    if (geometry.type === 'Polygon') {
+        appendPolygonToPath(targetPath, geometry.coordinates, baseScene);
+    } else if (geometry.type === 'MultiPolygon') {
+        for (const poly of geometry.coordinates) {
+            appendPolygonToPath(targetPath, poly, baseScene);
+        }
+    }
+}
+
+function appendPolygonToPath(targetPath, rings, baseScene) {
+    for (const ring of rings) {
+        if (!ring || ring.length < 3) continue;
+        const startX = lonToWorldX(ring[0][0], baseScene.z) - baseScene.originWX;
+        const startY = latToWorldY(ring[0][1], baseScene.z) - baseScene.originWY;
+        targetPath.moveTo(startX, startY);
+        for (let i = 1; i < ring.length; i++) {
+            const rx = lonToWorldX(ring[i][0], baseScene.z) - baseScene.originWX;
+            const ry = latToWorldY(ring[i][1], baseScene.z) - baseScene.originWY;
+            targetPath.lineTo(rx, ry);
+        }
+        targetPath.closePath();
+    }
 }
 
 function drawGeometryPath(ctx, geometry, baseScene) {
