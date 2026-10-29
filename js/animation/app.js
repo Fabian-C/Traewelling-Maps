@@ -21,6 +21,11 @@ import {
     sortTripsChronologically
 } from './composition.js';
 import { VideoClipRecorder } from './recorder.js';
+import {
+    filterTripsByTimeframe,
+    getTimeframeLabel,
+    TIMEFRAME_PRESETS
+} from './timeframe.js';
 
 const html = htm.bind(React.createElement);
 
@@ -192,14 +197,22 @@ let currentMode = 'single';
 let currentUser = '';
 let currentTripId = '';
 let currentTrip = null;
+let currentTimeframe = 'all';
+let customTimeframeFrom = '';
+let customTimeframeTo = '';
 let userTrips = [];
 let allSessions = [];
 let playerRef = null;
 let reactRoot = null;
 
+function getActiveTrips() {
+    return filterTripsByTimeframe(userTrips, currentTimeframe, customTimeframeFrom, customTimeframeTo);
+}
+
 function getActiveDurationInFrames() {
-    if (currentMode === 'all' && userTrips.length > 0) {
-        return computeAllModeTiming(userTrips, FPS).totalFrames;
+    const activeTrips = getActiveTrips();
+    if (currentMode === 'all' && activeTrips.length > 0) {
+        return computeAllModeTiming(activeTrips, FPS).totalFrames;
     }
     return DURATION_IN_FRAMES;
 }
@@ -212,6 +225,16 @@ async function init() {
     if (modeParam === 'all' || currentTripId.toLowerCase() === 'all') {
         currentMode = 'all';
         if (currentTripId.toLowerCase() === 'all') currentTripId = '';
+    }
+
+    const tfParam = (urlParams.get('timeframe') || '').toLowerCase().trim();
+    if (TIMEFRAME_PRESETS.some(p => p.id === tfParam)) {
+        currentTimeframe = tfParam;
+    }
+    customTimeframeFrom = urlParams.get('from') || '';
+    customTimeframeTo = urlParams.get('to') || '';
+    if (customTimeframeFrom || customTimeframeTo) {
+        currentTimeframe = 'custom';
     }
 
     const mapParam = urlParams.get('map');
@@ -237,6 +260,7 @@ async function init() {
     await loadUserTrips(currentUser);
 
     renderSessionSelect();
+    syncTimeframeInputs();
     renderTripSelect();
     syncToolbarPills();
     renderPlayer();
@@ -249,6 +273,19 @@ async function init() {
             playerRef.seekTo(frameNum);
         }
     };
+}
+
+function syncTimeframeInputs() {
+    const tfSelect = document.getElementById('timeframeSelect');
+    const customContainer = document.getElementById('customDateContainer');
+    const fromInput = document.getElementById('timeframeFrom');
+    const toInput = document.getElementById('timeframeTo');
+    if (tfSelect) tfSelect.value = currentTimeframe;
+    if (fromInput) fromInput.value = customTimeframeFrom;
+    if (toInput) toInput.value = customTimeframeTo;
+    if (customContainer) {
+        customContainer.style.display = currentTimeframe === 'custom' ? 'inline-flex' : 'none';
+    }
 }
 
 function syncToolbarPills() {
@@ -400,7 +437,7 @@ async function loadUserTrips(username) {
     }
 
     if (currentMode === 'all') {
-        updateAllModeSidebar(userTrips);
+        updateAllModeSidebar(getActiveTrips());
     } else {
         updateTripSidebar(currentTrip);
     }
@@ -433,14 +470,21 @@ function renderTripSelect() {
     const select = document.getElementById('tripSelect');
     if (!select) return;
 
+    const activeTrips = getActiveTrips();
+    const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo);
+
     if (userTrips.length === 0) {
         select.innerHTML = '<option value="">No trips found</option>';
         return;
     }
 
-    const allOption = `<option value="__ALL__" ${currentMode === 'all' ? 'selected' : ''}>All Saved Rides — Historical Replay (${userTrips.length} rides)</option>`;
+    const allLabel = currentTimeframe === 'all'
+        ? `All Saved Rides — Historical Replay (${userTrips.length} rides)`
+        : `Historical Replay — ${tfLabel} (${activeTrips.length} rides)`;
+    const allOption = `<option value="__ALL__" ${currentMode === 'all' ? 'selected' : ''}>${escapeHtml(allLabel)}</option>`;
 
-    const tripOptions = userTrips.map(t => {
+    const tripListToRender = activeTrips.length > 0 ? activeTrips : userTrips;
+    const tripOptions = tripListToRender.map(t => {
         const checkin = t.checkin || t.train || {};
         const line = checkin.lineName || checkin.number || t.line || 'Train';
         const origin = checkin.origin?.name || checkin.origin?.station?.name || t.origin || 'Origin';
@@ -455,14 +499,23 @@ function renderTripSelect() {
 }
 
 function updateAllModeSidebar(trips) {
-    if (!Array.isArray(trips) || trips.length === 0) return;
-
     const lineEl = document.getElementById('sidebarLine');
     const routeEl = document.getElementById('sidebarRoute');
     const distEl = document.getElementById('sidebarDistance');
     const delayEl = document.getElementById('sidebarDelay');
     const durEl = document.getElementById('sidebarDuration');
     const noteEl = document.getElementById('sidebarNote');
+
+    if (!Array.isArray(trips) || trips.length === 0) {
+        const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo);
+        if (lineEl) lineEl.textContent = `No Rides (${tfLabel})`;
+        if (routeEl) routeEl.textContent = '—';
+        if (distEl) distEl.textContent = '0 km';
+        if (delayEl) delayEl.textContent = '—';
+        if (durEl) durEl.textContent = '—';
+        if (noteEl) noteEl.textContent = `No recorded rides found for ${tfLabel}.`;
+        return;
+    }
 
     const sorted = sortTripsChronologically(trips);
     let totalMeters = 0;
@@ -493,13 +546,14 @@ function updateAllModeSidebar(trips) {
 
     const timing = computeAllModeTiming(sorted, FPS);
     const clipSec = Math.round(timing.totalFrames / FPS);
+    const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo);
 
-    if (lineEl) lineEl.textContent = `All Rides (${sorted.length})`;
+    if (lineEl) lineEl.textContent = `${tfLabel} (${sorted.length})`;
     if (routeEl) routeEl.textContent = `${firstOrig} → … → ${lastDest}`;
     if (distEl) distEl.textContent = totalMeters > 0 ? `${(totalMeters / 1000).toFixed(1)} km` : '—';
     if (delayEl) delayEl.textContent = `+${Math.round(totalDelaySec / 60)} min total`;
     if (durEl) durEl.textContent = totalDurationMin > 0 ? formatHumanDuration(totalDurationMin) : '—';
-    if (noteEl) noteEl.textContent = `Chronological replay of all ${sorted.length} saved rides (${clipSec}s animation).`;
+    if (noteEl) noteEl.textContent = `Chronological replay of ${sorted.length} rides for ${tfLabel} (${clipSec}s animation).`;
 }
 
 function updateTripSidebar(trip) {
@@ -547,6 +601,26 @@ function renderPlayer() {
         reactRoot = ReactDOM.createRoot(container);
     }
 
+    const activeTrips = getActiveTrips();
+    const downloadBtn = document.getElementById('downloadVideoBtn');
+
+    if (currentMode === 'all' && activeTrips.length === 0) {
+        if (downloadBtn) downloadBtn.disabled = true;
+        const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo);
+        reactRoot.render(html`
+            <div class="anim-empty-state">
+                <div class="anim-empty-state-title">No rides in timeframe</div>
+                <div class="anim-empty-state-desc">
+                    There are no recorded journeys matching <strong>${escapeHtml(tfLabel)}</strong>.
+                    Try selecting another preset or adjusting your custom date range above.
+                </div>
+            </div>
+        `);
+        return;
+    }
+
+    if (downloadBtn) downloadBtn.disabled = false;
+
     const activeDuration = getActiveDurationInFrames();
     window.__totalDurationInFrames = activeDuration;
 
@@ -557,7 +631,7 @@ function renderPlayer() {
                 component=${TripStoryComposition}
                 inputProps=${{
                     trip: currentTrip,
-                    trips: userTrips,
+                    trips: activeTrips,
                     mode: currentMode,
                     username: currentUser,
                     mapStyle: currentMapStyle
@@ -577,7 +651,8 @@ function renderPlayer() {
 }
 
 async function triggerVideoDownload() {
-    if (!playerRef || (!currentTrip && currentMode !== 'all')) return null;
+    const activeTrips = getActiveTrips();
+    if (!playerRef || (!currentTrip && currentMode !== 'all') || (currentMode === 'all' && activeTrips.length === 0)) return null;
     const downloadBtn = document.getElementById('downloadVideoBtn');
     const progressWrap = document.getElementById('recordProgressWrap');
     const progressBar = document.getElementById('recordProgressBar');
@@ -585,8 +660,9 @@ async function triggerVideoDownload() {
 
     const checkin = currentTrip?.checkin || currentTrip?.train || {};
     const cleanLine = (checkin.lineName || checkin.number || 'trip').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+    const tfPart = currentTimeframe === 'all' ? 'all' : currentTimeframe.replace(/[^a-zA-Z0-9_-]/g, '-');
     const filename = currentMode === 'all'
-        ? `traewelling-${currentUser || 'clip'}-all-${userTrips.length}-rides.webm`
+        ? `traewelling-${currentUser || 'clip'}-${tfPart}-${activeTrips.length}-rides.webm`
         : `traewelling-${currentUser || 'clip'}-${cleanLine}-${currentTrip?.id || 'video'}.webm`;
 
     try {
@@ -598,11 +674,11 @@ async function triggerVideoDownload() {
         if (progressBar) progressBar.style.width = '5%';
 
         const activeDuration = getActiveDurationInFrames();
-    window.__totalDurationInFrames = activeDuration;
+        window.__totalDurationInFrames = activeDuration;
         const recorder = new VideoClipRecorder(playerRef, activeDuration);
         const result = await recorder.recordAndDownload({
             trip: currentTrip,
-            trips: userTrips,
+            trips: activeTrips,
             mode: currentMode,
             mapStyle: currentMapStyle,
             width: VIDEO_WIDTH,
@@ -651,8 +727,9 @@ function setupControls() {
             const val = String(e.target.value);
             if (val === '__ALL__') {
                 currentMode = 'all';
-                await attachPolylinesToTrips(userTrips, 120);
-                updateAllModeSidebar(userTrips);
+                const activeTrips = getActiveTrips();
+                await attachPolylinesToTrips(activeTrips, 120);
+                updateAllModeSidebar(activeTrips);
                 updateUrlParams();
                 renderPlayer();
                 return;
@@ -666,7 +743,57 @@ function setupControls() {
         });
     }
 
-    // 7 Map Theme Switcher Pills
+    const tfSelect = document.getElementById('timeframeSelect');
+    const customContainer = document.getElementById('customDateContainer');
+    const fromInput = document.getElementById('timeframeFrom');
+    const toInput = document.getElementById('timeframeTo');
+
+    if (tfSelect) {
+        tfSelect.addEventListener('change', async (e) => {
+            currentTimeframe = e.target.value;
+            if (customContainer) {
+                customContainer.style.display = currentTimeframe === 'custom' ? 'inline-flex' : 'none';
+            }
+            const activeTrips = getActiveTrips();
+            if (currentMode === 'all') {
+                await attachPolylinesToTrips(activeTrips, 120);
+                updateAllModeSidebar(activeTrips);
+            } else {
+                if (activeTrips.length > 0 && !activeTrips.some(t => String(t.id) === String(currentTripId))) {
+                    currentTrip = activeTrips[0];
+                    currentTripId = String(currentTrip.id);
+                    updateTripSidebar(currentTrip);
+                }
+            }
+            renderTripSelect();
+            updateUrlParams();
+            renderPlayer();
+        });
+    }
+
+    const handleCustomDateChange = async () => {
+        if (fromInput) customTimeframeFrom = fromInput.value;
+        if (toInput) customTimeframeTo = toInput.value;
+        const activeTrips = getActiveTrips();
+        if (currentMode === 'all') {
+            await attachPolylinesToTrips(activeTrips, 120);
+            updateAllModeSidebar(activeTrips);
+        } else {
+            if (activeTrips.length > 0 && !activeTrips.some(t => String(t.id) === String(currentTripId))) {
+                currentTrip = activeTrips[0];
+                currentTripId = String(currentTrip.id);
+                updateTripSidebar(currentTrip);
+            }
+        }
+        renderTripSelect();
+        updateUrlParams();
+        renderPlayer();
+    };
+
+    if (fromInput) fromInput.addEventListener('change', handleCustomDateChange);
+    if (toInput) toInput.addEventListener('change', handleCustomDateChange);
+
+    // Map Theme Switcher Pills
     document.querySelectorAll('.map-style-pill').forEach(btn => {
         btn.addEventListener('click', () => {
             currentMapStyle = btn.dataset.style || 'traewelling-dark';
@@ -692,6 +819,13 @@ function updateUrlParams() {
         params.set('mode', 'all');
     } else if (currentTripId) {
         params.set('id', currentTripId);
+    }
+    if (currentTimeframe && currentTimeframe !== 'all') {
+        params.set('timeframe', currentTimeframe);
+    }
+    if (currentTimeframe === 'custom') {
+        if (customTimeframeFrom) params.set('from', customTimeframeFrom);
+        if (customTimeframeTo) params.set('to', customTimeframeTo);
     }
     if (currentMapStyle && currentMapStyle !== 'traewelling-dark') params.set('map', currentMapStyle);
     window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);

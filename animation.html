@@ -73,6 +73,33 @@
             </label>
         </div>
 
+        <div class="anim-selector-group" id="timeframeGroup">
+            <label class="anim-select-label" for="timeframeSelect">
+                <span>Timeframe:</span>
+                <select id="timeframeSelect" class="anim-select">
+                    <option value="all">All Time</option>
+                    <option value="today">Today / Last 24h</option>
+                    <option value="last-7-days">Last 7 Days</option>
+                    <option value="this-week">This Week</option>
+                    <option value="last-week">Last Week</option>
+                    <option value="this-month">This Month</option>
+                    <option value="last-30-days">Last 30 Days</option>
+                    <option value="this-year">This Year</option>
+                    <option value="custom">Custom Date Range…</option>
+                </select>
+            </label>
+            <div class="anim-custom-dates" id="customDateContainer" style="display: none;">
+                <label class="anim-date-label" for="timeframeFrom">
+                    <span>From:</span>
+                    <input type="date" id="timeframeFrom" class="anim-date-input" aria-label="Start date" />
+                </label>
+                <label class="anim-date-label" for="timeframeTo">
+                    <span>To:</span>
+                    <input type="date" id="timeframeTo" class="anim-date-input" aria-label="End date" />
+                </label>
+            </div>
+        </div>
+
         <div class="anim-selector-group">
             <span class="anim-toolbar-label" id="mapStyleGroupLabel">Map Style:</span>
             <div class="aspect-pill-group" role="group" aria-labelledby="mapStyleGroupLabel">

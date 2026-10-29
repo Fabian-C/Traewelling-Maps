@@ -243,6 +243,63 @@
         min-inline-size: 270px;
     }
 
+    .anim-custom-dates {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .anim-date-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .anim-date-input {
+        background: var(--bg-input);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-primary);
+        padding-block: 5px;
+        padding-inline: 8px;
+        border-radius: var(--radius-sm);
+        font-size: 12px;
+        font-family: inherit;
+        cursor: pointer;
+    }
+
+    .anim-date-input:focus-visible {
+        outline: 2px solid var(--accent-cyan);
+        border-color: var(--accent-cyan);
+    }
+
+    .anim-empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 32px;
+        color: var(--text-secondary);
+        gap: 12px;
+        max-inline-size: 440px;
+        margin: auto;
+    }
+
+    .anim-empty-state-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .anim-empty-state-desc {
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--text-muted);
+    }
+
     .anim-select:focus-visible,
     .aspect-pill:focus-visible,
     .anim-download-btn:focus-visible,
