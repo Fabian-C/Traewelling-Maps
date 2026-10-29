@@ -228,6 +228,16 @@ export function buildMapScene(coords, viewportWidth = 960, viewportHeight = 960)
     }
     const totalPathPx = Math.max(1, cumDist[cumDist.length - 1]);
 
+    // Pre-compile Path2D for full route to eliminate per-frame point iteration loops
+    let path2D = null;
+    if (typeof Path2D !== 'undefined' && points.length >= 2) {
+        path2D = new Path2D();
+        path2D.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            path2D.lineTo(points[i].x, points[i].y);
+        }
+    }
+
     // Sample along the single trip: overview + vehicle chase zoom to collect trajectory detail tiles
     const trajectoryTileMap = new Map();
     const overTiles = getVisibleTilesForViewport({
@@ -263,6 +273,7 @@ export function buildMapScene(coords, viewportWidth = 960, viewportHeight = 960)
         tiles,
         detailTiles,
         points,
+        path2D,
         cumDist,
         totalPathPx,
         sceneWidth,
@@ -279,11 +290,34 @@ export function smootherstep(edge0, edge1, x) {
 }
 
 export function getXYAtDistance(points, cumDist, distPx) {
-    const clamped = Math.max(0, Math.min(cumDist[cumDist.length - 1], distPx));
-    let idx = 0;
-    while (idx < cumDist.length - 2 && cumDist[idx + 1] < clamped) {
-        idx++;
+    if (!points || !points.length) return { x: 0, y: 0, index: 0 };
+    if (points.length === 1 || !cumDist || cumDist.length < 2) {
+        return { x: points[0].x, y: points[0].y, index: 0 };
     }
+
+    const maxDist = cumDist[cumDist.length - 1] || 0;
+    const clamped = Math.max(0, Math.min(maxDist, distPx));
+
+    // Fast binary search: O(log N) instead of O(N) linear scan
+    let low = 0;
+    let high = cumDist.length - 2;
+    let idx = 0;
+
+    while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (cumDist[mid + 1] <= clamped) {
+            low = mid + 1;
+        } else if (cumDist[mid] > clamped) {
+            high = mid - 1;
+        } else {
+            idx = mid;
+            break;
+        }
+    }
+    if (low > high) {
+        idx = Math.max(0, Math.min(cumDist.length - 2, high));
+    }
+
     const d0 = cumDist[idx];
     const d1 = cumDist[idx + 1];
     const segLen = Math.max(0.0001, d1 - d0);
@@ -540,6 +574,15 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         const startKm = runningKm;
         runningKm += distanceKm;
 
+        let path2D = null;
+        if (typeof Path2D !== 'undefined' && points.length >= 2) {
+            path2D = new Path2D();
+            path2D.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                path2D.lineTo(points[i].x, points[i].y);
+            }
+        }
+
         const spanX = Math.max(minSpanBasePx, (maxX - minX) * 1.30);
         const spanY = Math.max(minSpanBasePx, (maxY - minY) * 1.30);
         const rideCenterX = Number.isFinite(minX) ? (minX + maxX) / 2 : baseScene.centerSceneX;
@@ -552,6 +595,7 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
             trip,
             coords,
             points,
+            path2D,
             cumDist,
             totalPathPx,
             distanceKm,

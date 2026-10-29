@@ -31,16 +31,15 @@ function getOrCreateScenePaths(baseScene) {
         return SCENE_PATH_CACHE.get(cacheKey);
     }
 
-    // 1. Countries (separated into DE and other countries)
-    const countries = [];
+    // 1. Countries (consolidated compound paths: DE vs all other countries for batch rendering)
+    const otherCountriesPath = new Path2D();
+    const deCountryPath = new Path2D();
     for (const country of VECTOR_COUNTRIES) {
-        const path = new Path2D();
-        buildGeometryPath2D(path, country.geometry, baseScene);
-        countries.push({
-            id: country.id,
-            isDE: country.id === 'DEU',
-            path
-        });
+        if (country.id === 'DEU') {
+            buildGeometryPath2D(deCountryPath, country.geometry, baseScene);
+        } else {
+            buildGeometryPath2D(otherCountriesPath, country.geometry, baseScene);
+        }
     }
 
     // 2. German Bundesländer (combined single path for maximum performance)
@@ -78,7 +77,14 @@ function getOrCreateScenePaths(baseScene) {
         }
     }
 
-    const scenePaths = { countries, statesPath, riversPath, railPath };
+    // 5. Pre-projected reference cities (avoids spherical math in hot render loop)
+    const projectedCities = VECTOR_CITIES.map(city => ({
+        ...city,
+        cx: lonToWorldX(city.lon, baseScene.z) - baseScene.originWX,
+        cy: latToWorldY(city.lat, baseScene.z) - baseScene.originWY
+    }));
+
+    const scenePaths = { otherCountriesPath, deCountryPath, statesPath, riversPath, railPath, projectedCities };
 
     // Limit cache size to prevent memory leaks across long sessions
     if (SCENE_PATH_CACHE.size > 8) {
@@ -92,7 +98,11 @@ export function drawVectorBaseMap({
     ctx,
     baseScene,
     camZoom,
-    styleConfig
+    styleConfig,
+    camTargetX,
+    camTargetY,
+    width = 960,
+    height = 960
 }) {
     const isDark = styleConfig.isDark !== false;
 
@@ -107,26 +117,38 @@ export function drawVectorBaseMap({
 
     const cached = getOrCreateScenePaths(baseScene);
 
-    // 1. European Countries (fills & borders)
+    // 1. European Countries (batched compound fills & borders: 4 draw calls instead of 70+)
     ctx.save();
     ctx.lineWidth = 1.6 / camZoom;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 
     if (cached) {
-        for (const c of cached.countries) {
-            ctx.fillStyle = c.isDE ? targetCountryColor : landColor;
-            ctx.strokeStyle = countryBorderColor;
-            ctx.fill(c.path);
-            ctx.stroke(c.path);
-        }
+        ctx.fillStyle = landColor;
+        ctx.strokeStyle = countryBorderColor;
+        ctx.fill(cached.otherCountriesPath);
+        ctx.stroke(cached.otherCountriesPath);
+
+        ctx.fillStyle = targetCountryColor;
+        ctx.fill(cached.deCountryPath);
+        ctx.stroke(cached.deCountryPath);
     } else {
+        ctx.fillStyle = landColor;
+        ctx.strokeStyle = countryBorderColor;
+        ctx.beginPath();
         for (const country of VECTOR_COUNTRIES) {
-            const isDE = country.id === 'DEU';
-            ctx.fillStyle = isDE ? targetCountryColor : landColor;
-            ctx.strokeStyle = countryBorderColor;
+            if (country.id !== 'DEU') {
+                drawGeometryPath(ctx, country.geometry, baseScene);
+            }
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        const de = VECTOR_COUNTRIES.find(c => c.id === 'DEU');
+        if (de) {
+            ctx.fillStyle = targetCountryColor;
             ctx.beginPath();
-            drawGeometryPath(ctx, country.geometry, baseScene);
+            drawGeometryPath(ctx, de.geometry, baseScene);
             ctx.fill();
             ctx.stroke();
         }
@@ -209,7 +231,7 @@ export function drawVectorBaseMap({
         ctx.restore();
     }
 
-    // 5. Graticule Grid Lines (Parallels & Meridians) with enlarged text
+    // 5. Graticule Grid Lines (Compound batched path: 1 draw call instead of 25+)
     ctx.save();
     ctx.strokeStyle = graticuleColor;
     ctx.lineWidth = 1.0 / camZoom;
@@ -220,14 +242,13 @@ export function drawVectorBaseMap({
     const lonStep = camZoom > 4 ? 0.5 : (camZoom > 1.5 ? 1 : 2);
     const minLon = 2;
     const maxLon = 18;
+    ctx.beginPath();
     for (let lon = minLon; lon <= maxLon; lon += lonStep) {
         const x = lonToWorldX(lon, baseScene.z) - baseScene.originWX;
         const yTop = latToWorldY(56, baseScene.z) - baseScene.originWY;
         const yBot = latToWorldY(46, baseScene.z) - baseScene.originWY;
-        ctx.beginPath();
         ctx.moveTo(x, yTop);
         ctx.lineTo(x, yBot);
-        ctx.stroke();
     }
 
     const latStep = camZoom > 4 ? 0.5 : (camZoom > 1.5 ? 1 : 2);
@@ -235,26 +256,46 @@ export function drawVectorBaseMap({
         const y = latToWorldY(lat, baseScene.z) - baseScene.originWY;
         const xLeft = lonToWorldX(minLon, baseScene.z) - baseScene.originWX;
         const xRight = lonToWorldX(maxLon, baseScene.z) - baseScene.originWY;
-        ctx.beginPath();
         ctx.moveTo(xLeft, y);
         ctx.lineTo(xRight, y);
-        ctx.stroke();
     }
+    ctx.stroke();
     ctx.restore();
 
-    // 6. Reference Cities (Multi-Tier LOD with bigger, high-contrast labels)
+    // 6. Reference Cities (Multi-Tier LOD with Viewport Culling & pre-projected coords)
     ctx.save();
     const haloColor = isDark ? 'rgba(10, 16, 28, 0.92)' : 'rgba(255, 255, 255, 0.92)';
     const textColor = isDark ? '#f1f5f9' : '#0f172a';
     const tier2TextColor = isDark ? 'rgba(203, 213, 225, 0.88)' : 'rgba(51, 65, 85, 0.88)';
 
-    for (const city of VECTOR_CITIES) {
+    const cities = cached?.projectedCities || VECTOR_CITIES;
+
+    // Viewport bounds in scene coordinates for frustum culling
+    const hasCam = typeof camTargetX === 'number' && typeof camTargetY === 'number';
+    const margin = (140 / camZoom);
+    const halfW = (width / (2 * camZoom)) + margin;
+    const halfH = (height / (2 * camZoom)) + margin;
+    const minSceneX = hasCam ? camTargetX - halfW : -Infinity;
+    const maxSceneX = hasCam ? camTargetX + halfW : Infinity;
+    const minSceneY = hasCam ? camTargetY - halfH : -Infinity;
+    const maxSceneY = hasCam ? camTargetY + halfH : Infinity;
+
+    for (const city of cities) {
         const isTier1 = (city.tier || 1) === 1;
         // Level of Detail: Tier 2 regional cities fade in at camZoom >= 1.7
         if (!isTier1 && camZoom < 1.7) continue;
 
-        const cx = lonToWorldX(city.lon, baseScene.z) - baseScene.originWX;
-        const cy = latToWorldY(city.lat, baseScene.z) - baseScene.originWY;
+        const cx = typeof city.cx === 'number'
+            ? city.cx
+            : lonToWorldX(city.lon, baseScene.z) - baseScene.originWX;
+        const cy = typeof city.cy === 'number'
+            ? city.cy
+            : latToWorldY(city.lat, baseScene.z) - baseScene.originWY;
+
+        // Viewport Culling: Skip offscreen cities to avoid heavy font rasterization
+        if (cx < minSceneX || cx > maxSceneX || cy < minSceneY || cy > maxSceneY) {
+            continue;
+        }
 
         const dotRadius = (isTier1 ? 5.8 : 4.0) / camZoom;
         ctx.fillStyle = isDark

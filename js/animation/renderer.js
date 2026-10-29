@@ -32,6 +32,19 @@ export function drawRoundedRect(ctx, x, y, w, h, r) {
     ctx.closePath();
 }
 
+// Pre-compiled singleton Path2D models to eliminate SVG parsing & memory allocations in hot render loop
+const PLANE_PATH = typeof Path2D !== 'undefined'
+    ? new Path2D('M -22,-12 L -14,0 L -22,12 L -16,12 L -8,3 L 6,3 L 2,26 L 9,26 L 16,3 L 26,3 C 31,3 34,0 34,0 C 34,0 31,-3 26,-3 L 16,-3 L 9,-26 L 2,-26 L 6,-3 L -8,-3 L -16,-12 Z')
+    : null;
+
+const ICE_NOSE_PATH = typeof Path2D !== 'undefined'
+    ? new Path2D('M -8,-9.5 L 16,-9.5 C 26,-9.5 33,-4.5 33,0 C 33,4.5 26,9.5 16,9.5 L -8,9.5 Z')
+    : null;
+
+const ICE_WIND_PATH = typeof Path2D !== 'undefined'
+    ? new Path2D('M 15,-5.2 C 21,-5.2 25,-2.2 25,0 C 25,2.2 21,5.2 15,5.2 L 11.5,4.2 L 11.5,-4.2 Z')
+    : null;
+
 /**
  * High-contrast top-down transit vehicles (drawn above all map dots and tracks,
  * without artificial yellow headlight cones).
@@ -105,22 +118,22 @@ export function drawVehicleOnCanvas(ctx, vehicleType, color, frame) {
         ctx.lineTo(-42, 5);
         ctx.stroke();
 
-        const planePath = new Path2D(
-            'M -22,-12 L -14,0 L -22,12 L -16,12 L -8,3 L 6,3 L 2,26 L 9,26 L 16,3 L 26,3 C 31,3 34,0 34,0 C 34,0 31,-3 26,-3 L 16,-3 L 9,-26 L 2,-26 L 6,-3 L -8,-3 L -16,-12 Z'
-        );
-        ctx.save();
-        ctx.translate(8, 14);
-        ctx.scale(0.85, 0.85);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-        ctx.fill(planePath);
-        ctx.restore();
+        const planePath = PLANE_PATH;
+        if (planePath) {
+            ctx.save();
+            ctx.translate(8, 14);
+            ctx.scale(0.85, 0.85);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+            ctx.fill(planePath);
+            ctx.restore();
 
-        ctx.fillStyle = '#ffffff';
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2.5;
-        ctx.lineJoin = 'round';
-        ctx.fill(planePath);
-        ctx.stroke(planePath);
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2.5;
+            ctx.lineJoin = 'round';
+            ctx.fill(planePath);
+            ctx.stroke(planePath);
+        }
     } else if (vehicleType === 'ice') {
         // Rear Carriage with elevation shadow
         ctx.save();
@@ -135,12 +148,14 @@ export function drawVehicleOnCanvas(ctx, vehicleType, color, frame) {
         ctx.stroke();
 
         // Aerodynamic ICE Nose Cone
-        const nosePath = new Path2D('M -8,-9.5 L 16,-9.5 C 26,-9.5 33,-4.5 33,0 C 33,4.5 26,9.5 16,9.5 L -8,9.5 Z');
+        const nosePath = ICE_NOSE_PATH;
         ctx.fillStyle = '#ffffff';
         ctx.strokeStyle = '#cbd5e1';
         ctx.lineWidth = 1.5;
-        ctx.fill(nosePath);
-        ctx.stroke(nosePath);
+        if (nosePath) {
+            ctx.fill(nosePath);
+            ctx.stroke(nosePath);
+        }
         ctx.restore();
 
         // Iconic Dual Speed Stripes along sides
@@ -155,9 +170,11 @@ export function drawVehicleOnCanvas(ctx, vehicleType, color, frame) {
         ctx.stroke();
 
         // Cockpit Windshield
-        const windPath = new Path2D('M 15,-5.2 C 21,-5.2 25,-2.2 25,0 C 25,2.2 21,5.2 15,5.2 L 11.5,4.2 L 11.5,-4.2 Z');
-        ctx.fillStyle = '#0f172a';
-        ctx.fill(windPath);
+        const windPath = ICE_WIND_PATH;
+        if (windPath) {
+            ctx.fillStyle = '#0f172a';
+            ctx.fill(windPath);
+        }
 
         // Roof Louvers
         ctx.fillStyle = '#94a3b8';
@@ -367,8 +384,12 @@ export function drawDynamicMapTiles({
 }) {
     if (typeof styleConfig?.getTileUrl !== 'function') return;
 
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    if (!ctx.imageSmoothingEnabled) {
+        ctx.imageSmoothingEnabled = true;
+    }
+    if (ctx.imageSmoothingQuality !== 'high') {
+        ctx.imageSmoothingQuality = 'high';
+    }
 
     const { tiles } = getVisibleTilesForViewport({
         baseScene,
@@ -466,7 +487,11 @@ export function renderTripFrame({
             ctx,
             baseScene: scene,
             camZoom,
-            styleConfig
+            styleConfig,
+            camTargetX,
+            camTargetY,
+            width,
+            height
         });
     } else {
         drawDynamicMapTiles({
@@ -484,17 +509,21 @@ export function renderTripFrame({
     // 4. 4-Layer Track Design
     if (scene.points.length >= 2) {
         ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(scene.points[0].x, scene.points[0].y);
-        for (let i = 1; i < scene.points.length; i++) {
-            ctx.lineTo(scene.points[i].x, scene.points[i].y);
-        }
         ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.20)' : 'rgba(15, 23, 42, 0.24)';
         ctx.lineWidth = 10 / camZoom;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.setLineDash([10 / camZoom, 10 / camZoom]);
-        ctx.stroke();
+        if (scene.path2D) {
+            ctx.stroke(scene.path2D);
+        } else {
+            ctx.beginPath();
+            ctx.moveTo(scene.points[0].x, scene.points[0].y);
+            for (let i = 1; i < scene.points.length; i++) {
+                ctx.lineTo(scene.points[i].x, scene.points[i].y);
+            }
+            ctx.stroke();
+        }
         ctx.restore();
 
         const maxIdx = Math.max(0, Math.min(scene.points.length - 1, vehiclePose.index));
@@ -914,7 +943,11 @@ export function renderAllTripsFrame({
             ctx,
             baseScene: allScene,
             camZoom,
-            styleConfig
+            styleConfig,
+            camTargetX,
+            camTargetY,
+            width,
+            height
         });
     } else {
         drawDynamicMapTiles({
@@ -929,12 +962,32 @@ export function renderAllTripsFrame({
         });
     }
 
-    // 4. Draw completed historical network tracks
+    // 4. Draw completed historical network tracks (accelerated with pre-compiled Path2D)
     // When isFinale is reached, ALL rides (including the very last one) are drawn uniformly as completed network tracks!
     const completedCount = isFinale ? rides.length : activeIdx;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+
+    // Pass 1: Under-track outline
+    ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(15, 23, 42, 0.35)';
+    ctx.lineWidth = 6.5 / camZoom;
+    for (let i = 0; i < completedCount; i++) {
+        const pastRide = rides[i];
+        if (pastRide.path2D) {
+            ctx.stroke(pastRide.path2D);
+        } else if (pastRide.points && pastRide.points.length >= 2) {
+            ctx.beginPath();
+            ctx.moveTo(pastRide.points[0].x, pastRide.points[0].y);
+            for (let p = 1; p < pastRide.points.length; p++) {
+                ctx.lineTo(pastRide.points[p].x, pastRide.points[p].y);
+            }
+            ctx.stroke();
+        }
+    }
+
+    // Pass 2: Colored route tracks
+    ctx.lineWidth = 4.2 / camZoom;
     for (let i = 0; i < completedCount; i++) {
         const pastRide = rides[i];
         if (!pastRide.points || pastRide.points.length < 2) continue;
@@ -944,18 +997,17 @@ export function renderAllTripsFrame({
             ? `#${String(pastCheckin.routeColor).replace(/^#/, '')}`
             : pastCat.color;
 
-        ctx.beginPath();
-        ctx.moveTo(pastRide.points[0].x, pastRide.points[0].y);
-        for (let p = 1; p < pastRide.points.length; p++) {
-            ctx.lineTo(pastRide.points[p].x, pastRide.points[p].y);
-        }
-        ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(15, 23, 42, 0.35)';
-        ctx.lineWidth = 6.5 / camZoom;
-        ctx.stroke();
-
         ctx.strokeStyle = pastColor;
-        ctx.lineWidth = 4.2 / camZoom;
-        ctx.stroke();
+        if (pastRide.path2D) {
+            ctx.stroke(pastRide.path2D);
+        } else {
+            ctx.beginPath();
+            ctx.moveTo(pastRide.points[0].x, pastRide.points[0].y);
+            for (let p = 1; p < pastRide.points.length; p++) {
+                ctx.lineTo(pastRide.points[p].x, pastRide.points[p].y);
+            }
+            ctx.stroke();
+        }
     }
     ctx.restore();
 
