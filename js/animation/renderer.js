@@ -251,36 +251,36 @@ export function drawStationPin(
 
     // Callout Pill placed away from the route track and clamped within the canvas viewport
     const shortName = shortenStationName(label);
-    ctx.font = '700 22px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '800 24px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
     const textW = ctx.measureText(shortName).width;
-    const pillW = textW + 48;
-    const pillH = 42;
+    const pillW = textW + 54;
+    const pillH = 46;
     const pillX = -pillW / 2 + horizontalShiftPx;
-    const pillY = placeAbove ? -32 - pillH : 32;
+    const pillY = placeAbove ? -34 - pillH : 34;
 
     ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.48)';
-    ctx.shadowBlur = 12;
-    ctx.shadowOffsetY = 3;
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
-    drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 21);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 4;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
+    drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 23);
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
     ctx.strokeStyle = dotColor;
-    ctx.lineWidth = 2.2;
+    ctx.lineWidth = 2.5;
     ctx.stroke();
 
     // Status dot inside pill
     ctx.fillStyle = dotColor;
     ctx.beginPath();
-    ctx.arc(pillX + 18, pillY + pillH / 2, 5.5, 0, Math.PI * 2);
+    ctx.arc(pillX + 20, pillY + pillH / 2, 6.0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(shortName, pillX + 32, pillY + pillH / 2 + 1);
+    ctx.fillText(shortName, pillX + 36, pillY + pillH / 2 + 1);
     ctx.restore();
 
     ctx.restore();
@@ -288,29 +288,21 @@ export function drawStationPin(
 
 /**
  * Compute safe screen-space placement for a station callout pill so it never
- * gets clipped by the top HUD header or the left/right edges of the 960x960 canvas.
+ * gets clipped by the edges of the canvas, while keeping its vertical above/below
+ * placement stable and fixed so it never flips or swaps around during the animation.
  */
-function computeSafeStationPillPlacement(pt, camTargetX, camTargetY, camZoom, width, height, viewCenterY, preferAbove) {
+function computeSafeStationPillPlacement(pt, camTargetX, camTargetY, camZoom, width, height, viewCenterY, placeAboveLocked) {
     const screenX = (pt.x - camTargetX) * camZoom + width / 2;
-    const screenY = (pt.y - camTargetY) * camZoom + viewCenterY;
-
-    let placeAbove = preferAbove;
-    // Top HUD occupies y = 0..118; bottom watermark/controls occupy y = height-64..height
-    if (placeAbove && screenY - 76 < 118) {
-        placeAbove = false;
-    } else if (!placeAbove && screenY + 76 > height - 56) {
-        placeAbove = true;
-    }
 
     let horizontalShiftPx = 0;
-    const margin = 120;
+    const margin = 140;
     if (screenX < margin) {
-        horizontalShiftPx = margin - screenX;
+        horizontalShiftPx = Math.min(50, (margin - screenX) * 0.5);
     } else if (screenX > width - margin) {
-        horizontalShiftPx = (width - margin) - screenX;
+        horizontalShiftPx = Math.max(-50, ((width - margin) - screenX) * 0.5);
     }
 
-    return { placeAbove, horizontalShiftPx };
+    return { placeAbove: placeAboveLocked, horizontalShiftPx };
 }
 
 /**
@@ -599,6 +591,13 @@ export function renderTripFrame({
     const destPt = scene.points[scene.points.length - 1];
     const originIsNorthOfDest = originPt && destPt ? originPt.y <= destPt.y : true;
 
+    // Stable placement locked to overall route geometry so pills NEVER swap or flip mid-flight
+    const originOverviewY = originPt ? (originPt.y - scene.centerSceneY) * scene.fitScale + viewCenterY : 0;
+    const originLockedAbove = originOverviewY - 80 < 120 ? false : originIsNorthOfDest;
+
+    const destOverviewY = destPt ? (destPt.y - scene.centerSceneY) * scene.fitScale + viewCenterY : 0;
+    const destLockedAbove = destOverviewY - 80 < 120 ? false : !originIsNorthOfDest;
+
     if (originPt) {
         const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
             originPt,
@@ -608,7 +607,7 @@ export function renderTripFrame({
             width,
             height,
             viewCenterY,
-            originIsNorthOfDest
+            originLockedAbove
         );
         ctx.save();
         ctx.translate(originPt.x, originPt.y);
@@ -626,7 +625,7 @@ export function renderTripFrame({
             width,
             height,
             viewCenterY,
-            !originIsNorthOfDest
+            destLockedAbove
         );
         ctx.save();
         ctx.translate(destPt.x, destPt.y);
@@ -1009,6 +1008,13 @@ export function renderAllTripsFrame({
     const destPt = activeRide.points[activeRide.points.length - 1];
     const originIsNorthOfDest = originPt && destPt ? originPt.y <= destPt.y : true;
 
+    // Stable locked placement so station pills never flip or swap around mid-ride
+    const originOverviewY = originPt ? (originPt.y - allScene.centerSceneY) * allScene.fitScale + viewCenterY : 0;
+    const originLockedAbove = originOverviewY - 80 < 120 ? false : originIsNorthOfDest;
+
+    const destOverviewY = destPt ? (destPt.y - allScene.centerSceneY) * allScene.fitScale + viewCenterY : 0;
+    const destLockedAbove = destOverviewY - 80 < 120 ? false : !originIsNorthOfDest;
+
     if (originPt && !isFinale) {
         const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
             originPt,
@@ -1018,7 +1024,7 @@ export function renderAllTripsFrame({
             width,
             height,
             viewCenterY,
-            originIsNorthOfDest
+            originLockedAbove
         );
         ctx.save();
         ctx.translate(originPt.x, originPt.y);
@@ -1035,7 +1041,7 @@ export function renderAllTripsFrame({
             width,
             height,
             viewCenterY,
-            !originIsNorthOfDest
+            destLockedAbove
         );
         ctx.save();
         ctx.translate(destPt.x, destPt.y);

@@ -256,7 +256,7 @@ export function drawVectorBaseMap({
         const cx = lonToWorldX(city.lon, baseScene.z) - baseScene.originWX;
         const cy = latToWorldY(city.lat, baseScene.z) - baseScene.originWY;
 
-        const dotRadius = (isTier1 ? 4.2 : 3.0) / camZoom;
+        const dotRadius = (isTier1 ? 5.8 : 4.0) / camZoom;
         ctx.fillStyle = isDark
             ? (isTier1 ? '#60a5fa' : '#38bdf8')
             : (isTier1 ? '#2563eb' : '#0284c7');
@@ -264,19 +264,19 @@ export function drawVectorBaseMap({
         ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
         ctx.fill();
 
-        // High-contrast, larger typography
-        const fontSizePx = (isTier1 ? 19 : 15) / camZoom;
-        const fontWeight = isTier1 ? '700' : '600';
+        // High-contrast, phone-optimized typography for Instagram & Twitter
+        const fontSizePx = (isTier1 ? 28 : 20) / camZoom;
+        const fontWeight = isTier1 ? '800' : '700';
         ctx.font = `${fontWeight} ${fontSizePx}px Inter, -apple-system, BlinkMacSystemFont, sans-serif`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
 
-        const labelX = cx + (isTier1 ? 7 : 5.5) / camZoom;
+        const labelX = cx + (isTier1 ? 10 : 8) / camZoom;
         const labelY = cy;
 
         // Protective text halo so letters are legible over borders & lines
         ctx.strokeStyle = haloColor;
-        ctx.lineWidth = 3.5 / camZoom;
+        ctx.lineWidth = 4.5 / camZoom;
         ctx.lineJoin = 'round';
         if (typeof ctx.strokeText === 'function') {
             ctx.strokeText(city.name, labelX, labelY);

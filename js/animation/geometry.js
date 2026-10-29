@@ -390,13 +390,15 @@ export function samplePointAlongRoute(scene, progress) {
 /**
  * Low-pass spatial filter for the camera target along the route so track bends
  * never cause lateral camera shake.
+ * Uses a broad 11-point Gaussian kernel with adaptive centroid damping for silky smooth motion.
  */
 export function sampleSmoothedCameraTarget(scene, progress) {
     const { points, cumDist, totalPathPx, centerSceneX, centerSceneY } = scene;
     if (!points.length) return { x: centerSceneX, y: centerSceneY };
 
-    const offsets = [-0.10, -0.05, 0, 0.05, 0.10];
-    const weights = [0.15, 0.22, 0.26, 0.22, 0.15];
+    // 11-point Gaussian spatial low-pass filter across normalized trajectory:
+    const offsets = [-0.20, -0.16, -0.12, -0.08, -0.04, 0, 0.04, 0.08, 0.12, 0.16, 0.20];
+    const weights = [0.03, 0.06, 0.10, 0.14, 0.17, 0.20, 0.17, 0.14, 0.10, 0.06, 0.03];
     let sumX = 0;
     let sumY = 0;
 
@@ -407,9 +409,17 @@ export function sampleSmoothedCameraTarget(scene, progress) {
         sumY += pt.y * weights[i];
     }
 
+    // Adaptive centroid damping:
+    // For short city rides (metro, tram, S-Bahn), higher anchoring to centerScene prevents
+    // sudden camera whip on sharp 90-degree street corners.
+    // For long journeys, camera tracks the forward trajectory with gentle centering.
+    const isShortRide = totalPathPx < 650;
+    const centerFactor = isShortRide ? 0.35 : 0.20;
+    const trackFactor = 1 - centerFactor;
+
     return {
-        x: sumX * 0.86 + centerSceneX * 0.14,
-        y: sumY * 0.86 + centerSceneY * 0.14
+        x: sumX * trackFactor + centerSceneX * centerFactor,
+        y: sumY * trackFactor + centerSceneY * centerFactor
     };
 }
 
