@@ -17,7 +17,8 @@ import {
     sampleSmoothedCameraTarget,
     computeCameraZoomMultiplier,
     shortenStationName,
-    getContrastingTextColor
+    getContrastingTextColor,
+    getVisibleTilesForViewport
 } from './geometry.js';
 
 export function drawRoundedRect(ctx, x, y, w, h, r) {
@@ -316,13 +317,14 @@ function computeSafeStationPillPlacement(pt, camTargetX, camTargetY, camZoom, wi
  * Draws a tile with hierarchical parent-tile fallback.
  * If the exact tile is not yet loaded in cache, it searches upwards for parent tiles (z-1, z-2)
  * and draws the corresponding sub-quadrant seamlessly so blank holes never appear.
+ * Correctly accounts for Retina (@2x) natural pixel dimensions so sub-quadrants are sliced with 100% precision.
  */
 function drawTileWithParentFallback(ctx, styleConfig, tile, baseZ) {
     const tileZ = tile.z ?? baseZ;
     const tileX = tile.x;
     const tileY = tile.y;
     const tileSize = tile.size ?? 256;
-    if (typeof styleConfig.getTileUrl !== 'function') return;
+    if (typeof styleConfig?.getTileUrl !== 'function') return;
 
     const url = styleConfig.getTileUrl(tileZ, tileX, tileY);
     const img = TILE_IMAGE_CACHE.get(url);
@@ -331,7 +333,8 @@ function drawTileWithParentFallback(ctx, styleConfig, tile, baseZ) {
         return;
     }
 
-    for (let pz = tileZ - 1; pz >= baseZ; pz--) {
+    const minZ = Math.max(2, baseZ - 2);
+    for (let pz = tileZ - 1; pz >= minZ; pz--) {
         const factor = Math.pow(2, tileZ - pz);
         const px = Math.floor(tileX / factor);
         const py = Math.floor(tileY / factor);
@@ -340,8 +343,10 @@ function drawTileWithParentFallback(ctx, styleConfig, tile, baseZ) {
         if (pImg) {
             const remX = ((tileX % factor) + factor) % factor;
             const remY = ((tileY % factor) + factor) % factor;
-            const subW = 256 / factor;
-            const subH = 256 / factor;
+            const pWidth = pImg.naturalWidth || pImg.width || 256;
+            const pHeight = pImg.naturalHeight || pImg.height || 256;
+            const subW = pWidth / factor;
+            const subH = pHeight / factor;
             const sx = remX * subW;
             const sy = remY * subH;
             ctx.drawImage(pImg, sx, sy, subW, subH, tile.left, tile.top, tileSize * 1.002, tileSize * 1.002);
@@ -351,6 +356,47 @@ function drawTileWithParentFallback(ctx, styleConfig, tile, baseZ) {
 
     ctx.fillStyle = styleConfig.bg;
     ctx.fillRect(tile.left, tile.top, tileSize, tileSize);
+}
+
+/**
+ * Dynamically computes and renders the visible Web Mercator tiles for the current camera viewport.
+ * Automatically chooses the optimal integer zoom level matching camera zoom so map detail,
+ * streets, and rail corridors are drawn at crisp, native resolution without low-res stretching.
+ */
+export function drawDynamicMapTiles({
+    ctx,
+    styleConfig,
+    baseScene,
+    camTargetX,
+    camTargetY,
+    camZoom,
+    width,
+    height
+}) {
+    if (typeof styleConfig?.getTileUrl !== 'function') return;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    const { tiles } = getVisibleTilesForViewport({
+        baseScene,
+        camTargetX,
+        camTargetY,
+        camZoom,
+        width,
+        height,
+        minZ: 2,
+        maxZ: 16
+    });
+
+    for (const tile of tiles) {
+        drawTileWithParentFallback(ctx, styleConfig, tile, baseScene.z);
+        const primaryUrl = styleConfig.getTileUrl(tile.z, tile.x, tile.y);
+        if (!TILE_IMAGE_CACHE.has(primaryUrl)) {
+            const fbUrl = styleConfig.getFallbackUrl ? styleConfig.getFallbackUrl(tile.z, tile.x, tile.y) : null;
+            loadSingleTileImage(primaryUrl, fbUrl);
+        }
+    }
 }
 
 export function renderTripFrame({
@@ -431,11 +477,16 @@ export function renderTripFrame({
             styleConfig
         });
     } else {
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        for (const tile of scene.tiles) {
-            drawTileWithParentFallback(ctx, styleConfig, { ...tile, z: scene.z, size: 256 }, scene.z);
-        }
+        drawDynamicMapTiles({
+            ctx,
+            styleConfig,
+            baseScene: scene,
+            camTargetX,
+            camTargetY,
+            camZoom,
+            width,
+            height
+        });
     }
 
     // 4. 4-Layer Track Design
@@ -867,36 +918,16 @@ export function renderAllTripsFrame({
             styleConfig
         });
     } else {
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        for (const tile of allScene.tiles) {
-            drawTileWithParentFallback(ctx, styleConfig, { ...tile, z: allScene.z, size: 256 }, allScene.z);
-        }
-
-        if (camZoom > 1.4 && Array.isArray(allScene.detailTiles) && allScene.detailTiles.length > 0) {
-            for (const dTile of allScene.detailTiles) {
-                // Viewport frustum culling
-                const tileScreenLeft = (dTile.left - camTargetX) * camZoom + width / 2;
-                const tileScreenTop = (dTile.top - camTargetY) * camZoom + viewCenterY;
-                const tileScreenSize = dTile.size * camZoom;
-
-                if (
-                    tileScreenLeft + tileScreenSize < -60 ||
-                    tileScreenLeft > width + 60 ||
-                    tileScreenTop + tileScreenSize < -60 ||
-                    tileScreenTop > height + 60
-                ) {
-                    continue;
-                }
-
-                drawTileWithParentFallback(ctx, styleConfig, dTile, allScene.z);
-                const dUrl = styleConfig.getTileUrl(dTile.z, dTile.x, dTile.y);
-                if (!TILE_IMAGE_CACHE.has(dUrl)) {
-                    const fbUrl = styleConfig.getFallbackUrl ? styleConfig.getFallbackUrl(dTile.z, dTile.x, dTile.y) : null;
-                    loadSingleTileImage(dUrl, fbUrl);
-                }
-            }
-        }
+        drawDynamicMapTiles({
+            ctx,
+            styleConfig,
+            baseScene: allScene,
+            camTargetX,
+            camTargetY,
+            camZoom,
+            width,
+            height
+        });
     }
 
     // 4. Draw completed historical network tracks

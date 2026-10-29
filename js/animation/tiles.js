@@ -177,18 +177,43 @@ export async function preloadSceneTiles(scene, mapStyle = 'traewelling-dark', on
     if (!scene || !Array.isArray(scene.tiles) || !scene.tiles.length) {
         return { total: 0, loaded: 0 };
     }
-    const allTiles = Array.isArray(scene.detailTiles) && scene.detailTiles.length > 0
-        ? [...scene.tiles, ...scene.detailTiles]
-        : scene.tiles;
-    const total = allTiles.length;
+
+    const tileMap = new Map();
+    (scene.tiles || []).forEach(t => tileMap.set(`${t.z ?? scene.z}-${t.x}-${t.y}`, t));
+    const baseTiles = Array.from(tileMap.values());
+
+    const detailMap = new Map();
+    (scene.detailTiles || []).forEach(t => {
+        const key = `${t.z ?? scene.z}-${t.x}-${t.y}`;
+        if (!tileMap.has(key)) detailMap.set(key, t);
+    });
+    const detailTiles = Array.from(detailMap.values());
+    const total = baseTiles.length + detailTiles.length;
     let loaded = 0;
     if (onProgress) onProgress({ loaded, total });
 
-    const CONCURRENCY = 8;
-    const queue = [...allTiles];
-    const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
-        while (queue.length > 0) {
-            const tile = queue.shift();
+    const CONCURRENCY = 10;
+    // 1. High-priority preloading of base overview tiles (ensures immediate parent fallback coverage)
+    const baseQueue = [...baseTiles];
+    const baseWorkers = Array.from({ length: Math.min(CONCURRENCY, baseQueue.length) }, async () => {
+        while (baseQueue.length > 0) {
+            const tile = baseQueue.shift();
+            if (!tile) break;
+            const tileZ = tile.z ?? scene.z;
+            const primaryUrl = styleConfig.getTileUrl(tileZ, tile.x, tile.y);
+            const fallbackUrl = styleConfig.getFallbackUrl ? styleConfig.getFallbackUrl(tileZ, tile.x, tile.y) : null;
+            await loadSingleTileImage(primaryUrl, fallbackUrl);
+            loaded += 1;
+            if (onProgress) onProgress({ loaded, total });
+        }
+    });
+    await Promise.all(baseWorkers);
+
+    // 2. Preload flight path detail tiles concurrently in the background so player mounts instantly
+    const detailQueue = [...detailTiles];
+    const workers = Array.from({ length: Math.min(CONCURRENCY, detailQueue.length) }, async () => {
+        while (detailQueue.length > 0) {
+            const tile = detailQueue.shift();
             if (!tile) break;
             const tileZ = tile.z ?? scene.z;
             const primaryUrl = styleConfig.getTileUrl(tileZ, tile.x, tile.y);
@@ -199,7 +224,9 @@ export async function preloadSceneTiles(scene, mapStyle = 'traewelling-dark', on
         }
     });
 
-    await Promise.all(workers);
+    // When recording, VideoClipRecorder awaits detail tiles; for live playback, mount immediately
+    Promise.all(workers).catch(() => {});
+
     return { total, loaded };
 }
 

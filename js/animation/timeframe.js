@@ -131,3 +131,4 @@ export function getTimeframeLabel(timeframe = 'all', customFrom = '', customTo =
     const match = TIMEFRAME_PRESETS.find((p) => p.id === timeframe);
     return match ? match.label : 'All Time';
 }
+

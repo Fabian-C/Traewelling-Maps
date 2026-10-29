@@ -228,11 +228,40 @@ export function buildMapScene(coords, viewportWidth = 960, viewportHeight = 960)
     }
     const totalPathPx = Math.max(1, cumDist[cumDist.length - 1]);
 
+    // Sample along the single trip: overview + vehicle chase zoom to collect trajectory detail tiles
+    const trajectoryTileMap = new Map();
+    const overTiles = getVisibleTilesForViewport({
+        baseScene: { z: chosenZ, originWX, originWY },
+        camTargetX: centerWX - originWX,
+        camTargetY: centerWY - originWY,
+        camZoom: fitScale,
+        width: viewportWidth,
+        height: viewportHeight
+    }).tiles;
+    overTiles.forEach(t => trajectoryTileMap.set(t.key, t));
+
+    const chaseZoom = fitScale * 2.2;
+    const sampleSteps = Math.min(24, Math.max(8, points.length));
+    for (let i = 0; i <= sampleSteps; i++) {
+        const pt = getXYAtDistance(points, cumDist, (i / sampleSteps) * totalPathPx);
+        const vTiles = getVisibleTilesForViewport({
+            baseScene: { z: chosenZ, originWX, originWY },
+            camTargetX: pt.x,
+            camTargetY: pt.y,
+            camZoom: chaseZoom,
+            width: viewportWidth,
+            height: viewportHeight
+        }).tiles;
+        vTiles.forEach(t => trajectoryTileMap.set(t.key, t));
+    }
+    const detailTiles = Array.from(trajectoryTileMap.values()).filter(t => t.z > chosenZ);
+
     return {
         z: chosenZ,
         originWX,
         originWY,
         tiles,
+        detailTiles,
         points,
         cumDist,
         totalPathPx,
@@ -266,6 +295,65 @@ export function getXYAtDistance(points, cumDist, distPx) {
         y: p0.y + (p1.y - p0.y) * t,
         index: idx + t
     };
+}
+
+/**
+ * Compute visible Web Mercator tile keys and boundaries for a given canvas viewport.
+ * Based on standard Web Mercator tiling projection.
+ */
+export function getVisibleTilesForViewport({
+    baseScene,
+    camTargetX,
+    camTargetY,
+    camZoom,
+    width = 960,
+    height = 960,
+    minZ = 2,
+    maxZ = 16
+}) {
+    if (!baseScene || typeof baseScene.z !== 'number') return { tileZ: 6, effectiveZ: 6, tiles: [] };
+
+    // Continuous Web Mercator zoom level of the viewport:
+    // When baseScene is at baseScene.z and camera scales by camZoom:
+    const effectiveZ = baseScene.z + Math.log2(Math.max(0.001, camZoom));
+    const tileZ = Math.max(minZ, Math.min(maxZ, Math.round(effectiveZ)));
+
+    const scaleToBase = Math.pow(2, tileZ - baseScene.z);
+    const maxTileIdx = Math.pow(2, tileZ);
+
+    // Viewport center in world coordinates at tileZ:
+    const worldCenterX = (camTargetX + baseScene.originWX) * scaleToBase;
+    const worldCenterY = (camTargetY + baseScene.originWY) * scaleToBase;
+
+    // Screen scale factor relative to tileZ world pixels:
+    const screenScale = camZoom * Math.pow(2, baseScene.z - tileZ);
+    // Add 16px safety margin around viewport edges so edge tiles never flicker
+    const halfSpanX = (width / 2 + 16) / Math.max(0.001, screenScale);
+    const halfSpanY = (height / 2 + 16) / Math.max(0.001, screenScale);
+
+    const minTX = Math.floor((worldCenterX - halfSpanX) / 256);
+    const maxTX = Math.floor((worldCenterX + halfSpanX) / 256);
+    const minTY = Math.floor((worldCenterY - halfSpanY) / 256);
+    const maxTY = Math.floor((worldCenterY + halfSpanY) / 256);
+
+    const tiles = [];
+    for (let tx = minTX; tx <= maxTX; tx++) {
+        for (let ty = minTY; ty <= maxTY; ty++) {
+            if (ty < 0 || ty >= maxTileIdx) continue;
+            const wrappedX = ((tx % maxTileIdx) + maxTileIdx) % maxTileIdx;
+            tiles.push({
+                key: `${tileZ}-${wrappedX}-${ty}`,
+                z: tileZ,
+                x: wrappedX,
+                y: ty,
+                left: (tx * 256) / scaleToBase - baseScene.originWX,
+                top: (ty * 256) / scaleToBase - baseScene.originWY,
+                size: 256 / scaleToBase
+            });
+        }
+    }
+
+    return { tileZ, effectiveZ, tiles };
 }
 
 export function samplePointAlongRoute(scene, progress) {
@@ -536,47 +624,6 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         };
     });
 
-    // Step 4: Register high-resolution detail tiles for city clusters
-    // detailZ is scaled relative to baseScene.z so tiles match visible viewport resolution seamlessly
-    const detailTileMap = new Map();
-    if (baseScene.z < 12) {
-        rideInfos.forEach((info, idx) => {
-            const zTarget = smoothedZooms[idx];
-            if (info.distanceKm <= 40 && zTarget >= baseScene.fitScale * 1.6 && Number.isFinite(info.minLon)) {
-                const detailZ = Math.min(13, Math.max(baseScene.z + 2, Math.round(baseScene.z + Math.log2(zTarget) + 0.4)));
-                if (detailZ <= baseScene.z) return;
-
-                const scaleToBase = Math.pow(2, baseScene.z - detailZ);
-                const maxDetailIdx = Math.pow(2, detailZ);
-                const tileRadius = 1; // 3x3 grid around city transit center is optimal and fast to preload
-
-                const centerTX = Math.floor(lonToWorldX(info.centerLon, detailZ) / 256);
-                const centerTY = Math.floor(latToWorldY(info.centerLat, detailZ) / 256);
-
-                for (let dx = -tileRadius; dx <= tileRadius; dx++) {
-                    for (let dy = -tileRadius; dy <= tileRadius; dy++) {
-                        const tx = centerTX + dx;
-                        const ty = centerTY + dy;
-                        if (ty < 0 || ty >= maxDetailIdx) continue;
-                        const wrappedX = ((tx % maxDetailIdx) + maxDetailIdx) % maxDetailIdx;
-                        const key = `${detailZ}-${wrappedX}-${ty}`;
-                        if (!detailTileMap.has(key) && detailTileMap.size < 350) {
-                            detailTileMap.set(key, {
-                                key,
-                                z: detailZ,
-                                x: wrappedX,
-                                y: ty,
-                                left: tx * 256 * scaleToBase - baseScene.originWX,
-                                top: ty * 256 * scaleToBase - baseScene.originWY,
-                                size: 256 * scaleToBase
-                            });
-                        }
-                    }
-                }
-            }
-        });
-    }
-
     const rides = rideInfos.map((info, idx) => ({
         trip: info.trip,
         coords: info.coords,
@@ -597,7 +644,45 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         endFrame: rideSchedules[idx].endFrame
     }));
 
-    const detailTiles = Array.from(detailTileMap.values()).sort((a, b) => a.z - b.z);
+    // Step 4: Register trajectory tiles along the camera path across all rides for preloading
+    const trajectoryTileMap = new Map();
+    // 1. Overview tiles
+    const overTiles = getVisibleTilesForViewport({
+        baseScene,
+        camTargetX: baseScene.centerSceneX,
+        camTargetY: baseScene.centerSceneY,
+        camZoom: baseScene.fitScale * 0.95,
+        width: viewportWidth,
+        height: viewportHeight
+    }).tiles;
+    overTiles.forEach(t => trajectoryTileMap.set(t.key, t));
+
+    // 2. Sample along each ride at its actual target zoom:
+    rides.forEach(ride => {
+        const z = ride.rideZoom;
+        const steps = ride.distanceKm > 100 ? 5 : (ride.distanceKm > 30 ? 4 : 3);
+        for (let s = 0; s <= steps; s++) {
+            const p = s / steps;
+            const pt = samplePointAlongRoute(ride, p);
+            const vTiles = getVisibleTilesForViewport({
+                baseScene,
+                camTargetX: pt.x,
+                camTargetY: pt.y,
+                camZoom: z,
+                width: viewportWidth,
+                height: viewportHeight
+            }).tiles;
+            vTiles.forEach(t => {
+                if (!trajectoryTileMap.has(t.key) && trajectoryTileMap.size < 600) {
+                    trajectoryTileMap.set(t.key, t);
+                }
+            });
+        }
+    });
+
+    const detailTiles = Array.from(trajectoryTileMap.values())
+        .filter(t => t.z > baseScene.z)
+        .sort((a, b) => a.z - b.z);
     const travelTotalFrames = currentTimelineFrame;
     const finaleTransitionFrames = Math.round(fps * 1.5); // 45 frames (1.5s zoom-out)
     const finaleStaticHoldFrames = Math.round(fps * 3.0); // 90 frames (3s static hold)

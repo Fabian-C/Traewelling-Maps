@@ -15,7 +15,8 @@ import {
     sortTripsChronologically,
     computeAllModeTiming,
     buildAllTripsScene,
-    computeHaversineKm
+    computeHaversineKm,
+    getVisibleTilesForViewport
 } from '../../js/animation/geometry.js';
 
 describe('Animation Geometry & Camera Smoothing', () => {
@@ -302,6 +303,52 @@ describe('Animation Geometry & Camera Smoothing', () => {
         expect(Array.isArray(scene.detailTiles)).toBe(true);
         expect(scene.detailTiles.length).toBeGreaterThan(0);
         expect(scene.detailTiles[0].z).toBeGreaterThan(scene.z);
+    });
+
+    it('dynamically computes visible Web Mercator tiles for viewport matching camera zoom', () => {
+        const baseScene = {
+            z: 6,
+            originWX: 7424,
+            originWY: 4352
+        };
+
+        // 1. Overview camera (camZoom ~ 1.0): should select base zoom z=6
+        const overview = getVisibleTilesForViewport({
+            baseScene,
+            camTargetX: 500,
+            camTargetY: 400,
+            camZoom: 1.0,
+            width: 960,
+            height: 960
+        });
+        expect(overview.tileZ).toBe(6);
+        expect(overview.tiles.length).toBeGreaterThan(12);
+        expect(overview.tiles.length).toBeLessThan(40);
+        expect(overview.tiles[0].z).toBe(6);
+
+        // 2. City deep zoom (camZoom ~ 64.0 = 2^6): effective zoom = 6 + 6 = 12
+        const cityZoom = getVisibleTilesForViewport({
+            baseScene,
+            camTargetX: 500,
+            camTargetY: 400,
+            camZoom: 64.0,
+            width: 960,
+            height: 960
+        });
+        expect(cityZoom.tileZ).toBe(12);
+        expect(cityZoom.tiles.length).toBeGreaterThan(12);
+        expect(cityZoom.tiles.length).toBeLessThan(45);
+        expect(cityZoom.tiles[0].z).toBe(12);
+
+        // 3. Coordinate bounds check: all tile Y coordinates must be within [0, 2^tileZ - 1]
+        const maxY = Math.pow(2, cityZoom.tileZ) - 1;
+        cityZoom.tiles.forEach(tile => {
+            expect(tile.y).toBeGreaterThanOrEqual(0);
+            expect(tile.y).toBeLessThanOrEqual(maxY);
+            expect(Number.isFinite(tile.left)).toBe(true);
+            expect(Number.isFinite(tile.top)).toBe(true);
+            expect(tile.size).toBeCloseTo(256 / Math.pow(2, 12 - 6), 5);
+        });
     });
 });
 
