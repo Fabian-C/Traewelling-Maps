@@ -822,7 +822,10 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
             ${seatDetails}
             ${tagsDetails}
             <div class="popup-actions">
-                ${shareUrl ? `<a class="primary popup-traewelling-btn" href="${shareUrl}" target="_blank" rel="noopener noreferrer" title="View check-in on Traewelling.de">View on Träwelling</a>` : ''}
+                ${shareUrl ? `<a class="primary popup-traewelling-btn" href="${shareUrl}" target="_blank" rel="noopener noreferrer" title="Open check-in on Traewelling.de">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 3px; flex-shrink: 0;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                    <span>Träwelling</span>
+                </a>` : ''}
                 ${animUrl ? `<a class="popup-anim-btn" href="${animUrl}" target="_blank" rel="noopener noreferrer" title="Replay journey in Animation Studio (Alpha feature)">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 3px; flex-shrink: 0;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                     <span>Animate</span>

@@ -1527,16 +1527,18 @@ body.stats-open .active-filter-badges {
     border: 1px solid rgba(255, 255, 255, 0.16);
     background: rgba(255, 255, 255, 0.06);
     color: var(--text-secondary);
-    padding: 5px 7px;
+    padding: 6px 4px;
     font-weight: 600;
     cursor: pointer;
-    font-size: 10.5px;
+    font-size: 10px;
     text-align: center;
     text-decoration: none;
     display: inline-flex;
     justify-content: center;
     align-items: center;
     backdrop-filter: blur(6px);
+    white-space: nowrap;
+    transition: all 0.18s ease;
 }
 
 .route-popup .popup-actions a.primary {
