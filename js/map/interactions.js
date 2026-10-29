@@ -479,6 +479,9 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
         let wagonClass = props.wagonClass || null;
         const coachPosition = train.coaches || null;
         const shareUrl = statusId !== 'unknown' ? `https://traewelling.de/status/${statusId}` : null;
+        const animUrl = (statusId && statusId !== 'unknown')
+            ? `animation.html?trip=${encodeURIComponent(statusId)}${state.username ? `&user=${encodeURIComponent(state.username)}` : ''}`
+            : null;
         const operator = train.operator?.name || train.operator?.identifier || train.provider?.name || train.provider || '—';
 
         let ticketName = typeof props.ticket === 'string' ? props.ticket : (props.ticket?.name || props.ticket?.title || props.ticket?.identifier || null);
@@ -819,7 +822,12 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
             ${seatDetails}
             ${tagsDetails}
             <div class="popup-actions">
-                ${shareUrl ? `<a class="primary" href="${shareUrl}" target="_blank">View on Träwelling</a>` : ''}
+                ${shareUrl ? `<a class="primary popup-traewelling-btn" href="${shareUrl}" target="_blank" rel="noopener noreferrer" title="View check-in on Traewelling.de">View on Träwelling</a>` : ''}
+                ${animUrl ? `<a class="popup-anim-btn" href="${animUrl}" target="_blank" rel="noopener noreferrer" title="Replay journey in Animation Studio (Alpha feature)">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 3px; flex-shrink: 0;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    <span>Animate</span>
+                    <span class="popup-alpha-badge">Alpha</span>
+                </a>` : ''}
             </div>
         </div>`;
     };

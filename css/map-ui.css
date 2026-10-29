@@ -1545,6 +1545,39 @@ body.stats-open .active-filter-badges {
     color: white;
 }
 
+.route-popup .popup-actions a.popup-anim-btn {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.16) 0%, rgba(168, 85, 247, 0.16) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #f8fafc;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+    gap: 3px;
+}
+
+.route-popup .popup-actions a.popup-anim-btn:hover {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.28) 0%, rgba(168, 85, 247, 0.28) 100%);
+    border-color: rgba(245, 158, 11, 0.7);
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+
+.route-popup .popup-actions .popup-alpha-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 8px;
+    font-weight: 800;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 4px;
+    margin-left: 2px;
+    border-radius: 4px;
+    background: rgba(245, 158, 11, 0.25);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.55);
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.2);
+}
+
 .route-popup dl {
     margin: 0;
     display: grid;

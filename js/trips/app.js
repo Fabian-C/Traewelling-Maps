@@ -1901,6 +1901,11 @@ function renderResults() {
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
                                         <span>Träwelling.de</span>
                                     </a>
+                                    <a href="animation.html?trip=${trip.id}&user=${encodeURIComponent(activeSession?.username || '')}" target="_blank" rel="noopener noreferrer" class="nav-link-btn" style="padding: 6px 14px; font-size: 12px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.16) 0%, rgba(168, 85, 247, 0.16) 100%); border-color: rgba(245, 158, 11, 0.4); color: #f8fafc;" onclick="event.stopPropagation()" title="Watch journey replay in Animation Studio (Alpha feature)">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                        <span>Animate</span>
+                                        <span class="alpha-pill" style="margin-left: 4px; font-size: 8px; padding: 1px 4px; background: rgba(245,158,11,0.25); color: #fbbf24; border: 1px solid rgba(245,158,11,0.55); border-radius: 4px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Alpha</span>
+                                    </a>
                                 </div>
                             </div>
                         </td>
@@ -2200,6 +2205,12 @@ export function openTripDetailModal(trip) {
     const traewellingLink = document.getElementById('modalTraewellingLink');
     if (traewellingLink) {
         traewellingLink.href = `https://traewelling.de/status/${trip.id}`;
+    }
+
+    // Animation Studio Deep-Link (Alpha)
+    const animLink = document.getElementById('modalAnimLink');
+    if (animLink) {
+        animLink.href = `animation.html?trip=${trip.id}&user=${encodeURIComponent(activeSession?.username || '')}`;
     }
 
     // Map Deep-Link
