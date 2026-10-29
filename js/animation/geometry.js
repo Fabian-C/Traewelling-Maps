@@ -388,38 +388,26 @@ export function samplePointAlongRoute(scene, progress) {
 }
 
 /**
- * Low-pass spatial filter for the camera target along the route so track bends
- * never cause lateral camera shake.
- * Uses a broad 11-point Gaussian kernel with adaptive centroid damping for silky smooth motion.
+ * Subtle low-pass filter for camera target to eliminate micro-jitter ("giggle")
+ * from jagged GPS polyline vertices while keeping the vehicle strictly centered in the viewport.
  */
 export function sampleSmoothedCameraTarget(scene, progress) {
     const { points, cumDist, totalPathPx, centerSceneX, centerSceneY } = scene;
     if (!points.length) return { x: centerSceneX, y: centerSceneY };
 
-    // 11-point Gaussian spatial low-pass filter across normalized trajectory:
-    const offsets = [-0.20, -0.16, -0.12, -0.08, -0.04, 0, 0.04, 0.08, 0.12, 0.16, 0.20];
-    const weights = [0.03, 0.06, 0.10, 0.14, 0.17, 0.20, 0.17, 0.14, 0.10, 0.06, 0.03];
-    let sumX = 0;
-    let sumY = 0;
+    const clampedProg = Math.max(0, Math.min(1, progress));
+    const targetDist = clampedProg * totalPathPx;
+    const vehiclePt = getXYAtDistance(points, cumDist, targetDist);
 
-    for (let i = 0; i < offsets.length; i++) {
-        const p = Math.max(0, Math.min(1, progress + offsets[i]));
-        const pt = getXYAtDistance(points, cumDist, p * totalPathPx);
-        sumX += pt.x * weights[i];
-        sumY += pt.y * weights[i];
-    }
-
-    // Adaptive centroid damping:
-    // For short city rides (metro, tram, S-Bahn), higher anchoring to centerScene prevents
-    // sudden camera whip on sharp 90-degree street corners.
-    // For long journeys, camera tracks the forward trajectory with gentle centering.
-    const isShortRide = totalPathPx < 650;
-    const centerFactor = isShortRide ? 0.35 : 0.20;
-    const trackFactor = 1 - centerFactor;
+    // Subtle micro-smoothing over a tight pixel window along track (2 to 8px max).
+    // Keeps the vehicle locked in the center of the camera window without drifting or lagging behind.
+    const microSpanPx = Math.min(8, Math.max(2, totalPathPx * 0.01));
+    const prevPt = getXYAtDistance(points, cumDist, Math.max(0, targetDist - microSpanPx));
+    const nextPt = getXYAtDistance(points, cumDist, Math.min(totalPathPx, targetDist + microSpanPx));
 
     return {
-        x: sumX * trackFactor + centerSceneX * centerFactor,
-        y: sumY * trackFactor + centerSceneY * centerFactor
+        x: vehiclePt.x * 0.70 + (prevPt.x + nextPt.x) * 0.15,
+        y: vehiclePt.y * 0.70 + (prevPt.y + nextPt.y) * 0.15
     };
 }
 
