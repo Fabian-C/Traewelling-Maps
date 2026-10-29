@@ -422,27 +422,47 @@ export function samplePointAlongRoute(scene, progress) {
 }
 
 /**
- * Subtle low-pass filter for camera target to eliminate micro-jitter ("giggle")
- * from jagged GPS polyline vertices while keeping the vehicle strictly centered in the viewport.
+ * Organic cinematic camera chase filter:
+ * Allows subtle natural movement (~5-10% off-center) along curves and speed changes
+ * while applying a soft tanh saturation clamp and 5-point Gaussian smoothing
+ * to eliminate high-frequency GPS track giggle without introducing hard jitter.
  */
 export function sampleSmoothedCameraTarget(scene, progress) {
-    const { points, cumDist, totalPathPx, centerSceneX, centerSceneY } = scene;
-    if (!points.length) return { x: centerSceneX, y: centerSceneY };
+    const { points, cumDist, totalPathPx, centerSceneX, centerSceneY, fitScale = 1.0 } = scene;
+    if (!points || !points.length) return { x: centerSceneX || 0, y: centerSceneY || 0 };
 
     const clampedProg = Math.max(0, Math.min(1, progress));
     const targetDist = clampedProg * totalPathPx;
     const vehiclePt = getXYAtDistance(points, cumDist, targetDist);
 
-    // Subtle micro-smoothing over a tight pixel window along track (2 to 8px max).
-    // Keeps the vehicle locked in the center of the camera window without drifting or lagging behind.
-    const microSpanPx = Math.min(8, Math.max(2, totalPathPx * 0.01));
-    const prevPt = getXYAtDistance(points, cumDist, Math.max(0, targetDist - microSpanPx));
-    const nextPt = getXYAtDistance(points, cumDist, Math.min(totalPathPx, targetDist + microSpanPx));
+    // Continuous 5-point Gaussian filter window along track
+    const filterSpan = Math.min(80, Math.max(12, totalPathPx * 0.04));
+    const pMinus1 = getXYAtDistance(points, cumDist, Math.max(0, targetDist - filterSpan));
+    const pMinusHalf = getXYAtDistance(points, cumDist, Math.max(0, targetDist - filterSpan * 0.5));
+    const pPlusHalf = getXYAtDistance(points, cumDist, Math.min(totalPathPx, targetDist + filterSpan * 0.5));
+    const pPlus1 = getXYAtDistance(points, cumDist, Math.min(totalPathPx, targetDist + filterSpan));
 
-    return {
-        x: vehiclePt.x * 0.70 + (prevPt.x + nextPt.x) * 0.15,
-        y: vehiclePt.y * 0.70 + (prevPt.y + nextPt.y) * 0.15
-    };
+    const rawSmoothX = vehiclePt.x * 0.36 + (pMinusHalf.x + pPlusHalf.x) * 0.24 + (pMinus1.x + pPlus1.x) * 0.08;
+    const rawSmoothY = vehiclePt.y * 0.36 + (pMinusHalf.y + pPlusHalf.y) * 0.24 + (pMinus1.y + pPlus1.y) * 0.08;
+
+    const dx = rawSmoothX - vehiclePt.x;
+    const dy = rawSmoothY - vehiclePt.y;
+    const driftDist = Math.hypot(dx, dy);
+
+    // Soft-saturation clamp: allows subtle natural drift up to ~10% off-center,
+    // using smooth C-infinity tanh curve so hard velocity kinks/jitter are mathematically impossible.
+    const maxDrift = Math.min(48 / Math.max(0.01, fitScale), Math.max(8, totalPathPx * 0.08));
+
+    if (driftDist > 0.0001) {
+        const softDist = maxDrift * Math.tanh(driftDist / maxDrift);
+        const scale = softDist / driftDist;
+        return {
+            x: vehiclePt.x + dx * scale,
+            y: vehiclePt.y + dy * scale
+        };
+    }
+
+    return { x: vehiclePt.x, y: vehiclePt.y };
 }
 
 /**
