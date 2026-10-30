@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { VideoClipRecorder } from '../../js/animation/recorder.js';
+import { VideoClipRecorder, computeSpring } from '../../js/animation/recorder.js';
 
 describe('VideoClipRecorder Pipeline', () => {
     const originalMediaRecorder = globalThis.MediaRecorder;
@@ -41,5 +41,35 @@ describe('VideoClipRecorder Pipeline', () => {
         delete globalThis.MediaRecorder;
         const optimal = VideoClipRecorder.getOptimalMimeType();
         expect(optimal).toBe('video/mp4');
+    });
+
+    it('computeSpring accurately models damped harmonic oscillation', () => {
+        expect(computeSpring({ frame: 0 })).toBe(0);
+        const midSpring = computeSpring({ frame: 15, fps: 30 });
+        expect(midSpring).toBeGreaterThan(0.9);
+        expect(midSpring).toBeLessThan(1.05);
+
+        const settledSpring = computeSpring({ frame: 60, fps: 30 });
+        expect(Math.abs(settledSpring - 1.0)).toBeLessThan(0.001);
+    });
+
+    it('cancel() cleans up active streams and resets recording flag', () => {
+        const recorder = new VideoClipRecorder(null, 120);
+        recorder.isRecording = true;
+        const mockStop = vi.fn();
+        recorder.activeStream = {
+            getTracks: () => [{ stop: mockStop }]
+        };
+        recorder.mediaRecorder = {
+            state: 'recording',
+            stop: vi.fn()
+        };
+
+        recorder.cancel();
+
+        expect(recorder.isCancelled).toBe(true);
+        expect(recorder.isRecording).toBe(false);
+        expect(mockStop).toHaveBeenCalled();
+        expect(recorder.activeStream).toBeNull();
     });
 });

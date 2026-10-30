@@ -1,20 +1,20 @@
 /**
- * E2E Test for MP4 Video Generation, Duration & Timeline Seeking
+ * E2E Test for Deterministic MP4 Video Generation, Duration & Timeline Seeking
  */
 
 import { spawn } from 'child_process';
 
 async function runMp4Verification() {
     console.log('====================================================');
-    console.log('🎬 RUNNING MP4 GENERATION & TIMELINE VERIFICATION TEST');
+    console.log('🎬 RUNNING DETERMINISTIC MP4 GENERATION & TIMELINE E2E TEST');
     console.log('====================================================');
 
     const chrome = spawn('chromium-browser', [
         '--headless=new',
         '--no-sandbox',
         '--disable-gpu',
-        '--remote-debugging-port=9244',
-        '--user-data-dir=/tmp/chrome-test-mp4-e2e',
+        '--remote-debugging-port=9250',
+        '--user-data-dir=/tmp/chrome-test-mp4-deterministic',
         'about:blank'
     ]);
 
@@ -23,7 +23,7 @@ async function runMp4Verification() {
         for (let i = 0; i < 25; i++) {
             await new Promise(r => setTimeout(r, 200));
             try {
-                const res = await fetch('http://127.0.0.1:9244/json');
+                const res = await fetch('http://127.0.0.1:9250/json');
                 const tabs = await res.json();
                 pageTab = tabs.find(t => t.type === 'page' && t.webSocketDebuggerUrl);
                 if (pageTab) break;
@@ -55,50 +55,41 @@ async function runMp4Verification() {
         await send('Page.navigate', { url: 'http://127.0.0.1:8000/animation.html' });
         await new Promise(r => setTimeout(r, 1000));
 
-        console.log('1. Recording video clip with default settings...');
+        console.log('1. Recording deterministic 60-frame video clip (2.0s duration)...');
         const recordResult = await send('Runtime.evaluate', {
             expression: `
                 (async () => {
-                    const container = document.getElementById('playerContainer') || document.body;
-                    let canvas = container.querySelector('#tripClipCanvas');
-                    if (!canvas) {
-                        canvas = document.createElement('canvas');
-                        canvas.id = 'tripClipCanvas';
-                        container.appendChild(canvas);
-                    }
-                    canvas.width = 400;
-                    canvas.height = 400;
-                    const ctx = canvas.getContext('2d');
+                    const { VideoClipRecorder } = await import('/js/animation/recorder.js');
+                    const totalFrames = 60; // 2 seconds at 30 fps
+                    const recorder = new VideoClipRecorder(null, totalFrames, 30);
 
-                    let curFrame = 0;
-                    let isPlaying = false;
-                    const player = {
-                        pause: () => { isPlaying = false; },
-                        play: () => { isPlaying = true; },
-                        seekTo: (f) => { curFrame = f; },
-                        getCurrentFrame: () => curFrame
+                    const testTrip = {
+                        id: 12345,
+                        checkin: {
+                            lineName: 'ICE 720',
+                            category: 'nationalExpress',
+                            origin: { name: 'Berlin Hbf' },
+                            destination: { name: 'München Hbf' },
+                            polyline: [
+                                [13.3695, 52.5255],
+                                [12.3731, 51.3397],
+                                [11.5819, 48.1402]
+                            ]
+                        }
                     };
 
-                    const totalFrames = 60; // 2 seconds
-                    const drawInterval = setInterval(() => {
-                        if (!isPlaying) return;
-                        curFrame++;
-                        ctx.fillStyle = curFrame % 2 === 0 ? '#1e293b' : '#3b82f6';
-                        ctx.fillRect(0, 0, 400, 400);
-                        ctx.fillStyle = '#ffffff';
-                        ctx.font = '24px sans-serif';
-                        ctx.fillText('Frame ' + curFrame, 20, 50);
-                    }, 33);
-
-                    const { VideoClipRecorder } = await import('/js/animation/recorder.js');
-                    const recorder = new VideoClipRecorder(player, totalFrames);
-
+                    const progressEvents = [];
                     const result = await recorder.recordAndDownload({
+                        trip: testTrip,
                         mode: 'single',
-                        filename: 'traewelling-trip.mp4'
+                        mapStyle: 'vector-dark',
+                        width: 480,
+                        height: 480,
+                        fps: 30,
+                        filename: 'traewelling-ice720.mp4',
+                        onProgress: (pct, msg) => progressEvents.push({ pct, msg })
                     });
 
-                    clearInterval(drawInterval);
                     const buf = await result.blob.arrayBuffer();
                     const bytes = new Uint8Array(buf);
 
@@ -141,6 +132,8 @@ async function runMp4Verification() {
                         hasFiniteDuration,
                         seekable,
                         seekWorked,
+                        progressCount: progressEvents.length,
+                        lastProgress: progressEvents[progressEvents.length - 1],
                         headerHex: Array.from(bytes.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ')
                     };
                 })()
@@ -161,6 +154,7 @@ async function runMp4Verification() {
         console.log(`  Reported Video Duration: ${data.duration}s (finite: ${data.hasFiniteDuration})`);
         console.log(`  Seekable range:`, data.seekable);
         console.log(`  Timeline seeking verified: ${data.seekWorked}`);
+        console.log(`  Progress updates: ${data.progressCount}, Final:`, data.lastProgress);
 
         if (!data.filename.endsWith('.mp4')) {
             throw new Error(`Expected filename to end with .mp4, got ${data.filename}`);
@@ -172,7 +166,7 @@ async function runMp4Verification() {
             throw new Error('Video has no seekable timeline range');
         }
 
-        console.log('\n🎉 MP4 DEFAULT VIDEO GENERATION & TIMELINE VERIFIED SUCCESSFULLY!');
+        console.log('\n🎉 ALL DETERMINISTIC MP4 GENERATION & TIMELINE TESTS PASSED!');
         chrome.kill();
         process.exit(0);
     } catch (err) {

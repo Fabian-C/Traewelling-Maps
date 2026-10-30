@@ -679,10 +679,13 @@ function renderPlayer() {
     `);
 }
 
+let currentRecorder = null;
+
 async function triggerVideoDownload() {
     const activeTrips = getActiveTrips();
     if (!playerRef || (!currentTrip && currentMode !== 'all') || (currentMode === 'all' && activeTrips.length === 0)) return null;
     const downloadBtn = document.getElementById('downloadVideoBtn');
+    const cancelBtn = document.getElementById('cancelRecordBtn');
     const progressWrap = document.getElementById('recordProgressWrap');
     const progressBar = document.getElementById('recordProgressBar');
     const statusText = document.getElementById('recordStatusText');
@@ -697,21 +700,26 @@ async function triggerVideoDownload() {
     try {
         if (downloadBtn) {
             downloadBtn.disabled = true;
-            downloadBtn.textContent = 'Saving video…';
+            downloadBtn.textContent = 'Rendering video…';
         }
+        if (cancelBtn) cancelBtn.classList.remove('hidden');
         if (progressWrap) progressWrap.classList.remove('hidden');
-        if (progressBar) progressBar.style.width = '5%';
+        if (progressBar) progressBar.style.width = '2%';
 
         const activeDuration = getActiveDurationInFrames();
         window.__totalDurationInFrames = activeDuration;
         const recorder = new VideoClipRecorder(playerRef, activeDuration);
+        currentRecorder = recorder;
+
         const result = await recorder.recordAndDownload({
             trip: currentTrip,
             trips: activeTrips,
             mode: currentMode,
+            username: currentUser || 'Traveler',
             mapStyle: currentMapStyle,
             width: VIDEO_WIDTH,
             height: VIDEO_HEIGHT,
+            fps: 30,
             filename,
             onProgress: (pct, msg) => {
                 if (progressBar) progressBar.style.width = `${pct}%`;
@@ -724,14 +732,18 @@ async function triggerVideoDownload() {
             downloadBtn.disabled = false;
             downloadBtn.textContent = 'Download .mp4';
         }
+        if (cancelBtn) cancelBtn.classList.add('hidden');
+        currentRecorder = null;
         return result;
     } catch (e) {
         console.error('Video recording error:', e);
-        if (statusText) statusText.textContent = `Error: ${e.message}`;
+        if (statusText) statusText.textContent = e.message.includes('cancelled') ? 'Export cancelled' : `Error: ${e.message}`;
         if (downloadBtn) {
             downloadBtn.disabled = false;
             downloadBtn.textContent = 'Download .mp4';
         }
+        if (cancelBtn) cancelBtn.classList.add('hidden');
+        currentRecorder = null;
         return null;
     }
 }
@@ -843,6 +855,16 @@ function setupControls() {
     if (downloadBtn) {
         downloadBtn.addEventListener('click', () => {
             triggerVideoDownload();
+        });
+    }
+
+    // Cancel Video Recording Button
+    const cancelBtn = document.getElementById('cancelRecordBtn');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            if (currentRecorder) {
+                currentRecorder.cancel();
+            }
         });
     }
 }

@@ -491,9 +491,39 @@
         transition: inline-size 0.15s ease, width 0.15s ease;
     }
 
+    .record-status-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
     .record-status-text {
         font-size: 11px;
         color: var(--text-secondary);
+        flex: 1;
+        min-inline-size: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .anim-cancel-btn {
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: var(--text-secondary);
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.15s ease;
+        line-height: 1.4;
+    }
+
+    .anim-cancel-btn:hover {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: #ef4444;
+        color: #ef4444;
     }
 
     .anim-loading {

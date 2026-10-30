@@ -1,19 +1,48 @@
 /**
- * In-Browser MP4 & WebM Video Recorder
- * Generates video clips (defaulting to universally compatible MP4 with embedded duration & timeline) from HTML5 Canvas
+ * In-Browser Deterministic Video Clip Recorder
+ * Renders animated transit journeys frame-by-frame on an offscreen canvas
+ * and encodes spec-compliant MP4 (default) or WebM video with exact duration & timeline.
  */
 
-import { preloadTripTiles, preloadSceneTiles } from './tiles.js';
-import { buildAllTripsScene } from './geometry.js';
+import { preloadTripTiles, preloadSceneTiles, MAP_STYLES } from './tiles.js';
+import {
+    extractRouteCoordinates,
+    buildMapScene,
+    buildAllTripsScene,
+    computeAllModeTiming
+} from './geometry.js';
+import { renderTripFrame, renderAllTripsFrame } from './renderer.js';
 import { fixWebMBlob } from './webmFixer.js';
 
+/**
+ * Analytical damped harmonic oscillator (exact equivalent of Remotion's spring)
+ */
+export function computeSpring({ frame, fps = 30, config = { damping: 18, stiffness: 90, mass: 1 } }) {
+    if (frame <= 0) return 0;
+    const m = config.mass || 1;
+    const k = config.stiffness || 90;
+    const c = config.damping || 18;
+    const t = frame / fps;
+    const omega0 = Math.sqrt(k / m);
+    const zeta = c / (2 * Math.sqrt(m * k));
+    if (zeta < 1) {
+        const omegaD = omega0 * Math.sqrt(1 - zeta * zeta);
+        const decay = Math.exp(-zeta * omega0 * t);
+        return 1 - decay * (Math.cos(omegaD * t) + ((zeta * omega0) / omegaD) * Math.sin(omegaD * t));
+    }
+    return 1 - Math.exp(-omega0 * t) * (1 + omega0 * t);
+}
+
 export class VideoClipRecorder {
-    constructor(playerRef, totalFrames = 240) {
+    constructor(playerRef = null, totalFrames = 240, fps = 30) {
         this.playerRef = playerRef;
         this.totalFrames = totalFrames;
+        this.fps = fps;
         this.isRecording = false;
+        this.isCancelled = false;
         this.mediaRecorder = null;
         this.chunks = [];
+        this.activeStream = null;
     }
 
     /**
@@ -39,146 +68,210 @@ export class VideoClipRecorder {
         return 'video/mp4';
     }
 
+    /**
+     * Instantly aborts an in-progress export
+     */
+    cancel() {
+        this.isCancelled = true;
+        if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+            try {
+                this.mediaRecorder.stop();
+            } catch {
+                /* ignore */
+            }
+        }
+        if (this.activeStream) {
+            try {
+                this.activeStream.getTracks().forEach(t => t.stop());
+            } catch {
+                /* ignore */
+            }
+            this.activeStream = null;
+        }
+        this.isRecording = false;
+    }
+
     async recordAndDownload({
         trip = null,
         trips = [],
         mode = 'single',
+        username = 'Traveler',
         mapStyle = 'traewelling-dark',
         width = 960,
         height = 960,
+        fps = 30,
         filename = 'traewelling-trip-clip.mp4',
-        onProgress = () => {}
+        onProgress = () => {},
+        signal = null
     }) {
-        if (!this.playerRef) {
+        if (!trip && (!Array.isArray(trips) || trips.length === 0)) {
             throw new Error('Video player is not initialized yet.');
         }
 
-        // Silently ensure all map tiles for the scene are loaded and decoded before recording
-        if (mode === 'all' && Array.isArray(trips) && trips.length > 0) {
-            onProgress(5, 'Preparing all-rides map scene…');
-            const allScene = buildAllTripsScene(trips, width, height);
-            await preloadSceneTiles(allScene, mapStyle);
-        } else if (trip) {
-            onProgress(5, 'Preparing…');
-            await preloadTripTiles(trip, mapStyle, width, height);
+        if (this.isRecording) {
+            throw new Error('Recording is already in progress.');
         }
 
-        const container = document.getElementById('playerContainer');
-        const canvas = container
-            ? (container.querySelector('#tripClipCanvas') || container.querySelector('canvas'))
-            : document.getElementById('tripClipCanvas');
+        this.isCancelled = false;
+        this.isRecording = true;
+        this.fps = fps;
 
-        if (!canvas) {
-            throw new Error('Video canvas element not found in player.');
-        }
+        try {
+            const isAllMode = mode === 'all' && Array.isArray(trips) && trips.length > 0;
+            const coords = (!isAllMode && trip) ? extractRouteCoordinates(trip) : [];
+            const scene = isAllMode
+                ? buildAllTripsScene(trips, width, height, fps)
+                : buildMapScene(coords, width, height);
+            const allTiming = isAllMode ? computeAllModeTiming(trips, fps) : null;
+            const styleConfig = MAP_STYLES[mapStyle] || MAP_STYLES['traewelling-dark'];
 
-        this.playerRef.pause();
-        this.playerRef.seekTo(0);
-        await new Promise(r => setTimeout(r, 150));
-
-        const stream = canvas.captureStream(30);
-
-        const mimeType = VideoClipRecorder.getOptimalMimeType();
-        const isMp4 = mimeType.startsWith('video/mp4');
-        const targetExt = isMp4 ? '.mp4' : '.webm';
-        const baseName = filename.replace(/\.(webm|mp4)$/i, '');
-        const finalFilename = `${baseName}${targetExt}`;
-
-        this.chunks = [];
-        this.mediaRecorder = new MediaRecorder(stream, {
-            mimeType,
-            videoBitsPerSecond: 8000000
-        });
-
-        this.mediaRecorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) {
-                this.chunks.push(e.data);
+            // 1. Preload 100% of required map tiles into memory
+            if (!styleConfig.isVector) {
+                onProgress(2, 'Preloading map tiles…');
+                if (isAllMode) {
+                    await preloadSceneTiles(scene, mapStyle);
+                } else if (trip) {
+                    await preloadTripTiles(trip, mapStyle, width, height);
+                }
             }
-        };
 
-        const totalFrames = this.totalFrames;
-        const targetDurationMs = Math.round((totalFrames / 30) * 1000);
+            if (this.isCancelled || (signal && signal.aborted)) {
+                throw new Error('Recording cancelled by user');
+            }
 
-        const recordingPromise = new Promise((resolve, reject) => {
-            this.mediaRecorder.onstop = async () => {
-                try {
-                    onProgress(94, isMp4 ? 'Finalizing MP4 video container…' : 'Finalizing WebM container & seek index…');
-                    const rawBlob = new Blob(this.chunks, { type: mimeType });
+            // 2. Create dedicated decoupled off-screen render canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                throw new Error('Canvas element context could not be created for rendering.');
+            }
 
-                    let finalBlob = rawBlob;
-                    if (!isMp4) {
-                        // Re-mux EBML container for WebM fallback to inject Duration, Cues, SeekHead, and defined Segment size
-                        try {
-                            finalBlob = await fixWebMBlob(rawBlob, { durationMs: targetDurationMs, fps: 30 });
-                        } catch (remuxErr) {
-                            console.warn('WebM spec metadata remux fallback:', remuxErr);
-                        }
-                    }
+            if (typeof canvas.captureStream !== 'function') {
+                throw new Error('canvas.captureStream is not supported in this browser environment.');
+            }
 
-                    const url = URL.createObjectURL(finalBlob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = finalFilename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    setTimeout(() => URL.revokeObjectURL(url), 10000);
+            // 3. Negotiate container format & set up manual frame capture stream
+            const mimeType = VideoClipRecorder.getOptimalMimeType();
+            const isMp4 = mimeType.startsWith('video/mp4');
+            const targetExt = isMp4 ? '.mp4' : '.webm';
+            const baseName = filename.replace(/\.(webm|mp4)$/i, '');
+            const finalFilename = `${baseName}${targetExt}`;
 
-                    onProgress(100, 'Video ready!');
-                    resolve({ blob: finalBlob, filename: finalFilename, mimeType, durationMs: targetDurationMs });
-                } catch (err) {
-                    reject(err);
+            // captureStream(0) allows manual frame clocking via requestFrame() without wall-clock drift
+            const stream = canvas.captureStream(0);
+            this.activeStream = stream;
+            const track = stream.getVideoTracks()[0];
+
+            this.chunks = [];
+            this.mediaRecorder = new MediaRecorder(stream, {
+                mimeType,
+                videoBitsPerSecond: 10000000
+            });
+
+            this.mediaRecorder.ondataavailable = (e) => {
+                if (e.data && e.data.size > 0) {
+                    this.chunks.push(e.data);
                 }
             };
-            this.mediaRecorder.onerror = reject;
-        });
 
-        this.mediaRecorder.start(100);
-        this.isRecording = true;
-        this.playerRef.play();
+            this.mediaRecorder.start();
 
-        let lastFrame = 0;
-        let hasProgressed = false;
-        let stopping = false;
-        const maxDurationMs = Math.ceil((totalFrames / 30) * 1000) + 3500;
-        const startTime = Date.now();
+            // 4. Deterministic Frame-by-Frame Render Loop
+            const totalFrames = this.totalFrames;
+            const targetDurationMs = Math.round((totalFrames / fps) * 1000);
+            const frameDelay = 1000 / fps;
 
-        const stopRecording = async () => {
-            if (stopping) return;
-            stopping = true;
-            clearInterval(checkEnd);
-            this.playerRef.pause();
-            // Guarantee final frame is drawn and held
-            this.playerRef.seekTo(totalFrames - 1);
-            // Allow settling delay to flush final frame into MediaRecorder
-            await new Promise(r => setTimeout(r, 200));
-            if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+            for (let f = 0; f < totalFrames; f++) {
+                if (this.isCancelled || (signal && signal.aborted)) {
+                    throw new Error('Recording cancelled by user');
+                }
+
+                if (isAllMode) {
+                    renderAllTripsFrame({
+                        ctx,
+                        frame: f,
+                        fps,
+                        width,
+                        height,
+                        username,
+                        allScene: scene,
+                        timing: allTiming,
+                        styleConfig
+                    });
+                } else {
+                    const introSpring = computeSpring({ frame: f, fps, config: { damping: 18, stiffness: 90 } });
+                    renderTripFrame({
+                        ctx,
+                        frame: f,
+                        fps,
+                        width,
+                        height,
+                        trip,
+                        username,
+                        coords,
+                        scene,
+                        styleConfig,
+                        introSpring
+                    });
+                }
+
+                if (track && typeof track.requestFrame === 'function') {
+                    track.requestFrame();
+                }
+
+                const pct = 5 + Math.round(((f + 1) / totalFrames) * 88);
+                onProgress(pct, `Rendering frame ${f + 1} of ${totalFrames} (${Math.round(((f + 1) / totalFrames) * 100)}%)…`);
+
+                // Micro-interval to preserve precise timestamp pacing in the encoder
+                await new Promise(r => setTimeout(r, frameDelay));
+            }
+
+            // 5. Finalize container
+            onProgress(95, isMp4 ? 'Finalizing MP4 video container…' : 'Finalizing WebM container & seek index…');
+            await new Promise(r => setTimeout(r, 120));
+
+            const stopPromise = new Promise((resolve, reject) => {
+                this.mediaRecorder.onstop = resolve;
+                this.mediaRecorder.onerror = reject;
+            });
+
+            if (this.mediaRecorder.state !== 'inactive') {
                 this.mediaRecorder.stop();
             }
+            await stopPromise;
+
+            if (this.activeStream) {
+                this.activeStream.getTracks().forEach(t => t.stop());
+                this.activeStream = null;
+            }
             this.isRecording = false;
-        };
 
-        const checkEnd = setInterval(() => {
-            const currentFrame = this.playerRef.getCurrentFrame();
-            if (currentFrame > 15) {
-                hasProgressed = true;
+            let finalBlob = new Blob(this.chunks, { type: mimeType });
+            if (!isMp4) {
+                // For WebM fallback, inject Duration, Cues, SeekHead, and defined Segment size
+                try {
+                    finalBlob = await fixWebMBlob(finalBlob, { durationMs: targetDurationMs, fps });
+                } catch (remuxErr) {
+                    console.warn('WebM spec metadata remux fallback:', remuxErr);
+                }
             }
-            const wrappedAround = hasProgressed && currentFrame < lastFrame;
-            const reachedEnd = currentFrame >= totalFrames - 1;
-            const timedOut = Date.now() - startTime > maxDurationMs;
-            lastFrame = currentFrame;
 
-            const pct = (reachedEnd || wrappedAround)
-                ? 92
-                : 10 + Math.min(82, Math.round((currentFrame / totalFrames) * 82));
+            const url = URL.createObjectURL(finalBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = finalFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
 
-            onProgress(pct, `Recording (${Math.min(100, Math.round((currentFrame / totalFrames) * 100))}%)…`);
-
-            if (reachedEnd || wrappedAround || timedOut) {
-                stopRecording();
-            }
-        }, 20);
-
-        return recordingPromise;
+            onProgress(100, 'Video ready!');
+            return { blob: finalBlob, filename: finalFilename, mimeType, durationMs: targetDurationMs };
+        } catch (err) {
+            this.cancel();
+            throw err;
+        }
     }
 }
