@@ -250,7 +250,22 @@ export function buildMapScene(coords, viewportWidth = 960, viewportHeight = 960)
     }).tiles;
     overTiles.forEach(t => trajectoryTileMap.set(t.key, t));
 
-    const chaseZoom = fitScale * 2.2;
+    const routeDistKm = computePolylineHaversineKm(coords);
+    let targetChaseZ = 14.5;
+    if (routeDistKm < 6) {
+        targetChaseZ = 15.3;
+    } else if (routeDistKm < 15) {
+        targetChaseZ = 15.0;
+    } else if (routeDistKm < 35) {
+        targetChaseZ = 14.2;
+    } else if (routeDistKm < 80) {
+        targetChaseZ = 12.8;
+    } else {
+        targetChaseZ = 10.5;
+    }
+    const neededChaseZoom = Math.pow(2, targetChaseZ - chosenZ);
+    const chaseZoom = Math.max(fitScale * 2.2, Math.min(fitScale * 14.0, neededChaseZoom));
+
     const sampleSteps = Math.min(24, Math.max(8, points.length));
     for (let i = 0; i <= sampleSteps; i++) {
         const pt = getXYAtDistance(points, cumDist, (i / sampleSteps) * totalPathPx);
@@ -472,17 +487,19 @@ export function sampleSmoothedCameraTarget(scene, progress) {
  * - Frame 48..152: Hold close chase zoom along the track (gentle 2.15x -> 2.00x)
  * - Frame 152..212: Zoom OUT to full-route finale overview (0.94x)
  */
-export function computeCameraZoomMultiplier(frame) {
+export function computeCameraZoomMultiplier(frame, peakMultiplier = 2.15) {
+    const p = typeof peakMultiplier === 'number' && Number.isFinite(peakMultiplier) ? peakMultiplier : 2.15;
+    const holdEnd = p * (2.00 / 2.15);
     if (frame <= 48) {
         const t = smootherstep(0, 48, frame);
-        return 0.98 + (2.15 - 0.98) * t;
+        return 0.98 + (p - 0.98) * t;
     }
     if (frame <= 152) {
         const t = smootherstep(48, 152, frame);
-        return 2.15 + (2.00 - 2.15) * t;
+        return p + (holdEnd - p) * t;
     }
     const t = smootherstep(152, 212, frame);
-    return 2.00 + (0.94 - 2.00) * t;
+    return holdEnd + (0.94 - holdEnd) * t;
 }
 
 export function shortenStationName(name) {
@@ -560,13 +577,10 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
     const usableH = (viewportHeight - 184) * 0.60;
     const usableMin = Math.min(usableW, usableH);
 
-    // In multi-trip mode, allow deep city zoom (up to 96x) so city transit lines,
+    // In multi-trip mode, allow deep city zoom (up to Web Mercator z=15.5) so city transit lines,
     // stations, and streets are crisply visible.
-    const maxAllowedCityZoom = Math.min(
-        96.0,
-        Math.max(baseScene.fitScale * 3.8, Math.pow(2, Math.max(2.0, 13.8 - baseScene.z)))
-    );
-    const minSpanBasePx = Math.max(6, 160 * Math.pow(2, baseScene.z - 13.5));
+    const maxAllowedCityZoom = Math.pow(2, Math.max(3.0, 15.5 - baseScene.z));
+    const minSpanBasePx = Math.max(2, 160 * Math.pow(2, baseScene.z - 15.0));
 
     // Step 1: Pre-calculate ride geometries, bounds, and natural ideal zoom
     const rideInfos = rawRides.map(({ trip, coords, distanceKm }) => {
@@ -612,11 +626,41 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
             }
         }
 
+        const checkin = trip?.checkin || trip?.train || {};
+        const catKey = checkin.category || 'regional';
+        const isUrban = ['subway', 'tram', 'bus', 'cablecar', 'ferry'].includes(catKey);
+
         const spanX = Math.max(minSpanBasePx, (maxX - minX) * 1.30);
         const spanY = Math.max(minSpanBasePx, (maxY - minY) * 1.30);
+        const rideFitZoom = Math.min(usableW / spanX, usableH / spanY);
         const rideCenterX = Number.isFinite(minX) ? (minX + maxX) / 2 : baseScene.centerSceneX;
         const rideCenterY = Number.isFinite(minY) ? (minY + maxY) / 2 : baseScene.centerSceneY;
-        const idealRideZoom = Math.min(usableW / spanX, usableH / spanY);
+
+        // Target Web Mercator effective zoom based on transit mode and distance:
+        // Urban and city transit routes zoom in close (effective Z 14.8 to 15.4) so city streets,
+        // tram tracks, subway stations, and neighborhood layouts are clearly visible.
+        let targetEffZ;
+        if (isUrban) {
+            targetEffZ = distanceKm < 5 ? 15.4 : (distanceKm < 15 ? 15.1 : 14.7);
+        } else if (catKey === 'suburban' || distanceKm < 12) {
+            targetEffZ = distanceKm < 6 ? 15.2 : (distanceKm < 15 ? 14.8 : 14.4);
+        } else if (distanceKm < 30) {
+            targetEffZ = 13.8;
+        } else if (distanceKm < 75) {
+            targetEffZ = 12.6;
+        } else if (distanceKm < 160) {
+            targetEffZ = 11.2;
+        } else {
+            targetEffZ = 9.6;
+        }
+
+        const modeZoom = Math.pow(2, targetEffZ - baseScene.z);
+        let idealRideZoom;
+        if (isUrban || distanceKm < 25) {
+            idealRideZoom = Math.min(maxAllowedCityZoom, Math.max(modeZoom, rideFitZoom));
+        } else {
+            idealRideZoom = Math.max(baseScene.fitScale * 1.05, Math.min(modeZoom, Math.max(rideFitZoom, baseScene.fitScale * 1.4)));
+        }
         const centerLon = Number.isFinite(minLon) ? (minLon + maxLon) / 2 : 13.37;
         const centerLat = Number.isFinite(minLat) ? (minLat + maxLat) / 2 : 52.52;
 

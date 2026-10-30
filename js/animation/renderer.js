@@ -460,7 +460,17 @@ export function renderTripFrame({
     const finaleBlend = smootherstep(148, 212, frame);
     const overviewBlend = Math.max(introOverviewBlend, finaleBlend);
 
-    const camZoom = scene.fitScale * computeCameraZoomMultiplier(frame);
+    const isUrbanTransit = ['tram', 'subway', 'bus', 'cablecar', 'ferry', 'suburban'].includes(categoryKey)
+        || totalDistanceKm < 20;
+
+    let peakMultiplier = 2.15;
+    if (isUrbanTransit) {
+        const targetCityZ = totalDistanceKm < 6 ? 15.3 : (totalDistanceKm < 15 ? 15.0 : 14.5);
+        const neededZoom = Math.pow(2, targetCityZ - scene.z);
+        peakMultiplier = Math.max(2.15, Math.min(14.0, neededZoom / Math.max(0.1, scene.fitScale)));
+    }
+
+    const camZoom = scene.fitScale * computeCameraZoomMultiplier(frame, peakMultiplier);
 
     const vehiclePose = samplePointAlongRoute(scene, travelProgress);
     const smoothChaseTarget = sampleSmoothedCameraTarget({ ...scene, camZoom }, travelProgress);
