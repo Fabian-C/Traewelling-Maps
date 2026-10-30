@@ -1,7 +1,7 @@
 // Trip focus and route highlighting module
 import { store } from '../state/store.js';
 import { showPopup, highlightRoute, measureFeatureDistance } from './interactions.js';
-import { snapLngLatToLine } from '../utils/geometry.js';
+import { snapLngLatToLine, getTapTolerancePx } from '../utils/geometry.js';
 import { normalizeCategory } from '../data/processing.js';
 
 /**
@@ -100,13 +100,16 @@ export function focusTripOnMap(trip, retryCount = 0) {
         duration: 800
     });
 
-    // 5. Detect stacked check-ins using strict proximity threshold (<= 20 meters), matching handleMapTap
-    const MAX_STACK_DISTANCE_KM = 0.020;
-    const tightStack = [];
+    // 5. Detect stacked check-ins using visual corridor matching handleMapTap
+    const tightStack = [targetFeature];
     const seenIds = new Set();
     const initialId = targetFeature.properties?.statusId || targetFeature.id;
     if (initialId !== undefined && initialId !== null) seenIds.add(String(initialId));
-    tightStack.push(targetFeature);
+
+    const anchorLngLat = { lng: anchor[0], lat: anchor[1] };
+    const clickPoint = state.map?.project ? state.map.project(anchor) : null;
+    const currentZoom = state.map?.getZoom?.() ?? 8.5;
+    const tolerance = getTapTolerancePx(currentZoom);
 
     if (state.layers?.data) {
         for (const [, layerObj] of state.layers.data.entries()) {
@@ -114,8 +117,11 @@ export function focusTripOnMap(trip, retryCount = 0) {
             for (const feat of features) {
                 const sid = feat.properties?.statusId || feat.id;
                 if (sid !== undefined && sid !== null && seenIds.has(String(sid))) continue;
-                const distKm = measureFeatureDistance(feat, { lng: anchor[0], lat: anchor[1] }, null);
-                if (distKm <= MAX_STACK_DISTANCE_KM) {
+                const dist = measureFeatureDistance(feat, anchorLngLat, clickPoint);
+                const isUnderAnchor = (clickPoint && Number.isFinite(dist))
+                    ? dist <= tolerance
+                    : dist <= 0.05;
+                if (isUnderAnchor) {
                     if (sid !== undefined && sid !== null) seenIds.add(String(sid));
                     tightStack.push(feat);
                 }

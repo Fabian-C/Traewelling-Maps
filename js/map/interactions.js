@@ -185,22 +185,23 @@ export function measureFeatureDistance(feature, lngLat, clickPoint = null) {
         return minPixelDist;
     }
 
-    if (!lngLat || !window.turf) return Infinity;
+    const turfLib = (typeof window !== 'undefined' && window.turf) ? window.turf : (typeof turf !== 'undefined' ? turf : null);
+    if (!lngLat || !turfLib) return Infinity;
     try {
-        const point = turf.point([lngLat.lng, lngLat.lat]);
+        const point = turfLib.point([lngLat.lng, lngLat.lat]);
         if (geom?.type === 'LineString' && Array.isArray(geom.coordinates)) {
-            const line = turf.lineString(geom.coordinates);
-            return turf.pointToLineDistance(point, line, { units: 'kilometers' });
+            const line = turfLib.lineString(geom.coordinates);
+            return turfLib.pointToLineDistance(point, line, { units: 'kilometers' });
         }
         if (geom?.type === 'Point') {
-            const target = turf.point(geom.coordinates);
-            return turf.distance(point, target, { units: 'kilometers' });
+            const target = turfLib.point(geom.coordinates);
+            return turfLib.distance(point, target, { units: 'kilometers' });
         }
         if (geom) {
-            const centroid = turf.center(feature);
+            const centroid = turfLib.center(feature);
             if (centroid?.geometry?.coordinates) {
-                const target = turf.point(centroid.geometry.coordinates);
-                return turf.distance(point, target, { units: 'kilometers' });
+                const target = turfLib.point(centroid.geometry.coordinates);
+                return turfLib.distance(point, target, { units: 'kilometers' });
             }
         }
     } catch (error) {
@@ -372,57 +373,73 @@ export function setupMapInteractions() {
         
         const currentZoom = state.map?.getZoom?.() ?? null;
         const tolerance = getTapTolerancePx(currentZoom);
-        let features = state.map.queryRenderedFeatures(e.point, { layers });
-        if (!features.length) {
-            features = queryLayersNearPoint(e.point, layers, tolerance);
-        }
-        if (features.length) {
-            const lineFeatures = features.filter(f => f.layer?.type === 'line');
-            if (lineFeatures.length) {
-                features = lineFeatures;
-            }
-        }
-        if (!features.length) return;
+
+        // Always query both the exact point and the visual tolerance bounding box around the click
+        const pointFeatures = state.map.queryRenderedFeatures(e.point, { layers }) || [];
+        const areaFeatures = queryLayersNearPoint(e.point, layers, tolerance) || [];
+        const combined = [...pointFeatures, ...areaFeatures];
+        if (!combined.length) return;
+
+        let lineFeatures = combined.filter(f => f.layer?.type === 'line');
+        let features = lineFeatures.length ? lineFeatures : combined;
 
         // Deduplicate distinct check-ins intersecting the tap area
         const seenStatusIds = new Set();
         const candidateFeatures = [];
         for (const feat of features) {
-            const sid = feat.properties?.statusId || feat.id;
-            if (sid && !seenStatusIds.has(sid)) {
-                seenStatusIds.add(sid);
+            const rawSid = feat.properties?.statusId ?? feat.id;
+            const sidKey = rawSid !== undefined && rawSid !== null ? String(rawSid) : null;
+            if (sidKey && !seenStatusIds.has(sidKey)) {
+                seenStatusIds.add(sidKey);
                 candidateFeatures.push(feat);
-            } else if (!sid) {
+            } else if (!sidKey) {
                 candidateFeatures.push(feat);
             }
         }
+        if (!candidateFeatures.length) return;
 
         const initialFeature = pickClosestFeature(candidateFeatures, e.lngLat, e.point) || candidateFeatures[0];
-        const snapped = snapLngLatToLine(e.lngLat, initialFeature);
-        const anchor = snapped || e.lngLat;
+        const initialId = String(initialFeature?.properties?.statusId ?? initialFeature?.id ?? '');
 
-        // User requirement: Cycling must ONLY cycle through check-ins on top of each other
-        // or maximum really close within a few meters (<= 20 meters), strictly excluding anything 50+ meters away.
-        const MAX_STACK_DISTANCE_KM = 0.020; // 20 meters maximum
-        const tightStack = [];
-        const seenIds = new Set();
+        // Stacking corridor: group all routes lying within the visual click tolerance on screen
+        const layerOrder = Array.isArray(state?.layers?.order) ? state.layers.order : [];
+        const tightStack = [initialFeature];
+        const seenStackIds = new Set();
+        if (initialId) seenStackIds.add(initialId);
 
-        const initialId = initialFeature?.properties?.statusId || initialFeature?.id;
-        if (initialId) seenIds.add(initialId);
-        tightStack.push(initialFeature);
-
+        const otherCandidates = [];
         for (const feat of candidateFeatures) {
-            const sid = feat.properties?.statusId || feat.id;
-            if (sid && seenIds.has(sid)) continue;
+            const sid = String(feat.properties?.statusId ?? feat.id ?? '');
+            if (sid && seenStackIds.has(sid)) continue;
 
-            const distKm = measureFeatureDistance(feat, anchor, null);
-            // Must be within 20 meters of the clicked anchor point to be considered stacked
-            if (distKm <= MAX_STACK_DISTANCE_KM) {
-                if (sid) seenIds.add(sid);
-                tightStack.push(feat);
+            const dist = measureFeatureDistance(feat, e.lngLat, e.point);
+            // Visual corridor tolerance in screen pixels (or fallback km threshold if project() is unavailable)
+            const isUnderCursor = (state.map?.project && Number.isFinite(dist))
+                ? dist <= tolerance
+                : dist <= 0.05;
+
+            if (isUnderCursor) {
+                const rawLayerId = (feat.layer?.id || feat.properties?.category || feat.properties?.layerId || '').toString();
+                const layerId = rawLayerId.replace('-approximated', '');
+                const rankIndex = layerOrder.indexOf(layerId);
+                const rank = rankIndex !== -1 ? rankIndex : 999;
+                otherCandidates.push({ feat, dist, rank, sid });
             }
         }
 
+        // Sort stacked candidates: 1) Topmost visible layer, 2) Closest distance to click
+        otherCandidates.sort((a, b) => {
+            if (a.rank !== b.rank) return a.rank - b.rank;
+            return a.dist - b.dist;
+        });
+
+        for (const item of otherCandidates) {
+            if (item.sid) seenStackIds.add(item.sid);
+            tightStack.push(item.feat);
+        }
+
+        const snapped = snapLngLatToLine(e.lngLat, initialFeature);
+        const anchor = snapped || e.lngLat;
         const featureStack = tightStack.length > 1 ? tightStack : null;
         showPopup(anchor, initialFeature, { stack: featureStack, stackIndex: 0 });
     };
@@ -865,10 +882,8 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
             const goToStackedIndex = (newIdx) => {
                 const targetIdx = (newIdx + stack.length) % stack.length;
                 const targetFeature = stack[targetIdx];
-                const tripId = targetFeature?.properties?.statusId || targetFeature?.properties?.id;
-                if (tripId) {
-                    highlightRoute(targetFeature, tripId);
-                }
+                // Keep route highlight preserved across cycling transitions without canvas flickers
+                state.preserveHighlightOnPopupClose = true;
                 showPopup(lngLat, targetFeature, {
                     stack,
                     stackIndex: targetIdx
@@ -934,10 +949,20 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
                     goToStackedIndex(stackIndex + 1);
                 }
             };
-            window.addEventListener('keydown', handleStackKeyNav);
-            state.currentPopup.once('close', () => {
-                window.removeEventListener('keydown', handleStackKeyNav);
-            });
+            if (typeof window !== 'undefined') {
+                if (state._activeStackKeyNavHandler) {
+                    window.removeEventListener('keydown', state._activeStackKeyNavHandler);
+                    state._activeStackKeyNavHandler = null;
+                }
+                state._activeStackKeyNavHandler = handleStackKeyNav;
+                window.addEventListener('keydown', handleStackKeyNav);
+                state.currentPopup.once('close', () => {
+                    if (state._activeStackKeyNavHandler === handleStackKeyNav) {
+                        window.removeEventListener('keydown', handleStackKeyNav);
+                        state._activeStackKeyNavHandler = null;
+                    }
+                });
+            }
         }
 
         const metaToggle = popupEl.querySelector('#popupMetaToggle');
@@ -1007,7 +1032,7 @@ export function highlightRoute(feature, statusId) {
     
     state.map.addSource('route-highlight', { type: 'geojson', data: highlightData });
     
-    const layers = state.map.getStyle().layers;
+    const layers = state.map.getStyle?.()?.layers || [];
     let topLayer = null;
     for (let i = layers.length - 1; i >= 0; i--) {
         if (layers[i].type === 'line' && layers[i].id !== 'route-highlight' && layers[i].id !== 'route-highlight-glow') {
