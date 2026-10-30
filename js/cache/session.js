@@ -27,6 +27,24 @@ export const SessionDB = {
         return Array.isArray(list) ? list.filter(item => !this.isExpired(item, now)) : [];
     },
 
+    // Retrieve lightweight session summaries without reading full trip lists into memory
+    async getSessionSummaries() {
+        const stored = this.getStoredMetadata();
+        if (stored.length > 0) return stored;
+        try {
+            const all = await this.getAll();
+            return all.map(s => ({
+                username: s.username,
+                displayName: s.displayName || s.username,
+                avatar: s.avatar || null,
+                tripCount: s.tripCount || (s.trips ? s.trips.length : 0),
+                timestamp: s.timestamp || Date.now()
+            }));
+        } catch (_) {
+            return [];
+        }
+    },
+
     saveStoredMetadata(sessions = []) {
         const meta = sessions.map(s => ({
             username: s.username,

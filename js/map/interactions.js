@@ -12,6 +12,16 @@ import { updateRouteDensity } from './heatmap.js';
 import { escapeHtml } from '../utils/format.js';
 import { CATEGORY_NAMES } from './layers.js';
 import { normalizeCategory, extractTripTags, getTripSearchMatchReason } from '../data/processing.js';
+import {
+    extractTripDetails,
+    formatTimeShort,
+    formatDateShort,
+    renderScheduleDetailsHTML,
+    renderSeatAndVehicleDetailsHTML,
+    renderTagsBadgesHTML,
+    renderBuddiesBadgesHTML
+} from '../ui/tripDetails.js';
+import { renderLinkedComment } from '../trips/formatters.js';
 
 export function initMap() {
     const state = store.get();
@@ -460,157 +470,43 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
     const isStacked = Boolean(stack && stack.length > 1);
 
     const buildFeaturePopupHtml = (targetFeature, idx) => {
-        const props = targetFeature?.properties || {};
-        let train = props.train || props.checkin;
-        if (typeof train === 'string') try { train = JSON.parse(train); } catch (e) { train = {}; }
-        train = train || {};
+        const details = extractTripDetails(targetFeature, state.username);
+        const {
+            statusId,
+            lineName,
+            categoryName,
+            origin,
+            destination: dest,
+            plannedDeparture,
+            actualDeparture,
+            plannedArrival,
+            actualArrival,
+            departureDelay,
+            arrivalDelay,
+            platform,
+            distanceKm: distance,
+            durationDisplay,
+            operator,
+            isApproximated,
+            customTags,
+            buddies,
+            bodyText
+        } = details;
 
-        const statusId = props.statusId || 'unknown';
-        const lineName = train.lineName || train.number || train.name || 'Unknown';
-        const originData = train.origin || {};
-        const destData = train.destination || {};
-        const origin = originData.name || 'Unknown';
-        const dest = destData.name || 'Unknown';
-        const rawDistance = typeof train.totalDistance === 'number' ? train.totalDistance : (train.distance || 0);
-        const distance = Math.round(rawDistance / 10) / 100;
-
-        const getDate = (value) => value ? new Date(value) : null;
-        const plannedDeparture = getDate(originData.departurePlanned || train.plannedDeparture);
-        const actualDeparture = getDate(originData.departureReal || originData.departure || train.departure);
-        const plannedArrival = getDate(destData.arrivalPlanned || train.plannedArrival);
-        const actualArrival = getDate(destData.arrivalReal || destData.arrival || train.arrival);
-        const derivedDepartureDelay = (plannedDeparture && actualDeparture) ? Math.round((actualDeparture - plannedDeparture) / 1000) : null;
-        const derivedArrivalDelay = (plannedArrival && actualArrival) ? Math.round((actualArrival - plannedArrival) / 1000) : null;
-        const departureDelay = typeof train.departureDelay === 'number' ? train.departureDelay : derivedDepartureDelay;
-        const arrivalDelay = typeof train.arrivalDelay === 'number' ? train.arrivalDelay : derivedArrivalDelay;
-        const platform = originData.departurePlatformReal || originData.platform || train.platform || train.track;
-        let seat = props.seat || train.seat?.number || (typeof train.seat === 'string' || typeof train.seat === 'number' ? train.seat : null) || null;
-        let wagon = props.wagon || train.seat?.wagon || train.wagon || train.coach || null;
-        let travelClass = props.travelClass || props.class || train.class || train.travelClass || null;
-        let vehicleNumber = props.vehicleNumber || null;
-        let locomotiveClass = props.locomotiveClass || null;
-        let wagonClass = props.wagonClass || null;
-        const coachPosition = train.coaches || null;
-        const shareUrl = statusId !== 'unknown' ? `https://traewelling.de/status/${statusId}` : null;
-        const animUrl = (statusId && statusId !== 'unknown')
+        const shareUrl = statusId ? `https://traewelling.de/status/${statusId}` : null;
+        const animUrl = statusId
             ? `animation.html?trip=${encodeURIComponent(statusId)}${state.username ? `&user=${encodeURIComponent(state.username)}` : ''}`
             : null;
-        const operator = train.operator?.name || train.operator?.identifier || train.provider?.name || train.provider || '—';
-
-        let ticketName = typeof props.ticket === 'string' ? props.ticket : (props.ticket?.name || props.ticket?.title || props.ticket?.identifier || null);
-        if (!ticketName && train.ticket) {
-            ticketName = typeof train.ticket === 'string' ? train.ticket : (train.ticket.name || train.ticket.title || null);
-        }
-
-        const parsedTags = extractTripTags(props).concat(extractTripTags({ tags: train.tags }));
-        const customTags = [];
-        const seenTagKeys = new Set();
-
-        parsedTags.forEach(t => {
-            const k = (t.key || '').toLowerCase();
-            const v = String(t.value || '').trim();
-            if (!v && !k) return;
-
-            if (k === 'trwl:wagon' || k === 'wagon') {
-                if (!wagon) wagon = v;
-            } else if (k === 'trwl:seat' || k === 'seat') {
-                if (!seat) seat = v;
-            } else if (k === 'trwl:ticket' || k === 'ticket') {
-                if (!ticketName) ticketName = v;
-            } else if (k === 'trwl:travel_class' || k === 'travel_class') {
-                if (!travelClass) travelClass = v;
-            } else if (k === 'trwl:vehicle_number' || k === 'vehicle_number') {
-                if (!vehicleNumber) vehicleNumber = v;
-            } else if (k === 'trwl:locomotive_class' || k === 'locomotive_class') {
-                if (!locomotiveClass) locomotiveClass = v;
-            } else if (k === 'trwl:wagon_class' || k === 'wagon_class') {
-                if (!wagonClass) wagonClass = v;
-            } else {
-                const cleanKey = t.key.replace(/^trwl:/, '');
-                const dedupeKey = `${cleanKey}:${v}`.toLowerCase();
-                if (!seenTagKeys.has(dedupeKey)) {
-                    seenTagKeys.add(dedupeKey);
-                    customTags.push({ key: cleanKey, value: v });
-                }
-            }
-        });
-
-        const formatTime = (dateObj) => dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
-        const formatDate = (dateObj) => dateObj ? dateObj.toLocaleDateString() : '';
-        const formatDelay = (value) => {
-            if (value === null || value === undefined) return '—';
-            if (value === 0) return 'On time';
-            const minutes = Math.round(value / 60);
-            return `${minutes > 0 ? '+' : ''}${minutes} min`;
-        };
-        const formatDuration = (minutes) => {
-            if (minutes === null || minutes === undefined) return '—';
-            const hrs = Math.floor(minutes / 60);
-            const mins = minutes % 60;
-            if (hrs <= 0) return `${mins} min`;
-            if (mins === 0) return `${hrs} h`;
-            return `${hrs} h ${mins} min`;
-        };
-        const durationProvided = typeof train.totalDuration === 'number' ? train.totalDuration : (typeof train.duration === 'number' ? train.duration : null);
-        const durationPlanned = (plannedDeparture && plannedArrival) ? Math.round((plannedArrival - plannedDeparture) / 60000) : null;
-        const durationActual = (actualDeparture && actualArrival) ? Math.round((actualArrival - actualDeparture) / 60000) : durationProvided;
-        const durationDisplay = formatDuration(durationActual || durationPlanned);
-
-        const isApproximated = Boolean(props.isApproximated || targetFeature?.layer?.id?.endsWith('-approximated'));
-
-        const rawCategory = normalizeCategory(props.category || train.category || targetFeature?.layer?.id?.replace('-approximated', ''));
-        const category = CATEGORY_NAMES[rawCategory] || rawCategory || 'Unknown';
 
         const buildTimestampBlock = (primary, fallback) => {
             const dateObj = primary || fallback;
             if (!dateObj) return `<span>—</span>`;
-            return `<span>${formatTime(dateObj)}</span><span>${formatDate(dateObj)}</span>`;
+            return `<span>${formatTimeShort(dateObj)}</span><span>${formatDateShort(dateObj)}</span>`;
         };
         const departureTimestamp = buildTimestampBlock(actualDeparture, plannedDeparture);
         const arrivalTimestamp = buildTimestampBlock(actualArrival, plannedArrival);
 
-        const timingDetails = `
-            <details class="popup-timing-details">
-                <summary class="popup-expander-summary">
-                    <span class="popup-summary-title">⏱️ Schedule & Delays</span>
-                    <span class="popup-delay-summary-pill">
-                        ${departureDelay !== null ? `<span class="delay-tag ${departureDelay > 0 ? 'delay-late' : (departureDelay < 0 ? 'delay-early' : 'delay-ok')}">Dep ${formatDelay(departureDelay)}</span>` : ''}
-                        ${arrivalDelay !== null ? `<span class="delay-tag ${arrivalDelay > 0 ? 'delay-late' : (arrivalDelay < 0 ? 'delay-early' : 'delay-ok')}">Arr ${formatDelay(arrivalDelay)}</span>` : ''}
-                    </span>
-                </summary>
-                <div class="popup-body">
-                    <div class="popup-sched-table">
-                        <div class="sched-row sched-header">
-                            <span>Event</span>
-                            <span>Plan</span>
-                            <span>Actual</span>
-                            <span>Delay</span>
-                        </div>
-                        <div class="sched-row">
-                            <span class="sched-label">Departure</span>
-                            <span class="sched-time plan">${formatTime(plannedDeparture)}</span>
-                            <span class="sched-time real">${formatTime(actualDeparture)}</span>
-                            <span class="sched-delay ${departureDelay > 0 ? 'late' : (departureDelay < 0 ? 'early' : 'ok')}">${formatDelay(departureDelay)}</span>
-                        </div>
-                        <div class="sched-row">
-                            <span class="sched-label">Arrival</span>
-                            <span class="sched-time plan">${formatTime(plannedArrival)}</span>
-                            <span class="sched-time real">${formatTime(actualArrival)}</span>
-                            <span class="sched-delay ${arrivalDelay > 0 ? 'late' : (arrivalDelay < 0 ? 'early' : 'ok')}">${formatDelay(arrivalDelay)}</span>
-                        </div>
-                    </div>
-                </div>
-            </details>
-        `;
-
-        const customTagBadges = customTags.map(t => {
-            const k = escapeHtml(t.key);
-            const v = escapeHtml(t.value);
-            if (!v || v.toLowerCase() === k.toLowerCase()) {
-                return `<span class="popup-tag-badge">#${k}</span>`;
-            }
-            return `<span class="popup-tag-badge"><strong>${k}:</strong> ${v}</span>`;
-        }).join(' ');
+        const timingDetails = renderScheduleDetailsHTML(details);
 
         const tagsDetails = (customTags && customTags.length > 0) ? `
             <details class="popup-tags-details">
@@ -620,117 +516,36 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
                 </summary>
                 <div class="popup-body">
                     <div class="popup-tags-container">
-                        ${customTagBadges}
+                        ${renderTagsBadgesHTML(customTags)}
                     </div>
                 </div>
             </details>
         ` : '';
 
-        const seatDetails = (seat || wagon || travelClass || coachPosition || ticketName || vehicleNumber || locomotiveClass || wagonClass) ? `
-            <details>
-                <summary class="popup-expander-summary">
-                    <span class="popup-summary-title">Seat, ticket & coach info</span>
-                    <span class="popup-toggle-arrow">▾</span>
-                </summary>
-                <div class="popup-body">
-                    <dl>
-                        ${ticketName ? `<dt>Ticket</dt><dd>${escapeHtml(ticketName)}</dd>` : ''}
-                        <dt>Seat</dt><dd>${escapeHtml(String(seat || '—'))}</dd>
-                        <dt>Coach / Wagon</dt><dd>${escapeHtml(String(wagon || '—'))}</dd>
-                        <dt>Class</dt><dd>${escapeHtml(String(travelClass || '—'))}</dd>
-                        ${vehicleNumber ? `<dt>Vehicle / Unit</dt><dd>${escapeHtml(vehicleNumber)}</dd>` : ''}
-                        ${locomotiveClass ? `<dt>Locomotive</dt><dd>${escapeHtml(locomotiveClass)}</dd>` : ''}
-                        ${wagonClass ? `<dt>Wagon type</dt><dd>${escapeHtml(wagonClass)}</dd>` : ''}
-                        <dt>Coach position</dt><dd>${escapeHtml(String(coachPosition || '—'))}</dd>
-                    </dl>
-                </div>
-            </details>
-        ` : '';
-
-        const rawBody = (props.body || '').trim();
-        const currentUsername = (state.username || '').toLowerCase().trim();
-
-        const renderPopupLinkedComment = (text) => {
-            if (!text) return '';
-            const safe = escapeHtml(text);
-            return safe.replace(/@([a-zA-Z0-9_\-\.]+)/g, (match, u) => {
-                return `<a href="https://traewelling.de/profile/${encodeURIComponent(u)}" target="_blank" rel="noopener noreferrer" class="mention-link" title="Open @${u} on Träwelling">@${u}</a>`;
-            });
-        };
-
-        const popupBuddiesMap = new Map();
-        const addPopupBuddy = (u) => {
-            if (!u || typeof u !== 'string') return;
-            const clean = u.replace(/^@/, '').trim();
-            if (!clean) return;
-            const key = clean.toLowerCase();
-            if (currentUsername && key === currentUsername) return;
-            if (!popupBuddiesMap.has(key)) {
-                popupBuddiesMap.set(key, clean);
-            }
-        };
-
-        let bodyMentions = props.bodyMentions;
-        if (typeof bodyMentions === 'string') {
-            try { bodyMentions = JSON.parse(bodyMentions); } catch (e) { bodyMentions = []; }
-        }
-        if (Array.isArray(bodyMentions)) {
-            bodyMentions.forEach(m => {
-                const u = m.user?.username || m.username || m.name || (typeof m === 'string' ? m : null);
-                addPopupBuddy(u);
-            });
-        }
-
-        let companions = props.companions || props.buddies || props.fellowPassengers;
-        if (typeof companions === 'string') {
-            try { companions = JSON.parse(companions); } catch (e) { companions = []; }
-        }
-        if (Array.isArray(companions)) {
-            companions.forEach(c => {
-                const u = c.username || c.name || (typeof c === 'string' ? c : null);
-                addPopupBuddy(u);
-            });
-        }
-
-        let createdBy = props.createdBy;
-        if (typeof createdBy === 'string') {
-            try { createdBy = JSON.parse(createdBy); } catch (e) { createdBy = null; }
-        }
-        const createdByUsername = createdBy?.username || (typeof createdBy === 'string' ? createdBy : null);
-        addPopupBuddy(createdByUsername);
-
-        if (rawBody.includes('@')) {
-            const matches = rawBody.match(/@([a-zA-Z0-9_\-\.]+)/g);
-            if (matches) matches.forEach(m => addPopupBuddy(m));
-        }
-
-        const popupBuddies = Array.from(popupBuddiesMap.values());
+        const seatDetails = renderSeatAndVehicleDetailsHTML(details);
 
         let mentionsHtml = '';
-        if (popupBuddies.length > 0) {
-            const buddyLinks = popupBuddies.map(u => 
-                `<a href="https://traewelling.de/profile/${encodeURIComponent(u)}" target="_blank" rel="noopener noreferrer" class="mention-link" title="Open @${escapeHtml(u)} on Träwelling">@${escapeHtml(u)}</a>`
-            );
+        if (buddies && buddies.length > 0) {
             mentionsHtml = `
                 <div class="popup-mentions">
                     <label>Travel Buddies:</label>
-                    <span>${buddyLinks.join(' ')}</span>
+                    <span>${renderBuddiesBadgesHTML(buddies)}</span>
                 </div>
             `;
         }
 
         let commentHtml = '';
-        if (rawBody || mentionsHtml) {
+        if (bodyText || mentionsHtml) {
             commentHtml = `
                 <div class="popup-comment">
-                    ${rawBody ? `
+                    ${bodyText ? `
                         <details class="popup-comment-details">
                             <summary class="popup-comment-summary">
                                 <span>💬 Check-in Note</span>
                                 <span class="popup-comment-toggle">▾</span>
                             </summary>
                             <div class="popup-comment-content">
-                                <p>${renderPopupLinkedComment(rawBody)}</p>
+                                <p>${renderLinkedComment(bodyText)}</p>
                             </div>
                         </details>
                     ` : ''}
@@ -742,7 +557,10 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
         let matchBannerHtml = '';
         const activeSearchQuery = state.filters?.searchQuery?.trim();
         if (activeSearchQuery) {
-            const fullTrip = (statusId !== 'unknown' && Array.isArray(state.fetchedTrips))
+            const props = targetFeature?.properties || {};
+            let train = props.train || props.checkin;
+            if (typeof train === 'string') try { train = JSON.parse(train); } catch (e) { train = {}; }
+            const fullTrip = (statusId && Array.isArray(state.fetchedTrips))
                 ? state.fetchedTrips.find(t => String(t.id) === String(statusId))
                 : null;
             const tripToEvaluate = fullTrip || { properties: props, train, body: props.body, ticket: props.ticket };
@@ -786,7 +604,7 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
         return `<div class="popup-content${isStacked ? ' is-stacked' : ''}">
             ${stackNavHtml}
             <div class="popup-title">
-                <span class="popup-badge">${category}</span>
+                <span class="popup-badge">${categoryName}</span>
                 <span>${lineName}</span>
                 ${isApproximated ? `<span class="popup-approx-badge" title="Approximated track (straight-line fallback)"><span class="dashed-preview-pill"></span>Approx.</span>` : ''}
             </div>

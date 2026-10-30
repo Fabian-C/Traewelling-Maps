@@ -6,15 +6,22 @@ import { getTripBuddies, renderLinkedComment } from './formatters.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
 import { formatDelayMinutes, formatHumanDuration, formatTotalTime, calculateCO2Saved, formatSpeed, escapeHtml } from '../utils/format.js';
 import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
-import {
-    TRIP_COLUMNS,
-    QUERY_RECIPES,
-    flattenTripRecord,
-    executeTripQuery,
-    visualFilterToSQL,
-    exportRowsToCSV
-} from './sqlEngine.js';
-import { getSQLCompletions } from './sqlAutocomplete.js';
+import { extractTripDetails, formatTimeShort } from '../ui/tripDetails.js';
+
+let sqlEngine = null;
+let sqlAutocomplete = null;
+
+export async function loadStudioModules() {
+    if (!sqlEngine) {
+        sqlEngine = await import('./sqlEngine.js');
+        window.executeTripQuery = sqlEngine.executeTripQuery;
+        window.visualFilterToSQL = sqlEngine.visualFilterToSQL;
+    }
+    if (!sqlAutocomplete) {
+        sqlAutocomplete = await import('./sqlAutocomplete.js');
+    }
+    return { sqlEngine, sqlAutocomplete };
+}
 
 let allSessions = [];
 let activeSession = null;
@@ -57,9 +64,9 @@ if (document.readyState === 'loading') {
 
 export async function initTripExplorer() {
     try {
-        allSessions = await SessionDB.getAll();
+        allSessions = await SessionDB.getSessionSummaries();
     } catch (e) {
-        console.warn('Failed to load sessions from SessionDB:', e);
+        console.warn('Failed to load session summaries from SessionDB:', e);
         allSessions = [];
     }
 
@@ -67,7 +74,13 @@ export async function initTripExplorer() {
     if (allSessions.length === 0) {
         const parsed = Storage.getJSON(STORAGE_KEYS.SESSIONS_DATA, null);
         if (Array.isArray(parsed) && parsed.length > 0) {
-            allSessions = parsed;
+            allSessions = parsed.map(s => ({
+                username: s.username,
+                displayName: s.displayName || s.username,
+                avatar: s.avatar || null,
+                tripCount: s.tripCount || (s.trips ? s.trips.length : 0),
+                timestamp: s.timestamp || Date.now()
+            }));
         }
     }
 
@@ -76,24 +89,26 @@ export async function initTripExplorer() {
     const requestedTripId = urlParams.get('trip');
     const fixtureUrl = urlParams.get('fixture');
 
-    if (allSessions.length > 0) {
-        if (requestedUser) {
-            activeSession = allSessions.find(s => s.username?.toLowerCase() === requestedUser) || allSessions[0];
-        } else {
-            activeSession = allSessions[0];
+    const targetUser = requestedUser || (allSessions.length > 0 ? allSessions[0].username : null);
+    if (targetUser) {
+        try {
+            activeSession = await SessionDB.get(targetUser);
+        } catch (e) {
+            console.warn('Failed to load active session from SessionDB:', e);
+        }
+        if (!activeSession && allSessions.length > 0) {
+            activeSession = allSessions.find(s => s.username?.toLowerCase() === targetUser.toLowerCase()) || null;
         }
     }
 
-    if (requestedUser && (!activeSession || activeSession.username?.toLowerCase() !== requestedUser || !activeSession.trips?.length)) {
-        try {
-            const direct = await SessionDB.get(requestedUser);
-            if (direct && Array.isArray(direct.trips) && direct.trips.length > 0) {
-                activeSession = direct;
-                if (!allSessions.some(s => s.username?.toLowerCase() === requestedUser)) {
-                    allSessions.unshift(direct);
-                }
-            }
-        } catch (e) {}
+    if (requestedUser && activeSession && !allSessions.some(s => s.username?.toLowerCase() === requestedUser)) {
+        allSessions.unshift({
+            username: activeSession.username,
+            displayName: activeSession.displayName || activeSession.username,
+            avatar: activeSession.avatar || null,
+            tripCount: activeSession.tripCount || (activeSession.trips ? activeSession.trips.length : 0),
+            timestamp: activeSession.timestamp || Date.now()
+        });
     }
 
     // Fixture / Preview fallback for testing/previews
@@ -203,12 +218,11 @@ export async function initTripExplorer() {
     }
 
     allTrips = activeSession.trips.slice();
-    flattenedTrips = allTrips.map(flattenTripRecord);
+    flattenedTrips = [];
 
-    // Populate Year pills, Companion dropdown, and Studio Recipes
+    // Populate Year pills and Companion dropdown
     populateYearPills(allTrips);
     populateBuddyDropdown(allTrips);
-    initStudioWorkbench();
 
     // Apply URL parameters if present
     if (urlParams.get('search')) filterState.searchQuery = urlParams.get('search');
@@ -217,6 +231,11 @@ export async function initTripExplorer() {
     if (urlParams.get('delay')) filterState.selectedDelay = urlParams.get('delay');
 
     applyFiltersAndRender();
+
+    if (urlParams.get('mode') === 'studio') {
+        const modeStudioBtn = document.getElementById('modeStudioBtn');
+        if (modeStudioBtn) modeStudioBtn.click();
+    }
 
     // If deep-linked to a specific trip, open its modal inspector
     if (requestedTripId) {
@@ -258,21 +277,27 @@ function setupEventListeners() {
     // Profile Switcher
     const profileSelect = document.getElementById('profileSelect');
     if (profileSelect) {
-        profileSelect.addEventListener('change', (e) => {
+        profileSelect.addEventListener('change', async (e) => {
             const user = (e.target.value || '').toLowerCase().trim();
-            const found = allSessions.find(s => s.username?.toLowerCase() === user);
-            if (found) {
-                activeSession = found;
+            let session = null;
+            try {
+                session = await SessionDB.get(user);
+            } catch (err) {}
+            if (!session) {
+                session = allSessions.find(s => s.username?.toLowerCase() === user);
+            }
+            if (session) {
+                activeSession = session;
                 allTrips = activeSession.trips || [];
-                flattenedTrips = allTrips.map(flattenTripRecord);
+                flattenedTrips = [];
                 populateYearPills(allTrips);
                 populateBuddyDropdown(allTrips);
                 filterState.page = 1;
                 updateUrlParams();
                 syncNavigationLinks(activeSession.username);
                 if (appMode === 'studio') {
-                    const currentSql = document.getElementById('sqlQueryInput')?.value || QUERY_RECIPES[0].sql;
-                    runSqlQuery(currentSql);
+                    const currentSql = document.getElementById('sqlQueryInput')?.value || sqlEngine?.QUERY_RECIPES?.[0]?.sql;
+                    if (currentSql) runSqlQuery(currentSql);
                 } else {
                     applyFiltersAndRender();
                 }
@@ -648,18 +673,24 @@ function updateCategoryChipsUI() {
 /**
  * Initialize Database Studio workbench controls and recipes
  */
-function initStudioWorkbench() {
+async function initStudioWorkbench() {
+    const workbench = document.getElementById('studioWorkbench');
+    if (!workbench) return;
+
+    await loadStudioModules();
+    const recipes = sqlEngine?.QUERY_RECIPES || [];
+
     // Populate Recipes dropdown
     const recipeSelect = document.getElementById('sqlRecipeSelect');
     if (recipeSelect) {
         recipeSelect.innerHTML = '<option value="">Quick Recipes...</option>' +
-            QUERY_RECIPES.map((r, i) => `<option value="${i}">${escapeHtml(r.title)}</option>`).join('');
+            recipes.map((r, i) => `<option value="${i}">${escapeHtml(r.title)}</option>`).join('');
     }
 
     // Default SQL query if empty
     const sqlInput = document.getElementById('sqlQueryInput');
-    if (sqlInput && !sqlInput.value.trim()) {
-        sqlInput.value = QUERY_RECIPES[0].sql;
+    if (sqlInput && !sqlInput.value.trim() && recipes.length > 0) {
+        sqlInput.value = recipes[0].sql;
     }
 
     // Render initial visual rules
@@ -723,7 +754,7 @@ function setupStudioEventListeners() {
             applyFiltersAndRender();
         });
 
-        modeStudioBtn.addEventListener('click', () => {
+        modeStudioBtn.addEventListener('click', async () => {
             appMode = 'studio';
             modeStudioBtn.classList.add('active');
             modeStandardBtn.classList.remove('active');
@@ -735,9 +766,12 @@ function setupStudioEventListeners() {
                 viewTableBtn.click();
             }
 
+            await initStudioWorkbench();
             if (!sqlQueryResult) {
-                const currentSql = document.getElementById('sqlQueryInput')?.value || QUERY_RECIPES[0].sql;
-                runSqlQuery(currentSql);
+                const currentSql = document.getElementById('sqlQueryInput')?.value || sqlEngine?.QUERY_RECIPES?.[0]?.sql;
+                if (currentSql) {
+                    await runSqlQuery(currentSql);
+                }
             } else {
                 renderResults();
             }
@@ -771,10 +805,12 @@ function setupStudioEventListeners() {
     // 3. Quick Recipe Selector
     const recipeSelect = document.getElementById('sqlRecipeSelect');
     if (recipeSelect) {
-        recipeSelect.addEventListener('change', (e) => {
+        recipeSelect.addEventListener('change', async (e) => {
+            await loadStudioModules();
+            const recipes = sqlEngine?.QUERY_RECIPES || [];
             const idx = parseInt(e.target.value, 10);
-            if (!isNaN(idx) && QUERY_RECIPES[idx]) {
-                const sql = QUERY_RECIPES[idx].sql;
+            if (!isNaN(idx) && recipes[idx]) {
+                const sql = recipes[idx].sql;
                 const sqlInput = document.getElementById('sqlQueryInput');
                 if (sqlInput) sqlInput.value = sql;
                 runSqlQuery(sql);
@@ -789,11 +825,12 @@ function setupStudioEventListeners() {
     let activeACIndex = 0;
     let currentACResult = null;
 
-    function renderAC() {
+    async function renderAC() {
         if (!sqlInput || !acPopover) return;
+        await loadStudioModules();
         const val = sqlInput.value;
         const cursorPos = sqlInput.selectionStart || 0;
-        currentACResult = getSQLCompletions(val, cursorPos);
+        currentACResult = sqlAutocomplete ? sqlAutocomplete.getSQLCompletions(val, cursorPos) : { items: [] };
 
         if (!currentACResult.items || currentACResult.items.length === 0) {
             acPopover.style.display = 'none';
@@ -1001,8 +1038,9 @@ function setupStudioEventListeners() {
     }
 
     if (applyRulesBtn) {
-        applyRulesBtn.addEventListener('click', () => {
-            const generatedSql = visualFilterToSQL(visualRules, visualLogicMode);
+        applyRulesBtn.addEventListener('click', async () => {
+            await loadStudioModules();
+            const generatedSql = sqlEngine.visualFilterToSQL(visualRules, visualLogicMode);
             if (sqlInput) sqlInput.value = generatedSql;
             runSqlQuery(generatedSql);
         });
@@ -1014,12 +1052,13 @@ function setupStudioEventListeners() {
     const exportSqlGeoBtn = document.getElementById('exportSqlGeoJsonBtn');
 
     if (exportCsvBtn) {
-        exportCsvBtn.addEventListener('click', () => {
+        exportCsvBtn.addEventListener('click', async () => {
             if (!sqlQueryResult || !sqlQueryResult.rows?.length) {
                 alert('No active query results to export.');
                 return;
             }
-            const csv = exportRowsToCSV(sqlQueryResult.rows, sqlQueryResult.columns);
+            await loadStudioModules();
+            const csv = sqlEngine.exportRowsToCSV(sqlQueryResult.rows, sqlQueryResult.columns);
             downloadFile(csv, `traewelling-query-${Date.now()}.csv`, 'text/csv');
         });
     }
@@ -1054,16 +1093,18 @@ function setupStudioEventListeners() {
 /**
  * Execute an arbitrary SQL query on the dataset
  */
-export function runSqlQuery(sql) {
+export async function runSqlQuery(sql) {
     if (!sql) return;
 
+    await loadStudioModules();
+
     if (!flattenedTrips.length && allTrips.length) {
-        flattenedTrips = allTrips.map(flattenTripRecord);
+        flattenedTrips = allTrips.map(sqlEngine.flattenTripRecord);
     }
     if (!flattenedTrips.length) return;
 
     try {
-        const result = executeTripQuery(sql, flattenedTrips);
+        const result = sqlEngine.executeTripQuery(sql, flattenedTrips);
         sqlQueryResult = result;
 
         // Ensure table view is visible
@@ -1116,8 +1157,6 @@ export function runSqlQuery(sql) {
     }
 }
 window.runSqlQuery = runSqlQuery;
-window.executeTripQuery = executeTripQuery;
-window.visualFilterToSQL = visualFilterToSQL;
 
 const VISUAL_CATEGORY_OPTIONS = [
     { value: 'highspeed', label: 'High-Speed (ICE/TGV)' },
@@ -1147,12 +1186,13 @@ function renderVisualRules() {
         return;
     }
 
+    const columns = sqlEngine?.TRIP_COLUMNS || [];
     container.innerHTML = visualRules.map((rule, idx) => {
-        const colOptions = TRIP_COLUMNS.map(c => `
+        const colOptions = columns.map(c => `
             <option value="${c.name}" ${c.name === rule.column ? 'selected' : ''}>${c.label} (${c.name})</option>
         `).join('');
 
-        const selectedCol = TRIP_COLUMNS.find(c => c.name === rule.column);
+        const selectedCol = columns.find(c => c.name === rule.column);
         const isNum = selectedCol?.type === 'number';
         const isDate = selectedCol?.type === 'datetime';
         const isCategory = rule.column === 'category';
@@ -1260,7 +1300,7 @@ function renderVisualRules() {
             colSelect.addEventListener('change', (e) => {
                 const newCol = e.target.value;
                 visualRules[idx].column = newCol;
-                const colDef = TRIP_COLUMNS.find(c => c.name === newCol);
+                const colDef = (sqlEngine?.TRIP_COLUMNS || []).find(c => c.name === newCol);
                 if (newCol === 'category') {
                     visualRules[idx].operator = 'equals';
                     visualRules[idx].value = 'highspeed';
@@ -1593,7 +1633,7 @@ function renderResults() {
     if (nextBtn) nextBtn.disabled = (filterState.page >= totalPages);
 
     // Column metadata helper for Raw SQL Table mode
-    const colTypeMap = new Map(TRIP_COLUMNS.map(c => [c.name, c.type]));
+    const colTypeMap = new Map((sqlEngine?.TRIP_COLUMNS || []).map(c => [c.name, c.type]));
     const rawCols = (isRawSqlMode && sqlQueryResult?.columns && sqlQueryResult.columns.length > 0)
         ? sqlQueryResult.columns
         : (isRawSqlMode && pageItems.length > 0 ? Object.keys(pageItems[0]).filter(k => !k.startsWith('_')) : []);
@@ -1716,7 +1756,7 @@ function renderResults() {
             if (emptyResetBtn) {
                 emptyResetBtn.addEventListener('click', () => {
                     if (isStudio) {
-                        const defaultSql = QUERY_RECIPES[0].sql;
+                        const defaultSql = sqlEngine?.QUERY_RECIPES?.[0]?.sql || 'SELECT * FROM trips';
                         const input = document.getElementById('sqlQueryInput');
                         if (input) input.value = defaultSql;
                         runSqlQuery(defaultSql);
@@ -1939,7 +1979,7 @@ function renderResults() {
             if (emptyCardsResetBtn) {
                 emptyCardsResetBtn.addEventListener('click', () => {
                     if (isStudio) {
-                        const defaultSql = QUERY_RECIPES[0].sql;
+                        const defaultSql = sqlEngine?.QUERY_RECIPES?.[0]?.sql || 'SELECT * FROM trips';
                         const input = document.getElementById('sqlQueryInput');
                         if (input) input.value = defaultSql;
                         runSqlQuery(defaultSql);
@@ -2119,66 +2159,74 @@ function renderResults() {
  */
 export function openTripDetailModal(trip) {
     const modal = document.getElementById('tripDetailModal');
-    if (!modal) return;
+    if (!modal || !trip) return;
 
-    const train = trip.train || trip.checkin || {};
-    const cat = normalizeCategory(train.category || 'regional');
-    const lineName = train.lineName || train.number || train.name || 'Train';
-    const origin = train.origin?.name || '—';
-    const dest = train.destination?.name || '—';
-    const operator = train.operator?.name || train.operator?.identifier || train.provider?.name || train.provider || '—';
+    const details = extractTripDetails(trip, activeSession?.username);
+    if (!details) return;
 
-    const originPlanned = train.origin?.departurePlanned ? formatTime(train.origin.departurePlanned) : '—';
-    const originReal = train.origin?.departureReal ? formatTime(train.origin.departureReal) : originPlanned;
-    const destPlanned = train.destination?.arrivalPlanned ? formatTime(train.destination.arrivalPlanned) : '—';
-    const destReal = train.destination?.arrivalReal ? formatTime(train.destination.arrivalReal) : destPlanned;
+    const {
+        statusId,
+        category,
+        lineName,
+        origin,
+        destination: dest,
+        operator,
+        plannedDeparture,
+        actualDeparture,
+        plannedArrival,
+        actualArrival,
+        platform: originPlatform,
+        destPlatform,
+        distanceKm,
+        durationMin,
+        durationDisplay: durStr,
+        arrivalDelay,
+        seat,
+        wagon,
+        ticketName: ticket,
+        buddies,
+        bodyText
+    } = details;
 
-    const originPlatform = train.origin?.departurePlatformReal || train.origin?.platform || '—';
-    const destPlatform = train.destination?.arrivalPlatformReal || train.destination?.platform || '—';
+    const originPlanned = formatTimeShort(plannedDeparture);
+    const originReal = actualDeparture ? formatTimeShort(actualDeparture) : originPlanned;
+    const destPlanned = formatTimeShort(plannedArrival);
+    const destReal = actualArrival ? formatTimeShort(actualArrival) : destPlanned;
 
-    const rawDist = typeof train.totalDistance === 'number' ? train.totalDistance : (train.distance || 0);
-    const distKm = Math.round(rawDist / 1000);
-    const durationMin = computeTripDurationMinutes(train);
-    const durStr = durationMin > 0 ? formatHumanDuration(durationMin) : '—';
+    const distKm = Math.round(distanceKm);
     const speedStr = formatSpeed(distKm, durationMin);
 
-    const delays = deriveDelaySeconds(train);
-    const arrDelaySec = delays.arrival !== null ? delays.arrival : 0;
+    const arrDelaySec = (arrivalDelay !== null && arrivalDelay !== undefined) ? arrivalDelay : 0;
     const arrDelayMin = Math.round(arrDelaySec / 60);
     const delayFormatted = arrDelayMin > 0 ? `+${arrDelayMin} min late` : (arrDelayMin < 0 ? `${Math.abs(arrDelayMin)} min early` : 'Punctual (On-time)');
-
-    const seat = trip.properties?.seat || train.seat?.number || train.seat || '—';
-    const wagon = trip.properties?.wagon || train.seat?.wagon || train.wagon || '—';
-    const ticket = trip.properties?.ticket?.name || trip.properties?.ticket || train.ticket?.name || train.ticket || '—';
 
     // Store active modal trip for export actions
     currentModalTrip = trip;
 
     // Modal elements
     document.getElementById('modalLineBadge').textContent = lineName;
-    document.getElementById('modalLineBadge').className = `line-badge ${cat}`;
+    document.getElementById('modalLineBadge').className = `line-badge ${category}`;
     document.getElementById('modalTripTitle').textContent = `${origin} → ${dest}`;
 
     document.getElementById('modalOrigin').textContent = origin;
     document.getElementById('modalDepartureTime').textContent = `Sched: ${originPlanned} · Actual: ${originReal}`;
-    document.getElementById('modalOriginPlatform').textContent = `Platform ${originPlatform}`;
+    document.getElementById('modalOriginPlatform').textContent = `Platform ${originPlatform || '—'}`;
 
     document.getElementById('modalDest').textContent = dest;
     document.getElementById('modalArrivalTime').textContent = `Sched: ${destPlanned} · Actual: ${destReal}`;
-    document.getElementById('modalDestPlatform').textContent = `Platform ${destPlatform}`;
+    document.getElementById('modalDestPlatform').textContent = `Platform ${destPlatform || '—'}`;
 
     document.getElementById('modalDistance').textContent = `${distKm} km${speedStr !== '—' ? ` (Avg: ${speedStr})` : ''}`;
     document.getElementById('modalDuration').textContent = durStr;
     document.getElementById('modalDelay').textContent = delayFormatted;
     document.getElementById('modalOperator').textContent = operator;
-    document.getElementById('modalSeat').textContent = `Wagon ${wagon}, Seat ${seat}`;
-    document.getElementById('modalTicket').textContent = String(ticket);
+    document.getElementById('modalSeat').textContent = `Wagon ${wagon || '—'}, Seat ${seat || '—'}`;
+    document.getElementById('modalTicket').textContent = String(ticket || '—');
 
     // Buddies
     const buddiesSec = document.getElementById('modalBuddiesSection');
     const buddiesList = document.getElementById('modalBuddiesList');
-    const buddies = getTripBuddies(trip, activeSession?.username);
-    if (buddies.length > 0) {
+    if (buddies && buddies.length > 0) {
         buddiesSec.style.display = 'block';
         buddiesList.innerHTML = buddies.map(b => {
             return `<a href="https://traewelling.de/profile/${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 4px 10px; font-size: 12px;" title="Open @${escapeHtml(b.username)} profile on Träwelling">
@@ -2193,30 +2241,30 @@ export function openTripDetailModal(trip) {
     // Notes
     const notesSec = document.getElementById('modalNotesSection');
     const notesText = document.getElementById('modalNotesText');
-    const body = trip.body || trip.properties?.body;
-    if (body && body.trim()) {
+    if (bodyText) {
         notesSec.style.display = 'block';
-        notesText.innerHTML = renderLinkedComment(body.trim());
+        notesText.innerHTML = renderLinkedComment(bodyText);
     } else {
         notesSec.style.display = 'none';
     }
 
+    const tripId = statusId || trip.id;
     // Traewelling Status Link
     const traewellingLink = document.getElementById('modalTraewellingLink');
     if (traewellingLink) {
-        traewellingLink.href = `https://traewelling.de/status/${trip.id}`;
+        traewellingLink.href = `https://traewelling.de/status/${tripId}`;
     }
 
     // Animation Studio Deep-Link (Alpha)
     const animLink = document.getElementById('modalAnimLink');
     if (animLink) {
-        animLink.href = `animation.html?trip=${trip.id}&user=${encodeURIComponent(activeSession?.username || '')}`;
+        animLink.href = `animation.html?trip=${tripId}&user=${encodeURIComponent(activeSession?.username || '')}`;
     }
 
     // Map Deep-Link
     const mapLink = document.getElementById('modalMapLink');
     if (mapLink) {
-        mapLink.href = `index.html?user=${encodeURIComponent(activeSession?.username || '')}&trip=${trip.id}`;
+        mapLink.href = `index.html?user=${encodeURIComponent(activeSession?.username || '')}&trip=${tripId}`;
     }
 
     modal.showModal();
