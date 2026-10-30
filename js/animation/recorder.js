@@ -1,8 +1,11 @@
 /**
  * In-Browser WebM Video Recorder
+ * Generates spec-compliant, seekable WebM video clips from HTML5 Canvas
  */
 
-import { preloadTripTiles, preloadSceneTiles, buildAllTripsScene } from './composition.js';
+import { preloadTripTiles, preloadSceneTiles } from './tiles.js';
+import { buildAllTripsScene } from './geometry.js';
+import { fixWebMBlob } from './webmFixer.js';
 
 export class VideoClipRecorder {
     constructor(playerRef, totalFrames = 240) {
@@ -48,7 +51,7 @@ export class VideoClipRecorder {
 
         this.playerRef.pause();
         this.playerRef.seekTo(0);
-        await new Promise(r => setTimeout(r, 120));
+        await new Promise(r => setTimeout(r, 150));
 
         const stream = canvas.captureStream(30);
 
@@ -80,18 +83,36 @@ export class VideoClipRecorder {
         };
 
         const totalFrames = this.totalFrames;
+        const targetDurationMs = Math.round((totalFrames / 30) * 1000);
+
         const recordingPromise = new Promise((resolve, reject) => {
-            this.mediaRecorder.onstop = () => {
-                const blob = new Blob(this.chunks, { type: mimeType });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = finalFilename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                setTimeout(() => URL.revokeObjectURL(url), 10000);
-                resolve({ blob, filename: finalFilename, mimeType });
+            this.mediaRecorder.onstop = async () => {
+                try {
+                    onProgress(94, 'Finalizing WebM container & seek index…');
+                    const rawBlob = new Blob(this.chunks, { type: mimeType });
+
+                    // Re-mux EBML container to inject Duration, Cues, SeekHead, and defined Segment size
+                    let finalBlob = rawBlob;
+                    try {
+                        finalBlob = await fixWebMBlob(rawBlob, { durationMs: targetDurationMs, fps: 30 });
+                    } catch (remuxErr) {
+                        console.warn('WebM spec metadata remux fallback:', remuxErr);
+                    }
+
+                    const url = URL.createObjectURL(finalBlob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = finalFilename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+                    onProgress(100, 'Video ready!');
+                    resolve({ blob: finalBlob, filename: finalFilename, mimeType, durationMs: targetDurationMs });
+                } catch (err) {
+                    reject(err);
+                }
             };
             this.mediaRecorder.onerror = reject;
         });
@@ -102,12 +123,19 @@ export class VideoClipRecorder {
 
         let lastFrame = 0;
         let hasProgressed = false;
-        const maxDurationMs = Math.ceil((totalFrames / 30) * 1000) + 2500;
+        let stopping = false;
+        const maxDurationMs = Math.ceil((totalFrames / 30) * 1000) + 3500;
         const startTime = Date.now();
 
-        const stopRecording = () => {
+        const stopRecording = async () => {
+            if (stopping) return;
+            stopping = true;
             clearInterval(checkEnd);
             this.playerRef.pause();
+            // Guarantee final frame is drawn and held
+            this.playerRef.seekTo(totalFrames - 1);
+            // Allow settling delay to flush final frame into MediaRecorder
+            await new Promise(r => setTimeout(r, 200));
             if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
                 this.mediaRecorder.stop();
             }
@@ -116,20 +144,24 @@ export class VideoClipRecorder {
 
         const checkEnd = setInterval(() => {
             const currentFrame = this.playerRef.getCurrentFrame();
-            if (currentFrame > 20) {
+            if (currentFrame > 15) {
                 hasProgressed = true;
             }
             const wrappedAround = hasProgressed && currentFrame < lastFrame;
+            const reachedEnd = currentFrame >= totalFrames - 1;
             const timedOut = Date.now() - startTime > maxDurationMs;
             lastFrame = currentFrame;
 
-            const pct = wrappedAround ? 100 : 10 + Math.min(90, Math.round((currentFrame / totalFrames) * 90));
+            const pct = (reachedEnd || wrappedAround)
+                ? 92
+                : 10 + Math.min(82, Math.round((currentFrame / totalFrames) * 82));
+
             onProgress(pct, `Recording (${Math.min(100, Math.round((currentFrame / totalFrames) * 100))}%)…`);
 
-            if (currentFrame >= totalFrames - 2 || wrappedAround || timedOut) {
+            if (reachedEnd || wrappedAround || timedOut) {
                 stopRecording();
             }
-        }, 45);
+        }, 20);
 
         return recordingPromise;
     }
