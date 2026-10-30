@@ -399,9 +399,13 @@ export function setupMapInteractions() {
         if (!candidateFeatures.length) return;
 
         const initialFeature = pickClosestFeature(candidateFeatures, e.lngLat, e.point) || candidateFeatures[0];
+        const snapped = snapLngLatToLine(e.lngLat, initialFeature);
+        const anchor = snapped || e.lngLat;
         const initialId = String(initialFeature?.properties?.statusId ?? initialFeature?.id ?? '');
 
-        // Stacking corridor: group all routes lying within the visual click tolerance on screen
+        // Stacking corridor: match rides along the actual transit line based on geographic proximity
+        // to this transit line anchor (within sensible proximity: 80 meters)
+        const MAX_LINE_STACK_DISTANCE_KM = 0.080; // 80 meters actual proximity along line
         const layerOrder = Array.isArray(state?.layers?.order) ? state.layers.order : [];
         const tightStack = [initialFeature];
         const seenStackIds = new Set();
@@ -412,25 +416,20 @@ export function setupMapInteractions() {
             const sid = String(feat.properties?.statusId ?? feat.id ?? '');
             if (sid && seenStackIds.has(sid)) continue;
 
-            const dist = measureFeatureDistance(feat, e.lngLat, e.point);
-            // Visual corridor tolerance in screen pixels (or fallback km threshold if project() is unavailable)
-            const isUnderCursor = (state.map?.project && Number.isFinite(dist))
-                ? dist <= tolerance
-                : dist <= 0.05;
-
-            if (isUnderCursor) {
+            const distKm = measureFeatureDistance(feat, anchor, null);
+            if (distKm <= MAX_LINE_STACK_DISTANCE_KM) {
                 const rawLayerId = (feat.layer?.id || feat.properties?.category || feat.properties?.layerId || '').toString();
                 const layerId = rawLayerId.replace('-approximated', '');
                 const rankIndex = layerOrder.indexOf(layerId);
                 const rank = rankIndex !== -1 ? rankIndex : 999;
-                otherCandidates.push({ feat, dist, rank, sid });
+                otherCandidates.push({ feat, distKm, rank, sid });
             }
         }
 
-        // Sort stacked candidates: 1) Topmost visible layer, 2) Closest distance to click
+        // Sort stacked candidates: 1) Topmost visible layer, 2) Proximity to line anchor
         otherCandidates.sort((a, b) => {
             if (a.rank !== b.rank) return a.rank - b.rank;
-            return a.dist - b.dist;
+            return a.distKm - b.distKm;
         });
 
         for (const item of otherCandidates) {
@@ -438,8 +437,6 @@ export function setupMapInteractions() {
             tightStack.push(item.feat);
         }
 
-        const snapped = snapLngLatToLine(e.lngLat, initialFeature);
-        const anchor = snapped || e.lngLat;
         const featureStack = tightStack.length > 1 ? tightStack : null;
         showPopup(anchor, initialFeature, { stack: featureStack, stackIndex: 0 });
     };
@@ -853,13 +850,12 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
 
     const html = buildFeaturePopupHtml(feature, stackIndex);
 
-    // Anchor stacked popups at the top so the top navigation bar (◀ / ▶) stays pinned
-    // at the exact same screen coordinate while the bottom of the popup resizes freely without a scrollbar.
+    // Dynamic popup positioning: Allow both stacked and unstacked popups to open dynamically
+    // above, below, or to either side based on available map viewport space.
     const popupOptions = {
         className: 'route-popup',
         closeButton: true,
-        closeOnClick: true,
-        ...(isStacked ? { anchor: 'top' } : {})
+        closeOnClick: true
     };
 
     state.currentPopup = new mapboxgl.Popup(popupOptions)
@@ -884,7 +880,9 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
                 const targetFeature = stack[targetIdx];
                 // Keep route highlight preserved across cycling transitions without canvas flickers
                 state.preserveHighlightOnPopupClose = true;
-                showPopup(lngLat, targetFeature, {
+                // Dynamically snap anchor to the active ride's line geometry
+                const nextAnchor = snapLngLatToLine(lngLat, targetFeature) || lngLat;
+                showPopup(nextAnchor, targetFeature, {
                     stack,
                     stackIndex: targetIdx
                 });

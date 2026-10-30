@@ -100,16 +100,14 @@ export function focusTripOnMap(trip, retryCount = 0) {
         duration: 800
     });
 
-    // 5. Detect stacked check-ins using visual corridor matching handleMapTap
+    // 5. Detect stacked check-ins using geographic proximity along the transit line (within 80 meters)
+    const MAX_LINE_STACK_DISTANCE_KM = 0.080; // 80 meters
     const tightStack = [targetFeature];
     const seenIds = new Set();
     const initialId = targetFeature.properties?.statusId || targetFeature.id;
     if (initialId !== undefined && initialId !== null) seenIds.add(String(initialId));
 
     const anchorLngLat = { lng: anchor[0], lat: anchor[1] };
-    const clickPoint = state.map?.project ? state.map.project(anchor) : null;
-    const currentZoom = state.map?.getZoom?.() ?? 8.5;
-    const tolerance = getTapTolerancePx(currentZoom);
 
     if (state.layers?.data) {
         for (const [, layerObj] of state.layers.data.entries()) {
@@ -117,11 +115,8 @@ export function focusTripOnMap(trip, retryCount = 0) {
             for (const feat of features) {
                 const sid = feat.properties?.statusId || feat.id;
                 if (sid !== undefined && sid !== null && seenIds.has(String(sid))) continue;
-                const dist = measureFeatureDistance(feat, anchorLngLat, clickPoint);
-                const isUnderAnchor = (clickPoint && Number.isFinite(dist))
-                    ? dist <= tolerance
-                    : dist <= 0.05;
-                if (isUnderAnchor) {
+                const distKm = measureFeatureDistance(feat, anchorLngLat, null);
+                if (distKm <= MAX_LINE_STACK_DISTANCE_KM) {
                     if (sid !== undefined && sid !== null) seenIds.add(String(sid));
                     tightStack.push(feat);
                 }

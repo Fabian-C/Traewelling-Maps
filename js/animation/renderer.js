@@ -460,12 +460,12 @@ export function renderTripFrame({
     const finaleBlend = smootherstep(148, 212, frame);
     const overviewBlend = Math.max(introOverviewBlend, finaleBlend);
 
+    const camZoom = scene.fitScale * computeCameraZoomMultiplier(frame);
+
     const vehiclePose = samplePointAlongRoute(scene, travelProgress);
-    const smoothChaseTarget = sampleSmoothedCameraTarget(scene, travelProgress);
+    const smoothChaseTarget = sampleSmoothedCameraTarget({ ...scene, camZoom }, travelProgress);
     const camTargetX = smoothChaseTarget.x + (scene.centerSceneX - smoothChaseTarget.x) * overviewBlend;
     const camTargetY = smoothChaseTarget.y + (scene.centerSceneY - smoothChaseTarget.y) * overviewBlend;
-
-    const camZoom = scene.fitScale * computeCameraZoomMultiplier(frame);
 
     const currentDistKm = (totalDistanceKm * travelProgress).toFixed(1);
     const viewCenterY = height / 2 + 42;
@@ -851,20 +851,6 @@ export function renderAllTripsFrame({
     const originName = checkin.origin?.name || checkin.origin?.station?.name || activeTrip.origin || 'Origin';
     const destName = checkin.destination?.name || checkin.destination?.station?.name || activeTrip.destination || 'Destination';
 
-    const activeRideScene = {
-        points: activeRide.points,
-        cumDist: activeRide.cumDist,
-        totalPathPx: activeRide.totalPathPx,
-        centerSceneX: activeRide.rideCenterX,
-        centerSceneY: activeRide.rideCenterY
-    };
-
-    const vehiclePose = samplePointAlongRoute(activeRideScene, rideProgress);
-    const currChaseTarget = sampleSmoothedCameraTarget(activeRideScene, rideProgress);
-
-    let camTargetX = currChaseTarget.x;
-    let camTargetY = currChaseTarget.y;
-
     // Continuous creeping zoom: smoothly ease from activeRide.startZoom toward activeRide.endZoom across this ride
     const rideProgressT = Math.max(0, Math.min(1, localFrame / rideDuration));
     const zStart = typeof activeRide.startZoom === 'number' ? activeRide.startZoom : (activeRide.rideZoom || allScene.fitScale);
@@ -872,6 +858,22 @@ export function renderAllTripsFrame({
     const logZStart = Math.log(Math.max(0.1, zStart));
     const logZEnd = Math.log(Math.max(0.1, zEnd));
     let camZoom = Math.exp(logZStart + (logZEnd - logZStart) * smootherstep(0, 1, rideProgressT));
+
+    const activeRideScene = {
+        points: activeRide.points,
+        cumDist: activeRide.cumDist,
+        totalPathPx: activeRide.totalPathPx,
+        centerSceneX: activeRide.rideCenterX,
+        centerSceneY: activeRide.rideCenterY,
+        fitScale: camZoom,
+        camZoom
+    };
+
+    const vehiclePose = samplePointAlongRoute(activeRideScene, rideProgress);
+    const currChaseTarget = sampleSmoothedCameraTarget(activeRideScene, rideProgress);
+
+    let camTargetX = currChaseTarget.x;
+    let camTargetY = currChaseTarget.y;
 
     // Smooth camera handoff from previous ride so there is never an abrupt jump between rides
     if (activeIdx > 0 && !isFinale) {
@@ -881,7 +883,9 @@ export function renderAllTripsFrame({
             cumDist: prevRide.cumDist,
             totalPathPx: prevRide.totalPathPx,
             centerSceneX: prevRide.rideCenterX,
-            centerSceneY: prevRide.rideCenterY
+            centerSceneY: prevRide.rideCenterY,
+            fitScale: zStart,
+            camZoom: zStart
         };
         const prevEndTarget = sampleSmoothedCameraTarget(prevRideScene, 1);
         const handoffDuration = Math.min(rideDuration * 0.70, Math.max(12, 40 * 0.40));

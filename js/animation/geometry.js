@@ -428,15 +428,17 @@ export function samplePointAlongRoute(scene, progress) {
  * to eliminate high-frequency GPS track giggle without introducing hard jitter.
  */
 export function sampleSmoothedCameraTarget(scene, progress) {
-    const { points, cumDist, totalPathPx, centerSceneX, centerSceneY, fitScale = 1.0 } = scene;
+    const { points, cumDist, totalPathPx, centerSceneX, centerSceneY, fitScale = 1.0, camZoom } = scene;
     if (!points || !points.length) return { x: centerSceneX || 0, y: centerSceneY || 0 };
+
+    const effectiveZoom = Math.max(0.01, camZoom || fitScale || 1.0);
 
     const clampedProg = Math.max(0, Math.min(1, progress));
     const targetDist = clampedProg * totalPathPx;
     const vehiclePt = getXYAtDistance(points, cumDist, targetDist);
 
-    // Continuous 5-point Gaussian filter window along track
-    const filterSpan = Math.min(80, Math.max(12, totalPathPx * 0.04));
+    // Continuous 5-point Gaussian filter window along track, calibrated in screen space (8-64px)
+    const filterSpan = Math.min(64 / effectiveZoom, Math.max(8 / effectiveZoom, totalPathPx * 0.04));
     const pMinus1 = getXYAtDistance(points, cumDist, Math.max(0, targetDist - filterSpan));
     const pMinusHalf = getXYAtDistance(points, cumDist, Math.max(0, targetDist - filterSpan * 0.5));
     const pPlusHalf = getXYAtDistance(points, cumDist, Math.min(totalPathPx, targetDist + filterSpan * 0.5));
@@ -449,9 +451,8 @@ export function sampleSmoothedCameraTarget(scene, progress) {
     const dy = rawSmoothY - vehiclePt.y;
     const driftDist = Math.hypot(dx, dy);
 
-    // Soft-saturation clamp: allows subtle natural drift up to ~10% off-center,
-    // using smooth C-infinity tanh curve so hard velocity kinks/jitter are mathematically impossible.
-    const maxDrift = Math.min(48 / Math.max(0.01, fitScale), Math.max(8, totalPathPx * 0.08));
+    // Soft-saturation clamp in screen pixels: max drift is 48px on screen (5% of 960px screen width)
+    const maxDrift = Math.min(48 / effectiveZoom, Math.max(8 / effectiveZoom, totalPathPx * 0.08));
 
     if (driftDist > 0.0001) {
         const softDist = maxDrift * Math.tanh(driftDist / maxDrift);
