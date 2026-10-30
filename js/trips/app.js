@@ -96,6 +96,17 @@ export async function initTripExplorer() {
         } catch (e) {
             console.warn('Failed to load active session from SessionDB:', e);
         }
+        if (!activeSession || !activeSession.trips?.length) {
+            try {
+                const fullList = await SessionDB.getAll();
+                activeSession = fullList.find(s => s.username?.toLowerCase() === targetUser.toLowerCase()) || null;
+                if (!activeSession && !requestedUser && fullList.length > 0) {
+                    activeSession = fullList[0];
+                }
+            } catch (e) {
+                console.warn('Failed to load fallback sessions from SessionDB:', e);
+            }
+        }
         if (!activeSession && allSessions.length > 0) {
             activeSession = allSessions.find(s => s.username?.toLowerCase() === targetUser.toLowerCase()) || null;
         }
@@ -283,6 +294,12 @@ function setupEventListeners() {
             try {
                 session = await SessionDB.get(user);
             } catch (err) {}
+            if (!session || !session.trips?.length) {
+                try {
+                    const fullList = await SessionDB.getAll();
+                    session = fullList.find(s => s.username?.toLowerCase() === user) || null;
+                } catch (err) {}
+            }
             if (!session) {
                 session = allSessions.find(s => s.username?.toLowerCase() === user);
             }

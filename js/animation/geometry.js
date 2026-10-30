@@ -560,14 +560,13 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
     const usableH = (viewportHeight - 184) * 0.60;
     const usableMin = Math.min(usableW, usableH);
 
-    // In multi-trip mode, maximum city zoom is kept bounded (~10-12x max instead of legacy 96x)
-    // so local city routes stay at a clear metropolitan scale and do not over-zoom into microscopic street level,
-    // avoiding massive, jarring zoom drops when transitioning to/from regional or ICE corridors.
+    // In multi-trip mode, allow deep city zoom (up to 96x) so city transit lines,
+    // stations, and streets are crisply visible.
     const maxAllowedCityZoom = Math.min(
-        12.0,
-        Math.max(baseScene.fitScale * 3.8, Math.pow(2, Math.max(2.0, 11.2 - baseScene.z)))
+        96.0,
+        Math.max(baseScene.fitScale * 3.8, Math.pow(2, Math.max(2.0, 13.8 - baseScene.z)))
     );
-    const minSpanBasePx = Math.max(20, usableMin / maxAllowedCityZoom);
+    const minSpanBasePx = Math.max(6, 160 * Math.pow(2, baseScene.z - 13.5));
 
     // Step 1: Pre-calculate ride geometries, bounds, and natural ideal zoom
     const rideInfos = rawRides.map(({ trip, coords, distanceKm }) => {
@@ -653,8 +652,16 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
     });
 
     const smoothedZooms = rawZooms.map((z, idx) => {
-        const prev = idx > 0 ? rawZooms[idx - 1] : z;
-        const next = idx < rawZooms.length - 1 ? rawZooms[idx + 1] : z;
+        let prev = idx > 0 ? rawZooms[idx - 1] : z;
+        let next = idx < rawZooms.length - 1 ? rawZooms[idx + 1] : z;
+
+        // Prevent large inter-modal scale differences (e.g. 500km ICE vs 2km city tram)
+        // from artificially dragging down the city ride's target zoom or pulling up the ICE:
+        // Clamping neighbor influence to a factor of 1.25 preserves full deep zoom for city rides
+        // and wide overview zoom for long-distance trains while still eliminating jitter between consecutive similar rides.
+        prev = Math.max(z / 1.25, Math.min(z * 1.25, prev));
+        next = Math.max(z / 1.25, Math.min(z * 1.25, next));
+
         const logZ = 0.25 * Math.log(prev) + 0.50 * Math.log(z) + 0.25 * Math.log(next);
         return Math.exp(logZ);
     });

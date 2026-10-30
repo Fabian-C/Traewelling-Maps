@@ -857,7 +857,16 @@ export function renderAllTripsFrame({
     const zEnd = typeof activeRide.endZoom === 'number' ? activeRide.endZoom : (activeRide.rideZoom || allScene.fitScale);
     const logZStart = Math.log(Math.max(0.1, zStart));
     const logZEnd = Math.log(Math.max(0.1, zEnd));
-    let camZoom = Math.exp(logZStart + (logZEnd - logZStart) * smootherstep(0, 1, rideProgressT));
+
+    let zoomT;
+    if (zEnd > zStart * 1.35) {
+        // Front-load zoom-in when arriving from a long-distance / regional train into a city ride:
+        // By 50% of the city ride, reach full deep zoom so the rider can experience the city streets
+        zoomT = smootherstep(0, 1, Math.min(1, rideProgressT / 0.50));
+    } else {
+        zoomT = smootherstep(0, 1, rideProgressT);
+    }
+    let camZoom = Math.exp(logZStart + (logZEnd - logZStart) * zoomT);
 
     const activeRideScene = {
         points: activeRide.points,

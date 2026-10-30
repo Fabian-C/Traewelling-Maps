@@ -169,12 +169,50 @@ export const SessionDB = {
     
     // Get single session
     async get(username) {
+        if (!username) return null;
         const db = await this.open();
         return new Promise((resolve, reject) => {
             const tx = db.transaction([this.STORE_NAME], 'readonly');
-            const req = tx.objectStore(this.STORE_NAME).get(username);
+            const store = tx.objectStore(this.STORE_NAME);
+            const req = store.get(username);
             req.onsuccess = () => {
-                const session = req.result || null;
+                let session = req.result || null;
+                if (!session) {
+                    // IndexedDB keys are exact case-sensitive strings.
+                    // Fall back to scanning all sessions case-insensitively.
+                    const allReq = store.getAll();
+                    allReq.onsuccess = () => {
+                        const all = allReq.result || [];
+                        const target = String(username).toLowerCase();
+                        session = all.find(s => s.username && s.username.toLowerCase() === target) || null;
+                        if (!session) {
+                            // Check synchronous localStorage fallback
+                            const fallbackData = Storage.getJSON(STORAGE_KEYS.SESSIONS_DATA, null);
+                            if (Array.isArray(fallbackData)) {
+                                session = fallbackData.find(s => s.username && s.username.toLowerCase() === target) || null;
+                            }
+                        }
+                        if (session && this.isExpired(session)) {
+                            this.delete(session.username).catch(() => {});
+                            resolve(null);
+                        } else {
+                            resolve(session);
+                        }
+                    };
+                    allReq.onerror = () => {
+                        const fallbackData = Storage.getJSON(STORAGE_KEYS.SESSIONS_DATA, null);
+                        if (Array.isArray(fallbackData)) {
+                            const target = String(username).toLowerCase();
+                            const session = fallbackData.find(s => s.username && s.username.toLowerCase() === target) || null;
+                            if (session && !this.isExpired(session)) {
+                                resolve(session);
+                                return;
+                            }
+                        }
+                        resolve(null);
+                    };
+                    return;
+                }
                 if (session && this.isExpired(session)) {
                     this.delete(username).catch(() => {});
                     resolve(null);
@@ -185,16 +223,21 @@ export const SessionDB = {
             req.onerror = () => reject(req.error);
         });
     },
-    
+
     // Delete a session and all its associated cached routes and stopovers
     async delete(username) {
+        if (!username) return;
         const db = await this.open();
+        let exactUsername = username;
         // First retrieve session to find all trip status IDs for this user
         let tripIds = [];
         try {
             const existingSession = await this.get(username);
-            if (existingSession?.trips && Array.isArray(existingSession.trips)) {
-                tripIds = existingSession.trips.map(t => Number(t.id)).filter(Boolean);
+            if (existingSession) {
+                exactUsername = existingSession.username || username;
+                if (existingSession.trips && Array.isArray(existingSession.trips)) {
+                    tripIds = existingSession.trips.map(t => Number(t.id)).filter(Boolean);
+                }
             }
         } catch (e) {
             console.warn('Could not read existing trips before session delete:', e);
@@ -206,7 +249,10 @@ export const SessionDB = {
             if (db.objectStoreNames.contains(this.STOPOVERS_STORE)) stores.push(this.STOPOVERS_STORE);
 
             const tx = db.transaction(stores, 'readwrite');
-            tx.objectStore(this.STORE_NAME).delete(username);
+            tx.objectStore(this.STORE_NAME).delete(exactUsername);
+            if (exactUsername !== username) {
+                tx.objectStore(this.STORE_NAME).delete(username);
+            }
 
             if (tripIds.length > 0) {
                 if (stores.includes(this.POLYLINES_STORE)) {
@@ -220,7 +266,7 @@ export const SessionDB = {
             }
 
             tx.oncomplete = () => {
-                const existing = this.getStoredMetadata().filter(s => s.username !== username);
+                const existing = this.getStoredMetadata().filter(s => s.username?.toLowerCase() !== username.toLowerCase());
                 Storage.setJSON(this.META_CACHE_KEY, existing);
                 resolve();
             };

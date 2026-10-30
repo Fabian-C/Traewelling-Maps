@@ -295,6 +295,11 @@ describe('Animation Geometry & Camera Smoothing', () => {
         // 3. Long-distance ICE (ride 3) has wide landscape zoom compared to tight city rides
         expect(scene.rides[1].rideZoom).toBeGreaterThan(scene.rides[3].rideZoom * 2);
 
+        // 3b. City ride following long-distance ICE (ride 4) zooms deeply back into city scale
+        expect(scene.rides[4].rideZoom).toBeGreaterThan(scene.fitScale * 10);
+        expect(scene.rides[4].rideZoom).toBeGreaterThan(scene.rides[3].rideZoom * 10);
+        expect(scene.rides[4].endZoom).toBeGreaterThan(50);
+
         // 4. Adaptive timing: long-distance ICE and large zoom transitions receive extra duration frames
         expect(scene.rides[3].durationFrames).toBeGreaterThan(60);
         expect(scene.travelTotalFrames).toBeGreaterThanOrEqual(240);
