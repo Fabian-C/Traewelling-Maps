@@ -556,9 +556,18 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
     );
 
     let runningKm = 0;
-    const minSpanBasePx = 160 * Math.pow(2, baseScene.z - 13.5);
     const usableW = viewportWidth * 0.62;
     const usableH = (viewportHeight - 184) * 0.60;
+    const usableMin = Math.min(usableW, usableH);
+
+    // In multi-trip mode, maximum city zoom is kept bounded (~10-12x max instead of legacy 96x)
+    // so local city routes stay at a clear metropolitan scale and do not over-zoom into microscopic street level,
+    // avoiding massive, jarring zoom drops when transitioning to/from regional or ICE corridors.
+    const maxAllowedCityZoom = Math.min(
+        12.0,
+        Math.max(baseScene.fitScale * 3.8, Math.pow(2, Math.max(2.0, 11.2 - baseScene.z)))
+    );
+    const minSpanBasePx = Math.max(20, usableMin / maxAllowedCityZoom);
 
     // Step 1: Pre-calculate ride geometries, bounds, and natural ideal zoom
     const rideInfos = rawRides.map(({ trip, coords, distanceKm }) => {
@@ -634,10 +643,8 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         };
     });
 
-    // Step 2: Deep city zoom calculation with 3-point temporal smoothing
-    // City rides zoom in deeply so streets, stations, and routes are clearly visible.
-    // Temporal smoothing avoids momentary spikes while maintaining intimate city views.
-    const maxAllowedCityZoom = Math.min(96, Math.pow(2, Math.max(2.0, 13.5 - baseScene.z)));
+    // Step 2: City zoom calculation with 3-point temporal smoothing
+    // Bounded city zoom avoids momentary spikes while maintaining smooth city views.
     const rawZooms = rideInfos.map((info) => {
         return Math.min(
             maxAllowedCityZoom,
