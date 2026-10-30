@@ -1,6 +1,6 @@
 /**
- * In-Browser WebM Video Recorder
- * Generates spec-compliant, seekable WebM video clips from HTML5 Canvas
+ * In-Browser MP4 & WebM Video Recorder
+ * Generates video clips (defaulting to universally compatible MP4 with embedded duration & timeline) from HTML5 Canvas
  */
 
 import { preloadTripTiles, preloadSceneTiles } from './tiles.js';
@@ -16,6 +16,29 @@ export class VideoClipRecorder {
         this.chunks = [];
     }
 
+    /**
+     * Determines optimal supported MIME type, prioritizing MP4 (H.264/AVC1)
+     */
+    static getOptimalMimeType() {
+        if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+            return 'video/mp4';
+        }
+        const mimeCandidates = [
+            'video/mp4;codecs=avc1',
+            'video/mp4;codecs=h264',
+            'video/mp4',
+            'video/webm;codecs=vp9',
+            'video/webm;codecs=vp8',
+            'video/webm'
+        ];
+        for (const candidate of mimeCandidates) {
+            if (MediaRecorder.isTypeSupported(candidate)) {
+                return candidate;
+            }
+        }
+        return 'video/mp4';
+    }
+
     async recordAndDownload({
         trip = null,
         trips = [],
@@ -23,7 +46,7 @@ export class VideoClipRecorder {
         mapStyle = 'traewelling-dark',
         width = 960,
         height = 960,
-        filename = 'traewelling-trip-clip.webm',
+        filename = 'traewelling-trip-clip.mp4',
         onProgress = () => {}
     }) {
         if (!this.playerRef) {
@@ -55,20 +78,11 @@ export class VideoClipRecorder {
 
         const stream = canvas.captureStream(30);
 
-        const mimeCandidates = [
-            'video/webm;codecs=vp9',
-            'video/webm;codecs=vp8',
-            'video/webm'
-        ];
-        let mimeType = 'video/webm';
-        for (const candidate of mimeCandidates) {
-            if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(candidate)) {
-                mimeType = candidate;
-                break;
-            }
-        }
-
-        const finalFilename = filename.replace(/\.(webm|mp4)$/i, '') + '.webm';
+        const mimeType = VideoClipRecorder.getOptimalMimeType();
+        const isMp4 = mimeType.startsWith('video/mp4');
+        const targetExt = isMp4 ? '.mp4' : '.webm';
+        const baseName = filename.replace(/\.(webm|mp4)$/i, '');
+        const finalFilename = `${baseName}${targetExt}`;
 
         this.chunks = [];
         this.mediaRecorder = new MediaRecorder(stream, {
@@ -88,15 +102,17 @@ export class VideoClipRecorder {
         const recordingPromise = new Promise((resolve, reject) => {
             this.mediaRecorder.onstop = async () => {
                 try {
-                    onProgress(94, 'Finalizing WebM container & seek index…');
+                    onProgress(94, isMp4 ? 'Finalizing MP4 video container…' : 'Finalizing WebM container & seek index…');
                     const rawBlob = new Blob(this.chunks, { type: mimeType });
 
-                    // Re-mux EBML container to inject Duration, Cues, SeekHead, and defined Segment size
                     let finalBlob = rawBlob;
-                    try {
-                        finalBlob = await fixWebMBlob(rawBlob, { durationMs: targetDurationMs, fps: 30 });
-                    } catch (remuxErr) {
-                        console.warn('WebM spec metadata remux fallback:', remuxErr);
+                    if (!isMp4) {
+                        // Re-mux EBML container for WebM fallback to inject Duration, Cues, SeekHead, and defined Segment size
+                        try {
+                            finalBlob = await fixWebMBlob(rawBlob, { durationMs: targetDurationMs, fps: 30 });
+                        } catch (remuxErr) {
+                            console.warn('WebM spec metadata remux fallback:', remuxErr);
+                        }
                     }
 
                     const url = URL.createObjectURL(finalBlob);

@@ -166,10 +166,11 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             state.queriedUserProfile = await fetchUserProfile(username, token);
             
             if (state.queriedUserProfile) {
+                const initialCount = (incremental && cachedTrips) ? cachedTrips.length : 0;
                 UI.updateDatasetSummary(
                     state.queriedUserProfile.displayName,
                     state.queriedUserProfile.username,
-                    0,
+                    initialCount,
                     state.queriedUserProfile.avatar
                 );
             }
@@ -218,6 +219,11 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                         }
                         console.log(`Found cached trip (ID: ${res.data[foundIdx].id}) at index ${foundIdx} on page ${page}, stopping incremental fetch`);
                         hasMore = false;
+                        const totalDisplayTrips = (incremental && cachedTrips ? cachedTrips.length : 0) + allStatuses.length;
+                        UI.updateFetchStats({ trips: totalDisplayTrips, pages: page, progress: 35 });
+                        if (allStatuses.length > 0) {
+                            FunFacts.showFactsFromTrips(allStatuses, Math.min(2, allStatuses.length));
+                        }
                         break;
                     }
                 }
@@ -270,12 +276,16 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 pagesInContainerBatch = 0;
             }
 
+            const finalDisplayTrips = (incremental && cachedTrips ? cachedTrips.length : 0) + allStatuses.length;
+            UI.updateFetchStats({ trips: finalDisplayTrips, pages: page, progress: 45 });
+
             if (state.fetchProgress) {
                 state.fetchProgress.pagesFetchComplete = true;
                 state.fetchProgress.containersDelivered = containerIndex;
             }
         } else {
-            UI.updateFetchStats({ trips: allStatuses.length, pages: page - 1, progress: 45 });
+            const finalDisplayTrips = (incremental && cachedTrips ? cachedTrips.length : 0) + allStatuses.length;
+            UI.updateFetchStats({ trips: finalDisplayTrips, pages: Math.max(1, page - 1), progress: 45 });
         }
 
         if (state.cancelFetch) return showFetchError('Cancelled', false);
@@ -286,17 +296,17 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 state.fetchedTrips = cachedTrips;
                 state.activeTrips = state.fetchedTrips;
                 saveCurrentSession(true);
-                UI.updateFetchStats({ status: 'Train departing terminal...', progress: 92 });
+                UI.ensureTrain(1);
+                UI.updateFetchStats({ status: 'Already up to date! Consist departing...', progress: 92 });
                 if (UI.refs.cargoStage) {
                     UI.refs.cargoStage.textContent = 'Consist departing terminal...';
                     UI.refs.cargoStage.classList.add('visible');
                 }
-                const departPromise = UI.departTrain(state.fetchedTrips);
-                UI.updateFetchStats({ status: 'Already up to date!', progress: 96 });
+                const departPromise = UI.departTrain(state.fetchedTrips, { isFinal: false });
                 await processAndDisplayData(state.fetchedTrips, { hideFetchUI: false });
                 await departPromise;
                 UI.updateFetchStats({ status: 'Ready!', progress: 100 });
-                await new Promise(r => setTimeout(r, 200));
+                await new Promise(r => setTimeout(r, 600));
                 UI.toggleFetch(false);
                 UI.refs.menu.style.display = 'block';
                 const panel = document.getElementById('statsPanel');
@@ -381,59 +391,65 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             nextBatchPrefetchPromise = api.getPolylines(getBatchIds(startIndex));
         }
         
-        for (let i = startIndex; i < tripsToFetch.length && !state.cancelFetch; i += batchSize) {
-            const batch = tripsToFetch.slice(i, i + Math.min(batchSize, tripsToFetch.length - i));
-            
-            UI.updateFetchStats({ status: `Fetching polylines: batch ${Math.floor(i/batchSize)+1}/${Math.ceil(tripsToFetch.length/batchSize)}` });
-            
-            // Await currently prefetched batch
-            const polylinesData = nextBatchPrefetchPromise ? await nextBatchPrefetchPromise : await api.getPolylines(batch.map(s => s.id));
-            
-            // Immediately kick off prefetch for next batch (i + batchSize) in background
-            const nextIdx = i + batchSize;
-            if (nextIdx < tripsToFetch.length && !state.cancelFetch) {
-                nextBatchPrefetchPromise = api.getPolylines(getBatchIds(nextIdx));
-            } else {
-                nextBatchPrefetchPromise = null;
-            }
-
-            const newlyFetched = {};
-            
-            if (polylinesData?.data?.features) {
-                polylinesData.data.features.forEach(feature => {
-                    const statusId = feature?.properties?.statusId;
-                    if (statusId) {
-                        const status = statusMap.get(statusId);
-                        if (status) {
-                            dataProcessing.normalizeTripStatus(status);
-                            if (status.train) status.train.polyline = feature;
-                            if (status.checkin) status.checkin.polyline = feature;
-                            newlyFetched[statusId] = feature;
-                            polylineCount++;
-                        }
-                    }
-                });
-            }
-
-            if (Object.keys(newlyFetched).length > 0) {
-                SessionDB.savePolylinesBatch(newlyFetched).catch(() => {});
-            }
-            
-            const polyPct = tripsToFetch.length > 0 ? ((i + batch.length) / tripsToFetch.length) : 1;
-            const overallProgress = 46 + Math.round(polyPct * 26); // 46% -> 72%
-            UI.updateFetchStats({ routes: polylineCount, progress: overallProgress });
+        if (tripsToFetch.length === 0 && allStatuses.length > 0) {
+            UI.updateFetchStats({ routes: polylineCount, progress: 72 });
             UI.onPolylineBatchComplete();
-            // Train loading animation proceeds seamlessly while next batch is already traveling across network
             await UI.waitForTrainCatchUp(() => state.cancelFetch);
-            if (state.cancelFetch) break;
-            
-            state.fetchProgress = {
-                page: page,
-                pagesFetchComplete: true,
-                allStatuses: allStatuses,
-                polylineCount: polylineCount,
-                processedPolylines: i + batch.length
-            };
+        } else {
+            for (let i = startIndex; i < tripsToFetch.length && !state.cancelFetch; i += batchSize) {
+                const batch = tripsToFetch.slice(i, i + Math.min(batchSize, tripsToFetch.length - i));
+                
+                UI.updateFetchStats({ status: `Fetching polylines: batch ${Math.floor(i/batchSize)+1}/${Math.ceil(tripsToFetch.length/batchSize)}` });
+                
+                // Await currently prefetched batch
+                const polylinesData = nextBatchPrefetchPromise ? await nextBatchPrefetchPromise : await api.getPolylines(batch.map(s => s.id));
+                
+                // Immediately kick off prefetch for next batch (i + batchSize) in background
+                const nextIdx = i + batchSize;
+                if (nextIdx < tripsToFetch.length && !state.cancelFetch) {
+                    nextBatchPrefetchPromise = api.getPolylines(getBatchIds(nextIdx));
+                } else {
+                    nextBatchPrefetchPromise = null;
+                }
+
+                const newlyFetched = {};
+                
+                if (polylinesData?.data?.features) {
+                    polylinesData.data.features.forEach(feature => {
+                        const statusId = feature?.properties?.statusId;
+                        if (statusId) {
+                            const status = statusMap.get(statusId);
+                            if (status) {
+                                dataProcessing.normalizeTripStatus(status);
+                                if (status.train) status.train.polyline = feature;
+                                if (status.checkin) status.checkin.polyline = feature;
+                                newlyFetched[statusId] = feature;
+                                polylineCount++;
+                            }
+                        }
+                    });
+                }
+
+                if (Object.keys(newlyFetched).length > 0) {
+                    SessionDB.savePolylinesBatch(newlyFetched).catch(() => {});
+                }
+                
+                const polyPct = tripsToFetch.length > 0 ? ((i + batch.length) / tripsToFetch.length) : 1;
+                const overallProgress = 46 + Math.round(polyPct * 26); // 46% -> 72%
+                UI.updateFetchStats({ routes: polylineCount, progress: overallProgress });
+                UI.onPolylineBatchComplete();
+                // Train loading animation proceeds seamlessly while next batch is already traveling across network
+                await UI.waitForTrainCatchUp(() => state.cancelFetch);
+                if (state.cancelFetch) break;
+                
+                state.fetchProgress = {
+                    page: page,
+                    pagesFetchComplete: true,
+                    allStatuses: allStatuses,
+                    polylineCount: polylineCount,
+                    processedPolylines: i + batch.length
+                };
+            }
         }
 
         // =========================================================================
@@ -449,7 +465,10 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         }
 
         // Depart the last train with isFinal: true, which flips the 3D scene over to the Solari board
-        await UI.departTrain(allStatuses, { isFinal: true });
+        const solariTripPool = (incremental && cachedTrips && cachedTrips.length > 0)
+            ? [...allStatuses, ...cachedTrips]
+            : allStatuses;
+        await UI.departTrain(solariTripPool, { isFinal: true });
 
         // =========================================================================
         // STEP 3: WAYPOINT STATIONS & STOPOVERS FETCHING (73% -> 92%)
@@ -461,6 +480,12 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             : ((typeof document !== 'undefined' && (document.getElementById('fetchIncludeStopovers')?.checked ?? document.getElementById('menuFetchIncludeStopovers')?.checked)) ?? (Storage.get(STORAGE_KEYS.FETCH_STOPOVERS) !== 'false'));
 
         let stopoverCount = 0;
+        if (incremental && Array.isArray(cachedTrips)) {
+            cachedTrips.forEach(s => {
+                if (Array.isArray(s.train?.stopovers)) stopoverCount += s.train.stopovers.length;
+                else if (Array.isArray(s.checkin?.stopovers)) stopoverCount += s.checkin.stopovers.length;
+            });
+        }
         const allTripsWithTrain = allStatuses.filter(s => s && s.train);
 
         if (shouldFetchStopovers) {

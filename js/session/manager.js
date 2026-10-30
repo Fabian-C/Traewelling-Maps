@@ -175,6 +175,37 @@ export async function clearAllSessions() {
     }
 }
 
+export async function syncSessionByUsername(username) {
+    if (!username) return;
+    try {
+        const usernameInput = document.getElementById('username');
+        if (usernameInput) usernameInput.value = username;
+        UI.syncUsernameInput(username);
+        syncNavigationLinks(username);
+
+        const session = await SessionDB.get(username);
+        if (session) {
+            const state = store.get();
+            state.username = session.username;
+            state.token = session.token;
+            if (session.trips && session.trips.length > 0) {
+                state.fetchedTrips = session.trips;
+            }
+        }
+
+        const setupStopoversToggle = document.getElementById('fetchIncludeStopovers');
+        const shouldFetchStopovers = setupStopoversToggle ? setupStopoversToggle.checked : true;
+        startDataFetch(false, false, { forceFresh: false, fetchStopovers: shouldFetchStopovers });
+    } catch (e) {
+        console.error('Failed to sync session:', e);
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.loadSessionByUsername = loadSessionByUsername;
+    window.syncSessionByUsername = syncSessionByUsername;
+}
+
 export function renderAccountItems(sessions = []) {
     const state = store.get();
     const menuContainer = document.getElementById('savedAccountsList');
@@ -202,7 +233,16 @@ export function renderAccountItems(sessions = []) {
                             <div class="saved-account-name">${displayName}</div>
                             <div class="saved-account-meta">@${session.username || 'unknown'} · ${session.tripCount || 0} trips · ${date}</div>
                         </div>
-                        <button class="saved-account-delete" onclick="event.stopPropagation();deleteSession('${session.username || ''}')">✕</button>
+                        <button type="button" class="saved-account-sync" title="Check for new check-ins" onclick="event.stopPropagation();syncSessionByUsername('${session.username || ''}')">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;">
+                                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                                <path d="M3 3v5h5"></path>
+                                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                                <path d="M16 21h5v-5"></path>
+                            </svg>
+                            <span>Sync</span>
+                        </button>
+                        <button type="button" class="saved-account-delete" onclick="event.stopPropagation();deleteSession('${session.username || ''}')">✕</button>
                     </div>
                 `;
             }).join('');
@@ -230,7 +270,16 @@ export function renderAccountItems(sessions = []) {
                             <div class="saved-account-name">${displayName}</div>
                             <div class="saved-account-meta">@${session.username} · ${session.tripCount || 0} trips · ${date}</div>
                         </div>
-                        <button class="saved-account-delete" onclick="event.stopPropagation();deleteSession('${session.username || ''}')">✕</button>
+                        <button type="button" class="saved-account-sync" title="Check for new check-ins" onclick="event.stopPropagation();syncSessionByUsername('${session.username}')">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;">
+                                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                                <path d="M3 3v5h5"></path>
+                                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                                <path d="M16 21h5v-5"></path>
+                            </svg>
+                            <span>Sync</span>
+                        </button>
+                        <button type="button" class="saved-account-delete" onclick="event.stopPropagation();deleteSession('${session.username || ''}')">✕</button>
                     </div>
                 `;
             }).join('');

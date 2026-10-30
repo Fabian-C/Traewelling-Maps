@@ -1,7 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { VideoClipRecorder } from '../../js/animation/recorder.js';
 
 describe('VideoClipRecorder Pipeline', () => {
+    const originalMediaRecorder = globalThis.MediaRecorder;
+
+    afterEach(() => {
+        globalThis.MediaRecorder = originalMediaRecorder;
+    });
+
     it('initializes with default totalFrames and idle recording state', () => {
         const dummyPlayer = { pause: vi.fn(), seekTo: vi.fn(), play: vi.fn(), getCurrentFrame: vi.fn(() => 0) };
         const recorder = new VideoClipRecorder(dummyPlayer, 240);
@@ -15,14 +21,25 @@ describe('VideoClipRecorder Pipeline', () => {
         await expect(recorder.recordAndDownload({})).rejects.toThrow('Video player is not initialized yet.');
     });
 
-    it('correctly cleans up and formats filenames', async () => {
-        const dummyPlayer = {
-            pause: vi.fn(),
-            seekTo: vi.fn(),
-            play: vi.fn(),
-            getCurrentFrame: vi.fn(() => 240)
+    it('selects video/mp4 as optimal mime type when MP4 is supported', () => {
+        globalThis.MediaRecorder = {
+            isTypeSupported: vi.fn((mime) => mime.startsWith('video/mp4'))
         };
-        const recorder = new VideoClipRecorder(dummyPlayer, 10);
-        expect(recorder).toBeDefined();
+        const optimal = VideoClipRecorder.getOptimalMimeType();
+        expect(optimal).toContain('video/mp4');
+    });
+
+    it('falls back to video/webm if video/mp4 is unsupported by browser', () => {
+        globalThis.MediaRecorder = {
+            isTypeSupported: vi.fn((mime) => mime === 'video/webm;codecs=vp9' || mime === 'video/webm')
+        };
+        const optimal = VideoClipRecorder.getOptimalMimeType();
+        expect(optimal).toBe('video/webm;codecs=vp9');
+    });
+
+    it('defaults to video/mp4 if MediaRecorder API is undefined', () => {
+        delete globalThis.MediaRecorder;
+        const optimal = VideoClipRecorder.getOptimalMimeType();
+        expect(optimal).toBe('video/mp4');
     });
 });

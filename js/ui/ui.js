@@ -771,13 +771,18 @@ export const UI = {
 
         // Extract real journey segments from fetched trips
         const validTrips = Array.isArray(trips) ? trips.filter(t => t && (t.train || t.checkin)) : [];
-        const pool = validTrips.length > 0 ? validTrips : [
+        const defaultPool = [
             { train: { lineName: 'ICE 726', origin: { name: 'München Hbf' }, destination: { name: 'Köln Hbf' }, stopovers: [{ name: 'Nürnberg Hbf' }, { name: 'Würzburg Hbf' }, { name: 'Frankfurt Hbf' }, { name: 'Bonn Hbf' }], category: 'ICE' }, createdAt: new Date().toISOString() },
             { train: { lineName: 'RE 1', origin: { name: 'Hamm(Westf)' }, destination: { name: 'Aachen Hbf' }, stopovers: [{ name: 'Dortmund Hbf' }, { name: 'Bochum Hbf' }, { name: 'Essen Hbf' }, { name: 'Düsseldorf Hbf' }], category: 'RE' }, createdAt: new Date().toISOString() },
             { train: { lineName: 'IC 2020', origin: { name: 'Frankfurt Hbf' }, destination: { name: 'Hamburg-Altona' }, stopovers: [{ name: 'Göttingen' }, { name: 'Hannover Hbf' }, { name: 'Hamburg Hbf' }], category: 'IC' }, createdAt: new Date().toISOString() },
             { train: { lineName: 'TGV 9556', origin: { name: 'Stuttgart Hbf' }, destination: { name: 'Paris Est' }, stopovers: [{ name: 'Karlsruhe Hbf' }, { name: 'Strasbourg' }], category: 'TGV' }, createdAt: new Date().toISOString() },
             { train: { lineName: 'FLX 10', origin: { name: 'Berlin Hbf' }, destination: { name: 'Basel Bad Bf' }, stopovers: [{ name: 'Leipzig Hbf' }, { name: 'Erfurt Hbf' }, { name: 'Heidelberg' }], category: 'FLX' }, createdAt: new Date().toISOString() }
         ];
+
+        let pool = [...validTrips];
+        if (pool.length < 5) {
+            pool = [...pool, ...defaultPool.slice(pool.length)];
+        }
 
         // Display up to 5 real departure rows on the board
         const rowsToShow = pool.slice(0, 5);
@@ -812,9 +817,20 @@ export const UI = {
     },
     startSolariShuffle(trips = []) {
         if (this._solariTimer) clearInterval(this._solariTimer);
-        const validTrips = Array.isArray(trips) ? trips.filter(t => t && t.train) : [];
-        this._solariTrips = validTrips;
-        if (validTrips.length <= 1) return;
+        const validTrips = Array.isArray(trips) ? trips.filter(t => t && (t.train || t.checkin)) : [];
+        const defaultPool = [
+            { train: { lineName: 'ICE 726', origin: { name: 'München Hbf' }, destination: { name: 'Köln Hbf' }, stopovers: [{ name: 'Nürnberg Hbf' }, { name: 'Würzburg Hbf' }, { name: 'Frankfurt Hbf' }, { name: 'Bonn Hbf' }], category: 'ICE' }, createdAt: new Date().toISOString() },
+            { train: { lineName: 'RE 1', origin: { name: 'Hamm(Westf)' }, destination: { name: 'Aachen Hbf' }, stopovers: [{ name: 'Dortmund Hbf' }, { name: 'Bochum Hbf' }, { name: 'Essen Hbf' }, { name: 'Düsseldorf Hbf' }], category: 'RE' }, createdAt: new Date().toISOString() },
+            { train: { lineName: 'IC 2020', origin: { name: 'Frankfurt Hbf' }, destination: { name: 'Hamburg-Altona' }, stopovers: [{ name: 'Göttingen' }, { name: 'Hannover Hbf' }, { name: 'Hamburg Hbf' }], category: 'IC' }, createdAt: new Date().toISOString() },
+            { train: { lineName: 'TGV 9556', origin: { name: 'Stuttgart Hbf' }, destination: { name: 'Paris Est' }, stopovers: [{ name: 'Karlsruhe Hbf' }, { name: 'Strasbourg' }], category: 'TGV' }, createdAt: new Date().toISOString() },
+            { train: { lineName: 'FLX 10', origin: { name: 'Berlin Hbf' }, destination: { name: 'Basel Bad Bf' }, stopovers: [{ name: 'Leipzig Hbf' }, { name: 'Erfurt Hbf' }, { name: 'Heidelberg' }], category: 'FLX' }, createdAt: new Date().toISOString() }
+        ];
+        let pool = [...validTrips];
+        if (pool.length < 2) {
+            pool = [...pool, ...defaultPool];
+        }
+        this._solariTrips = pool;
+        if (pool.length <= 1) return;
 
         // Randomly flip departure board rows with real station names, varied track numbers, and intermediate stopovers
         this._solariTimer = setInterval(() => {
@@ -824,7 +840,7 @@ export const UI = {
 
             const randomRowIdx = Math.floor(Math.random() * rows.length);
             const targetRow = rows[randomRowIdx];
-            const randomTrip = validTrips[Math.floor(Math.random() * validTrips.length)];
+            const randomTrip = pool[Math.floor(Math.random() * pool.length)];
             if (!targetRow || !randomTrip) return;
 
             const destEl = targetRow.querySelector('[data-field="dest"]');

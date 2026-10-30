@@ -691,8 +691,8 @@ async function triggerVideoDownload() {
     const cleanLine = (checkin.lineName || checkin.number || 'trip').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
     const tfPart = currentTimeframe === 'all' ? 'all' : currentTimeframe.replace(/[^a-zA-Z0-9_-]/g, '-');
     const filename = currentMode === 'all'
-        ? `traewelling-${currentUser || 'clip'}-${tfPart}-${activeTrips.length}-rides.webm`
-        : `traewelling-${currentUser || 'clip'}-${cleanLine}-${currentTrip?.id || 'video'}.webm`;
+        ? `traewelling-${currentUser || 'clip'}-${tfPart}-${activeTrips.length}-rides.mp4`
+        : `traewelling-${currentUser || 'clip'}-${cleanLine}-${currentTrip?.id || 'video'}.mp4`;
 
     try {
         if (downloadBtn) {
@@ -722,7 +722,7 @@ async function triggerVideoDownload() {
         if (statusText) statusText.textContent = `Saved ${result.filename} (${Math.round(result.blob.size / 1024)} KB)`;
         if (downloadBtn) {
             downloadBtn.disabled = false;
-            downloadBtn.textContent = 'Download .webm';
+            downloadBtn.textContent = 'Download .mp4';
         }
         return result;
     } catch (e) {
@@ -730,7 +730,7 @@ async function triggerVideoDownload() {
         if (statusText) statusText.textContent = `Error: ${e.message}`;
         if (downloadBtn) {
             downloadBtn.disabled = false;
-            downloadBtn.textContent = 'Download .webm';
+            downloadBtn.textContent = 'Download .mp4';
         }
         return null;
     }
@@ -838,7 +838,7 @@ function setupControls() {
         });
     });
 
-    // Download Video Button (.webm default)
+    // Download Video Button (.mp4 default)
     const downloadBtn = document.getElementById('downloadVideoBtn');
     if (downloadBtn) {
         downloadBtn.addEventListener('click', () => {
