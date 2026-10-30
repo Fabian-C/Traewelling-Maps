@@ -103,9 +103,72 @@ describe('Timeframe Presets & Date Filtering', () => {
         expect(res.map(t => t.id)).toEqual([3, 4]);
     });
 
+    it('filters trips by custom date and optional time range', () => {
+        // Trip 1 was at 2026-10-29T10:00:00Z.
+        // Convert to local date and time string to ensure robust cross-timezone testing:
+        const d1 = new Date('2026-10-29T10:00:00Z');
+        const yyyy = d1.getFullYear();
+        const mm = String(d1.getMonth() + 1).padStart(2, '0');
+        const dd = String(d1.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+
+        const hh = d1.getHours();
+        const startH = String(Math.max(0, hh - 1)).padStart(2, '0');
+        const endH = String(Math.min(23, hh + 1)).padStart(2, '0');
+        const afterH = String(Math.min(23, hh + 2)).padStart(2, '0');
+
+        // Including Trip 1: [hh-1:00, hh+1:00]
+        const resWithin = filterTripsByTimeframe(
+            sampleTrips,
+            'custom',
+            dateStr,
+            dateStr,
+            mockRefDate,
+            `${startH}:00`,
+            `${endH}:00`
+        );
+        expect(resWithin.map(t => t.id)).toContain(1);
+
+        // Excluding Trip 1: window after Trip 1 departure [hh+2:00, hh+3:00]
+        const resAfter = filterTripsByTimeframe(
+            sampleTrips,
+            'custom',
+            dateStr,
+            dateStr,
+            mockRefDate,
+            `${afterH}:00`,
+            '23:59'
+        );
+        expect(resAfter.map(t => t.id)).not.toContain(1);
+    });
+
+    it('supports custom date and time via options object and ISO datetime strings', () => {
+        // Options object
+        const resOpts = filterTripsByTimeframe(sampleTrips, 'custom', {
+            from: '2026-10-01',
+            to: '2026-10-22',
+            fromTime: '00:00',
+            toTime: '23:59'
+        }, '', mockRefDate);
+        expect(resOpts.map(t => t.id)).toEqual([3, 4]);
+
+        // Embedded ISO strings
+        const resIso = filterTripsByTimeframe(
+            sampleTrips,
+            'custom',
+            '2026-10-01T00:00',
+            '2026-10-22T23:59',
+            mockRefDate
+        );
+        expect(resIso.map(t => t.id)).toEqual([3, 4]);
+    });
+
     it('returns human readable labels for presets and custom ranges', () => {
         expect(getTimeframeLabel('all')).toBe('All Time');
         expect(getTimeframeLabel('this-week')).toBe('This Week');
         expect(getTimeframeLabel('custom', '2026-10-01', '2026-10-15')).toBe('2026-10-01 → 2026-10-15');
+        expect(getTimeframeLabel('custom', '2026-10-01', '2026-10-15', '08:30', '17:45')).toBe('2026-10-01 08:30 → 2026-10-15 17:45');
+        expect(getTimeframeLabel('custom', { from: '2026-10-01', to: '2026-10-01', fromTime: '09:00', toTime: '18:00' }))
+            .toBe('2026-10-01 09:00 → 2026-10-01 18:00');
     });
 });

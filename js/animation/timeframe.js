@@ -11,8 +11,49 @@ export const TIMEFRAME_PRESETS = [
     { id: 'this-month', label: 'This Month' },
     { id: 'last-30-days', label: 'Last 30 Days' },
     { id: 'this-year', label: 'This Year' },
-    { id: 'custom', label: 'Custom Date Range…' }
+    { id: 'custom', label: 'Custom Date & Time Range…' }
 ];
+
+export function parseDateTimeBoundary(dateStr, timeStr = '', isEnd = false) {
+    if (!dateStr && !timeStr) return null;
+    let cleanDate = String(dateStr || '').trim();
+    let cleanTime = String(timeStr || '').trim();
+
+    // Check if cleanDate contains time (e.g. 'YYYY-MM-DDTHH:mm' or 'YYYY-MM-DD HH:mm')
+    if (cleanDate.includes('T')) {
+        const parts = cleanDate.split('T');
+        cleanDate = parts[0];
+        if (!cleanTime) cleanTime = parts[1];
+    } else if (cleanDate.includes(' ')) {
+        const parts = cleanDate.split(' ');
+        cleanDate = parts[0];
+        if (!cleanTime) cleanTime = parts[1];
+    }
+
+    if (!cleanDate) return null;
+
+    if (cleanTime) {
+        const timeParts = cleanTime.split(':');
+        const hh = String(timeParts[0] || '00').padStart(2, '0');
+        const mm = String(timeParts[1] || '00').padStart(2, '0');
+        let ss = '00.000';
+        if (isEnd) {
+            ss = timeParts[2] ? String(timeParts[2]).padStart(2, '0') : '59.999';
+        } else if (timeParts[2]) {
+            ss = String(timeParts[2]).padStart(2, '0');
+        }
+        const dt = new Date(`${cleanDate}T${hh}:${mm}:${ss}`);
+        if (!Number.isNaN(dt.getTime())) return dt.getTime();
+    }
+
+    if (isEnd) {
+        const dt = new Date(`${cleanDate}T23:59:59.999`);
+        return Number.isNaN(dt.getTime()) ? null : dt.getTime();
+    } else {
+        const dt = new Date(`${cleanDate}T00:00:00.000`);
+        return Number.isNaN(dt.getTime()) ? null : dt.getTime();
+    }
+}
 
 export function getTripTimestamp(trip) {
     const checkin = trip?.checkin || trip?.train || {};
@@ -26,12 +67,14 @@ export function getTripTimestamp(trip) {
 }
 
 /**
- * Filter an array of trips by a preset timeframe or custom date boundary [from, to].
+ * Filter an array of trips by a preset timeframe or custom date boundary [from, to] with optional time ranges.
  * @param {Array} trips
  * @param {string} timeframe - 'all' | 'today' | 'last-7-days' | 'this-week' | 'last-week' | 'this-month' | 'last-30-days' | 'this-year' | 'custom'
- * @param {string} [customFrom] - 'YYYY-MM-DD'
+ * @param {string|Object} [customFrom] - 'YYYY-MM-DD' or options object { from, to, fromTime, toTime }
  * @param {string} [customTo] - 'YYYY-MM-DD'
  * @param {Date} [referenceDate] - Base reference date (defaults to new Date())
+ * @param {string} [customFromTime] - Optional start time 'HH:mm'
+ * @param {string} [customToTime] - Optional end time 'HH:mm'
  * @returns {Array} Filtered trips
  */
 export function filterTripsByTimeframe(
@@ -39,10 +82,21 @@ export function filterTripsByTimeframe(
     timeframe = 'all',
     customFrom = '',
     customTo = '',
-    referenceDate = new Date()
+    referenceDate = new Date(),
+    customFromTime = '',
+    customToTime = ''
 ) {
     if (!Array.isArray(trips) || trips.length === 0) return [];
     if (!timeframe || timeframe === 'all') return [...trips];
+
+    if (typeof customFrom === 'object' && customFrom !== null) {
+        const opts = customFrom;
+        customFrom = opts.from || '';
+        customTo = opts.to || '';
+        customFromTime = opts.fromTime || opts.startTime || '';
+        customToTime = opts.toTime || opts.endTime || '';
+        if (opts.referenceDate) referenceDate = opts.referenceDate;
+    }
 
     const ref = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
     const refMs = ref.getTime();
@@ -94,14 +148,8 @@ export function filterTripsByTimeframe(
         }
 
         case 'custom': {
-            if (customFrom) {
-                const f = new Date(`${customFrom}T00:00:00`);
-                if (!Number.isNaN(f.getTime())) startMs = f.getTime();
-            }
-            if (customTo) {
-                const t = new Date(`${customTo}T23:59:59.999`);
-                if (!Number.isNaN(t.getTime())) endMs = t.getTime();
-            }
+            startMs = parseDateTimeBoundary(customFrom, customFromTime, false);
+            endMs = parseDateTimeBoundary(customTo, customToTime, true);
             break;
         }
 
@@ -121,11 +169,20 @@ export function filterTripsByTimeframe(
 /**
  * Format a human-readable label for the active timeframe.
  */
-export function getTimeframeLabel(timeframe = 'all', customFrom = '', customTo = '') {
+export function getTimeframeLabel(timeframe = 'all', customFrom = '', customTo = '', customFromTime = '', customToTime = '') {
+    if (typeof customFrom === 'object' && customFrom !== null) {
+        const opts = customFrom;
+        customFrom = opts.from || '';
+        customTo = opts.to || '';
+        customFromTime = opts.fromTime || opts.startTime || '';
+        customToTime = opts.toTime || opts.endTime || '';
+    }
     if (timeframe === 'custom') {
-        if (customFrom && customTo) return `${customFrom} → ${customTo}`;
-        if (customFrom) return `Since ${customFrom}`;
-        if (customTo) return `Until ${customTo}`;
+        const fromStr = customFrom ? `${customFrom}${customFromTime ? ` ${customFromTime}` : ''}` : '';
+        const toStr = customTo ? `${customTo}${customToTime ? ` ${customToTime}` : ''}` : '';
+        if (fromStr && toStr) return `${fromStr} → ${toStr}`;
+        if (fromStr) return `Since ${fromStr}`;
+        if (toStr) return `Until ${toStr}`;
         return 'Custom Range';
     }
     const match = TIMEFRAME_PRESETS.find((p) => p.id === timeframe);

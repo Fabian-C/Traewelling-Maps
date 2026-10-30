@@ -85,17 +85,19 @@
                     <option value="this-month">This Month</option>
                     <option value="last-30-days">Last 30 Days</option>
                     <option value="this-year">This Year</option>
-                    <option value="custom">Custom Date Range…</option>
+                    <option value="custom">Custom Date &amp; Time Range…</option>
                 </select>
             </label>
             <div class="anim-custom-dates" id="customDateContainer" style="display: none;">
                 <label class="anim-date-label" for="timeframeFrom">
                     <span>From:</span>
                     <input type="date" id="timeframeFrom" class="anim-date-input" aria-label="Start date" />
+                    <input type="time" id="timeframeFromTime" class="anim-date-input anim-time-input" aria-label="Start time (optional)" title="Optional start time" />
                 </label>
                 <label class="anim-date-label" for="timeframeTo">
                     <span>To:</span>
                     <input type="date" id="timeframeTo" class="anim-date-input" aria-label="End date" />
+                    <input type="time" id="timeframeToTime" class="anim-date-input anim-time-input" aria-label="End time (optional)" title="Optional end time" />
                 </label>
             </div>
         </div>

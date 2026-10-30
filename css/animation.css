@@ -270,6 +270,11 @@
         cursor: pointer;
     }
 
+    .anim-time-input {
+        min-inline-size: 82px;
+        max-inline-size: 105px;
+    }
+
     .anim-date-input:focus-visible {
         outline: 2px solid var(--accent-cyan);
         border-color: var(--accent-cyan);

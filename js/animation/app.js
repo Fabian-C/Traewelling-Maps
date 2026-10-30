@@ -200,13 +200,23 @@ let currentTrip = null;
 let currentTimeframe = 'all';
 let customTimeframeFrom = '';
 let customTimeframeTo = '';
+let customTimeframeFromTime = '';
+let customTimeframeToTime = '';
 let userTrips = [];
 let allSessions = [];
 let playerRef = null;
 let reactRoot = null;
 
 function getActiveTrips() {
-    return filterTripsByTimeframe(userTrips, currentTimeframe, customTimeframeFrom, customTimeframeTo);
+    return filterTripsByTimeframe(
+        userTrips,
+        currentTimeframe,
+        customTimeframeFrom,
+        customTimeframeTo,
+        new Date(),
+        customTimeframeFromTime,
+        customTimeframeToTime
+    );
 }
 
 function getActiveDurationInFrames() {
@@ -233,7 +243,22 @@ async function init() {
     }
     customTimeframeFrom = urlParams.get('from') || '';
     customTimeframeTo = urlParams.get('to') || '';
-    if (customTimeframeFrom || customTimeframeTo) {
+    customTimeframeFromTime = urlParams.get('fromTime') || urlParams.get('startTime') || '';
+    customTimeframeToTime = urlParams.get('toTime') || urlParams.get('endTime') || '';
+
+    // Handle embedded T in from/to parameters (e.g. ?from=2026-10-01T08:30)
+    if (customTimeframeFrom.includes('T')) {
+        const parts = customTimeframeFrom.split('T');
+        customTimeframeFrom = parts[0];
+        if (!customTimeframeFromTime) customTimeframeFromTime = parts[1];
+    }
+    if (customTimeframeTo.includes('T')) {
+        const parts = customTimeframeTo.split('T');
+        customTimeframeTo = parts[0];
+        if (!customTimeframeToTime) customTimeframeToTime = parts[1];
+    }
+
+    if (customTimeframeFrom || customTimeframeTo || customTimeframeFromTime || customTimeframeToTime) {
         currentTimeframe = 'custom';
     }
 
@@ -280,9 +305,13 @@ function syncTimeframeInputs() {
     const customContainer = document.getElementById('customDateContainer');
     const fromInput = document.getElementById('timeframeFrom');
     const toInput = document.getElementById('timeframeTo');
+    const fromTimeInput = document.getElementById('timeframeFromTime');
+    const toTimeInput = document.getElementById('timeframeToTime');
     if (tfSelect) tfSelect.value = currentTimeframe;
     if (fromInput) fromInput.value = customTimeframeFrom;
     if (toInput) toInput.value = customTimeframeTo;
+    if (fromTimeInput) fromTimeInput.value = customTimeframeFromTime;
+    if (toTimeInput) toTimeInput.value = customTimeframeToTime;
     if (customContainer) {
         customContainer.style.display = currentTimeframe === 'custom' ? 'inline-flex' : 'none';
     }
@@ -471,7 +500,7 @@ function renderTripSelect() {
     if (!select) return;
 
     const activeTrips = getActiveTrips();
-    const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo);
+    const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo, customTimeframeFromTime, customTimeframeToTime);
 
     if (userTrips.length === 0) {
         select.innerHTML = '<option value="">No trips found</option>';
@@ -507,7 +536,7 @@ function updateAllModeSidebar(trips) {
     const noteEl = document.getElementById('sidebarNote');
 
     if (!Array.isArray(trips) || trips.length === 0) {
-        const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo);
+        const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo, customTimeframeFromTime, customTimeframeToTime);
         if (lineEl) lineEl.textContent = `No Rides (${tfLabel})`;
         if (routeEl) routeEl.textContent = '—';
         if (distEl) distEl.textContent = '0 km';
@@ -546,7 +575,7 @@ function updateAllModeSidebar(trips) {
 
     const timing = computeAllModeTiming(sorted, FPS);
     const clipSec = Math.round(timing.totalFrames / FPS);
-    const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo);
+    const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo, customTimeframeFromTime, customTimeframeToTime);
 
     if (lineEl) lineEl.textContent = `${tfLabel} (${sorted.length})`;
     if (routeEl) routeEl.textContent = `${firstOrig} → … → ${lastDest}`;
@@ -606,13 +635,13 @@ function renderPlayer() {
 
     if (currentMode === 'all' && activeTrips.length === 0) {
         if (downloadBtn) downloadBtn.disabled = true;
-        const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo);
+        const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo, customTimeframeFromTime, customTimeframeToTime);
         reactRoot.render(html`
             <div class="anim-empty-state">
                 <div class="anim-empty-state-title">No rides in timeframe</div>
                 <div class="anim-empty-state-desc">
                     There are no recorded journeys matching <strong>${escapeHtml(tfLabel)}</strong>.
-                    Try selecting another preset or adjusting your custom date range above.
+                    Try selecting another preset or adjusting your custom date and time range above.
                 </div>
             </div>
         `);
@@ -747,6 +776,8 @@ function setupControls() {
     const customContainer = document.getElementById('customDateContainer');
     const fromInput = document.getElementById('timeframeFrom');
     const toInput = document.getElementById('timeframeTo');
+    const fromTimeInput = document.getElementById('timeframeFromTime');
+    const toTimeInput = document.getElementById('timeframeToTime');
 
     if (tfSelect) {
         tfSelect.addEventListener('change', async (e) => {
@@ -774,6 +805,8 @@ function setupControls() {
     const handleCustomDateChange = async () => {
         if (fromInput) customTimeframeFrom = fromInput.value;
         if (toInput) customTimeframeTo = toInput.value;
+        if (fromTimeInput) customTimeframeFromTime = fromTimeInput.value;
+        if (toTimeInput) customTimeframeToTime = toTimeInput.value;
         const activeTrips = getActiveTrips();
         if (currentMode === 'all') {
             await attachPolylinesToTrips(activeTrips, 120);
@@ -792,6 +825,8 @@ function setupControls() {
 
     if (fromInput) fromInput.addEventListener('change', handleCustomDateChange);
     if (toInput) toInput.addEventListener('change', handleCustomDateChange);
+    if (fromTimeInput) fromTimeInput.addEventListener('change', handleCustomDateChange);
+    if (toTimeInput) toTimeInput.addEventListener('change', handleCustomDateChange);
 
     // Map Theme Switcher Pills
     document.querySelectorAll('.map-style-pill').forEach(btn => {
@@ -826,6 +861,8 @@ function updateUrlParams() {
     if (currentTimeframe === 'custom') {
         if (customTimeframeFrom) params.set('from', customTimeframeFrom);
         if (customTimeframeTo) params.set('to', customTimeframeTo);
+        if (customTimeframeFromTime) params.set('fromTime', customTimeframeFromTime);
+        if (customTimeframeToTime) params.set('toTime', customTimeframeToTime);
     }
     if (currentMapStyle && currentMapStyle !== 'traewelling-dark') params.set('map', currentMapStyle);
     window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
