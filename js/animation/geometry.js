@@ -251,20 +251,20 @@ export function buildMapScene(coords, viewportWidth = 960, viewportHeight = 960)
     overTiles.forEach(t => trajectoryTileMap.set(t.key, t));
 
     const routeDistKm = computePolylineHaversineKm(coords);
-    let targetChaseZ = 14.5;
+    let targetChaseZ = 13.5;
     if (routeDistKm < 6) {
-        targetChaseZ = 15.3;
+        targetChaseZ = 14.0;
     } else if (routeDistKm < 15) {
-        targetChaseZ = 15.0;
+        targetChaseZ = 13.7;
     } else if (routeDistKm < 35) {
-        targetChaseZ = 14.2;
+        targetChaseZ = 13.2;
     } else if (routeDistKm < 80) {
-        targetChaseZ = 12.8;
+        targetChaseZ = 12.2;
     } else {
-        targetChaseZ = 10.5;
+        targetChaseZ = 10.0;
     }
     const neededChaseZoom = Math.pow(2, targetChaseZ - chosenZ);
-    const chaseZoom = Math.max(fitScale * 2.2, Math.min(fitScale * 14.0, neededChaseZoom));
+    const chaseZoom = Math.max(fitScale * 2.0, Math.min(fitScale * 8.0, neededChaseZoom));
 
     const sampleSteps = Math.min(24, Math.max(8, points.length));
     for (let i = 0; i <= sampleSteps; i++) {
@@ -577,10 +577,10 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
     const usableH = (viewportHeight - 184) * 0.60;
     const usableMin = Math.min(usableW, usableH);
 
-    // In multi-trip mode, allow deep city zoom (up to Web Mercator z=15.5) so city transit lines,
-    // stations, and streets are crisply visible.
-    const maxAllowedCityZoom = Math.pow(2, Math.max(3.0, 15.5 - baseScene.z));
-    const minSpanBasePx = Math.max(2, 160 * Math.pow(2, baseScene.z - 15.0));
+    // In multi-trip mode, balanced city zoom (up to Web Mercator z=14.2)
+    // reveals city streets, rail corridors, and station districts without over-zooming.
+    const maxAllowedCityZoom = Math.pow(2, Math.max(3.0, 14.2 - baseScene.z));
+    const minSpanBasePx = Math.max(4, 160 * Math.pow(2, baseScene.z - 14.0));
 
     // Step 1: Pre-calculate ride geometries, bounds, and natural ideal zoom
     const rideInfos = rawRides.map(({ trip, coords, distanceKm }) => {
@@ -636,22 +636,22 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         const rideCenterX = Number.isFinite(minX) ? (minX + maxX) / 2 : baseScene.centerSceneX;
         const rideCenterY = Number.isFinite(minY) ? (minY + maxY) / 2 : baseScene.centerSceneY;
 
-        // Target Web Mercator effective zoom based on transit mode and distance:
-        // Urban and city transit routes zoom in close (effective Z 14.8 to 15.4) so city streets,
-        // tram tracks, subway stations, and neighborhood layouts are clearly visible.
+        // Balanced Web Mercator effective zoom based on transit mode and distance:
+        // Urban and city transit routes zoom in to district scale (effective Z 13.5 to 14.0) so city streets,
+        // tram tracks, subway stations, and neighborhood layouts are clearly visible with good spatial context.
         let targetEffZ;
         if (isUrban) {
-            targetEffZ = distanceKm < 5 ? 15.4 : (distanceKm < 15 ? 15.1 : 14.7);
+            targetEffZ = distanceKm < 5 ? 14.0 : (distanceKm < 15 ? 13.7 : 13.4);
         } else if (catKey === 'suburban' || distanceKm < 12) {
-            targetEffZ = distanceKm < 6 ? 15.2 : (distanceKm < 15 ? 14.8 : 14.4);
+            targetEffZ = distanceKm < 6 ? 13.8 : (distanceKm < 15 ? 13.5 : 13.2);
         } else if (distanceKm < 30) {
-            targetEffZ = 13.8;
+            targetEffZ = 12.8;
         } else if (distanceKm < 75) {
-            targetEffZ = 12.6;
+            targetEffZ = 12.0;
         } else if (distanceKm < 160) {
-            targetEffZ = 11.2;
+            targetEffZ = 11.0;
         } else {
-            targetEffZ = 9.6;
+            targetEffZ = 9.4;
         }
 
         const modeZoom = Math.pow(2, targetEffZ - baseScene.z);

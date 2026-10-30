@@ -465,9 +465,9 @@ export function renderTripFrame({
 
     let peakMultiplier = 2.15;
     if (isUrbanTransit) {
-        const targetCityZ = totalDistanceKm < 6 ? 15.3 : (totalDistanceKm < 15 ? 15.0 : 14.5);
+        const targetCityZ = totalDistanceKm < 6 ? 14.0 : (totalDistanceKm < 15 ? 13.7 : 13.3);
         const neededZoom = Math.pow(2, targetCityZ - scene.z);
-        peakMultiplier = Math.max(2.15, Math.min(14.0, neededZoom / Math.max(0.1, scene.fitScale)));
+        peakMultiplier = Math.max(2.15, Math.min(8.0, neededZoom / Math.max(0.1, scene.fitScale)));
     }
 
     const camZoom = scene.fitScale * computeCameraZoomMultiplier(frame, peakMultiplier);
