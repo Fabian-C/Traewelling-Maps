@@ -86,6 +86,49 @@ async function runRelationalStudioTests() {
     // Switch to Studio mode and SQL Console tab
     await evalJs(`document.getElementById('modeStudioBtn').click()`);
     await new Promise(r => setTimeout(r, 300));
+
+    // 0. Test Quick Recipe Selector Dropdown
+    console.log('0. Testing Quick Recipe Selector dropdown population...');
+    const recipeSelectState = await evalJs(`(() => {
+        const select = document.getElementById('sqlRecipeSelect');
+        const options = Array.from(select ? select.options : []).map(o => ({ value: o.value, text: o.text }));
+        return {
+            exists: Boolean(select),
+            optionCount: options.length,
+            placeholder: options[0]?.text,
+            firstRecipe: options[1]?.text,
+            totalRecipes: options.length - 1
+        };
+    })()`);
+    console.log('Recipe dropdown state:', recipeSelectState);
+
+    if (recipeSelectState.optionCount < 10) {
+        throw new Error(`Recipe dropdown has only ${recipeSelectState.optionCount} options, expected >= 10!`);
+    }
+
+    // Test selecting a recipe from dropdown (e.g., Recipe 3: High-Speed Long Distance)
+    console.log('0B. Testing selecting recipe index 3 (High-Speed Long Distance)...');
+    await evalJs(`(() => {
+        const select = document.getElementById('sqlRecipeSelect');
+        select.value = "3";
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await new Promise(r => setTimeout(r, 500));
+
+    const recipeExecutionState = await evalJs(`(() => {
+        const sql = document.getElementById('sqlQueryInput')?.value;
+        const rowCount = document.querySelectorAll('#tripsTableBody tr').length;
+        const isSqlTabActive = document.getElementById('studioTabSqlBtn')?.classList.contains('active');
+        return { sql, rowCount, isSqlTabActive };
+    })()`);
+    console.log('Recipe 3 execution state:', recipeExecutionState);
+
+    if (!recipeExecutionState.isSqlTabActive || !recipeExecutionState.sql.includes('nationalExpress')) {
+        throw new Error(`Recipe selection failed to activate SQL console or populate query!`);
+    }
+
+    await capture('screenshot_studio_recipe_selected.png');
+
     await evalJs(`document.getElementById('studioTabSqlBtn').click()`);
     await new Promise(r => setTimeout(r, 300));
 

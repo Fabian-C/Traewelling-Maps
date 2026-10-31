@@ -691,16 +691,16 @@ function updateCategoryChipsUI() {
  * Initialize Database Studio workbench controls and recipes
  */
 async function initStudioWorkbench() {
-    const workbench = document.getElementById('studioWorkbench');
-    if (!workbench) return;
+    const studioPanel = document.getElementById('tripsStudioPanel');
+    if (!studioPanel) return;
 
     await loadStudioModules();
     const recipes = sqlEngine?.QUERY_RECIPES || [];
 
     // Populate Recipes dropdown
     const recipeSelect = document.getElementById('sqlRecipeSelect');
-    if (recipeSelect) {
-        recipeSelect.innerHTML = '<option value="">Quick Recipes...</option>' +
+    if (recipeSelect && recipes.length > 0) {
+        recipeSelect.innerHTML = '<option value="">Choose a recipe...</option>' +
             recipes.map((r, i) => `<option value="${i}">${escapeHtml(r.title)}</option>`).join('');
     }
 
@@ -1253,6 +1253,9 @@ function setupStudioEventListeners() {
             downloadFile(JSON.stringify(geojson, null, 2), `traewelling-query-${Date.now()}.geojson`, 'application/geo+json');
         });
     }
+
+    // Pre-populate Database Studio recipes and default state immediately
+    initStudioWorkbench();
 }
 
 /**
