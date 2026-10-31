@@ -67,7 +67,7 @@ async function runAnimV2Test() {
         await send('Runtime.enable');
 
         const startTime = Date.now();
-        await send('Page.navigate', { url: 'http://127.0.0.1:8000/animation-v2.html' });
+        await send('Page.navigate', { url: 'http://127.0.0.1:8000/animation.html' });
         await new Promise(r => setTimeout(r, 1200));
         const loadDurationMs = Date.now() - startTime;
 
@@ -146,3 +146,4 @@ async function runAnimV2Test() {
 }
 
 runAnimV2Test();
+

@@ -7,12 +7,13 @@
     <title>Trip Clip — Träwelling Map Explorer</title>
     <link rel="icon" type="image/x-icon" href="https://traewelling.de/favicon.ico">
 
-    <!-- Stylesheets -->
+    <!-- Stylesheets (Zero External CDN Dependencies) -->
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/animation.css">
+    <link rel="stylesheet" href="css/animation-v2.css">
 
-    <!-- Main Module Entry Point -->
-    <script type="module" src="js/animation/app.js"></script>
+    <!-- Main Module Entry Point (Native Zero-Dependency ES Module) -->
+    <script type="module" src="js/anim-v2/app.js"></script>
 </head>
 
 <body>
@@ -34,12 +35,6 @@
 
         <!-- Cross-view Navigation -->
         <nav class="anim-nav-links" aria-label="Primary">
-            <a href="animation-v2.html" class="anim-nav-btn" id="navV2Link" style="border-color: rgba(14, 165, 233, 0.4); background: rgba(14, 165, 233, 0.08); color: var(--accent-cyan);" title="Try performance-focused V2 (Zero-CDN)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                </svg>
-                <span>Try V2 (Beta)</span>
-            </a>
             <a href="index.html" class="anim-nav-btn" id="navMapLink">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
@@ -65,7 +60,7 @@
         </nav>
     </header>
 
-    <!-- Toolbar: Account & Journey Selectors + 7 Map Tile Sets -->
+    <!-- Toolbar: Account & Journey Selectors + Map Styles -->
     <div class="anim-toolbar" role="toolbar" aria-label="Clip controls">
         <div class="anim-selector-group">
             <label class="anim-select-label" for="userSelect">
@@ -79,7 +74,7 @@
             </label>
         </div>
 
-        <div class="anim-selector-group" id="timeframeGroup">
+        <div class="anim-selector-group" id="timeframeGroup" style="display: none;">
             <label class="anim-select-label" for="timeframeSelect">
                 <span>Timeframe:</span>
                 <select id="timeframeSelect" class="anim-select">
