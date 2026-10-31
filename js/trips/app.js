@@ -830,6 +830,7 @@ function setupStudioEventListeners() {
                 const sql = recipes[idx].sql;
                 const sqlInput = document.getElementById('sqlQueryInput');
                 if (sqlInput) sqlInput.value = sql;
+                if (tabSqlBtn) tabSqlBtn.click();
                 runSqlQuery(sql);
             }
         });
@@ -1131,6 +1132,7 @@ function setupStudioEventListeners() {
             runExBtn.addEventListener('click', () => {
                 if (sqlInput) {
                     sqlInput.value = schema.defaultQuery;
+                    if (tabSqlBtn) tabSqlBtn.click();
                     runSqlQuery(schema.defaultQuery);
                 }
             });
