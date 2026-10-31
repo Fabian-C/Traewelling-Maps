@@ -1063,7 +1063,116 @@ function setupStudioEventListeners() {
         });
     }
 
-    // 7. Studio Result Exports (CSV, JSON, GeoJSON)
+    // 7. Database Schema & Tables Guide Drawer
+    const schemaToggleBtn = document.getElementById('sqlSchemaToggleBtn');
+    const schemaDrawer = document.getElementById('sqlSchemaDrawer');
+    const closeSchemaBtn = document.getElementById('closeSchemaDrawerBtn');
+    const schemaContentPane = document.getElementById('sqlSchemaContentPane');
+    let activeSchemaTable = 'trips';
+
+    function renderSchemaDrawerTable(tableKey) {
+        if (!schemaContentPane) return;
+        activeSchemaTable = tableKey;
+        const schema = sqlEngine?.TABLE_SCHEMAS?.[tableKey] || sqlEngine?.TABLE_SCHEMAS?.trips;
+        if (!schema) return;
+
+        // Update active tab buttons
+        document.querySelectorAll('.sql-schema-tab-btn').forEach(btn => {
+            const isMatch = btn.dataset.table === tableKey;
+            btn.classList.toggle('active', isMatch);
+            btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+        });
+
+        const colCardsHtml = schema.columns.map(col => {
+            const isNum = col.type === 'number';
+            const badgeClass = isNum ? 'num' : (col.type === 'datetime' ? 'date' : 'text');
+            const badgeLabel = isNum ? 'NUM' : (col.type === 'datetime' ? 'DATE' : 'TEXT');
+            return `
+                <button type="button" class="sql-schema-col-card" data-col="${escapeHtml(col.name)}" title="Click to insert '${escapeHtml(col.name)}' into query">
+                    <div class="sql-schema-col-top">
+                        <span class="sql-schema-col-name">${escapeHtml(col.name)}</span>
+                        <span class="sql-schema-col-type ${badgeClass}">${badgeLabel}</span>
+                    </div>
+                    <div class="sql-schema-col-desc">${escapeHtml(col.description || col.label)}</div>
+                </button>
+            `;
+        }).join('');
+
+        schemaContentPane.innerHTML = `
+            <div class="sql-schema-table-desc">
+                <strong>Table: <code>${escapeHtml(schema.name)}</code></strong> — ${escapeHtml(schema.description)}
+                <span style="color: var(--text-muted); font-size: 11px; margin-left: 6px;">(Click any column to insert into query)</span>
+            </div>
+            <div class="sql-schema-columns-grid">
+                ${colCardsHtml}
+            </div>
+            <div class="sql-schema-footer-actions">
+                <span class="sql-schema-example-query" title="Tested Query Template">${escapeHtml(schema.defaultQuery)}</span>
+                <button type="button" class="sql-schema-use-btn" id="schemaRunExampleBtn">Run Example</button>
+            </div>
+        `;
+
+        // Attach click listeners to column cards
+        schemaContentPane.querySelectorAll('.sql-schema-col-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const colName = card.dataset.col;
+                if (!colName || !sqlInput) return;
+                const cursorPos = sqlInput.selectionStart || sqlInput.value.length;
+                const before = sqlInput.value.substring(0, cursorPos);
+                const after = sqlInput.value.substring(cursorPos);
+                sqlInput.value = before + (before.endsWith(' ') || before.endsWith(',') || before === '' ? '' : ' ') + colName + ' ' + after;
+                sqlInput.focus();
+            });
+        });
+
+        // Attach listener to Run Example button
+        const runExBtn = schemaContentPane.querySelector('#schemaRunExampleBtn');
+        if (runExBtn) {
+            runExBtn.addEventListener('click', () => {
+                if (sqlInput) {
+                    sqlInput.value = schema.defaultQuery;
+                    runSqlQuery(schema.defaultQuery);
+                }
+            });
+        }
+    }
+
+    if (schemaToggleBtn && schemaDrawer) {
+        schemaToggleBtn.addEventListener('click', async () => {
+            await loadStudioModules();
+            const isVisible = schemaDrawer.style.display !== 'none';
+            if (isVisible) {
+                schemaDrawer.style.display = 'none';
+                schemaToggleBtn.classList.remove('active');
+                schemaToggleBtn.setAttribute('aria-expanded', 'false');
+            } else {
+                schemaDrawer.style.display = 'flex';
+                schemaToggleBtn.classList.add('active');
+                schemaToggleBtn.setAttribute('aria-expanded', 'true');
+                renderSchemaDrawerTable(activeSchemaTable);
+            }
+        });
+    }
+
+    if (closeSchemaBtn && schemaDrawer) {
+        closeSchemaBtn.addEventListener('click', () => {
+            schemaDrawer.style.display = 'none';
+            if (schemaToggleBtn) {
+                schemaToggleBtn.classList.remove('active');
+                schemaToggleBtn.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+    document.querySelectorAll('.sql-schema-tab-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            await loadStudioModules();
+            const tbl = btn.dataset.table;
+            if (tbl) renderSchemaDrawerTable(tbl);
+        });
+    });
+
+    // 8. Studio Result Exports (CSV, JSON, GeoJSON)
     const exportCsvBtn = document.getElementById('exportCsvBtn');
     const exportJsonBtn = document.getElementById('exportJsonBtn');
     const exportSqlGeoBtn = document.getElementById('exportSqlGeoJsonBtn');
@@ -1108,6 +1217,62 @@ function setupStudioEventListeners() {
 }
 
 /**
+ * Retrieve normalized relational datasets for Studio SQL Console
+ */
+export async function getStudioDatasets() {
+    await loadStudioModules();
+    if (!flattenedTrips.length && allTrips.length) {
+        flattenedTrips = allTrips.map(sqlEngine.flattenTripRecord);
+    }
+
+    const activeUser = activeSession?.username || (allSessions.length ? allSessions[0].username : '');
+    let statuses = [];
+    let stations = [];
+    let routes = [];
+
+    try {
+        if (activeUser) {
+            statuses = await SessionDB.getStatusesByUser(activeUser);
+        }
+        stations = await SessionDB.getAllStations();
+        routes = await SessionDB.getAllTrips();
+    } catch (e) {
+        console.warn('SessionDB relational query fallback:', e);
+    }
+
+    if (!statuses.length || !stations.length || !routes.length) {
+        const stnMap = new Map();
+        const routeMap = new Map();
+        const statusList = [];
+
+        for (const trip of allTrips) {
+            const norm = SessionDB.normalizeTrip(trip, activeUser);
+            if (norm) {
+                for (const stn of norm.stations) {
+                    if (stn && !stnMap.has(stn.id)) stnMap.set(stn.id, stn);
+                }
+                if (norm.tripRun && !routeMap.has(norm.tripRun.id)) {
+                    routeMap.set(norm.tripRun.id, norm.tripRun);
+                }
+                if (norm.status) {
+                    statusList.push(norm.status);
+                }
+            }
+        }
+        if (!statuses.length) statuses = statusList;
+        if (!stations.length) stations = Array.from(stnMap.values());
+        if (!routes.length) routes = Array.from(routeMap.values());
+    }
+
+    return {
+        trips: flattenedTrips,
+        statuses,
+        stations,
+        routes
+    };
+}
+
+/**
  * Execute an arbitrary SQL query on the dataset
  */
 export async function runSqlQuery(sql) {
@@ -1115,13 +1280,11 @@ export async function runSqlQuery(sql) {
 
     await loadStudioModules();
 
-    if (!flattenedTrips.length && allTrips.length) {
-        flattenedTrips = allTrips.map(sqlEngine.flattenTripRecord);
-    }
-    if (!flattenedTrips.length) return;
+    const datasets = await getStudioDatasets();
+    if (!datasets.trips.length && !datasets.statuses.length && !datasets.stations.length && !datasets.routes.length) return;
 
     try {
-        const result = sqlEngine.executeTripQuery(sql, flattenedTrips);
+        const result = sqlEngine.executeTripQuery(sql, datasets.trips, { tables: datasets });
         sqlQueryResult = result;
 
         // Ensure table view is visible
@@ -1136,6 +1299,12 @@ export async function runSqlQuery(sql) {
             if (viewCardsBtn) viewCardsBtn.classList.remove('active');
         }
 
+        // Update target table badge in console toolbar
+        const targetBadge = document.querySelector('.sql-editor-target code');
+        if (targetBadge && result.table) {
+            targetBadge.textContent = result.table;
+        }
+
         // Update benchmark badge
         const badge = document.getElementById('sqlBenchmarkBadge');
         if (badge) {
@@ -1144,8 +1313,8 @@ export async function runSqlQuery(sql) {
             badge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
         }
 
-        // Update main telemetry chips
-        if (result.rawTrips) {
+        // Update main telemetry chips for trips queries
+        if (result.table === 'trips' && result.rawTrips && result.rawTrips.length) {
             updateTelemetry(result.rawTrips);
         }
 
@@ -1161,6 +1330,7 @@ export async function runSqlQuery(sql) {
             badge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
         }
         sqlQueryResult = {
+            table: 'trips',
             columns: ['error'],
             rows: [],
             totalRows: 0,
@@ -1602,7 +1772,7 @@ function renderResults() {
 
     const isStudio = (appMode === 'studio' && Boolean(sqlQueryResult));
     const isScalarCount = isStudio && Boolean(sqlQueryResult) && sqlQueryResult.columns?.length === 1 && sqlQueryResult.columns[0]?.startsWith('COUNT(');
-    const isRawSqlMode = isStudio && studioTableMode === 'raw' && !isScalarCount && !sqlQueryResult?.error;
+    const isRawSqlMode = isStudio && (studioTableMode === 'raw' || (sqlQueryResult?.table && sqlQueryResult.table !== 'trips')) && !isScalarCount && !sqlQueryResult?.error;
 
     let total = 0;
     let items = [];
@@ -1650,7 +1820,8 @@ function renderResults() {
     if (nextBtn) nextBtn.disabled = (filterState.page >= totalPages);
 
     // Column metadata helper for Raw SQL Table mode
-    const colTypeMap = new Map((sqlEngine?.TRIP_COLUMNS || []).map(c => [c.name, c.type]));
+    const activeColsDef = (sqlQueryResult?.table && sqlEngine?.TABLE_SCHEMAS?.[sqlQueryResult.table]?.columns) || sqlEngine?.TRIP_COLUMNS || [];
+    const colTypeMap = new Map(activeColsDef.map(c => [c.name, c.type]));
     const rawCols = (isRawSqlMode && sqlQueryResult?.columns && sqlQueryResult.columns.length > 0)
         ? sqlQueryResult.columns
         : (isRawSqlMode && pageItems.length > 0 ? Object.keys(pageItems[0]).filter(k => !k.startsWith('_')) : []);

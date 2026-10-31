@@ -11,9 +11,10 @@ export const SessionDB = {
     STATIONS_STORE: 'stations',
     TRIPS_STORE: 'trips',
     STATUSES_STORE: 'statuses',
+    GEOJSON_CACHE_STORE: 'geojson_cache',
     META_CACHE_KEY: STORAGE_KEYS.SESSIONS_META,
     MIGRATED_KEY: 'tw_db_relational_v4_migrated',
-    VERSION: 4,
+    VERSION: 5,
     MAX_SESSIONS: 15,
     _db: null,
 
@@ -98,6 +99,9 @@ export const SessionDB = {
                     statusStore.createIndex('username_departure', ['username', 'departure_time'], { unique: false });
                     statusStore.createIndex('departure_delay', 'departure_delay', { unique: false });
                 }
+                if (!db.objectStoreNames.contains(this.GEOJSON_CACHE_STORE)) {
+                    db.createObjectStore(this.GEOJSON_CACHE_STORE, { keyPath: 'username' });
+                }
             };
 
             req.onsuccess = () => {
@@ -127,6 +131,9 @@ export const SessionDB = {
             if (hasRelational) {
                 storesToOpen.push(this.STATIONS_STORE, this.TRIPS_STORE, this.STATUSES_STORE);
             }
+            if (db.objectStoreNames.contains(this.GEOJSON_CACHE_STORE)) {
+                storesToOpen.push(this.GEOJSON_CACHE_STORE);
+            }
 
             const tx = db.transaction(storesToOpen, 'readwrite');
             const store = tx.objectStore(this.STORE_NAME);
@@ -142,6 +149,20 @@ export const SessionDB = {
             };
 
             store.put(session);
+
+            // Invalidate or update materialized GeoJSON cache
+            if (storesToOpen.includes(this.GEOJSON_CACHE_STORE)) {
+                if (meta.geojson) {
+                    tx.objectStore(this.GEOJSON_CACHE_STORE).put({
+                        username: String(username).toLowerCase(),
+                        geojson: meta.geojson,
+                        count: meta.tripCount || (trips ? trips.length : 0),
+                        timestamp: Date.now()
+                    });
+                } else {
+                    tx.objectStore(this.GEOJSON_CACHE_STORE).delete(String(username).toLowerCase());
+                }
+            }
 
             // Dual-write: Normalize and write to relational stores
             if (hasRelational) {
@@ -312,11 +333,19 @@ export const SessionDB = {
             if (db.objectStoreNames.contains(this.POLYLINES_STORE)) stores.push(this.POLYLINES_STORE);
             if (db.objectStoreNames.contains(this.STOPOVERS_STORE)) stores.push(this.STOPOVERS_STORE);
             if (db.objectStoreNames.contains(this.STATUSES_STORE)) stores.push(this.STATUSES_STORE);
+            if (db.objectStoreNames.contains(this.GEOJSON_CACHE_STORE)) stores.push(this.GEOJSON_CACHE_STORE);
 
             const tx = db.transaction(stores, 'readwrite');
             tx.objectStore(this.STORE_NAME).delete(exactUsername);
             if (exactUsername !== username) {
                 tx.objectStore(this.STORE_NAME).delete(username);
+            }
+
+            if (stores.includes(this.GEOJSON_CACHE_STORE)) {
+                tx.objectStore(this.GEOJSON_CACHE_STORE).delete(String(username).toLowerCase());
+                if (exactUsername !== username) {
+                    tx.objectStore(this.GEOJSON_CACHE_STORE).delete(String(exactUsername).toLowerCase());
+                }
             }
 
             if (tripIds.length > 0) {
@@ -370,6 +399,7 @@ export const SessionDB = {
             if (db.objectStoreNames.contains(this.STATIONS_STORE)) stores.push(this.STATIONS_STORE);
             if (db.objectStoreNames.contains(this.TRIPS_STORE)) stores.push(this.TRIPS_STORE);
             if (db.objectStoreNames.contains(this.STATUSES_STORE)) stores.push(this.STATUSES_STORE);
+            if (db.objectStoreNames.contains(this.GEOJSON_CACHE_STORE)) stores.push(this.GEOJSON_CACHE_STORE);
 
             const tx = db.transaction(stores, 'readwrite');
             stores.forEach((s) => tx.objectStore(s).clear());
@@ -534,6 +564,9 @@ export const SessionDB = {
             if (hasRelational) {
                 storesToOpen.push(this.STATIONS_STORE, this.TRIPS_STORE, this.STATUSES_STORE);
             }
+            if (db.objectStoreNames.contains(this.GEOJSON_CACHE_STORE)) {
+                storesToOpen.push(this.GEOJSON_CACHE_STORE);
+            }
             const tx = db.transaction(storesToOpen, 'readwrite');
             const sessStore = tx.objectStore(this.STORE_NAME);
 
@@ -557,6 +590,10 @@ export const SessionDB = {
                 session.tripCount = session.trips.length;
                 session.timestamp = Date.now();
                 sessStore.put(session);
+
+                if (storesToOpen.includes(this.GEOJSON_CACHE_STORE) && addedTrips.length > 0) {
+                    tx.objectStore(this.GEOJSON_CACHE_STORE).delete(String(username).toLowerCase());
+                }
 
                 if (hasRelational && addedTrips.length > 0) {
                     const stnStore = tx.objectStore(this.STATIONS_STORE);
@@ -673,6 +710,48 @@ export const SessionDB = {
                 req.onerror = () => resolve([]);
             } catch {
                 resolve([]);
+            }
+        });
+    },
+
+    // Retrieve materialized GeoJSON feature collection for instant map rendering
+    async getMaterializedGeoJSON(username) {
+        if (!username) return null;
+        const db = await this.open();
+        if (!db.objectStoreNames.contains(this.GEOJSON_CACHE_STORE)) return null;
+        return new Promise((resolve) => {
+            try {
+                const tx = db.transaction([this.GEOJSON_CACHE_STORE], 'readonly');
+                const store = tx.objectStore(this.GEOJSON_CACHE_STORE);
+                const req = store.get(String(username).toLowerCase());
+                req.onsuccess = () => resolve(req.result || null);
+                req.onerror = () => resolve(null);
+            } catch {
+                resolve(null);
+            }
+        });
+    },
+
+    // Save materialized GeoJSON feature collection for a user
+    async saveMaterializedGeoJSON(username, geojson, count = 0) {
+        if (!username || !geojson) return;
+        const db = await this.open();
+        if (!db.objectStoreNames.contains(this.GEOJSON_CACHE_STORE)) return;
+        return new Promise((resolve, reject) => {
+            try {
+                const tx = db.transaction([this.GEOJSON_CACHE_STORE], 'readwrite');
+                const store = tx.objectStore(this.GEOJSON_CACHE_STORE);
+                const record = {
+                    username: String(username).toLowerCase(),
+                    geojson,
+                    count: count || (geojson.features ? geojson.features.length : 0),
+                    timestamp: Date.now()
+                };
+                store.put(record);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            } catch (e) {
+                reject(e);
             }
         });
     },

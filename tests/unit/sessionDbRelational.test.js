@@ -311,15 +311,16 @@ describe('Normalized Relational Cache Architecture', () => {
             if (cleanupMock) cleanupMock();
         });
 
-        it('exposes VERSION 4 and normalized object store names', () => {
-            expect(SessionDB.VERSION).toBe(4);
+        it('exposes VERSION 5 and normalized object store names', () => {
+            expect(SessionDB.VERSION).toBe(5);
             expect(SessionDB.STORE_NAME).toBe('sessions');
             expect(SessionDB.STATIONS_STORE).toBe('stations');
             expect(SessionDB.TRIPS_STORE).toBe('trips');
             expect(SessionDB.STATUSES_STORE).toBe('statuses');
+            expect(SessionDB.GEOJSON_CACHE_STORE).toBe('geojson_cache');
         });
 
-        it('open creates all 6 object stores with indexes', async () => {
+        it('open creates all 7 object stores with indexes', async () => {
             const db = await SessionDB.open();
             expect(db.objectStoreNames.contains('sessions')).toBe(true);
             expect(db.objectStoreNames.contains('stopovers')).toBe(true);
@@ -327,6 +328,7 @@ describe('Normalized Relational Cache Architecture', () => {
             expect(db.objectStoreNames.contains('stations')).toBe(true);
             expect(db.objectStoreNames.contains('trips')).toBe(true);
             expect(db.objectStoreNames.contains('statuses')).toBe(true);
+            expect(db.objectStoreNames.contains('geojson_cache')).toBe(true);
 
             const statusStore = db.stores.statuses;
             expect(statusStore.indexNames.contains('username')).toBe(true);
@@ -458,6 +460,24 @@ describe('Normalized Relational Cache Architecture', () => {
 
             const stn = await SessionDB.getStation(8000001);
             expect(stn.name).toBe('Aachen Hbf');
+        });
+
+        it('saves and retrieves materialized GeoJSON cache', async () => {
+            const fakeGeoJSON = {
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [13.4, 52.5] } }]
+            };
+            await SessionDB.saveMaterializedGeoJSON('geo_user', fakeGeoJSON, 1);
+            const cached = await SessionDB.getMaterializedGeoJSON('geo_user');
+            expect(cached).not.toBeNull();
+            expect(cached.count).toBe(1);
+            expect(cached.geojson.type).toBe('FeatureCollection');
+            expect(cached.geojson.features.length).toBe(1);
+
+            // Verify delete purges cached GeoJSON
+            await SessionDB.delete('geo_user');
+            const cachedAfterDelete = await SessionDB.getMaterializedGeoJSON('geo_user');
+            expect(cachedAfterDelete).toBeNull();
         });
     });
 });

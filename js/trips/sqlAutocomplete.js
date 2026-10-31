@@ -1,5 +1,5 @@
 // Autocomplete & Smart Recommendations Engine for Database Studio SQL Console
-import { TRIP_COLUMNS } from './sqlEngine.js';
+import { TRIP_COLUMNS, STATUS_COLUMNS, STATION_COLUMNS, ROUTE_COLUMNS, TABLE_SCHEMAS } from './sqlEngine.js';
 
 export const SQL_KEYWORDS = [
     { label: 'SELECT', insertText: 'SELECT ', type: 'keyword', detail: 'Select columns or expressions' },
@@ -27,7 +27,10 @@ export const SQL_KEYWORDS = [
 ];
 
 export const SQL_TABLES = [
-    { label: 'trips', insertText: 'trips ', type: 'table', detail: 'Standard Träwelling trips table' }
+    { label: 'trips', insertText: 'trips ', type: 'table', detail: 'Denormalized journeys table (default)' },
+    { label: 'statuses', insertText: 'statuses ', type: 'table', detail: 'Normalized check-in events referencing trips & stations' },
+    { label: 'stations', insertText: 'stations ', type: 'table', detail: 'Normalized transit stops & station coordinates' },
+    { label: 'routes', insertText: 'routes ', type: 'table', detail: 'Normalized transit line runs, categories & operators' }
 ];
 
 export const SQL_VALUES = [
@@ -52,6 +55,24 @@ export const SQL_SNIPPETS = [
         insertText: 'SELECT line, origin, destination, distance_km, delay_dep, departure FROM trips ',
         type: 'recipe',
         detail: 'Standard overview columns'
+    },
+    {
+        label: 'SELECT * FROM stations',
+        insertText: 'SELECT id, name, latitude, longitude, country_code FROM stations ORDER BY name ASC LIMIT 50',
+        type: 'recipe',
+        detail: 'List visited transit stations & coordinates'
+    },
+    {
+        label: 'SELECT * FROM statuses',
+        insertText: 'SELECT id, trip_id, departure_time, departure_delay, distance_km FROM statuses WHERE departure_delay > 15 ORDER BY departure_delay DESC LIMIT 50',
+        type: 'recipe',
+        detail: 'List delayed check-in statuses'
+    },
+    {
+        label: 'SELECT * FROM routes',
+        insertText: 'SELECT id, line_name, category, operator_name FROM routes ORDER BY line_name ASC LIMIT 50',
+        type: 'recipe',
+        detail: 'List line runs and transport providers'
     },
     {
         label: 'delay_dep > 15',
@@ -135,8 +156,19 @@ export function getSQLCompletions(sql = '', cursorPos = 0) {
     const precedingText = textBefore.slice(0, tokenStart).trim();
     const precedingUpper = precedingText.toUpperCase();
 
-    // Map column objects into suggestion items
-    const columnSuggestions = TRIP_COLUMNS.map(c => ({
+    // Detect target table if present in query
+    let targetTable = 'trips';
+    const fromMatch = sql.match(/\bFROM\s+([a-zA-Z_]+)/i);
+    if (fromMatch) {
+        const t = fromMatch[1].toLowerCase();
+        if (['statuses', 'status'].includes(t)) targetTable = 'statuses';
+        else if (['stations', 'station'].includes(t)) targetTable = 'stations';
+        else if (['routes', 'route', 'trips_runs'].includes(t)) targetTable = 'routes';
+    }
+
+    // Map column objects into suggestion items based on detected active table
+    const activeSchema = TABLE_SCHEMAS[targetTable]?.columns || TRIP_COLUMNS;
+    const columnSuggestions = activeSchema.map(c => ({
         label: c.name,
         insertText: c.name,
         type: 'column',
@@ -188,10 +220,10 @@ export function getSQLCompletions(sql = '', cursorPos = 0) {
     // Context 5: Start of query or SELECT
     else if (precedingUpper === '' || precedingUpper.endsWith('SELECT')) {
         candidateList = [
+            ...columnSuggestions,
             { label: '*', insertText: '* ', type: 'keyword', detail: 'Select all columns' },
             { label: 'COUNT(*)', insertText: 'COUNT(*) ', type: 'keyword', detail: 'Count matching rows' },
             ...SQL_SNIPPETS.filter(s => s.label.startsWith('SELECT')),
-            ...columnSuggestions,
             ...SQL_KEYWORDS
         ];
     }
@@ -236,7 +268,7 @@ export function getSQLCompletions(sql = '', cursorPos = 0) {
     }
 
     return {
-        items: unique.slice(0, 10), // Show top 10 items
+        items: unique.slice(0, 15), // Show top 15 items
         token,
         tokenStart
     };

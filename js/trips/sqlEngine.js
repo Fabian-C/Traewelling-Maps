@@ -22,6 +22,73 @@ export const TRIP_COLUMNS = [
     { name: 'notes', label: 'Notes', type: 'string', description: 'Check-in message body' }
 ];
 
+export const STATUS_COLUMNS = [
+    { name: 'id', label: 'ID', type: 'number', description: 'Check-in Status ID' },
+    { name: 'username', label: 'User', type: 'string', description: 'Account username' },
+    { name: 'trip_id', label: 'Trip ID', type: 'string', description: 'Line run identifier' },
+    { name: 'origin_id', label: 'Origin ID', type: 'string', description: 'Origin station identifier' },
+    { name: 'destination_id', label: 'Destination ID', type: 'string', description: 'Destination station identifier' },
+    { name: 'departure_time', label: 'Departure', type: 'datetime', description: 'Departure timestamp' },
+    { name: 'arrival_time', label: 'Arrival', type: 'datetime', description: 'Arrival timestamp' },
+    { name: 'departure_delay', label: 'Dep Delay (min)', type: 'number', description: 'Departure delay in minutes' },
+    { name: 'arrival_delay', label: 'Arr Delay (min)', type: 'number', description: 'Arrival delay in minutes' },
+    { name: 'distance_km', label: 'Distance (km)', type: 'number', description: 'Traveled distance in kilometers' },
+    { name: 'duration_min', label: 'Duration (min)', type: 'number', description: 'Trip duration in minutes' },
+    { name: 'business_type', label: 'Purpose', type: 'string', description: 'Travel purpose (private, business, commute)' },
+    { name: 'body', label: 'Notes', type: 'string', description: 'Check-in message body' },
+    { name: 'created_at', label: 'Created At', type: 'datetime', description: 'Check-in creation timestamp' }
+];
+
+export const STATION_COLUMNS = [
+    { name: 'id', label: 'ID', type: 'string', description: 'Station unique identifier / IBNR' },
+    { name: 'name', label: 'Name', type: 'string', description: 'Station / stop name' },
+    { name: 'latitude', label: 'Latitude', type: 'number', description: 'Geographic latitude coordinate' },
+    { name: 'longitude', label: 'Longitude', type: 'number', description: 'Geographic longitude coordinate' },
+    { name: 'eva_number', label: 'EVA / IBNR', type: 'string', description: 'European Station Identification Number' },
+    { name: 'country_code', label: 'Country', type: 'string', description: 'Country code (e.g. DE, AT, CH)' }
+];
+
+export const ROUTE_COLUMNS = [
+    { name: 'id', label: 'ID', type: 'string', description: 'Route / Line run identifier' },
+    { name: 'line_name', label: 'Line', type: 'string', description: 'Transit line name (e.g. ICE 720, RE 1)' },
+    { name: 'train_number', label: 'Number', type: 'string', description: 'Train number' },
+    { name: 'category', label: 'Category', type: 'string', description: 'Transport mode category' },
+    { name: 'operator_name', label: 'Operator', type: 'string', description: 'Operating transit company' },
+    { name: 'origin_station_id', label: 'Origin ID', type: 'string', description: 'Origin terminal station ID' },
+    { name: 'destination_station_id', label: 'Destination ID', type: 'string', description: 'Destination terminal station ID' }
+];
+
+export const TABLE_SCHEMAS = {
+    trips: {
+        name: 'trips',
+        label: 'Trips (Journeys)',
+        description: 'Denormalized journey records with human-readable stations, delays, companions, and lines.',
+        columns: TRIP_COLUMNS,
+        defaultQuery: 'SELECT line, origin, destination, distance_km, delay_dep FROM trips WHERE delay_dep > 15 ORDER BY delay_dep DESC LIMIT 50'
+    },
+    statuses: {
+        name: 'statuses',
+        label: 'Statuses (Check-ins)',
+        description: 'Normalized user check-in events referencing trips and stations by foreign keys.',
+        columns: STATUS_COLUMNS,
+        defaultQuery: 'SELECT id, trip_id, departure_time, departure_delay, distance_km FROM statuses WHERE departure_delay > 15 ORDER BY departure_delay DESC LIMIT 50'
+    },
+    stations: {
+        name: 'stations',
+        label: 'Stations (Nodes)',
+        description: 'Deduplicated transit stops, stations, and coordinates.',
+        columns: STATION_COLUMNS,
+        defaultQuery: 'SELECT id, name, latitude, longitude, country_code FROM stations ORDER BY name ASC LIMIT 50'
+    },
+    routes: {
+        name: 'routes',
+        label: 'Routes (Line Runs)',
+        description: 'Normalized transit line runs, categories, and operators.',
+        columns: ROUTE_COLUMNS,
+        defaultQuery: 'SELECT id, line_name, category, operator_name FROM routes ORDER BY line_name ASC LIMIT 50'
+    }
+};
+
 export const QUERY_RECIPES = [
     {
         title: 'Top 10 Most Delayed Trips',
@@ -54,6 +121,30 @@ export const QUERY_RECIPES = [
     {
         title: 'Commutes & Business Travel',
         sql: "SELECT line, origin, destination, business, distance_km, departure FROM trips WHERE business IN ('commute', 'business') ORDER BY departure DESC"
+    },
+    {
+        title: 'Stations: All Visited Transit Stations',
+        sql: 'SELECT id, name, latitude, longitude, country_code FROM stations ORDER BY name ASC LIMIT 50'
+    },
+    {
+        title: 'Stations: Geographic Coordinates Overview',
+        sql: 'SELECT name, latitude, longitude FROM stations WHERE latitude IS NOT NULL ORDER BY name ASC'
+    },
+    {
+        title: 'Statuses: High-Delay Check-ins (> 15 min)',
+        sql: 'SELECT id, trip_id, departure_time, departure_delay, distance_km FROM statuses WHERE departure_delay > 15 ORDER BY departure_delay DESC LIMIT 20'
+    },
+    {
+        title: 'Statuses: Commute & Business Check-ins',
+        sql: "SELECT id, trip_id, departure_time, business_type, distance_km FROM statuses WHERE business_type IN ('commute', 'business') ORDER BY departure_time DESC"
+    },
+    {
+        title: 'Routes: High-Speed Line Runs (ICE/TGV)',
+        sql: "SELECT id, line_name, category, operator_name FROM routes WHERE category = 'nationalExpress' ORDER BY line_name ASC"
+    },
+    {
+        title: 'Routes: Operating Transit Providers',
+        sql: 'SELECT id, line_name, category, operator_name FROM routes ORDER BY operator_name ASC LIMIT 50'
     }
 ];
 
@@ -231,9 +322,10 @@ function tokenize(sql) {
  * Parse and execute a SQL query on a list of flattened records
  * @param {string} sql SQL query string
  * @param {Array<Object>} records Flattened trip records
- * @returns {Object} { columns, rows, totalRows, executionTimeMs, rawTrips }
+ * @param {Object} options Execution options, e.g. { tables: { trips, statuses, stations, routes } }
+ * @returns {Object} { table, columns, rows, totalRows, executionTimeMs, rawTrips, isSelectAll }
  */
-export function executeTripQuery(sql, records = []) {
+export function executeTripQuery(sql, records = [], options = {}) {
     const startTime = performance.now();
     if (!sql || typeof sql !== 'string' || !sql.trim()) {
         throw new Error('Query string is empty.');
@@ -289,12 +381,18 @@ export function executeTripQuery(sql, records = []) {
     }
 
     // 2. FROM clause
+    let targetTable = 'trips';
     if (matchWord('FROM')) {
         const tableTok = consume();
-        const validTables = ['trips', 'trip', 'checkins', 'checkin'];
+        const validTables = ['trips', 'trip', 'checkins', 'checkin', 'statuses', 'status', 'stations', 'station', 'routes', 'route', 'trips_runs'];
         if (!tableTok || !validTables.includes(String(tableTok.value).toLowerCase())) {
-            throw new Error("Target table must be 'trips'");
+            throw new Error("Target table must be 'trips', 'statuses', 'stations', or 'routes'");
         }
+        const rawTable = String(tableTok.value).toLowerCase();
+        if (['statuses', 'status'].includes(rawTable)) targetTable = 'statuses';
+        else if (['stations', 'station'].includes(rawTable)) targetTable = 'stations';
+        else if (['routes', 'route', 'trips_runs'].includes(rawTable)) targetTable = 'routes';
+        else targetTable = 'trips';
     }
 
     // 3. WHERE clause
@@ -342,11 +440,19 @@ export function executeTripQuery(sql, records = []) {
         if (numTok && numTok.type === 'NUMBER') offset = Math.max(0, parseInt(numTok.value, 10));
     }
 
+    // Determine dataset to query
+    let dataset = records;
+    if (options && options.tables && options.tables[targetTable]) {
+        dataset = options.tables[targetTable];
+    } else if (targetTable !== 'trips') {
+        dataset = [];
+    }
+
     // EXECUTION
     // A. Filter
-    let filtered = records;
+    let filtered = dataset;
     if (wherePredicate) {
-        filtered = records.filter(row => {
+        filtered = dataset.filter(row => {
             try {
                 return Boolean(wherePredicate(row));
             } catch (e) {
@@ -388,8 +494,9 @@ export function executeTripQuery(sql, records = []) {
     }
 
     // D. Column Projection
+    const schemaDef = TABLE_SCHEMAS[targetTable] || TABLE_SCHEMAS.trips;
+    const availableCols = schemaDef.columns.map(c => c.name);
     const isSelectAll = selectedFields.length === 0 || selectedFields.includes('*');
-    const availableCols = TRIP_COLUMNS.map(c => c.name);
     const activeColumns = isSelectAll
         ? availableCols
         : selectedFields.filter(f => availableCols.includes(f.toLowerCase()) || f.toUpperCase().startsWith('COUNT(')).map(f => f.toUpperCase().startsWith('COUNT(') ? f.toUpperCase() : f.toLowerCase());
@@ -397,6 +504,7 @@ export function executeTripQuery(sql, records = []) {
     const hasCount = activeColumns.some(c => c.startsWith('COUNT('));
     if (hasCount && activeColumns.length === 1) {
         return {
+            table: targetTable,
             columns: ['COUNT(*)'],
             rows: [{ id: 0, 'COUNT(*)': totalMatching }],
             totalRows: 1,
@@ -408,7 +516,8 @@ export function executeTripQuery(sql, records = []) {
 
     const projectedRows = paged.map(row => {
         if (isSelectAll) return { ...row };
-        const res = { _rawTrip: row._rawTrip, id: row.id };
+        const res = { id: row.id };
+        if (row._rawTrip) res._rawTrip = row._rawTrip;
         for (const col of activeColumns) {
             res[col] = row[col];
         }
@@ -418,10 +527,11 @@ export function executeTripQuery(sql, records = []) {
     const executionTimeMs = Math.round((performance.now() - startTime) * 100) / 100;
 
     return {
+        table: targetTable,
         columns: activeColumns,
         rows: projectedRows,
         totalRows: totalMatching,
-        rawTrips: paged.map(r => r._rawTrip).filter(Boolean),
+        rawTrips: targetTable === 'trips' ? paged.map(r => r._rawTrip).filter(Boolean) : [],
         executionTimeMs,
         isSelectAll
     };

@@ -237,8 +237,33 @@
                             <span class="sql-editor-title">Query Console</span>
                             <span class="sql-editor-target"><code>trips</code></span>
                         </div>
+                        <button type="button" class="studio-schema-toggle-btn" id="sqlSchemaToggleBtn" title="Toggle Database Schema &amp; Tables Guide" aria-expanded="false">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+                            <span>Schema Guide</span>
+                        </button>
                         <span class="sql-editor-hint">Press <strong>Ctrl+Enter</strong> / <strong>Cmd+Enter</strong> to execute</span>
                     </div>
+
+                    <!-- Interactive Database Tables & Schema Guide Drawer -->
+                    <div id="sqlSchemaDrawer" class="sql-schema-drawer" style="display: none;" aria-label="Database Tables and Schema Guide">
+                        <div class="sql-schema-drawer-header">
+                            <div class="sql-schema-drawer-title">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+                                <span>Database Tables &amp; Relational Schema Guide</span>
+                            </div>
+                            <button type="button" class="search-clear-btn" id="closeSchemaDrawerBtn" aria-label="Close schema guide" style="font-size: 14px;">✕</button>
+                        </div>
+                        <div class="sql-schema-tabs" role="tablist" aria-label="Database tables">
+                            <button type="button" class="sql-schema-tab-btn active" data-table="trips" role="tab" aria-selected="true">trips (journeys)</button>
+                            <button type="button" class="sql-schema-tab-btn" data-table="statuses" role="tab" aria-selected="false">statuses (check-ins)</button>
+                            <button type="button" class="sql-schema-tab-btn" data-table="stations" role="tab" aria-selected="false">stations (stops)</button>
+                            <button type="button" class="sql-schema-tab-btn" data-table="routes" role="tab" aria-selected="false">routes (runs)</button>
+                        </div>
+                        <div class="sql-schema-content-pane" id="sqlSchemaContentPane">
+                            <!-- Populated dynamically by app.js -->
+                        </div>
+                    </div>
+
                     <div class="sql-textarea-wrapper">
                         <textarea id="sqlQueryInput" class="sql-editor-textarea" spellcheck="false" rows="4" aria-label="SQL Query Input" placeholder="SELECT line, origin, destination, distance_km, delay_dep FROM trips WHERE delay_dep > 15 ORDER BY delay_dep DESC LIMIT 50"></textarea>
                         <!-- Interactive Autocomplete & Recommendations Popover -->
@@ -248,6 +273,8 @@
                     <div class="sql-editor-footer">
                         <div class="sql-chips-reference" aria-label="Quick SQL syntax chips">
                             <button type="button" class="sql-chip-tag" data-insert="SELECT * FROM trips">SELECT *</button>
+                            <button type="button" class="sql-chip-tag" data-insert="FROM stations">stations</button>
+                            <button type="button" class="sql-chip-tag" data-insert="FROM statuses">statuses</button>
                             <button type="button" class="sql-chip-tag" data-insert="WHERE category = 'highspeed'">category</button>
                             <button type="button" class="sql-chip-tag" data-insert="WHERE delay_dep > 15">delay_dep</button>
                             <button type="button" class="sql-chip-tag" data-insert="WHERE distance_km > 300">distance_km</button>
