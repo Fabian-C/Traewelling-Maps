@@ -24,21 +24,22 @@ async function runStressTestSuite() {
         'about:blank'
     ]);
 
-    let tabs = null;
+    let targetTab = null;
     for (let i = 0; i < 25; i++) {
         await new Promise(r => setTimeout(r, 200));
         try {
             const res = await fetch('http://127.0.0.1:9227/json');
-            tabs = await res.json();
-            if (tabs && tabs.length > 0 && tabs[0].webSocketDebuggerUrl) break;
+            const tabs = await res.json();
+            targetTab = tabs?.find(t => t.type === 'page' && t.webSocketDebuggerUrl) || null;
+            if (targetTab) break;
         } catch (e) {}
     }
 
-    if (!tabs || !tabs[0].webSocketDebuggerUrl) {
+    if (!targetTab) {
         throw new Error('Chromium debug port connection failed.');
     }
 
-    const ws = new WebSocket(tabs[0].webSocketDebuggerUrl);
+    const ws = new WebSocket(targetTab.webSocketDebuggerUrl);
     let msgId = 1;
     const callbacks = new Map();
     ws.onmessage = (e) => {
