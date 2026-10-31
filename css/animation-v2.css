@@ -59,7 +59,9 @@
     background: #0c1017;
     border-radius: var(--radius-md);
     overflow: clip;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    box-shadow:
+        0 12px 36px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.08);
     cursor: pointer;
 }
 
@@ -164,9 +166,13 @@
     block-size: 14px;
     border-radius: 50%;
     background: #ffffff;
-    box-shadow: 0 0 8px rgba(56, 189, 248, 0.8), 0 2px 4px rgba(0, 0, 0, 0.4);
+    box-shadow:
+        0 0 8px rgba(56, 189, 248, 0.8),
+        0 2px 4px rgba(0, 0, 0, 0.4);
     opacity: 0;
-    transition: opacity 0.15s ease, transform 0.1s ease;
+    transition:
+        opacity 0.15s ease,
+        transform 0.1s ease;
     pointer-events: none;
 }
 
@@ -224,6 +230,13 @@
     justify-content: center;
     cursor: pointer;
     transition: all 0.15s ease;
+    position: relative;
+}
+
+.v2-ctrl-btn::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
 }
 
 .v2-ctrl-btn:hover {
@@ -287,3 +300,79 @@
     max-inline-size: 800px;
 }
 
+/* ==========================================================================
+   Responsive Micro-Player Controls (Mobile Viewports)
+   ========================================================================== */
+
+@media (max-width: 600px) {
+    .v2-player-container {
+        inline-size: 100%;
+    }
+
+    .v2-player-controls {
+        padding: 8px 10px;
+        margin-block-start: 8px;
+        box-sizing: border-box;
+    }
+
+    .v2-controls-row {
+        gap: 6px;
+    }
+
+    .v2-controls-left,
+    .v2-controls-right {
+        gap: 4px;
+    }
+
+    .v2-ctrl-btn {
+        inline-size: 28px;
+        block-size: 28px;
+    }
+
+    .v2-timecode {
+        font-size: 10px;
+        gap: 4px;
+        margin-inline-start: 2px;
+    }
+
+    .v2-timecode-frame {
+        display: none; /* Hide technical frame count on smaller viewports */
+    }
+
+    .v2-speed-btn {
+        font-size: 10px;
+        padding-inline: 5px;
+    }
+}
+
+@media (max-width: 380px) {
+    /* Extreme narrow viewports like iPhone SE 1st Gen (320px) */
+    .v2-player-controls {
+        padding: 6px 8px;
+    }
+
+    .v2-ctrl-btn {
+        inline-size: 26px;
+        block-size: 26px;
+    }
+
+    .v2-controls-row {
+        gap: 3px;
+    }
+
+    .v2-controls-left,
+    .v2-controls-right {
+        gap: 3px;
+    }
+
+    .v2-timecode {
+        font-size: 9px;
+        gap: 2px;
+        margin-inline-start: 1px;
+    }
+
+    .v2-speed-btn {
+        font-size: 9px;
+        padding-inline: 4px;
+    }
+}

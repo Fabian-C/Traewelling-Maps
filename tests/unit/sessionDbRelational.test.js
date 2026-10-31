@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getStationId, extractStation, normalizeTrip } from '../../js/cache/normalizer.js';
 import { SessionDB } from '../../js/cache/session.js';
 import { Storage } from '../../js/storage/storage.js';
@@ -305,6 +305,10 @@ describe('Normalized Relational Cache Architecture', () => {
             cleanupMock = setupMockIndexedDB();
             Storage.remove(SessionDB.MIGRATED_KEY);
             Storage.remove(SessionDB.META_CACHE_KEY);
+        });
+
+        afterEach(() => {
+            if (cleanupMock) cleanupMock();
         });
 
         it('exposes VERSION 4 and normalized object store names', () => {

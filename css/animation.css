@@ -8,7 +8,9 @@
 @layer layout, components, utilities;
 
 @layer layout {
-    *, *::before, *::after {
+    *,
+    *::before,
+    *::after {
         box-sizing: border-box;
     }
 
@@ -115,10 +117,77 @@
             gap: 8px;
         }
 
+        .anim-nav-links {
+            inline-size: 100%;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 6px;
+        }
+
+        .anim-nav-btn {
+            padding-block: 6px;
+            padding-inline: 4px;
+            font-size: 11px;
+            justify-content: center;
+        }
+
         .anim-toolbar {
             padding-block: 10px;
             padding-inline: 12px;
             gap: 10px;
+        }
+
+        .anim-selector-group {
+            inline-size: 100%;
+        }
+
+        .anim-select-label {
+            inline-size: 100%;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .anim-select {
+            flex: 1;
+            min-inline-size: 0;
+            max-inline-size: 100%;
+        }
+
+        .anim-select-trip {
+            min-inline-size: 0;
+        }
+
+        .aspect-pill-group {
+            inline-size: 100%;
+            max-inline-size: 100%;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            padding: 4px;
+        }
+
+        .aspect-pill-group::-webkit-scrollbar {
+            display: none;
+        }
+
+        .aspect-pill {
+            flex-shrink: 0;
+            white-space: nowrap;
+            padding-block: 6px;
+            padding-inline: 10px;
+        }
+
+        .anim-custom-dates {
+            inline-size: 100%;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .anim-date-label {
+            inline-size: 100%;
+            justify-content: space-between;
         }
 
         .anim-layout {
@@ -196,7 +265,10 @@
         text-decoration: none;
         font-size: 13px;
         font-weight: 500;
-        transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+        transition:
+            background-color 0.15s ease,
+            color 0.15s ease,
+            border-color 0.15s ease;
     }
 
     .anim-nav-btn:hover {
@@ -334,7 +406,9 @@
         padding-inline: 12px;
         border-radius: 4px;
         cursor: pointer;
-        transition: background-color 0.15s ease, color 0.15s ease;
+        transition:
+            background-color 0.15s ease,
+            color 0.15s ease;
     }
 
     .aspect-pill:hover:not(.active) {
@@ -367,7 +441,9 @@
 
     .player-wrapper {
         inline-size: 100%;
-        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.75), 0 0 40px rgba(56, 189, 248, 0.18);
+        box-shadow:
+            0 25px 60px -15px rgba(0, 0, 0, 0.75),
+            0 0 40px rgba(56, 189, 248, 0.18);
         border-radius: 18px;
         overflow: clip;
         border: 1px solid rgba(255, 255, 255, 0.16);
@@ -458,7 +534,9 @@
         font-size: 13px;
         font-weight: 800;
         cursor: pointer;
-        transition: filter 0.15s ease, opacity 0.15s ease;
+        transition:
+            filter 0.15s ease,
+            opacity 0.15s ease;
     }
 
     .anim-download-btn:hover:not(:disabled) {
@@ -488,7 +566,9 @@
         block-size: 100%;
         background: var(--accent-cyan);
         border-radius: 999px;
-        transition: inline-size 0.15s ease, width 0.15s ease;
+        transition:
+            inline-size 0.15s ease,
+            width 0.15s ease;
     }
 
     .record-status-row {
@@ -547,7 +627,9 @@
     }
 
     @keyframes spin {
-        to { transform: rotate(360deg); }
+        to {
+            transform: rotate(360deg);
+        }
     }
 
     @media (max-width: 768px) {
