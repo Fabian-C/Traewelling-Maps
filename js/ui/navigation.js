@@ -27,6 +27,7 @@ export function syncNavigationLinks(username, doc = typeof document !== 'undefin
         '#navTripsLink',
         '#navWrappedLink',
         '#navDocsLink',
+        '#navV2Link',
         '#menuTripsBtn',
         '#menuWrappedBtn',
         '#menuDocsBtn',

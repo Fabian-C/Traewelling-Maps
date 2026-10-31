@@ -1,0 +1,288 @@
+/* ==========================================================================
+   Trip Clip V2 — Zero-Dependency Native Animation Studio
+   Modern, low-maintenance CSS with self-contained Micro-Player styling
+   ========================================================================== */
+
+@import url('animation.css');
+
+/* V2 Beta Branding Pill */
+.anim-brand-badge-v2 {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, #0ea5e9, #8b5cf6);
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(14, 165, 233, 0.4);
+}
+
+.anim-v1-toggle-link {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.anim-v1-toggle-link:hover {
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* ==========================================================================
+   Micro-Player Architecture (Self-Contained Canvas & Transport Controls)
+   ========================================================================== */
+
+.v2-player-container {
+    inline-size: 100%;
+    max-inline-size: 720px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.v2-player-stage {
+    inline-size: 100%;
+    aspect-ratio: 1 / 1;
+    position: relative;
+    background: #0c1017;
+    border-radius: var(--radius-md);
+    overflow: clip;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+}
+
+.v2-player-canvas {
+    inline-size: 100%;
+    block-size: 100%;
+    display: block;
+    object-fit: contain;
+}
+
+/* Center Clickable Play/Pause Overlay Indicator */
+.v2-center-play-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.25);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.v2-player-stage:hover .v2-center-play-overlay.paused {
+    opacity: 1;
+}
+
+.v2-play-icon-bubble {
+    inline-size: 64px;
+    block-size: 64px;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    transform: scale(0.95);
+    transition: transform 0.15s ease;
+}
+
+.v2-player-stage:hover .v2-play-icon-bubble {
+    transform: scale(1.05);
+}
+
+/* Transport Controls Bar */
+.v2-player-controls {
+    inline-size: 100%;
+    margin-block-start: 12px;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Scrubber Timeline */
+.v2-scrubber-wrap {
+    inline-size: 100%;
+    block-size: 20px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    position: relative;
+}
+
+.v2-scrubber-track {
+    inline-size: 100%;
+    block-size: 6px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    position: relative;
+    overflow: clip;
+    transition: block-size 0.15s ease;
+}
+
+.v2-scrubber-wrap:hover .v2-scrubber-track {
+    block-size: 8px;
+}
+
+.v2-scrubber-fill {
+    inline-size: 0%;
+    block-size: 100%;
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+    border-radius: 999px;
+    pointer-events: none;
+}
+
+.v2-scrubber-thumb {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: 0%;
+    transform: translate(-50%, -50%);
+    inline-size: 14px;
+    block-size: 14px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.8), 0 2px 4px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+    pointer-events: none;
+}
+
+.v2-scrubber-wrap:hover .v2-scrubber-thumb,
+.v2-scrubber-wrap.dragging .v2-scrubber-thumb {
+    opacity: 1;
+}
+
+/* Tooltip on hover */
+.v2-scrubber-tooltip {
+    position: absolute;
+    inset-block-end: 26px;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid var(--border-subtle);
+    padding: 3px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+    font-family: monospace;
+    color: var(--text-primary);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    white-space: nowrap;
+}
+
+.v2-scrubber-wrap:hover .v2-scrubber-tooltip {
+    opacity: 1;
+}
+
+/* Controls Toolbar Row */
+.v2-controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.v2-controls-left,
+.v2-controls-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.v2-ctrl-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+    inline-size: 32px;
+    block-size: 32px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.v2-ctrl-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.v2-ctrl-btn.active {
+    color: var(--accent-cyan);
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.3);
+}
+
+.v2-timecode {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-inline-start: 4px;
+}
+
+.v2-timecode-cur {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.v2-timecode-frame {
+    font-size: 10px;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.v2-speed-btn {
+    font-size: 11px;
+    font-weight: 600;
+    inline-size: auto;
+    padding-inline: 7px;
+    letter-spacing: 0.02em;
+}
+
+/* Fullscreen Mode */
+.v2-player-container:fullscreen {
+    inline-size: 100vw;
+    block-size: 100vh;
+    max-inline-size: none;
+    background: #000000;
+    justify-content: center;
+    padding: 16px;
+}
+
+.v2-player-container:fullscreen .v2-player-stage {
+    inline-size: auto;
+    block-size: calc(100vh - 100px);
+}
+
+.v2-player-container:fullscreen .v2-player-controls {
+    max-inline-size: 800px;
+}
