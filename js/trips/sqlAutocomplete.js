@@ -46,7 +46,25 @@ export const SQL_VALUES = [
     // Business travel types
     { label: "'private'", insertText: "'private'", type: 'value', detail: 'Personal leisure travel' },
     { label: "'business'", insertText: "'business'", type: 'value', detail: 'Work & business trips' },
-    { label: "'commute'", insertText: "'commute'", type: 'value', detail: 'Daily commute to workplace' }
+    { label: "'commute'", insertText: "'commute'", type: 'value', detail: 'Daily commute to workplace' },
+    // Country codes
+    { label: "'DE'", insertText: "'DE'", type: 'value', detail: 'Germany' },
+    { label: "'AT'", insertText: "'AT'", type: 'value', detail: 'Austria' },
+    { label: "'CH'", insertText: "'CH'", type: 'value', detail: 'Switzerland' },
+    { label: "'NL'", insertText: "'NL'", type: 'value', detail: 'Netherlands' },
+    { label: "'BE'", insertText: "'BE'", type: 'value', detail: 'Belgium' },
+    { label: "'FR'", insertText: "'FR'", type: 'value', detail: 'France' },
+    { label: "'PL'", insertText: "'PL'", type: 'value', detail: 'Poland' },
+    { label: "'CZ'", insertText: "'CZ'", type: 'value', detail: 'Czech Republic' },
+    { label: "'IT'", insertText: "'IT'", type: 'value', detail: 'Italy' },
+    { label: "'DK'", insertText: "'DK'", type: 'value', detail: 'Denmark' },
+    // Operators
+    { label: "'DB Fernverkehr AG'", insertText: "'DB Fernverkehr AG'", type: 'value', detail: 'Deutsche Bahn Long Distance' },
+    { label: "'DB Regio'", insertText: "'DB Regio'", type: 'value', detail: 'Deutsche Bahn Regional' },
+    { label: "'ÖBB'", insertText: "'ÖBB'", type: 'value', detail: 'Austrian Federal Railways' },
+    { label: "'SBB'", insertText: "'SBB'", type: 'value', detail: 'Swiss Federal Railways' },
+    { label: "'SNCF'", insertText: "'SNCF'", type: 'value', detail: 'French National Railway Company' },
+    { label: "'Eurostar'", insertText: "'Eurostar'", type: 'value', detail: 'High-speed cross-border rail' }
 ];
 
 export const SQL_SNIPPETS = [
@@ -211,9 +229,21 @@ export function getSQLCompletions(sql = '', cursorPos = 0) {
             ...SQL_KEYWORDS
         ];
     }
-    else if (/business\s*(=|IN|\!=|<>)\s*\(?$/i.test(precedingText)) {
+    else if (/business(_type)?\s*(=|IN|\!=|<>)\s*\(?$/i.test(precedingText)) {
         candidateList = [
             ...SQL_VALUES.filter(v => ['\'private\'', '\'business\'', '\'commute\''].includes(v.label)),
+            ...SQL_KEYWORDS
+        ];
+    }
+    else if (/(country|country_code)\s*(=|IN|\!=|<>)\s*\(?$/i.test(precedingText)) {
+        candidateList = [
+            ...SQL_VALUES.filter(v => ['\'DE\'', '\'AT\'', '\'CH\'', '\'NL\'', '\'BE\'', '\'FR\'', '\'PL\'', '\'CZ\'', '\'IT\'', '\'DK\''].includes(v.label)),
+            ...SQL_KEYWORDS
+        ];
+    }
+    else if (/(operator|operator_name)\s*(=|IN|\!=|<>)\s*\(?$/i.test(precedingText)) {
+        candidateList = [
+            ...SQL_VALUES.filter(v => v.detail.includes('Railway') || v.detail.includes('Deutsche Bahn') || v.detail.includes('rail')),
             ...SQL_KEYWORDS
         ];
     }

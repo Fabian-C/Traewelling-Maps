@@ -1000,7 +1000,7 @@ function setupStudioEventListeners() {
             const snippet = chip.dataset.insert;
             if (snippet && sqlInput) {
                 const currentVal = sqlInput.value.trim();
-                const hasFrom = /\bFROM\s+trips\b/i.test(currentVal);
+                const hasFrom = /\bFROM\s+[a-zA-Z_]+\b/i.test(currentVal);
                 if (snippet.startsWith('SELECT *')) {
                     sqlInput.value = snippet;
                 } else if (!currentVal || !currentVal.toUpperCase().startsWith('SELECT')) {
@@ -1202,9 +1202,46 @@ function setupStudioEventListeners() {
 
     if (exportSqlGeoBtn) {
         exportSqlGeoBtn.addEventListener('click', () => {
-            const trips = (sqlQueryResult?.rawTrips?.length ? sqlQueryResult.rawTrips : filteredTrips);
+            if (!sqlQueryResult) {
+                alert('No active query results to export.');
+                return;
+            }
+
+            // Export stations as Point GeoJSON
+            if (sqlQueryResult.table === 'stations') {
+                const validStations = (sqlQueryResult.rows || []).filter(
+                    stn => stn.latitude !== null && stn.latitude !== undefined && stn.longitude !== null && stn.longitude !== undefined && !isNaN(Number(stn.latitude)) && !isNaN(Number(stn.longitude))
+                );
+                if (!validStations.length) {
+                    alert('No stations with geographic coordinates in current result.');
+                    return;
+                }
+                const geojson = {
+                    type: 'FeatureCollection',
+                    title: 'SQL Stations Export',
+                    exportDate: new Date().toISOString(),
+                    features: validStations.map(stn => ({
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [parseFloat(stn.longitude), parseFloat(stn.latitude)]
+                        },
+                        properties: {
+                            id: stn.id,
+                            name: stn.name || 'Station',
+                            country_code: stn.country_code || null,
+                            eva_number: stn.eva_number || null
+                        }
+                    }))
+                };
+                downloadFile(JSON.stringify(geojson, null, 2), `traewelling-stations-${Date.now()}.geojson`, 'application/geo+json');
+                return;
+            }
+
+            // Export trips as Journey LineStrings
+            const trips = sqlQueryResult.rawTrips || [];
             if (!trips.length) {
-                alert('No geo-referenced trips in current result.');
+                alert('No geo-referenced trips in current query results.');
                 return;
             }
             const geojson = tripsToGeoJSON(trips, {

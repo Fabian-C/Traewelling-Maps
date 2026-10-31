@@ -170,19 +170,31 @@ export const SessionDB = {
                 const tripStore = tx.objectStore(this.TRIPS_STORE);
                 const statusStore = tx.objectStore(this.STATUSES_STORE);
 
+                const uniqueStations = new Map();
+                const uniqueRuns = new Map();
+
                 for (const trip of trips) {
                     const norm = this.normalizeTrip(trip, username);
                     if (norm) {
                         for (const stn of norm.stations) {
-                            stnStore.put(stn);
+                            if (stn?.id && !uniqueStations.has(stn.id)) {
+                                uniqueStations.set(stn.id, stn);
+                            }
                         }
-                        if (norm.tripRun) {
-                            tripStore.put(norm.tripRun);
+                        if (norm.tripRun?.id && !uniqueRuns.has(norm.tripRun.id)) {
+                            uniqueRuns.set(norm.tripRun.id, norm.tripRun);
                         }
                         if (norm.status) {
                             statusStore.put(norm.status);
                         }
                     }
+                }
+
+                for (const stn of uniqueStations.values()) {
+                    stnStore.put(stn);
+                }
+                for (const run of uniqueRuns.values()) {
+                    tripStore.put(run);
                 }
             }
 
@@ -578,11 +590,11 @@ export const SessionDB = {
                     trips: [],
                     timestamp: Date.now()
                 };
-                const existingIds = new Set((session.trips || []).map((t) => t.id));
+                const existingIds = new Set((session.trips || []).map((t) => String(t.id)));
                 const addedTrips = [];
                 for (const trip of newTrips) {
-                    if (trip?.id && !existingIds.has(trip.id)) {
-                        existingIds.add(trip.id);
+                    if (trip?.id && !existingIds.has(String(trip.id))) {
+                        existingIds.add(String(trip.id));
                         addedTrips.push(trip);
                     }
                 }
@@ -600,19 +612,31 @@ export const SessionDB = {
                     const tripStore = tx.objectStore(this.TRIPS_STORE);
                     const statusStore = tx.objectStore(this.STATUSES_STORE);
 
+                    const uniqueStations = new Map();
+                    const uniqueRuns = new Map();
+
                     for (const trip of addedTrips) {
                         const norm = this.normalizeTrip(trip, username);
                         if (norm) {
                             for (const stn of norm.stations) {
-                                stnStore.put(stn);
+                                if (stn?.id && !uniqueStations.has(stn.id)) {
+                                    uniqueStations.set(stn.id, stn);
+                                }
                             }
-                            if (norm.tripRun) {
-                                tripStore.put(norm.tripRun);
+                            if (norm.tripRun?.id && !uniqueRuns.has(norm.tripRun.id)) {
+                                uniqueRuns.set(norm.tripRun.id, norm.tripRun);
                             }
                             if (norm.status) {
                                 statusStore.put(norm.status);
                             }
                         }
+                    }
+
+                    for (const stn of uniqueStations.values()) {
+                        stnStore.put(stn);
+                    }
+                    for (const run of uniqueRuns.values()) {
+                        tripStore.put(run);
                     }
                 }
             };

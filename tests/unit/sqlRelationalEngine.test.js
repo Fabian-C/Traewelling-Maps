@@ -97,6 +97,22 @@ describe('Relational SQL Engine & Autocomplete', () => {
             expect(() => executeTripQuery('SELECT * FROM random_table', [], { tables: mockDatasets }))
                 .toThrow(/Target table must be 'trips'/);
         });
+
+        it('parses and ignores single-line and multi-line comments containing SQL keywords', () => {
+            const sql1 = "SELECT line, origin FROM trips WHERE delay_dep > 10 -- and check delay \n ORDER BY delay_dep DESC";
+            const res1 = executeTripQuery(sql1, mockDatasets.trips);
+            expect(res1.totalRows).toBe(1);
+            expect(res1.rows[0].line).toBe('ICE 720');
+
+            const sql2 = "SELECT line, origin FROM trips WHERE delay_dep > 10 /* and order by limit */ ORDER BY delay_dep DESC";
+            const res2 = executeTripQuery(sql2, mockDatasets.trips);
+            expect(res2.totalRows).toBe(1);
+        });
+
+        it('throws descriptive error on unknown column in SELECT projection', () => {
+            expect(() => executeTripQuery('SELECT unknown_field, line FROM trips', mockDatasets.trips))
+                .toThrow(/Unknown column 'unknown_field' in table 'trips'/);
+        });
     });
 
     describe('Context-Aware SQL Autocomplete', () => {
@@ -123,5 +139,22 @@ describe('Relational SQL Engine & Autocomplete', () => {
             expect(columnLabels).toContain('departure_delay');
             expect(columnLabels).toContain('business_type');
         });
+
+        it('suggests business values for normalized business_type column', () => {
+            const completions = getSQLCompletions('SELECT * FROM statuses WHERE business_type = ', 46);
+            const labels = completions.items.map(i => i.label);
+            expect(labels).toContain("'business'");
+            expect(labels).toContain("'commute'");
+            expect(labels).toContain("'private'");
+        });
+
+        it('suggests country codes for country_code column', () => {
+            const completions = getSQLCompletions('SELECT * FROM stations WHERE country_code = ', 45);
+            const labels = completions.items.map(i => i.label);
+            expect(labels).toContain("'DE'");
+            expect(labels).toContain("'AT'");
+            expect(labels).toContain("'CH'");
+        });
     });
 });
+

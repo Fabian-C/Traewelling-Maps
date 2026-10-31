@@ -237,6 +237,25 @@ function tokenize(sql) {
             continue;
         }
 
+        // Single-line comment: -- until newline
+        if (char === '-' && sql[i + 1] === '-') {
+            i += 2;
+            while (i < len && sql[i] !== '\n' && sql[i] !== '\r') {
+                i++;
+            }
+            continue;
+        }
+
+        // Multi-line block comment: /* ... */
+        if (char === '/' && sql[i + 1] === '*') {
+            i += 2;
+            while (i < len && !(sql[i] === '*' && sql[i + 1] === '/')) {
+                i++;
+            }
+            if (i < len) i += 2; // skip */
+            continue;
+        }
+
         // Single or double quote strings
         if (char === "'" || char === '"') {
             const quote = char;
@@ -497,9 +516,20 @@ export function executeTripQuery(sql, records = [], options = {}) {
     const schemaDef = TABLE_SCHEMAS[targetTable] || TABLE_SCHEMAS.trips;
     const availableCols = schemaDef.columns.map(c => c.name);
     const isSelectAll = selectedFields.length === 0 || selectedFields.includes('*');
+
+    if (!isSelectAll) {
+        for (const field of selectedFields) {
+            const lowerF = field.toLowerCase();
+            const isAgg = field.toUpperCase().startsWith('COUNT(');
+            if (!isAgg && !availableCols.includes(lowerF)) {
+                throw new Error(`Unknown column '${field}' in table '${targetTable}'`);
+            }
+        }
+    }
+
     const activeColumns = isSelectAll
         ? availableCols
-        : selectedFields.filter(f => availableCols.includes(f.toLowerCase()) || f.toUpperCase().startsWith('COUNT(')).map(f => f.toUpperCase().startsWith('COUNT(') ? f.toUpperCase() : f.toLowerCase());
+        : selectedFields.map(f => f.toUpperCase().startsWith('COUNT(') ? f.toUpperCase() : f.toLowerCase());
 
     const hasCount = activeColumns.some(c => c.startsWith('COUNT('));
     if (hasCount && activeColumns.length === 1) {
