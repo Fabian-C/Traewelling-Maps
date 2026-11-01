@@ -17,6 +17,7 @@ import {
 } from '../animation/tiles.js';
 import {
     filterTripsByTimeframe,
+    getTripTimestamp,
     getTimeframeLabel,
     TIMEFRAME_PRESETS
 } from '../animation/timeframe.js';
@@ -82,12 +83,24 @@ let player = null;
 let activeExporter = null;
 
 function getActiveTrips() {
+    let refDate = new Date();
+    // If all user trips are historical (e.g. from an archived year), anchor the 7-day window to the latest trip
+    // so historical datasets display their latest 7 days rather than returning an empty set.
+    if (currentTimeframe === 'last-7-days' && userTrips.length > 0) {
+        const timestamps = userTrips.map(t => getTripTimestamp(t)).filter(ts => ts > 0);
+        if (timestamps.length > 0) {
+            const latestTime = Math.max(...timestamps);
+            if ((Date.now() - latestTime) > 30 * 24 * 60 * 60 * 1000) {
+                refDate = new Date(latestTime);
+            }
+        }
+    }
     return filterTripsByTimeframe(
         userTrips,
         currentTimeframe,
         customTimeframeFrom,
         customTimeframeTo,
-        new Date(),
+        refDate,
         customTimeframeFromTime,
         customTimeframeToTime
     );
@@ -114,6 +127,9 @@ async function init() {
     const tfParam = (urlParams.get('timeframe') || '').toLowerCase().trim();
     if (TIMEFRAME_PRESETS.some(p => p.id === tfParam)) {
         currentTimeframe = tfParam;
+    } else if (currentMode === 'all') {
+        // Default to last-7-days when entering All Trips mode to prevent browser unresponsiveness
+        currentTimeframe = 'last-7-days';
     }
     customTimeframeFrom = urlParams.get('from') || '';
     customTimeframeTo = urlParams.get('to') || '';
@@ -489,6 +505,10 @@ function setupControls() {
                 currentMode = 'all';
                 currentTrip = null;
                 currentTripId = '';
+                // Default timeframe to last-7-days when entering All Trips mode to prevent unresponsiveness
+                if (currentTimeframe === 'all' || !currentTimeframe) {
+                    currentTimeframe = 'last-7-days';
+                }
             } else {
                 currentMode = 'single';
                 currentTripId = val;

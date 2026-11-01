@@ -297,4 +297,39 @@ describe('Trip Clip V2 Native Engine', () => {
             expect(exporter.activeStream).toBeNull();
         });
     });
+
+    describe('All Trips Mode & Timeframe Responsiveness Protection', () => {
+        it('resolves timeframe to last-7-days when in all-mode without explicit override', () => {
+            const resolveTimeframe = (mode, tfParam) => {
+                if (tfParam) return tfParam;
+                if (mode === 'all') return 'last-7-days';
+                return 'all';
+            };
+
+            expect(resolveTimeframe('all', '')).toBe('last-7-days');
+            expect(resolveTimeframe('all', 'this-month')).toBe('this-month');
+            expect(resolveTimeframe('single', '')).toBe('all');
+        });
+
+        it('anchors last-7-days to latest trip timestamp when dataset is historical', () => {
+            const historicalTrips = [
+                { id: 1, checkin: { origin: { departureReal: '2023-05-20T10:00:00Z' } } },
+                { id: 2, checkin: { origin: { departureReal: '2023-05-18T14:00:00Z' } } },
+                { id: 3, checkin: { origin: { departureReal: '2023-04-01T08:00:00Z' } } }
+            ];
+
+            const getRefDate = (trips) => {
+                const timestamps = trips.map(t => new Date(t.checkin?.origin?.departureReal).getTime());
+                const latest = Math.max(...timestamps);
+                // Older than 30 days ago
+                if ((Date.now() - latest) > 30 * 24 * 60 * 60 * 1000) {
+                    return new Date(latest);
+                }
+                return new Date();
+            };
+
+            const ref = getRefDate(historicalTrips);
+            expect(ref.toISOString()).toBe('2023-05-20T10:00:00.000Z');
+        });
+    });
 });

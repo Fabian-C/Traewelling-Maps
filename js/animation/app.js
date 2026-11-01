@@ -240,6 +240,9 @@ async function init() {
     const tfParam = (urlParams.get('timeframe') || '').toLowerCase().trim();
     if (TIMEFRAME_PRESETS.some(p => p.id === tfParam)) {
         currentTimeframe = tfParam;
+    } else if (currentMode === 'all') {
+        // Default to last-7-days when entering All Trips mode to prevent browser unresponsiveness
+        currentTimeframe = 'last-7-days';
     }
     customTimeframeFrom = urlParams.get('from') || '';
     customTimeframeTo = urlParams.get('to') || '';
@@ -768,6 +771,12 @@ function setupControls() {
             const val = String(e.target.value);
             if (val === '__ALL__') {
                 currentMode = 'all';
+                // Default timeframe to last-7-days when entering All Trips mode to prevent unresponsiveness
+                if (currentTimeframe === 'all' || !currentTimeframe) {
+                    currentTimeframe = 'last-7-days';
+                    const tfSelect = document.getElementById('timeframeSelect');
+                    if (tfSelect) tfSelect.value = 'last-7-days';
+                }
                 const activeTrips = getActiveTrips();
                 await attachPolylinesToTrips(activeTrips, 120);
                 updateAllModeSidebar(activeTrips);
