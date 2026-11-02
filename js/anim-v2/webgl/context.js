@@ -50,3 +50,4 @@ export function createWebGL2Context(canvas, customOptions = {}) {
 
     return { gl, isSupported: true, error: null };
 }
+

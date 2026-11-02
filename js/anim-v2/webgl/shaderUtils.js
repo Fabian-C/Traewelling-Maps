@@ -47,3 +47,4 @@ export function getUniformLocations(gl, program, uniformNames = []) {
     }
     return locations;
 }
+

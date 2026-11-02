@@ -122,3 +122,4 @@ export class WebGLLinePipeline {
         if (this.program) gl.deleteProgram(this.program);
     }
 }
+

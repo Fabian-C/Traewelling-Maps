@@ -138,3 +138,4 @@ export function packRidesIntoVBO(rides = [], totalFrames = 240) {
         segmentCount: totalSegments
     };
 }
+

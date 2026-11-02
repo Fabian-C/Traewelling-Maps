@@ -110,3 +110,4 @@ export class WebGLVehiclePipeline {
         if (this.program) gl.deleteProgram(this.program);
     }
 }
+
