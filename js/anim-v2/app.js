@@ -806,7 +806,10 @@ function setupControls() {
 
             try {
                 if (navigator.clipboard && navigator.clipboard.writeText) {
-                    await navigator.clipboard.writeText(shareUrl);
+                    await Promise.race([
+                        navigator.clipboard.writeText(shareUrl),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 250))
+                    ]);
                 } else {
                     throw new Error('Clipboard API unavailable');
                 }

@@ -13,7 +13,8 @@ async function runTimeframeE2ETest() {
     const chrome = spawn('chromium-browser', [
         '--headless=new',
         '--no-sandbox',
-        '--disable-gpu',
+        '--use-gl=angle',
+        '--use-angle=swiftshader',
         '--remote-debugging-port=9229',
         '--user-data-dir=/tmp/chrome-test-anim-tf',
         'about:blank'
@@ -35,44 +36,57 @@ async function runTimeframeE2ETest() {
     }
 
     const ws = new WebSocket(targetTab.webSocketDebuggerUrl);
-    let msgId = 1;
-    const callbacks = new Map();
-    ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data);
-        if (msg.id && callbacks.has(msg.id)) {
-            callbacks.get(msg.id)(msg);
-            callbacks.delete(msg.id);
-        }
-    };
     await new Promise(r => ws.onopen = r);
+    let msgId = 1;
 
-    const send = (method, params = {}) => new Promise((resolve) => {
+    const send = (method, params = {}) => new Promise((resolve, reject) => {
         const id = msgId++;
-        callbacks.set(id, resolve);
+        const timer = setTimeout(() => {
+            ws.removeEventListener('message', handler);
+            reject(new Error(`Timeout waiting for DevTools method ${method}`));
+        }, 10000);
+        const handler = (e) => {
+            const msg = JSON.parse(e.data);
+            if (msg.id === id) {
+                clearTimeout(timer);
+                ws.removeEventListener('message', handler);
+                resolve(msg.result);
+            }
+        };
+        ws.addEventListener('message', handler);
         ws.send(JSON.stringify({ id, method, params }));
     });
 
     const evalJs = async (expr) => {
         const res = await send('Runtime.evaluate', { expression: expr, returnByValue: true });
-        if (res?.result?.exceptionDetails) {
-            throw new Error(`Eval exception: ${JSON.stringify(res.result.exceptionDetails)}`);
+        if (res?.exceptionDetails) {
+            throw new Error(`Eval exception: ${JSON.stringify(res.exceptionDetails)}`);
         }
-        return res?.result?.result?.value;
+        return res?.result?.value;
     };
 
     const capture = async (name) => {
-        const res = await send('Page.captureScreenshot', { format: 'png' });
-        fs.writeFileSync(`${ARTIFACT_DIR}/${name}`, Buffer.from(res.result.data, 'base64'));
-        console.log(`📸 Screenshot saved: ${name}`);
+        try {
+            const res = await send('Page.captureScreenshot', { format: 'png' });
+            if (res?.data) {
+                fs.writeFileSync(`${ARTIFACT_DIR}/${name}`, Buffer.from(res.data, 'base64'));
+                console.log(`📸 Screenshot saved: ${name}`);
+            }
+        } catch (e) {
+            console.log(`⚠️ Screenshot capture skipped: ${e.message}`);
+        }
     };
 
     await send('Page.enable');
     await send('Runtime.enable');
+    try {
+        await send('Browser.grantPermissions', { permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'] });
+    } catch {}
     await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
 
-    // 1. Navigate to animation-v2 with mode=all
-    console.log('1. Navigating to animation-v2.html?user=resu&mode=all ...');
-    await send('Page.navigate', { url: 'http://127.0.0.1:8000/animation-v2.html?user=resu&mode=all' });
+    // 1. Navigate to animation with mode=all
+    console.log('1. Navigating to animation.html?mode=all ...');
+    await send('Page.navigate', { url: 'http://127.0.0.1:8000/animation.html?mode=all' });
 
     // Wait for ready
     for (let i = 0; i < 30; i++) {
