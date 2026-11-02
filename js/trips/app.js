@@ -7,6 +7,7 @@ import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js
 import { formatDelayMinutes, formatHumanDuration, formatTotalTime, calculateCO2Saved, formatSpeed, escapeHtml } from '../utils/format.js';
 import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
 import { extractTripDetails, formatTimeShort } from '../ui/tripDetails.js';
+import { VECTOR_COUNTRIES } from '../animation/vectorData.js';
 
 let sqlEngine = null;
 let sqlAutocomplete = null;
@@ -1367,15 +1368,15 @@ export function renderSpatialSqlPreview() {
     }
 
     const featureCount = isStations ? points.length : lines.length;
-    if (badge) {
-        badge.textContent = `${featureCount} spatial ${isStations ? 'stations' : 'routes'}`;
-    }
 
     const w = canvas.width;
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
     if (points.length === 0 && lines.length === 0) {
+        if (badge) {
+            badge.textContent = `0 spatial features`;
+        }
         ctx.fillStyle = '#94a3b8';
         ctx.font = '13px system-ui, sans-serif';
         ctx.textAlign = 'center';
@@ -1399,38 +1400,129 @@ export function renderSpatialSqlPreview() {
         });
     });
 
-    if (maxLon - minLon < 0.05) { minLon -= 0.25; maxLon += 0.25; }
-    if (maxLat - minLat < 0.05) { minLat -= 0.25; maxLat += 0.25; }
+    if (badge) {
+        badge.textContent = `${featureCount} spatial ${isStations ? 'stations' : 'routes'} • ${minLat.toFixed(1)}°N–${maxLat.toFixed(1)}°N, ${minLon.toFixed(1)}°E–${maxLon.toFixed(1)}°E`;
+    }
 
-    const padX = 40;
-    const padY = 30;
-    const projectX = (lon) => padX + ((lon - minLon) / (maxLon - minLon)) * (w - 2 * padX);
-    const projectY = (lat) => h - padY - ((lat - minLat) / (maxLat - minLat)) * (h - 2 * padY);
+    // Minimum bounding box span to prevent excessive zooming into a single point
+    if (maxLon - minLon < 0.2) { minLon -= 0.35; maxLon += 0.35; }
+    if (maxLat - minLat < 0.2) { minLat -= 0.25; maxLat += 0.25; }
 
-    // Coordinate grid
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    // Geographic aspect ratio correction for European latitudes (equirectangular projection)
+    const avgLat = (minLat + maxLat) / 2;
+    const cosLat = Math.cos((avgLat * Math.PI) / 180);
+
+    // Padding around data bounds (12% margin)
+    const marginLon = (maxLon - minLon) * 0.12;
+    const marginLat = (maxLat - minLat) * 0.12;
+    const viewMinLon = minLon - marginLon;
+    const viewMaxLon = maxLon + marginLon;
+    const viewMinLat = minLat - marginLat;
+    const viewMaxLat = maxLat + marginLat;
+
+    const geoW = (viewMaxLon - viewMinLon) * cosLat;
+    const geoH = (viewMaxLat - viewMinLat);
+
+    const centerLon = (viewMinLon + viewMaxLon) / 2;
+    const centerLat = (viewMinLat + viewMaxLat) / 2;
+
+    const padX = 24;
+    const padY = 20;
+    const drawW = w - 2 * padX;
+    const drawH = h - 2 * padY;
+
+    // Uniform scale preserving true geographic proportions
+    const scale = Math.min(drawW / Math.max(0.0001, geoW), drawH / Math.max(0.0001, geoH));
+
+    const projectX = (lon) => (w / 2) + (lon - centerLon) * cosLat * scale;
+    const projectY = (lat) => (h / 2) - (lat - centerLat) * scale;
+
+    // 1. Draw European country vector boundaries as cartographic geographic reference
+    if (Array.isArray(VECTOR_COUNTRIES) && VECTOR_COUNTRIES.length > 0) {
+        ctx.save();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.13)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
+
+        for (const country of VECTOR_COUNTRIES) {
+            const geom = country.geometry;
+            if (!geom) continue;
+
+            const polys = geom.type === 'Polygon' ? [geom.coordinates] : (geom.type === 'MultiPolygon' ? geom.coordinates : []);
+            for (const rings of polys) {
+                const exteriorRing = rings[0];
+                if (!exteriorRing || exteriorRing.length < 3) continue;
+
+                ctx.beginPath();
+                for (let i = 0; i < exteriorRing.length; i++) {
+                    const [cLon, cLat] = exteriorRing[i];
+                    const cx = projectX(cLon);
+                    const cy = projectY(cLat);
+                    if (i === 0) ctx.moveTo(cx, cy);
+                    else ctx.lineTo(cx, cy);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            }
+        }
+
+        // Prominent European country label watermarks
+        const COUNTRY_CENTROIDS = [
+            { name: 'GERMANY', lon: 10.45, lat: 51.16 },
+            { name: 'AUSTRIA', lon: 14.30, lat: 47.60 },
+            { name: 'SWITZERLAND', lon: 8.22, lat: 46.85 },
+            { name: 'NETHERLANDS', lon: 5.29, lat: 52.13 },
+            { name: 'BELGIUM', lon: 4.46, lat: 50.50 },
+            { name: 'FRANCE', lon: 2.80, lat: 48.50 },
+            { name: 'CZECHIA', lon: 15.47, lat: 49.81 },
+            { name: 'DENMARK', lon: 9.50, lat: 55.67 },
+            { name: 'POLAND', lon: 19.14, lat: 52.10 }
+        ];
+
+        ctx.font = '700 9px system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        COUNTRY_CENTROIDS.forEach(c => {
+            const cx = projectX(c.lon);
+            const cy = projectY(c.lat);
+            if (cx >= padX + 20 && cx <= w - padX - 20 && cy >= padY + 12 && cy <= h - padY - 12) {
+                ctx.fillText(c.name, cx, cy);
+            }
+        });
+
+        ctx.restore();
+    }
+
+    // 2. Subtle Coordinate Grid & Graticule Labels
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
     ctx.lineWidth = 1;
     for (let c = 1; c <= 4; c++) {
-        const gx = padX + (c / 5) * (w - 2 * padX);
+        const gx = padX + (c / 5) * drawW;
         ctx.beginPath();
         ctx.moveTo(gx, padY);
         ctx.lineTo(gx, h - padY);
         ctx.stroke();
     }
     for (let r = 1; r <= 3; r++) {
-        const gy = padY + (r / 4) * (h - 2 * padY);
+        const gy = padY + (r / 4) * drawH;
         ctx.beginPath();
         ctx.moveTo(padX, gy);
         ctx.lineTo(w - padX, gy);
         ctx.stroke();
     }
+    ctx.restore();
 
-    // Draw lines
+    // 3. Draw Route Polylines
     lines.forEach(line => {
         if (!line.coords.length) return;
+
+        // Outer glow
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(245, 158, 11, 0.7)';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.25)';
+        ctx.lineWidth = 5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         line.coords.forEach(([lon, lat], i) => {
@@ -1440,19 +1532,33 @@ export function renderSpatialSqlPreview() {
             else ctx.lineTo(px, py);
         });
         ctx.stroke();
+
+        // Core line
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.85)';
+        ctx.lineWidth = 2.2;
+        line.coords.forEach(([lon, lat], i) => {
+            const px = projectX(lon);
+            const py = projectY(lat);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        });
+        ctx.stroke();
     });
 
-    // Draw points
+    // 4. Draw Station Points
     points.forEach(p => {
         const px = projectX(p.lon);
         const py = projectY(p.lat);
         renderedSpatialPoints.push({ x: px, y: py, ...p });
 
+        // Outer aura
         ctx.beginPath();
         ctx.arc(px, py, 7, 0, Math.PI * 2);
-        ctx.fillStyle = p.type === 'station' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(245, 158, 11, 0.25)';
+        ctx.fillStyle = p.type === 'station' ? 'rgba(56, 189, 248, 0.22)' : 'rgba(245, 158, 11, 0.22)';
         ctx.fill();
 
+        // Inner pip
         ctx.beginPath();
         ctx.arc(px, py, 3.5, 0, Math.PI * 2);
         ctx.fillStyle = p.type === 'station' ? '#38bdf8' : '#fbbf24';
@@ -1461,6 +1567,46 @@ export function renderSpatialSqlPreview() {
         ctx.lineWidth = 1.2;
         ctx.stroke();
     });
+
+    // 5. Smart Station Labels (When <= 25 stations, display callout name pills directly on the canvas)
+    if (points.length > 0 && points.length <= 25) {
+        ctx.save();
+        ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.textBaseline = 'middle';
+
+        points.forEach(p => {
+            const px = projectX(p.lon);
+            const py = projectY(p.lat);
+            const text = p.label || 'Station';
+            const metrics = ctx.measureText(text);
+            const textWidth = Math.min(120, metrics.width);
+            const truncatedText = text.length > 18 ? text.slice(0, 17) + '…' : text;
+
+            const pillX = px + 8;
+            const pillY = py - 8;
+            const pillW = textWidth + 10;
+            const pillH = 16;
+
+            // Translucent dark pill background
+            ctx.fillStyle = 'rgba(13, 17, 28, 0.88)';
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+            ctx.lineWidth = 1;
+
+            if (typeof ctx.roundRect === 'function') {
+                ctx.beginPath();
+                ctx.roundRect(pillX, pillY, pillW, pillH, 4);
+                ctx.fill();
+                ctx.stroke();
+            } else {
+                ctx.fillRect(pillX, pillY, pillW, pillH);
+                ctx.strokeRect(pillX, pillY, pillW, pillH);
+            }
+
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillText(truncatedText, pillX + 5, py);
+        });
+        ctx.restore();
+    }
 
     if (!canvas.dataset.hasListeners) {
         canvas.dataset.hasListeners = 'true';

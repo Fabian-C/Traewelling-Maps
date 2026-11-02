@@ -2866,3 +2866,9 @@ body:has(dialog[open]) {
     border-radius: 1px;
 }
 
+.legend-line.border {
+    width: 12px;
+    height: 0;
+    border-top: 1px dashed rgba(255, 255, 255, 0.5);
+}
+

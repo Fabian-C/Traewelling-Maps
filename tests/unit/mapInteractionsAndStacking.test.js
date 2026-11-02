@@ -182,5 +182,51 @@ describe('Map Hit Detection & Stacked Route Cycling', () => {
             // When preserveHighlightOnPopupClose is true, close handler should NOT clear highlight
             expect(store.get().preserveHighlightOnPopupClose).toBe(false);
         });
+
+        it('renders popup action buttons with pre-styled border-radius to prevent layout shifts or two-stage visual snaps', () => {
+            let capturedHtml = '';
+            const mockPopupInstance = {
+                setLngLat: vi.fn().mockReturnThis(),
+                setHTML: vi.fn((html) => {
+                    capturedHtml = html;
+                    return mockPopupInstance;
+                }),
+                addTo: vi.fn().mockReturnThis(),
+                getElement: vi.fn(() => ({ style: {}, querySelector: vi.fn(() => null) })),
+                on: vi.fn(),
+                once: vi.fn()
+            };
+
+            globalThis.mapboxgl = {
+                Popup: vi.fn(() => mockPopupInstance)
+            };
+
+            const mockMap = {
+                flyTo: vi.fn(),
+                getZoom: vi.fn(() => 10),
+                getCenter: vi.fn(() => ({ lng: 13.5, lat: 52 })),
+                getLayer: vi.fn(() => false),
+                getSource: vi.fn(() => false),
+                addSource: vi.fn(),
+                addLayer: vi.fn(),
+                removeLayer: vi.fn(),
+                removeSource: vi.fn()
+            };
+
+            store.setProp('map', mockMap);
+            store.setProp('currentPopup', null);
+
+            const feature = {
+                type: 'Feature',
+                properties: { statusId: '101', lineName: 'ICE 1', originName: 'Berlin', destinationName: 'Hamburg' },
+                geometry: { type: 'LineString', coordinates: [[13, 52], [10, 53.5]] }
+            };
+
+            showPopup({ lng: 13, lat: 52 }, feature);
+
+            expect(capturedHtml).toContain('popup-traewelling-btn');
+            expect(capturedHtml).toContain('popup-anim-btn');
+            expect(capturedHtml).toContain('style="border-radius: 6px;"');
+        });
     });
 });

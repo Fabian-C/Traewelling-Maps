@@ -1513,7 +1513,8 @@ body.stats-open .active-filter-badges {
     text-decoration-color: #7dd3fc;
 }
 
-.route-popup .popup-actions {
+.route-popup .popup-actions,
+.popup-actions {
     display: flex;
     gap: 5px;
     margin-top: auto;
@@ -1521,49 +1522,67 @@ body.stats-open .active-filter-badges {
 }
 
 .route-popup .popup-actions button,
-.route-popup .popup-actions a {
+.route-popup .popup-actions a,
+.popup-actions button,
+.popup-actions a,
+.popup-traewelling-btn,
+.popup-anim-btn {
+    box-sizing: border-box;
     flex: 1;
     border-radius: 6px;
     border: 1px solid rgba(255, 255, 255, 0.16);
     background: rgba(255, 255, 255, 0.06);
     color: var(--text-secondary);
     padding: 6px 4px;
+    min-height: 26px;
     font-weight: 600;
     cursor: pointer;
     font-size: 10px;
+    line-height: 1.2;
     text-align: center;
     text-decoration: none;
     display: inline-flex;
     justify-content: center;
     align-items: center;
     backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     white-space: nowrap;
-    transition: all 0.18s ease;
+    /* Do NOT transition 'all' - transitioning layout geometry triggers a two-stage morph on initial mount */
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
 
-.route-popup .popup-actions a.primary {
+.route-popup .popup-actions a.primary,
+.popup-actions a.primary,
+.popup-traewelling-btn {
     background: var(--accent-gradient);
     border: none;
     color: white;
 }
 
-.route-popup .popup-actions a.popup-anim-btn {
+.route-popup .popup-actions a.popup-anim-btn,
+.popup-actions a.popup-anim-btn,
+.popup-anim-btn {
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.16) 0%, rgba(168, 85, 247, 0.16) 100%);
     border: 1px solid rgba(245, 158, 11, 0.4);
     color: #f8fafc;
-    transition: all 0.18s ease;
     white-space: nowrap;
     gap: 3px;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
 
-.route-popup .popup-actions a.popup-anim-btn:hover {
+.route-popup .popup-actions a.popup-anim-btn:hover,
+.popup-actions a.popup-anim-btn:hover,
+.popup-anim-btn:hover {
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.28) 0%, rgba(168, 85, 247, 0.28) 100%);
     border-color: rgba(245, 158, 11, 0.7);
     color: #ffffff;
     box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
 }
 
-.route-popup .popup-actions .popup-alpha-badge {
+.route-popup .popup-actions .popup-alpha-badge,
+.popup-actions .popup-alpha-badge,
+.popup-alpha-badge {
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     font-size: 8px;
