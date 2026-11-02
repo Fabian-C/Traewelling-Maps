@@ -429,6 +429,47 @@ describe('Animation Geometry & Camera Smoothing', () => {
                 else delete globalThis.Path2D;
             }
         });
+
+        it('deduplicates overlapping line segments across commuter trips to eliminate redundant overdraw', () => {
+            const originalPath2D = globalThis.Path2D;
+            try {
+                class MockPathWithDraw {
+                    constructor() {
+                        this.paths = [];
+                        this.ops = [];
+                    }
+                    moveTo(x, y) { this.ops.push(['moveTo', x, y]); }
+                    lineTo(x, y) { this.ops.push(['lineTo', x, y]); }
+                    addPath(p) { this.paths.push(p); }
+                }
+                globalThis.Path2D = MockPathWithDraw;
+
+                const sharedRoute = [{ x: 100, y: 200 }, { x: 150, y: 250 }, { x: 200, y: 300 }];
+                const commuterTrip1 = {
+                    points: sharedRoute,
+                    trip: { checkin: { category: 'suburban', routeColor: '#008800' } }
+                };
+                const commuterTrip2 = {
+                    points: sharedRoute,
+                    trip: { checkin: { category: 'suburban', routeColor: '#008800' } }
+                };
+
+                const scene = { rides: [commuterTrip1, commuterTrip2] };
+
+                // Accumulate first trip
+                const cache1 = syncNetworkCompositePaths(scene, 1);
+                expect(cache1.outlinePath.paths.length).toBe(1);
+                expect(cache1.seenOutlineSegs.size).toBe(2);
+
+                // Accumulate duplicate commuter trip on same corridor
+                const cache2 = syncNetworkCompositePaths(scene, 2);
+                expect(cache2.outlinePath.paths.length).toBe(1); // Did not add a redundant duplicate path!
+                expect(cache2.seenOutlineSegs.size).toBe(2); // Total unique segments remains 2
+            } finally {
+                if (originalPath2D) globalThis.Path2D = originalPath2D;
+                else delete globalThis.Path2D;
+            }
+        });
     });
 
     it('dynamically computes visible Web Mercator tiles for viewport matching camera zoom', () => {

@@ -822,7 +822,7 @@ export function renderTripFrame({
  */
 export function syncNetworkCompositePaths(allScene, completedCount) {
     if (!allScene || completedCount <= 0) return null;
-    if (typeof Path2D === 'undefined' || typeof Path2D.prototype?.addPath !== 'function') {
+    if (typeof Path2D === 'undefined') {
         return null;
     }
 
@@ -830,7 +830,9 @@ export function syncNetworkCompositePaths(allScene, completedCount) {
         allScene._pathCache = {
             committedCount: 0,
             outlinePath: new Path2D(),
-            colorPaths: new Map() // color -> Path2D
+            colorPaths: new Map(), // color -> Path2D
+            seenOutlineSegs: new Set(),
+            seenColorSegs: new Map() // color -> Set<string>
         };
     }
 
@@ -842,36 +844,103 @@ export function syncNetworkCompositePaths(allScene, completedCount) {
         cache.committedCount = 0;
         cache.outlinePath = new Path2D();
         cache.colorPaths = new Map();
+        cache.seenOutlineSegs = new Set();
+        cache.seenColorSegs = new Map();
     }
 
-    // Progressively accumulate newly completed rides
+    // Progressively accumulate newly completed rides with sub-pixel segment deduplication
     while (cache.committedCount < completedCount && cache.committedCount < rides.length) {
         const ride = rides[cache.committedCount];
-        let p2d = ride.path2D;
-        if (!p2d && ride.points && ride.points.length >= 2) {
-            p2d = new Path2D();
-            p2d.moveTo(ride.points[0].x, ride.points[0].y);
-            for (let p = 1; p < ride.points.length; p++) {
-                p2d.lineTo(ride.points[p].x, ride.points[p].y);
-            }
-            ride.path2D = p2d;
+        const pts = ride.points;
+        const pastCheckin = ride.trip?.checkin || ride.trip?.train || {};
+        const pastCat = CATEGORY_META[pastCheckin.category || 'regional'] || CATEGORY_META.unknown;
+        const pastColor = pastCheckin.routeColor
+            ? `#${String(pastCheckin.routeColor).replace(/^#/, '')}`
+            : pastCat.color;
+
+        let colorPath = cache.colorPaths.get(pastColor);
+        let colorSegSet = cache.seenColorSegs.get(pastColor);
+        if (!colorPath) {
+            colorPath = new Path2D();
+            cache.colorPaths.set(pastColor, colorPath);
+            colorSegSet = new Set();
+            cache.seenColorSegs.set(pastColor, colorSegSet);
         }
 
-        if (p2d) {
-            cache.outlinePath.addPath(p2d);
-
-            const pastCheckin = ride.trip?.checkin || ride.trip?.train || {};
-            const pastCat = CATEGORY_META[pastCheckin.category || 'regional'] || CATEGORY_META.unknown;
-            const pastColor = pastCheckin.routeColor
-                ? `#${String(pastCheckin.routeColor).replace(/^#/, '')}`
-                : pastCat.color;
-
-            let colorPath = cache.colorPaths.get(pastColor);
-            if (!colorPath) {
-                colorPath = new Path2D();
-                cache.colorPaths.set(pastColor, colorPath);
+        if (pts && pts.length >= 2) {
+            // Lazily construct and cache ride.path2D
+            if (!ride.path2D) {
+                const p2d = new Path2D();
+                p2d.moveTo(pts[0].x, pts[0].y);
+                for (let p = 1; p < pts.length; p++) p2d.lineTo(pts[p].x, pts[p].y);
+                ride.path2D = p2d;
             }
-            colorPath.addPath(p2d);
+
+            // High-performance segment deduplication to eliminate overdraw on repeated commuter routes
+            let outlineSegmentsAdded = 0;
+            let colorSegmentsAdded = 0;
+            const rideOutlinePath = new Path2D();
+            const rideColorPath = new Path2D();
+
+            let outlineOpen = false;
+            let colorOpen = false;
+
+            for (let i = 0; i < pts.length - 1; i++) {
+                const pA = pts[i];
+                const pB = pts[i + 1];
+
+                // Quantize to ~0.5 world pixel for robust matching of shared track corridors
+                const qAx = Math.round(pA.x * 2);
+                const qAy = Math.round(pA.y * 2);
+                const qBx = Math.round(pB.x * 2);
+                const qBy = Math.round(pB.y * 2);
+
+                if (qAx === qBx && qAy === qBy) continue;
+
+                const segKey = (qAx < qBx || (qAx === qBx && qAy <= qBy))
+                    ? `${qAx}:${qAy}_${qBx}:${qBy}`
+                    : `${qBx}:${qBy}_${qAx}:${qAy}`;
+
+                // Deduplicate for outline
+                if (!cache.seenOutlineSegs.has(segKey)) {
+                    cache.seenOutlineSegs.add(segKey);
+                    if (!outlineOpen) {
+                        rideOutlinePath.moveTo(pA.x, pA.y);
+                    }
+                    rideOutlinePath.lineTo(pB.x, pB.y);
+                    outlineOpen = true;
+                    outlineSegmentsAdded++;
+                } else {
+                    outlineOpen = false;
+                }
+
+                // Deduplicate for category color
+                if (!colorSegSet.has(segKey)) {
+                    colorSegSet.add(segKey);
+                    if (!colorOpen) {
+                        rideColorPath.moveTo(pA.x, pA.y);
+                    }
+                    rideColorPath.lineTo(pB.x, pB.y);
+                    colorOpen = true;
+                    colorSegmentsAdded++;
+                } else {
+                    colorOpen = false;
+                }
+            }
+
+            if (outlineSegmentsAdded > 0 && typeof cache.outlinePath.addPath === 'function') {
+                cache.outlinePath.addPath(rideOutlinePath);
+            }
+            if (colorSegmentsAdded > 0 && typeof colorPath.addPath === 'function') {
+                colorPath.addPath(rideColorPath);
+            }
+        } else {
+            // Fallback for pre-constructed Path2D without raw points (e.g. test fixtures)
+            let p2d = ride.path2D;
+            if (p2d && typeof cache.outlinePath.addPath === 'function') {
+                cache.outlinePath.addPath(p2d);
+                colorPath.addPath(p2d);
+            }
         }
         cache.committedCount++;
     }

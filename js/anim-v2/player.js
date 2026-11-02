@@ -5,8 +5,6 @@
  */
 
 import { renderV2Frame } from './renderer.js';
-import { WebGLAnimEngine } from './webgl/engine.js';
-import { MAP_STYLES } from '../animation/tiles.js';
 
 export class NativeTripPlayer {
     constructor(containerEl, options = {}) {
@@ -15,7 +13,6 @@ export class NativeTripPlayer {
         }
 
         this.container = containerEl;
-        this.options = options || {};
         this.width = options.width || 960;
         this.height = options.height || 960;
         this.fps = options.fps || 30;
@@ -159,25 +156,7 @@ export class NativeTripPlayer {
             fullscreenIcon: this.container.querySelector('#v2FullscreenIcon')
         };
 
-        this.rendererType = this.options.renderer || '2d';
-        this.webglEngine = null;
-        this.ctx = null;
-
-        if (this.rendererType === 'webgl') {
-            try {
-                this.webglEngine = new WebGLAnimEngine(this.dom.canvas);
-            } catch {
-                this.webglEngine = null;
-                this.rendererType = '2d';
-            }
-        }
-
-        if (!this.webglEngine) {
-            try {
-                this.ctx = this.dom.canvas.getContext('2d');
-            } catch {}
-            this.rendererType = '2d';
-        }
+        this.ctx = this.dom.canvas.getContext('2d');
     }
 
     _bindEvents() {
@@ -579,35 +558,19 @@ export class NativeTripPlayer {
     }
 
     _renderCurrentFrame() {
-        if (this.webglEngine && this.mode === 'all' && this.precompute?.allScene) {
-            const styleConfig = MAP_STYLES[this.mapStyle] || MAP_STYLES['traewelling-dark'];
-            this.webglEngine.render({
-                frame: this.currentFrame,
-                fps: this.fps,
-                width: this.width,
-                height: this.height,
-                allScene: this.precompute.allScene,
-                timing: this.precompute.timing,
-                styleConfig
-            });
-            return;
-        }
-
-        if (this.ctx) {
-            renderV2Frame({
-                ctx: this.ctx,
-                frame: this.currentFrame,
-                fps: this.fps,
-                width: this.width,
-                height: this.height,
-                trip: this.trip,
-                trips: this.trips,
-                mode: this.mode,
-                username: this.username,
-                mapStyle: this.mapStyle,
-                precompute: this.precompute
-            });
-        }
+        renderV2Frame({
+            ctx: this.ctx,
+            frame: this.currentFrame,
+            fps: this.fps,
+            width: this.width,
+            height: this.height,
+            trip: this.trip,
+            trips: this.trips,
+            mode: this.mode,
+            username: this.username,
+            mapStyle: this.mapStyle,
+            precompute: this.precompute
+        });
     }
 
     _updateUI() {
@@ -645,12 +608,6 @@ export class NativeTripPlayer {
 
     destroy() {
         this.pause();
-        if (this.webglEngine) {
-            try {
-                this.webglEngine.destroy();
-            } catch {}
-            this.webglEngine = null;
-        }
         if (this._seekRafId !== null && typeof cancelAnimationFrame === 'function') {
             cancelAnimationFrame(this._seekRafId);
             this._seekRafId = null;
