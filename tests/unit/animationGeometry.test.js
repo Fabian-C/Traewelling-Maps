@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { syncNetworkCompositePaths } from '../../js/animation/renderer.js';
 import {
     lonToWorldX,
     latToWorldY,
@@ -308,6 +309,94 @@ describe('Animation Geometry & Camera Smoothing', () => {
         expect(Array.isArray(scene.detailTiles)).toBe(true);
         expect(scene.detailTiles.length).toBeGreaterThan(0);
         expect(scene.detailTiles[0].z).toBeGreaterThan(scene.z);
+    });
+
+    describe('Batched Composite Path2D Accumulator (syncNetworkCompositePaths)', () => {
+        class MockPath2D {
+            constructor() {
+                this.paths = [];
+            }
+            addPath(path) {
+                this.paths.push(path);
+            }
+        }
+
+        it('returns null safely when Path2D is undefined or completedCount is 0', () => {
+            const originalPath2D = globalThis.Path2D;
+            try {
+                delete globalThis.Path2D;
+                const result = syncNetworkCompositePaths({ rides: [] }, 5);
+                expect(result).toBeNull();
+
+                globalThis.Path2D = MockPath2D;
+                expect(syncNetworkCompositePaths(null, 5)).toBeNull();
+                expect(syncNetworkCompositePaths({ rides: [] }, 0)).toBeNull();
+                expect(syncNetworkCompositePaths({ rides: [] }, -1)).toBeNull();
+            } finally {
+                if (originalPath2D) {
+                    globalThis.Path2D = originalPath2D;
+                } else {
+                    delete globalThis.Path2D;
+                }
+            }
+        });
+
+        it('progressively accumulates ride paths into unified outline and color-bucketed layers', () => {
+            const originalPath2D = globalThis.Path2D;
+            try {
+                globalThis.Path2D = MockPath2D;
+
+                const dummyRide1 = {
+                    path2D: new MockPath2D(),
+                    trip: { checkin: { category: 'nationalExpress', routeColor: '#ff0000' } }
+                };
+                const dummyRide2 = {
+                    path2D: new MockPath2D(),
+                    trip: { checkin: { category: 'regional', routeColor: '#00ff00' } }
+                };
+                const dummyRide3 = {
+                    path2D: new MockPath2D(),
+                    trip: { checkin: { category: 'nationalExpress', routeColor: '#ff0000' } }
+                };
+                const dummyRide4 = {
+                    path2D: new MockPath2D(),
+                    trip: { checkin: { category: 'suburban' } }
+                };
+
+                const allScene = {
+                    rides: [dummyRide1, dummyRide2, dummyRide3, dummyRide4]
+                };
+
+                // Step 1: Accumulate first 2 rides
+                const cache1 = syncNetworkCompositePaths(allScene, 2);
+                expect(cache1).toBeDefined();
+                expect(cache1.committedCount).toBe(2);
+                expect(cache1.outlinePath.paths.length).toBe(2);
+                expect(cache1.colorPaths.size).toBe(2);
+                expect(cache1.colorPaths.get('#ff0000').paths.length).toBe(1);
+                expect(cache1.colorPaths.get('#00ff00').paths.length).toBe(1);
+
+                // Step 2: Progressively advance to 3 rides (ride 3 is also red)
+                const cache2 = syncNetworkCompositePaths(allScene, 3);
+                expect(cache2.committedCount).toBe(3);
+                expect(cache2.outlinePath.paths.length).toBe(3);
+                expect(cache2.colorPaths.size).toBe(2); // Still 2 color buckets (#ff0000 and #00ff00)
+                expect(cache2.colorPaths.get('#ff0000').paths.length).toBe(2);
+
+                // Step 3: Scrub backwards to 1 ride - should reset and re-accumulate
+                const cacheRewound = syncNetworkCompositePaths(allScene, 1);
+                expect(cacheRewound.committedCount).toBe(1);
+                expect(cacheRewound.outlinePath.paths.length).toBe(1);
+                expect(cacheRewound.colorPaths.size).toBe(1);
+                expect(cacheRewound.colorPaths.get('#ff0000').paths.length).toBe(1);
+            } finally {
+                if (originalPath2D) {
+                    globalThis.Path2D = originalPath2D;
+                } else {
+                    delete globalThis.Path2D;
+                }
+            }
+        });
     });
 
     it('dynamically computes visible Web Mercator tiles for viewport matching camera zoom', () => {

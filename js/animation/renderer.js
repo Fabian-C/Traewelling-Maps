@@ -816,6 +816,59 @@ export function renderTripFrame({
  * Sequentially animates every ride from oldest to newest while accumulating
  * the completed rail network and live cumulative distance on the map.
  */
+/**
+ * Incrementally accumulates completed ride vectors into composite Path2D layers batched by transit color.
+ * Reduces historical network track draw calls from O(N_rides) to O(N_colors) (~7 draw calls total).
+ */
+export function syncNetworkCompositePaths(allScene, completedCount) {
+    if (!allScene || completedCount <= 0) return null;
+    if (typeof Path2D === 'undefined' || typeof Path2D.prototype?.addPath !== 'function') {
+        return null;
+    }
+
+    if (!allScene._pathCache) {
+        allScene._pathCache = {
+            committedCount: 0,
+            outlinePath: new Path2D(),
+            colorPaths: new Map() // color -> Path2D
+        };
+    }
+
+    const cache = allScene._pathCache;
+    const rides = allScene.rides || [];
+
+    // Scrubbed backwards: reset cache to restart progressive accumulation
+    if (cache.committedCount > completedCount) {
+        cache.committedCount = 0;
+        cache.outlinePath = new Path2D();
+        cache.colorPaths = new Map();
+    }
+
+    // Progressively accumulate newly completed rides
+    while (cache.committedCount < completedCount && cache.committedCount < rides.length) {
+        const ride = rides[cache.committedCount];
+        if (ride.path2D) {
+            cache.outlinePath.addPath(ride.path2D);
+
+            const pastCheckin = ride.trip?.checkin || ride.trip?.train || {};
+            const pastCat = CATEGORY_META[pastCheckin.category || 'regional'] || CATEGORY_META.unknown;
+            const pastColor = pastCheckin.routeColor
+                ? `#${String(pastCheckin.routeColor).replace(/^#/, '')}`
+                : pastCat.color;
+
+            let colorPath = cache.colorPaths.get(pastColor);
+            if (!colorPath) {
+                colorPath = new Path2D();
+                cache.colorPaths.set(pastColor, colorPath);
+            }
+            colorPath.addPath(ride.path2D);
+        }
+        cache.committedCount++;
+    }
+
+    return cache;
+}
+
 export function renderAllTripsFrame({
     ctx,
     frame,
@@ -985,51 +1038,66 @@ export function renderAllTripsFrame({
         });
     }
 
-    // 4. Draw completed historical network tracks (accelerated with pre-compiled Path2D)
+    // 4. Draw completed historical network tracks (accelerated with batched composite Path2D)
     // When isFinale is reached, ALL rides (including the very last one) are drawn uniformly as completed network tracks!
     const completedCount = isFinale ? rides.length : activeIdx;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Pass 1: Under-track outline
-    ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(15, 23, 42, 0.35)';
-    ctx.lineWidth = 6.5 / camZoom;
-    for (let i = 0; i < completedCount; i++) {
-        const pastRide = rides[i];
-        if (pastRide.path2D) {
-            ctx.stroke(pastRide.path2D);
-        } else if (pastRide.points && pastRide.points.length >= 2) {
-            ctx.beginPath();
-            ctx.moveTo(pastRide.points[0].x, pastRide.points[0].y);
-            for (let p = 1; p < pastRide.points.length; p++) {
-                ctx.lineTo(pastRide.points[p].x, pastRide.points[p].y);
-            }
-            ctx.stroke();
+    const batchedCache = syncNetworkCompositePaths(allScene, completedCount);
+
+    if (batchedCache && batchedCache.committedCount > 0) {
+        // Pass 1: Under-track outline (single unified stroke for the entire completed network)
+        ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(15, 23, 42, 0.35)';
+        ctx.lineWidth = 6.5 / camZoom;
+        ctx.stroke(batchedCache.outlinePath);
+
+        // Pass 2: Colored route tracks (only ~5-8 draw calls total, batched by route color)
+        ctx.lineWidth = 4.2 / camZoom;
+        for (const [color, colorPath] of batchedCache.colorPaths) {
+            ctx.strokeStyle = color;
+            ctx.stroke(colorPath);
         }
-    }
-
-    // Pass 2: Colored route tracks
-    ctx.lineWidth = 4.2 / camZoom;
-    for (let i = 0; i < completedCount; i++) {
-        const pastRide = rides[i];
-        if (!pastRide.points || pastRide.points.length < 2) continue;
-        const pastCheckin = pastRide.trip?.checkin || pastRide.trip?.train || {};
-        const pastCat = CATEGORY_META[pastCheckin.category || 'regional'] || CATEGORY_META.unknown;
-        const pastColor = pastCheckin.routeColor
-            ? `#${String(pastCheckin.routeColor).replace(/^#/, '')}`
-            : pastCat.color;
-
-        ctx.strokeStyle = pastColor;
-        if (pastRide.path2D) {
-            ctx.stroke(pastRide.path2D);
-        } else {
-            ctx.beginPath();
-            ctx.moveTo(pastRide.points[0].x, pastRide.points[0].y);
-            for (let p = 1; p < pastRide.points.length; p++) {
-                ctx.lineTo(pastRide.points[p].x, pastRide.points[p].y);
+    } else if (completedCount > 0) {
+        // Fallback for environments without Path2D.prototype.addPath
+        ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(15, 23, 42, 0.35)';
+        ctx.lineWidth = 6.5 / camZoom;
+        for (let i = 0; i < completedCount; i++) {
+            const pastRide = rides[i];
+            if (pastRide.path2D) {
+                ctx.stroke(pastRide.path2D);
+            } else if (pastRide.points && pastRide.points.length >= 2) {
+                ctx.beginPath();
+                ctx.moveTo(pastRide.points[0].x, pastRide.points[0].y);
+                for (let p = 1; p < pastRide.points.length; p++) {
+                    ctx.lineTo(pastRide.points[p].x, pastRide.points[p].y);
+                }
+                ctx.stroke();
             }
-            ctx.stroke();
+        }
+
+        ctx.lineWidth = 4.2 / camZoom;
+        for (let i = 0; i < completedCount; i++) {
+            const pastRide = rides[i];
+            if (!pastRide.points || pastRide.points.length < 2) continue;
+            const pastCheckin = pastRide.trip?.checkin || pastRide.trip?.train || {};
+            const pastCat = CATEGORY_META[pastCheckin.category || 'regional'] || CATEGORY_META.unknown;
+            const pastColor = pastCheckin.routeColor
+                ? `#${String(pastCheckin.routeColor).replace(/^#/, '')}`
+                : pastCat.color;
+
+            ctx.strokeStyle = pastColor;
+            if (pastRide.path2D) {
+                ctx.stroke(pastRide.path2D);
+            } else {
+                ctx.beginPath();
+                ctx.moveTo(pastRide.points[0].x, pastRide.points[0].y);
+                for (let p = 1; p < pastRide.points.length; p++) {
+                    ctx.lineTo(pastRide.points[p].x, pastRide.points[p].y);
+                }
+                ctx.stroke();
+            }
         }
     }
     ctx.restore();
