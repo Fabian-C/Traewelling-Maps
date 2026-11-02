@@ -162,8 +162,8 @@ async function init() {
     setupControls();
     syncToolbarPills();
 
-    if (currentUser) {
-        await loadUserTrips(currentUser);
+    if (currentUser || currentTripId) {
+        await loadUserTrips(currentUser, currentTripId);
     } else {
         userTrips = DEMO_FIXTURE_TRIPS;
     }
@@ -185,33 +185,137 @@ function renderUserSelect() {
         return;
     }
 
+    let hasSelected = false;
     allSessions.forEach(sess => {
         const opt = document.createElement('option');
         opt.value = sess.username;
         opt.textContent = `${sess.displayName || sess.username} (@${sess.username})`;
-        if (sess.username === currentUser) opt.selected = true;
+        if (sess.username === currentUser) {
+            opt.selected = true;
+            hasSelected = true;
+        }
         userSelect.appendChild(opt);
     });
+
+    // If currentUser is from a shared link not in local sessions, add an option for them
+    if (currentUser && !hasSelected) {
+        const sharedOpt = document.createElement('option');
+        sharedOpt.value = currentUser;
+        sharedOpt.textContent = `@${currentUser} (Shared)`;
+        sharedOpt.selected = true;
+        userSelect.appendChild(sharedOpt);
+    }
 }
 
-async function loadUserTrips(username) {
-    if (!username) {
-        userTrips = DEMO_FIXTURE_TRIPS;
-        return;
+async function attachPolylinesToTrips(api, trips, maxFetchCount = 20) {
+    if (!trips || !trips.length) return;
+
+    // Check cached polylines from SessionDB first
+    try {
+        const polylineStore = (typeof SessionDB.getAllPolylines === 'function') ? await SessionDB.getAllPolylines() : {};
+        trips.forEach(t => {
+            const checkin = t.checkin || t.train;
+            if (checkin && !checkin.polyline && polylineStore && polylineStore[t.id]) {
+                checkin.polyline = polylineStore[t.id];
+            }
+        });
+    } catch {}
+
+    const missing = trips.filter(t => {
+        const c = t.checkin || t.train || {};
+        return !c.polyline;
+    }).slice(0, maxFetchCount);
+
+    if (missing.length === 0) return;
+
+    const ids = missing.map(t => t.id).filter(Boolean);
+    const batchSize = 15;
+    for (let i = 0; i < ids.length; i += batchSize) {
+        const batch = ids.slice(i, i + batchSize);
+        try {
+            const polyData = await api.getPolylines(batch);
+            const features = polyData?.data?.features || [];
+            const polyMap = new Map();
+            features.forEach(f => {
+                const sid = f?.properties?.statusId ?? f?.properties?.id;
+                if (sid) polyMap.set(String(sid), f);
+            });
+            trips.forEach(t => {
+                const c = t.checkin || t.train;
+                if (c && polyMap.has(String(t.id))) {
+                    c.polyline = polyMap.get(String(t.id));
+                }
+            });
+        } catch (e) {
+            console.warn('Polylines batch fetch error:', e);
+            break;
+        }
+    }
+}
+
+async function loadUserTrips(username, targetTripId = '') {
+    const api = new TraewellingAPI();
+
+    // 1. Check if user is cached in local SessionDB
+    if (username) {
+        try {
+            const session = await SessionDB.get(username);
+            if (session && Array.isArray(session.trips) && session.trips.length > 0) {
+                userTrips = session.trips.map(normalizeTripStatus);
+            }
+        } catch (e) {
+            console.warn('SessionDB lookup error:', e);
+        }
     }
 
-    try {
-        const session = await SessionDB.get(username);
-        if (session && Array.isArray(session.trips) && session.trips.length > 0) {
-            userTrips = session.trips.map(normalizeTripStatus);
-        } else {
-            const apiRes = await TraewellingAPI.getUserStatuses(username);
-            const rawTrips = apiRes?.data || [];
-            userTrips = rawTrips.map(normalizeTripStatus);
+    // 2. Direct status fetch if targetTripId was requested but missing in local userTrips
+    if (targetTripId && !userTrips.some(t => String(t.id) === String(targetTripId))) {
+        try {
+            const singleRes = await api.getStatus(targetTripId);
+            if (singleRes?.data) {
+                const fetchedTrip = normalizeTripStatus(singleRes.data);
+                // Fetch the high-resolution route polyline geodata
+                try {
+                    const polyRes = await api.getPolyline(targetTripId);
+                    if (polyRes?.data) {
+                        const checkin = fetchedTrip.checkin || fetchedTrip.train || {};
+                        checkin.polyline = polyRes.data;
+                    }
+                } catch (pe) {
+                    console.warn('Polyline fetch warning for status', targetTripId, pe);
+                }
+                userTrips.unshift(fetchedTrip);
+                if (!currentUser && fetchedTrip.user?.username) {
+                    currentUser = fetchedTrip.user.username.toLowerCase();
+                    renderUserSelect();
+                }
+            }
+        } catch (se) {
+            console.warn('Direct status fetch failed for ID', targetTripId, se);
         }
-    } catch (err) {
-        console.warn('Could not load user trips from session or API, falling back to demo fixture:', err);
-        userTrips = DEMO_FIXTURE_TRIPS;
+    }
+
+    // 3. Live API fallback if a username was requested but not cached locally
+    if (userTrips.length === 0 && username && username !== 'demo') {
+        try {
+            const apiRes = await api.getUserStatuses(username);
+            const rawTrips = apiRes?.data || [];
+            if (rawTrips.length > 0) {
+                userTrips = rawTrips.map(normalizeTripStatus);
+                await attachPolylinesToTrips(api, userTrips, currentMode === 'all' ? 50 : 15);
+            }
+        } catch (ue) {
+            console.warn('Live user statuses API fetch error:', ue);
+        }
+    }
+
+    // 4. Attach polylines to active trips if missing
+    const activeMissing = userTrips.filter(t => {
+        const c = t.checkin || t.train || {};
+        return !c.polyline;
+    }).slice(0, 10);
+    if (activeMissing.length > 0) {
+        await attachPolylinesToTrips(api, activeMissing, 10);
     }
 
     if (!userTrips.length) {
@@ -572,6 +676,80 @@ function setupControls() {
         cancelBtn.addEventListener('click', () => {
             if (activeExporter) {
                 activeExporter.cancel();
+            }
+        });
+    }
+
+    const shareBtn = document.getElementById('shareAnimationBtn');
+    if (shareBtn) {
+        shareBtn.addEventListener('click', async () => {
+            const url = new URL(window.location.origin + window.location.pathname.replace(/\/+$/, ''));
+            if (currentUser) url.searchParams.set('user', currentUser);
+            if (currentMode === 'all') {
+                url.searchParams.set('mode', 'all');
+                if (currentTimeframe && currentTimeframe !== 'all') {
+                    url.searchParams.set('timeframe', currentTimeframe);
+                }
+            } else if (currentTrip?.id || currentTripId) {
+                url.searchParams.set('trip', String(currentTrip?.id || currentTripId));
+            }
+            if (currentMapStyle && currentMapStyle !== 'traewelling-dark') {
+                url.searchParams.set('style', currentMapStyle);
+            }
+
+            const shareUrl = url.toString();
+            const originalHtml = shareBtn.innerHTML;
+
+            // Try Web Share API on mobile devices first
+            if (navigator.share && window.innerWidth <= 768) {
+                try {
+                    await navigator.share({
+                        title: `Träwelling Trip Clip — @${currentUser || 'traveler'}`,
+                        text: currentTrip ? `Watch animated train journey: ${document.getElementById('sidebarRoute')?.textContent || 'Trip Clip'}` : 'Watch my Träwelling Trip Clip!',
+                        url: shareUrl
+                    });
+                    return;
+                } catch {
+                    // Fall back to clipboard if user dismissed or cancelled native share sheet
+                }
+            }
+
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(shareUrl);
+                } else {
+                    throw new Error('Clipboard API unavailable');
+                }
+                shareBtn.innerHTML = `
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle; margin-right: 6px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span>✓ Link Copied!</span>
+                `;
+                shareBtn.classList.add('copied');
+                setTimeout(() => {
+                    shareBtn.innerHTML = originalHtml;
+                    shareBtn.classList.remove('copied');
+                }, 2500);
+            } catch {
+                // Non-blocking fallback for restricted/headless environments
+                const tmp = document.createElement('textarea');
+                tmp.value = shareUrl;
+                tmp.style.position = 'fixed';
+                tmp.style.opacity = '0';
+                document.body.appendChild(tmp);
+                tmp.focus();
+                tmp.select();
+                try { document.execCommand('copy'); } catch {}
+                document.body.removeChild(tmp);
+
+                shareBtn.innerHTML = `
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle; margin-right: 6px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span>✓ Link Copied!</span>
+                `;
+                shareBtn.classList.add('copied');
+                setTimeout(() => {
+                    shareBtn.innerHTML = originalHtml;
+                    shareBtn.classList.remove('copied');
+                }, 2500);
             }
         });
     }

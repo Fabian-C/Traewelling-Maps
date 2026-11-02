@@ -27,6 +27,8 @@ const selectedIds = new Set();
 const rowUpdateState = new Map();
 let isRunningBulkUpdate = false;
 let cancelBulkRequested = false;
+let privacyPage = 1;
+let privacyPageSize = 50;
 
 async function init() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -236,6 +238,7 @@ function getCurrentFilterConfig() {
 
 function applyFiltersAndSelectMatching() {
     updateKpiSummary();
+    privacyPage = 1;
     filteredTrips = filterTripsForPrivacy(allTrips, getCurrentFilterConfig());
     selectedIds.clear();
     filteredTrips.forEach((t) => {
@@ -249,6 +252,7 @@ function applyFiltersAndSelectMatching() {
 
 function applyFiltersKeepSelection() {
     updateKpiSummary();
+    privacyPage = 1;
     filteredTrips = filterTripsForPrivacy(allTrips, getCurrentFilterConfig());
     const validIds = new Set(filteredTrips.map(t => String(t.id)));
     for (const id of Array.from(selectedIds)) {
@@ -295,6 +299,10 @@ function updateSelectionSummary() {
 
 function renderTable() {
     const tbody = document.getElementById('privacyTableBody');
+    const infoEl = document.getElementById('privPaginationInfo');
+    const currentText = document.getElementById('privPageCurrentText');
+    const prevBtn = document.getElementById('privPrevPageBtn');
+    const nextBtn = document.getElementById('privNextPageBtn');
     if (!tbody) return;
 
     if (allTrips.length === 0) {
@@ -305,10 +313,15 @@ function renderTable() {
                 </td>
             </tr>
         `;
+        if (infoEl) infoEl.innerHTML = `Showing <strong>0–0</strong> of <strong>0</strong> check-ins`;
+        if (currentText) currentText.textContent = `Page 1 of 1`;
+        if (prevBtn) prevBtn.disabled = true;
+        if (nextBtn) nextBtn.disabled = true;
         return;
     }
 
-    if (filteredTrips.length === 0) {
+    const total = filteredTrips.length;
+    if (total === 0) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="8" class="priv-empty-cell">
@@ -316,10 +329,31 @@ function renderTable() {
                 </td>
             </tr>
         `;
+        if (infoEl) infoEl.innerHTML = `Showing <strong>0–0</strong> of <strong>0</strong> check-ins`;
+        if (currentText) currentText.textContent = `Page 1 of 1`;
+        if (prevBtn) prevBtn.disabled = true;
+        if (nextBtn) nextBtn.disabled = true;
         return;
     }
 
-    tbody.innerHTML = filteredTrips.map((trip) => {
+    const totalPages = Math.max(1, Math.ceil(total / privacyPageSize));
+    if (privacyPage > totalPages) privacyPage = totalPages;
+    if (privacyPage < 1) privacyPage = 1;
+
+    const startIdx = (privacyPage - 1) * privacyPageSize;
+    const endIdx = Math.min(total, startIdx + privacyPageSize);
+    const pageItems = filteredTrips.slice(startIdx, endIdx);
+
+    if (infoEl) {
+        infoEl.innerHTML = `Showing <strong>${startIdx + 1}–${endIdx}</strong> of <strong>${total.toLocaleString()}</strong> check-ins`;
+    }
+    if (currentText) {
+        currentText.textContent = `Page ${privacyPage} of ${totalPages}`;
+    }
+    if (prevBtn) prevBtn.disabled = (privacyPage <= 1);
+    if (nextBtn) nextBtn.disabled = (privacyPage >= totalPages);
+
+    tbody.innerHTML = pageItems.map((trip) => {
         const idStr = String(trip.id);
         const checkin = trip.checkin || trip.train || {};
         const line = checkin.lineName || checkin.number || 'Train';
@@ -528,6 +562,49 @@ function setupEventListeners() {
 
     document.getElementById('deselectAllBtn')?.addEventListener('click', () => {
         selectedIds.clear();
+        renderTable();
+        updateSelectionSummary();
+    });
+
+    // Pagination Listeners
+    document.getElementById('privPrevPageBtn')?.addEventListener('click', () => {
+        if (privacyPage > 1) {
+            privacyPage--;
+            renderTable();
+            updateSelectionSummary();
+        }
+    });
+
+    document.getElementById('privNextPageBtn')?.addEventListener('click', () => {
+        const totalPages = Math.max(1, Math.ceil(filteredTrips.length / privacyPageSize));
+        if (privacyPage < totalPages) {
+            privacyPage++;
+            renderTable();
+            updateSelectionSummary();
+        }
+    });
+
+    document.getElementById('privPageSizeSelect')?.addEventListener('change', (e) => {
+        privacyPageSize = parseInt(e.target.value, 10) || 50;
+        privacyPage = 1;
+        renderTable();
+        updateSelectionSummary();
+    });
+
+    document.getElementById('selectPageBtn')?.addEventListener('click', () => {
+        const startIdx = (privacyPage - 1) * privacyPageSize;
+        const pageItems = filteredTrips.slice(startIdx, startIdx + privacyPageSize);
+        pageItems.forEach(t => {
+            if (!isVisibilityLocked(t)) selectedIds.add(String(t.id));
+        });
+        renderTable();
+        updateSelectionSummary();
+    });
+
+    document.getElementById('selectAllMatchingBtn')?.addEventListener('click', () => {
+        filteredTrips.forEach(t => {
+            if (!isVisibilityLocked(t)) selectedIds.add(String(t.id));
+        });
         renderTable();
         updateSelectionSummary();
     });

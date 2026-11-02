@@ -101,6 +101,37 @@ async function runTimeframeE2ETest() {
 
     await capture('screenshot_anim_v2_all_7days_default.png');
 
+    // 2. Test Share Animation Button
+    console.log('2. Testing Share Animation Clip Link button...');
+    const shareBtnStateBefore = await evalJs(`(() => {
+        const btn = document.getElementById('shareAnimationBtn');
+        return { exists: Boolean(btn), text: btn?.textContent.trim() };
+    })()`);
+    console.log('Share button before click:', shareBtnStateBefore);
+
+    if (!shareBtnStateBefore.exists) {
+        throw new Error('Share animation button (#shareAnimationBtn) not found in DOM!');
+    }
+
+    // Click share button and verify feedback state
+    await evalJs(`document.getElementById('shareAnimationBtn').click()`);
+    await new Promise(r => setTimeout(r, 400));
+
+    const shareBtnStateAfter = await evalJs(`(() => {
+        const btn = document.getElementById('shareAnimationBtn');
+        return {
+            hasCopiedClass: btn?.classList.contains('copied'),
+            btnText: btn?.textContent.trim()
+        };
+    })()`);
+    console.log('Share button after click:', shareBtnStateAfter);
+
+    if (!shareBtnStateAfter.btnText.includes('Copied')) {
+        throw new Error(`Expected button text to show 'Link Copied', got '${shareBtnStateAfter.btnText}'`);
+    }
+
+    await capture('screenshot_anim_share_button_feedback.png');
+
     // Close chrome
     try {
         ws.close();
@@ -116,3 +147,4 @@ runTimeframeE2ETest().catch(err => {
     console.error('Fatal test error:', err);
     process.exit(1);
 });
+

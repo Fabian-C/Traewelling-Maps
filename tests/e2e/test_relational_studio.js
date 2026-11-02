@@ -196,6 +196,36 @@ async function runRelationalStudioTests() {
     console.log('Statuses query execution result:', statusesQueryResult);
     await capture('screenshot_studio_query_statuses.png');
 
+    // 5. Test Spatial SQL Map Preview on Stations
+    console.log('5. Testing Spatial SQL Map Preview on stations query...');
+    await evalJs(`(() => {
+        const input = document.getElementById('sqlQueryInput');
+        input.value = "SELECT id, name, latitude, longitude, country_code FROM stations ORDER BY name ASC LIMIT 50";
+        window.runSqlQuery(input.value);
+    })()`);
+    await new Promise(r => setTimeout(r, 400));
+
+    await evalJs(`document.getElementById('toggleSpatialPreviewBtn').click()`);
+    await new Promise(r => setTimeout(r, 300));
+
+    const spatialPreviewState = await evalJs(`(() => {
+        const panel = document.getElementById('spatialSqlPanel');
+        const badge = document.getElementById('spatialSqlBadge');
+        const canvas = document.getElementById('spatialSqlCanvas');
+        return {
+            isVisible: panel && panel.style.display !== 'none',
+            badgeText: badge ? badge.textContent : null,
+            canvasWidth: canvas ? canvas.width : 0,
+            canvasHeight: canvas ? canvas.height : 0
+        };
+    })()`);
+    console.log('Spatial SQL preview state:', spatialPreviewState);
+
+    if (!spatialPreviewState.isVisible || !spatialPreviewState.badgeText?.includes('stations')) {
+        throw new Error(`Spatial SQL Preview failed to open or render stations! Got: ${JSON.stringify(spatialPreviewState)}`);
+    }
+    await capture('screenshot_studio_spatial_preview.png');
+
     // Close chrome
     try {
         ws.close();

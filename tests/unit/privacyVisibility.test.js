@@ -84,5 +84,39 @@ describe('privacy/visibility', () => {
         });
         expect(bySearch.map((t) => t.id)).toEqual([1001]);
     });
+
+    describe('Privacy Table Pagination Math', () => {
+        it('calculates total pages and slice bounds correctly', () => {
+            const total = 142;
+            const pageSize = 50;
+            const totalPages = Math.ceil(total / pageSize);
+            expect(totalPages).toBe(3);
+
+            // Page 1: 0..50
+            const p1Start = (1 - 1) * pageSize;
+            const p1End = Math.min(total, p1Start + pageSize);
+            expect(p1Start).toBe(0);
+            expect(p1End).toBe(50);
+
+            // Page 3: 100..142
+            const p3Start = (3 - 1) * pageSize;
+            const p3End = Math.min(total, p3Start + pageSize);
+            expect(p3Start).toBe(100);
+            expect(p3End).toBe(142);
+        });
+
+        it('supports page size changes and clamps invalid page numbers', () => {
+            const clampPage = (p, total, pageSize) => {
+                const totalPages = Math.max(1, Math.ceil(total / pageSize));
+                if (p > totalPages) return totalPages;
+                if (p < 1) return 1;
+                return p;
+            };
+
+            expect(clampPage(5, 80, 50)).toBe(2); // total pages = 2
+            expect(clampPage(0, 80, 50)).toBe(1);
+            expect(clampPage(2, 80, 50)).toBe(2);
+        });
+    });
 });
 

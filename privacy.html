@@ -211,6 +211,26 @@
 
         <!-- Step 3: Check-ins Table -->
         <div class="priv-card priv-table-card">
+            <!-- Batch Action & Page Size Toolbar -->
+            <div class="priv-table-toolbar">
+                <div class="priv-batch-buttons">
+                    <button type="button" class="priv-btn-subtle" id="selectPageBtn" title="Select all items on this page">Select Page</button>
+                    <button type="button" class="priv-btn-subtle" id="selectAllMatchingBtn" title="Select all matching check-ins across all pages">Select All Matching</button>
+                    <button type="button" class="priv-btn-subtle" id="deselectAllBtn" title="Deselect all check-ins">Deselect All</button>
+                </div>
+                <div class="priv-page-size-wrap">
+                    <label for="privPageSizeSelect" class="priv-page-size-label">
+                        <span>Show:</span>
+                        <select id="privPageSizeSelect" class="priv-select-compact" aria-label="Select items per page">
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="250">250</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+
             <div class="priv-table-scroll">
                 <table class="priv-table">
                     <caption>Check-ins matching current filter</caption>
@@ -236,6 +256,22 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Bottom Pagination Navigation Bar -->
+            <div class="priv-pagination-bar" id="privPaginationBar">
+                <div class="priv-pagination-info" id="privPaginationInfo">
+                    Showing <strong>0–0</strong> of <strong>0</strong> check-ins
+                </div>
+                <div class="priv-pagination-nav">
+                    <button type="button" class="priv-page-btn" id="privPrevPageBtn" disabled aria-label="Previous Page">
+                        ← Previous
+                    </button>
+                    <span class="priv-page-current" id="privPageCurrentText">Page 1 of 1</span>
+                    <button type="button" class="priv-page-btn" id="privNextPageBtn" disabled aria-label="Next Page">
+                        Next →
+                    </button>
+                </div>
             </div>
         </div>
     </main>

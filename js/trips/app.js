@@ -1254,8 +1254,255 @@ function setupStudioEventListeners() {
         });
     }
 
+    // 9. Spatial SQL Map Preview Controls
+    const toggleSpatialBtn = document.getElementById('toggleSpatialPreviewBtn');
+    const spatialPanel = document.getElementById('spatialSqlPanel');
+    const closeSpatialBtn = document.getElementById('closeSpatialPanelBtn');
+
+    if (toggleSpatialBtn && spatialPanel) {
+        toggleSpatialBtn.addEventListener('click', () => {
+            const isVisible = spatialPanel.style.display !== 'none';
+            if (isVisible) {
+                spatialPanel.style.display = 'none';
+                toggleSpatialBtn.classList.remove('active');
+            } else {
+                spatialPanel.style.display = 'block';
+                toggleSpatialBtn.classList.add('active');
+                renderSpatialSqlPreview();
+            }
+        });
+    }
+
+    if (closeSpatialBtn && spatialPanel && toggleSpatialBtn) {
+        closeSpatialBtn.addEventListener('click', () => {
+            spatialPanel.style.display = 'none';
+            toggleSpatialBtn.classList.remove('active');
+        });
+    }
+
     // Pre-populate Database Studio recipes and default state immediately
     initStudioWorkbench();
+}
+
+let renderedSpatialPoints = [];
+
+/**
+ * Render small spatial map preview canvas for current SQL query results
+ */
+export function renderSpatialSqlPreview() {
+    const panel = document.getElementById('spatialSqlPanel');
+    const canvas = document.getElementById('spatialSqlCanvas');
+    const badge = document.getElementById('spatialSqlBadge');
+    const tooltip = document.getElementById('spatialSqlTooltip');
+    if (!panel || !canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    renderedSpatialPoints = [];
+
+    const rows = sqlQueryResult?.rows || [];
+    const isStations = sqlQueryResult?.table === 'stations' || rows.some(r => r.latitude !== undefined && r.longitude !== undefined);
+    const rawTrips = sqlQueryResult?.rawTrips || [];
+
+    const points = [];
+    const lines = [];
+
+    if (isStations) {
+        rows.forEach((r, idx) => {
+            const lat = Number(r.latitude);
+            const lon = Number(r.longitude);
+            if (Number.isFinite(lat) && Number.isFinite(lon) && (lat !== 0 || lon !== 0)) {
+                points.push({
+                    lat,
+                    lon,
+                    label: String(r.name || r.id || `Station #${idx + 1}`),
+                    type: 'station',
+                    rowIdx: idx,
+                    id: String(r.id || '')
+                });
+            }
+        });
+    } else if (rawTrips.length > 0) {
+        rawTrips.forEach((t, idx) => {
+            const train = t.train || t.checkin || {};
+            const orig = train.origin?.station || train.origin || {};
+            const dest = train.destination?.station || train.destination || {};
+            const origLat = Number(orig.latitude ?? orig.lat);
+            const origLon = Number(orig.longitude ?? orig.lng ?? orig.lon);
+            const destLat = Number(dest.latitude ?? dest.lat);
+            const destLon = Number(dest.longitude ?? dest.lng ?? dest.lon);
+
+            const poly = train.polyline || t.polyline;
+            let coords = [];
+            if (poly?.geometry?.coordinates && Array.isArray(poly.geometry.coordinates)) {
+                coords = poly.geometry.coordinates;
+            } else if (Array.isArray(poly?.coordinates)) {
+                coords = poly.coordinates;
+            } else if (Array.isArray(poly)) {
+                coords = poly;
+            }
+
+            if (coords.length >= 2) {
+                lines.push({
+                    coords: coords.map(c => [Number(c[0]), Number(c[1])]),
+                    label: `${train.lineName || train.number || 'Trip'}: ${orig.name || 'Origin'} → ${dest.name || 'Destination'}`,
+                    rowIdx: idx
+                });
+            } else if (Number.isFinite(origLat) && Number.isFinite(origLon) && Number.isFinite(destLat) && Number.isFinite(destLon)) {
+                lines.push({
+                    coords: [[origLon, origLat], [destLon, destLat]],
+                    label: `${train.lineName || train.number || 'Trip'}: ${orig.name || 'Origin'} → ${dest.name || 'Destination'}`,
+                    rowIdx: idx
+                });
+            }
+
+            if (Number.isFinite(origLat) && Number.isFinite(origLon)) {
+                points.push({ lat: origLat, lon: origLon, label: orig.name || 'Origin', type: 'endpoint', rowIdx: idx });
+            }
+            if (Number.isFinite(destLat) && Number.isFinite(destLon)) {
+                points.push({ lat: destLat, lon: destLon, label: dest.name || 'Destination', type: 'endpoint', rowIdx: idx });
+            }
+        });
+    }
+
+    const featureCount = isStations ? points.length : lines.length;
+    if (badge) {
+        badge.textContent = `${featureCount} spatial ${isStations ? 'stations' : 'routes'}`;
+    }
+
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    if (points.length === 0 && lines.length === 0) {
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '13px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('No geographic coordinates found in current SQL query results.', w / 2, h / 2);
+        return;
+    }
+
+    let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    points.forEach(p => {
+        if (p.lon < minLon) minLon = p.lon;
+        if (p.lon > maxLon) maxLon = p.lon;
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+    });
+    lines.forEach(l => {
+        l.coords.forEach(([lon, lat]) => {
+            if (lon < minLon) minLon = lon;
+            if (lon > maxLon) maxLon = lon;
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+        });
+    });
+
+    if (maxLon - minLon < 0.05) { minLon -= 0.25; maxLon += 0.25; }
+    if (maxLat - minLat < 0.05) { minLat -= 0.25; maxLat += 0.25; }
+
+    const padX = 40;
+    const padY = 30;
+    const projectX = (lon) => padX + ((lon - minLon) / (maxLon - minLon)) * (w - 2 * padX);
+    const projectY = (lat) => h - padY - ((lat - minLat) / (maxLat - minLat)) * (h - 2 * padY);
+
+    // Coordinate grid
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 1;
+    for (let c = 1; c <= 4; c++) {
+        const gx = padX + (c / 5) * (w - 2 * padX);
+        ctx.beginPath();
+        ctx.moveTo(gx, padY);
+        ctx.lineTo(gx, h - padY);
+        ctx.stroke();
+    }
+    for (let r = 1; r <= 3; r++) {
+        const gy = padY + (r / 4) * (h - 2 * padY);
+        ctx.beginPath();
+        ctx.moveTo(padX, gy);
+        ctx.lineTo(w - padX, gy);
+        ctx.stroke();
+    }
+
+    // Draw lines
+    lines.forEach(line => {
+        if (!line.coords.length) return;
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.7)';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        line.coords.forEach(([lon, lat], i) => {
+            const px = projectX(lon);
+            const py = projectY(lat);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+    });
+
+    // Draw points
+    points.forEach(p => {
+        const px = projectX(p.lon);
+        const py = projectY(p.lat);
+        renderedSpatialPoints.push({ x: px, y: py, ...p });
+
+        ctx.beginPath();
+        ctx.arc(px, py, 7, 0, Math.PI * 2);
+        ctx.fillStyle = p.type === 'station' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(245, 158, 11, 0.25)';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = p.type === 'station' ? '#38bdf8' : '#fbbf24';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+    });
+
+    if (!canvas.dataset.hasListeners) {
+        canvas.dataset.hasListeners = 'true';
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+            const hit = renderedSpatialPoints.find(p => Math.hypot(p.x - mouseX, p.y - mouseY) <= 12);
+            if (hit && tooltip) {
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${(hit.x / canvas.width) * 100}%`;
+                tooltip.style.top = `${(hit.y / canvas.height) * 100}%`;
+                tooltip.innerHTML = `<strong>${escapeHtml(hit.label)}</strong><br><span style="color: #94a3b8; font-size: 10px;">${hit.lat.toFixed(4)}°, ${hit.lon.toFixed(4)}°</span>`;
+            } else if (tooltip) {
+                tooltip.style.display = 'none';
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            if (tooltip) tooltip.style.display = 'none';
+        });
+
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+            const hit = renderedSpatialPoints.find(p => Math.hypot(p.x - mouseX, p.y - mouseY) <= 14);
+            if (hit) {
+                const targetRow = document.querySelector(`#tripsTableBody tr:nth-child(${hit.rowIdx + 1})`);
+                if (targetRow) {
+                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    targetRow.style.outline = '2px solid #38bdf8';
+                    targetRow.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
+                    setTimeout(() => {
+                        targetRow.style.outline = '';
+                        targetRow.style.backgroundColor = '';
+                    }, 2000);
+                }
+            }
+        });
+    }
 }
 
 /**
@@ -1363,6 +1610,12 @@ export async function runSqlQuery(sql) {
         // Set page to 1 and render
         filterState.page = 1;
         renderResults();
+
+        // Update Spatial SQL preview if active
+        const spatialPanel = document.getElementById('spatialSqlPanel');
+        if (spatialPanel && spatialPanel.style.display !== 'none') {
+            renderSpatialSqlPreview();
+        }
     } catch (err) {
         console.error('SQL execution error:', err);
         const badge = document.getElementById('sqlBenchmarkBadge');

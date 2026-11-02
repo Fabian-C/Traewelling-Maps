@@ -197,6 +197,10 @@
 
                     <!-- Export Result Formats -->
                     <div class="export-btn-group">
+                        <button type="button" class="nav-link-btn" id="toggleSpatialPreviewBtn" title="Toggle Spatial Map Preview for current query">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>
+                            <span>Map Preview</span>
+                        </button>
                         <button type="button" class="nav-link-btn" id="exportCsvBtn" title="Export current query result as CSV">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
                             <span>CSV</span>
@@ -302,6 +306,31 @@
                                 <span>Run SQL</span>
                             </button>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SPATIAL SQL PREVIEW DRAWER (Collapsible) -->
+            <div class="spatial-sql-panel" id="spatialSqlPanel" style="display: none;" aria-label="Spatial Query Map Preview">
+                <div class="spatial-sql-header">
+                    <div class="spatial-sql-title-wrap">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--accent-primary);"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>
+                        <span class="spatial-sql-title">Spatial Query Preview</span>
+                        <span class="spatial-sql-badge" id="spatialSqlBadge">0 features</span>
+                    </div>
+                    <div class="spatial-sql-actions">
+                        <a href="index.html" class="spatial-sql-link-btn" id="spatialOpenMapBtn" title="Open these records in the full interactive map explorer" target="_blank">
+                            <span>Open in Full Map ↗</span>
+                        </a>
+                        <button type="button" class="spatial-sql-close-btn" id="closeSpatialPanelBtn" aria-label="Close spatial preview">✕</button>
+                    </div>
+                </div>
+                <div class="spatial-sql-canvas-wrap">
+                    <canvas id="spatialSqlCanvas" class="spatial-sql-canvas" width="900" height="260" aria-label="Geospatial visualization of query results"></canvas>
+                    <div id="spatialSqlTooltip" class="spatial-sql-tooltip" style="display: none;"></div>
+                    <div class="spatial-sql-legend">
+                        <span class="legend-item"><span class="legend-dot station"></span> Station / Stop</span>
+                        <span class="legend-item"><span class="legend-line route"></span> Transit Route</span>
                     </div>
                 </div>
             </div>
