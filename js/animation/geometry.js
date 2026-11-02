@@ -864,6 +864,7 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         trip: info.trip,
         coords: info.coords,
         points: info.points,
+        path2D: info.path2D,
         cumDist: info.cumDist,
         totalPathPx: info.totalPathPx,
         distanceKm: info.distanceKm,

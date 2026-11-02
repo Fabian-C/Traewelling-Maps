@@ -553,6 +553,8 @@ function renderPlayer() {
             fps: FPS,
             totalFrames
         });
+        window.playerRef = player;
+        window.__nativePlayer = player;
     }
 
     player.load({

@@ -847,8 +847,18 @@ export function syncNetworkCompositePaths(allScene, completedCount) {
     // Progressively accumulate newly completed rides
     while (cache.committedCount < completedCount && cache.committedCount < rides.length) {
         const ride = rides[cache.committedCount];
-        if (ride.path2D) {
-            cache.outlinePath.addPath(ride.path2D);
+        let p2d = ride.path2D;
+        if (!p2d && ride.points && ride.points.length >= 2) {
+            p2d = new Path2D();
+            p2d.moveTo(ride.points[0].x, ride.points[0].y);
+            for (let p = 1; p < ride.points.length; p++) {
+                p2d.lineTo(ride.points[p].x, ride.points[p].y);
+            }
+            ride.path2D = p2d;
+        }
+
+        if (p2d) {
+            cache.outlinePath.addPath(p2d);
 
             const pastCheckin = ride.trip?.checkin || ride.trip?.train || {};
             const pastCat = CATEGORY_META[pastCheckin.category || 'regional'] || CATEGORY_META.unknown;
@@ -861,7 +871,7 @@ export function syncNetworkCompositePaths(allScene, completedCount) {
                 colorPath = new Path2D();
                 cache.colorPaths.set(pastColor, colorPath);
             }
-            colorPath.addPath(ride.path2D);
+            colorPath.addPath(p2d);
         }
         cache.committedCount++;
     }
@@ -1047,7 +1057,7 @@ export function renderAllTripsFrame({
 
     const batchedCache = syncNetworkCompositePaths(allScene, completedCount);
 
-    if (batchedCache && batchedCache.committedCount > 0) {
+    if (batchedCache && batchedCache.committedCount > 0 && batchedCache.colorPaths.size > 0) {
         // Pass 1: Under-track outline (single unified stroke for the entire completed network)
         ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(15, 23, 42, 0.35)';
         ctx.lineWidth = 6.5 / camZoom;

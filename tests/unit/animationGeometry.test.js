@@ -398,6 +398,37 @@ describe('Animation Geometry & Camera Smoothing', () => {
                 }
             }
         });
+
+        it('lazily constructs and caches ride.path2D on-the-fly from ride.points when missing', () => {
+            const originalPath2D = globalThis.Path2D;
+            try {
+                class MockPathWithDraw {
+                    constructor() {
+                        this.paths = [];
+                        this.ops = [];
+                    }
+                    moveTo(x, y) { this.ops.push(['moveTo', x, y]); }
+                    lineTo(x, y) { this.ops.push(['lineTo', x, y]); }
+                    addPath(p) { this.paths.push(p); }
+                }
+                globalThis.Path2D = MockPathWithDraw;
+
+                const rideWithoutPath2D = {
+                    points: [{ x: 10, y: 20 }, { x: 30, y: 40 }],
+                    trip: { checkin: { category: 'suburban' } }
+                };
+                const scene = { rides: [rideWithoutPath2D] };
+
+                const cache = syncNetworkCompositePaths(scene, 1);
+                expect(cache).not.toBeNull();
+                expect(rideWithoutPath2D.path2D).toBeDefined();
+                expect(rideWithoutPath2D.path2D.ops.length).toBe(2);
+                expect(cache.outlinePath.paths.length).toBe(1);
+            } finally {
+                if (originalPath2D) globalThis.Path2D = originalPath2D;
+                else delete globalThis.Path2D;
+            }
+        });
     });
 
     it('dynamically computes visible Web Mercator tiles for viewport matching camera zoom', () => {
