@@ -159,16 +159,16 @@ export class NativeTripPlayer {
             fullscreenIcon: this.container.querySelector('#v2FullscreenIcon')
         };
 
-        this.rendererType = this.options.renderer || 'auto';
+        this.rendererType = this.options.renderer || '2d';
         this.webglEngine = null;
         this.ctx = null;
 
-        if (this.rendererType !== '2d') {
+        if (this.rendererType === 'webgl') {
             try {
                 this.webglEngine = new WebGLAnimEngine(this.dom.canvas);
-                this.rendererType = 'webgl';
             } catch {
                 this.webglEngine = null;
+                this.rendererType = '2d';
             }
         }
 

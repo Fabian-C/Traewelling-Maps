@@ -26,9 +26,8 @@ export function createWebGL2Context(canvas, customOptions = {}) {
         depth: false,
         stencil: false,
         premultipliedAlpha: false,
-        preserveDrawingBuffer: true, // Required for frame capture during video export
-        powerPreference: 'high-performance',
-        desynchronized: true
+        preserveDrawingBuffer: true,
+        powerPreference: 'default'
     };
 
     const options = { ...defaultAttributes, ...customOptions };
