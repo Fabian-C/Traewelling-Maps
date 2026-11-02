@@ -342,7 +342,7 @@ describe('Animation Geometry & Camera Smoothing', () => {
             }
         });
 
-        it('progressively accumulates ride paths into unified outline and color-bucketed layers', () => {
+        it('progressively accumulates ride paths into color-bucketed layers', () => {
             const originalPath2D = globalThis.Path2D;
             try {
                 globalThis.Path2D = MockPath2D;
@@ -372,7 +372,6 @@ describe('Animation Geometry & Camera Smoothing', () => {
                 const cache1 = syncNetworkCompositePaths(allScene, 2);
                 expect(cache1).toBeDefined();
                 expect(cache1.committedCount).toBe(2);
-                expect(cache1.outlinePath.paths.length).toBe(2);
                 expect(cache1.colorPaths.size).toBe(2);
                 expect(cache1.colorPaths.get('#ff0000').paths.length).toBe(1);
                 expect(cache1.colorPaths.get('#00ff00').paths.length).toBe(1);
@@ -380,14 +379,12 @@ describe('Animation Geometry & Camera Smoothing', () => {
                 // Step 2: Progressively advance to 3 rides (ride 3 is also red)
                 const cache2 = syncNetworkCompositePaths(allScene, 3);
                 expect(cache2.committedCount).toBe(3);
-                expect(cache2.outlinePath.paths.length).toBe(3);
                 expect(cache2.colorPaths.size).toBe(2); // Still 2 color buckets (#ff0000 and #00ff00)
                 expect(cache2.colorPaths.get('#ff0000').paths.length).toBe(2);
 
                 // Step 3: Scrub backwards to 1 ride - should reset and re-accumulate
                 const cacheRewound = syncNetworkCompositePaths(allScene, 1);
                 expect(cacheRewound.committedCount).toBe(1);
-                expect(cacheRewound.outlinePath.paths.length).toBe(1);
                 expect(cacheRewound.colorPaths.size).toBe(1);
                 expect(cacheRewound.colorPaths.get('#ff0000').paths.length).toBe(1);
             } finally {
@@ -423,7 +420,7 @@ describe('Animation Geometry & Camera Smoothing', () => {
                 expect(cache).not.toBeNull();
                 expect(rideWithoutPath2D.path2D).toBeDefined();
                 expect(rideWithoutPath2D.path2D.ops.length).toBe(2);
-                expect(cache.outlinePath.paths.length).toBe(1);
+                expect(cache.colorPaths.get('#16a34a').paths.length).toBe(1);
             } finally {
                 if (originalPath2D) globalThis.Path2D = originalPath2D;
                 else delete globalThis.Path2D;
@@ -462,12 +459,12 @@ describe('Animation Geometry & Camera Smoothing', () => {
 
                 // Accumulate first trip
                 const cache1 = syncNetworkCompositePaths(scene, 1);
-                expect(cache1.outlinePath.paths.length).toBe(1);
+                expect(cache1.colorPaths.get('#008800').paths.length).toBe(1);
                 expect(cache1.seenRouteSignatures.size).toBe(1);
 
                 // Accumulate duplicate commuter trip on same corridor
                 const cache2 = syncNetworkCompositePaths(scene, 2);
-                expect(cache2.outlinePath.paths.length).toBe(1); // Did not add a redundant duplicate path!
+                expect(cache2.colorPaths.get('#008800').paths.length).toBe(1); // Did not add a redundant duplicate path!
                 expect(cache2.seenRouteSignatures.size).toBe(1); // Total unique routes remains 1
             } finally {
                 if (originalPath2D) globalThis.Path2D = originalPath2D;

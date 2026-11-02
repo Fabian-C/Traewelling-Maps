@@ -829,7 +829,6 @@ export function syncNetworkCompositePaths(allScene, completedCount) {
     if (!allScene._pathCache) {
         allScene._pathCache = {
             committedCount: 0,
-            outlinePath: new Path2D(),
             colorPaths: new Map(), // color -> Path2D
             seenRouteSignatures: new Set()
         };
@@ -841,7 +840,6 @@ export function syncNetworkCompositePaths(allScene, completedCount) {
     // Scrubbed backwards: reset cache to restart progressive accumulation
     if (cache.committedCount > completedCount) {
         cache.committedCount = 0;
-        cache.outlinePath = new Path2D();
         cache.colorPaths = new Map();
         cache.seenRouteSignatures = new Set();
     }
@@ -881,8 +879,6 @@ export function syncNetworkCompositePaths(allScene, completedCount) {
             }
 
             if (!isDuplicate) {
-                cache.outlinePath.addPath(p2d);
-
                 let colorPath = cache.colorPaths.get(pastColor);
                 if (!colorPath) {
                     colorPath = new Path2D();
@@ -1076,12 +1072,7 @@ export function renderAllTripsFrame({
     const batchedCache = syncNetworkCompositePaths(allScene, completedCount);
 
     if (batchedCache && batchedCache.committedCount > 0 && batchedCache.colorPaths.size > 0) {
-        // Pass 1: Under-track outline (single unified stroke for the entire completed network)
-        ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(15, 23, 42, 0.35)';
-        ctx.lineWidth = 6.5 / camZoom;
-        ctx.stroke(batchedCache.outlinePath);
-
-        // Pass 2: Colored route tracks (only ~5-8 draw calls total, batched by route color)
+        // Colored route tracks (only ~5-8 draw calls total, batched by route color, zero extra outline layer)
         ctx.lineWidth = 4.2 / camZoom;
         for (const [color, colorPath] of batchedCache.colorPaths) {
             ctx.strokeStyle = color;
@@ -1089,22 +1080,6 @@ export function renderAllTripsFrame({
         }
     } else if (completedCount > 0) {
         // Fallback for environments without Path2D.prototype.addPath
-        ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(15, 23, 42, 0.35)';
-        ctx.lineWidth = 6.5 / camZoom;
-        for (let i = 0; i < completedCount; i++) {
-            const pastRide = rides[i];
-            if (pastRide.path2D) {
-                ctx.stroke(pastRide.path2D);
-            } else if (pastRide.points && pastRide.points.length >= 2) {
-                ctx.beginPath();
-                ctx.moveTo(pastRide.points[0].x, pastRide.points[0].y);
-                for (let p = 1; p < pastRide.points.length; p++) {
-                    ctx.lineTo(pastRide.points[p].x, pastRide.points[p].y);
-                }
-                ctx.stroke();
-            }
-        }
-
         ctx.lineWidth = 4.2 / camZoom;
         for (let i = 0; i < completedCount; i++) {
             const pastRide = rides[i];
