@@ -516,7 +516,8 @@ function renderTripSelect() {
     const allOption = `<option value="__ALL__" ${currentMode === 'all' ? 'selected' : ''}>${escapeHtml(allLabel)}</option>`;
 
     const tripListToRender = activeTrips.length > 0 ? activeTrips : userTrips;
-    const tripOptions = tripListToRender.map(t => {
+    let hasMatched = false;
+    let tripOptions = tripListToRender.map(t => {
         const checkin = t.checkin || t.train || {};
         const line = checkin.lineName || checkin.number || t.line || 'Train';
         const origin = checkin.origin?.name || checkin.origin?.station?.name || t.origin || 'Origin';
@@ -524,8 +525,25 @@ function renderTripSelect() {
         const dateRaw = checkin.origin?.departureReal || checkin.origin?.departurePlanned || t.createdAt;
         const date = dateRaw ? new Date(dateRaw).toLocaleDateString() : '';
         const isSelected = currentMode !== 'all' && String(t.id) === String(currentTripId);
+        if (isSelected) hasMatched = true;
         return `<option value="${t.id}" ${isSelected ? 'selected' : ''}>${escapeHtml(line)}: ${escapeHtml(origin)} → ${escapeHtml(dest)} (${date})</option>`;
     }).join('');
+
+    // If in single mode but target trip was not found, explicitly select the first available trip
+    if (currentMode !== 'all' && !hasMatched && tripListToRender.length > 0) {
+        currentTrip = tripListToRender[0];
+        currentTripId = String(currentTrip.id);
+        tripOptions = tripListToRender.map((t, idx) => {
+            const checkin = t.checkin || t.train || {};
+            const line = checkin.lineName || checkin.number || t.line || 'Train';
+            const origin = checkin.origin?.name || checkin.origin?.station?.name || t.origin || 'Origin';
+            const dest = checkin.destination?.name || checkin.destination?.station?.name || t.destination || 'Destination';
+            const dateRaw = checkin.origin?.departureReal || checkin.origin?.departurePlanned || t.createdAt;
+            const date = dateRaw ? new Date(dateRaw).toLocaleDateString() : '';
+            const isSelected = idx === 0;
+            return `<option value="${t.id}" ${isSelected ? 'selected' : ''}>${escapeHtml(line)}: ${escapeHtml(origin)} → ${escapeHtml(dest)} (${date})</option>`;
+        }).join('');
+    }
 
     select.innerHTML = allOption + tripOptions;
 }

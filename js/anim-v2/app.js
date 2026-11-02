@@ -5,6 +5,7 @@
  */
 
 import { SessionDB } from '../cache/session.js';
+import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { TraewellingAPI } from '../api/traewelling.js';
 import { normalizeTripStatus } from '../data/processing.js';
 import { syncNavigationLinks } from '../ui/navigation.js';
@@ -253,8 +254,25 @@ async function attachPolylinesToTrips(api, trips, maxFetchCount = 20) {
     }
 }
 
+function showTripMissingNotice(targetTripId, username) {
+    let notice = document.getElementById('tripNoticeBanner');
+    if (!notice) {
+        notice = document.createElement('div');
+        notice.id = 'tripNoticeBanner';
+        notice.className = 'anim-notice-banner';
+        notice.style.cssText = 'position: fixed; top: 68px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.94); border: 1px solid rgba(245, 158, 11, 0.5); border-radius: 8px; color: #f8fafc; padding: 10px 18px; font-size: 12px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 10px; max-width: 90vw; animation: fadeIn 0.25s ease-out;';
+        document.body.appendChild(notice);
+    }
+    notice.innerHTML = `<span style="font-size: 16px;">⚠️</span> <span>Trip <strong>#${escapeHtml(targetTripId)}</strong> is private, deleted, or unavailable on Träwelling. Replaying latest journey for <strong>@${escapeHtml(username || 'Traveler')}</strong>.</span> <button type="button" style="background: transparent; border: none; color: #94a3b8; font-size: 14px; cursor: pointer; padding: 2px 6px;" onclick="this.parentElement.remove()">✕</button>`;
+    setTimeout(() => {
+        if (notice && notice.parentElement) notice.remove();
+    }, 6500);
+}
+
 async function loadUserTrips(username, targetTripId = '') {
-    const api = new TraewellingAPI();
+    const token = Storage.get(STORAGE_KEYS.TOKEN);
+    const api = new TraewellingAPI(token);
+    let targetFetched = false;
 
     // 1. Check if user is cached in local SessionDB
     if (username) {
@@ -280,11 +298,13 @@ async function loadUserTrips(username, targetTripId = '') {
                     if (polyRes?.data) {
                         const checkin = fetchedTrip.checkin || fetchedTrip.train || {};
                         checkin.polyline = polyRes.data;
+                        SessionDB.savePolylinesBatch({ [targetTripId]: polyRes.data }).catch(() => {});
                     }
                 } catch (pe) {
                     console.warn('Polyline fetch warning for status', targetTripId, pe);
                 }
                 userTrips.unshift(fetchedTrip);
+                targetFetched = true;
                 if (!currentUser && fetchedTrip.user?.username) {
                     currentUser = fetchedTrip.user.username.toLowerCase();
                     renderUserSelect();
@@ -295,14 +315,22 @@ async function loadUserTrips(username, targetTripId = '') {
         }
     }
 
-    // 3. Live API fallback if a username was requested but not cached locally
-    if (userTrips.length === 0 && username && username !== 'demo') {
+    // 3. Live API fallback if username was requested and we have fewer than 2 trips (uncached user or only single trip fetched)
+    if (userTrips.length <= 1 && username && username !== 'demo') {
         try {
             const apiRes = await api.getUserStatuses(username);
             const rawTrips = apiRes?.data || [];
             if (rawTrips.length > 0) {
-                userTrips = rawTrips.map(normalizeTripStatus);
+                const fetchedList = rawTrips.map(normalizeTripStatus);
+                fetchedList.forEach(ft => {
+                    if (!userTrips.some(t => String(t.id) === String(ft.id))) {
+                        userTrips.push(ft);
+                    }
+                });
                 await attachPolylinesToTrips(api, userTrips, currentMode === 'all' ? 50 : 15);
+
+                // Cache to SessionDB so subsequent loads are immediate & offline
+                SessionDB.save(username, userTrips).catch(() => {});
             }
         } catch (ue) {
             console.warn('Live user statuses API fetch error:', ue);
@@ -321,6 +349,11 @@ async function loadUserTrips(username, targetTripId = '') {
     if (!userTrips.length) {
         userTrips = DEMO_FIXTURE_TRIPS;
     }
+
+    // 5. If targetTripId was requested but neither direct fetch nor user history contained it:
+    if (targetTripId && !userTrips.some(t => String(t.id) === String(targetTripId))) {
+        showTripMissingNotice(targetTripId, username);
+    }
 }
 
 function renderTripSelect() {
@@ -334,6 +367,7 @@ function renderTripSelect() {
     if (currentMode === 'all') allOpt.selected = true;
     tripSelect.appendChild(allOpt);
 
+    let matchedSelected = false;
     userTrips.forEach((trip) => {
         const checkin = trip.checkin || trip.train || {};
         const line = checkin.lineName || checkin.number || 'Trip';
@@ -346,6 +380,7 @@ function renderTripSelect() {
         opt.textContent = `${line}: ${origin} → ${dest} (${dateStr})`;
         if (currentMode !== 'all' && String(trip.id) === String(currentTripId)) {
             opt.selected = true;
+            matchedSelected = true;
         }
         tripSelect.appendChild(opt);
     });
@@ -353,8 +388,13 @@ function renderTripSelect() {
     if (currentMode !== 'all') {
         currentTrip = userTrips.find(t => String(t.id) === String(currentTripId)) || userTrips[0];
         currentTripId = String(currentTrip?.id || '');
+        // Guard against HTML select falling back to allOpt: explicitly select option index 1 if target was unmatched
+        if (!matchedSelected && tripSelect.options.length > 1) {
+            tripSelect.options[1].selected = true;
+        }
     } else {
         currentTrip = null;
+        allOpt.selected = true;
     }
 
     renderSidebarDetails();
