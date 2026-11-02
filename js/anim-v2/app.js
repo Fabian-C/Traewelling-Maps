@@ -295,10 +295,22 @@ async function loadUserTrips(username, targetTripId = '') {
                 // Fetch the high-resolution route polyline geodata
                 try {
                     const polyRes = await api.getPolyline(targetTripId);
-                    if (polyRes?.data) {
+                    const polyData = polyRes?.data;
+                    const feature = polyData?.features?.[0] || polyData;
+                    if (feature) {
                         const checkin = fetchedTrip.checkin || fetchedTrip.train || {};
-                        checkin.polyline = polyRes.data;
-                        SessionDB.savePolylinesBatch({ [targetTripId]: polyRes.data }).catch(() => {});
+                        checkin.polyline = feature;
+                        if (fetchedTrip.train) fetchedTrip.train.polyline = feature;
+                        fetchedTrip.polyline = feature;
+                        SessionDB.savePolylinesBatch({ [targetTripId]: feature }).catch(() => {});
+                    } else {
+                        const stopRes = await api.getStopovers([targetTripId]);
+                        const stops = stopRes?.data?.[targetTripId] || stopRes?.data;
+                        if (Array.isArray(stops) && stops.length > 0) {
+                            const checkin = fetchedTrip.checkin || fetchedTrip.train || {};
+                            checkin.stopovers = stops;
+                            if (fetchedTrip.train) fetchedTrip.train.stopovers = stops;
+                        }
                     }
                 } catch (pe) {
                     console.warn('Polyline fetch warning for status', targetTripId, pe);
@@ -344,6 +356,42 @@ async function loadUserTrips(username, targetTripId = '') {
     }).slice(0, 10);
     if (activeMissing.length > 0) {
         await attachPolylinesToTrips(api, activeMissing, 10);
+    }
+
+    // 4b. Ensure the requested target trip definitely has its polyline geodata
+    if (targetTripId) {
+        const targetTrip = userTrips.find(t => String(t.id) === String(targetTripId));
+        if (targetTrip) {
+            const checkin = targetTrip.checkin || targetTrip.train || {};
+            if (!checkin.polyline) {
+                try {
+                    const polyRes = await api.getPolyline(targetTripId);
+                    const polyData = polyRes?.data;
+                    const feature = polyData?.features?.[0] || polyData;
+                    if (feature) {
+                        checkin.polyline = feature;
+                        if (targetTrip.train) targetTrip.train.polyline = feature;
+                        targetTrip.polyline = feature;
+                        SessionDB.savePolylinesBatch({ [targetTripId]: feature }).catch(() => {});
+                    } else {
+                        const stopRes = await api.getStopovers([targetTripId]);
+                        const stops = stopRes?.data?.[targetTripId] || stopRes?.data;
+                        if (Array.isArray(stops) && stops.length > 0) {
+                            checkin.stopovers = stops;
+                            if (targetTrip.train) targetTrip.train.stopovers = stops;
+                        }
+                    }
+                } catch (pe) {
+                    console.warn('Direct polyline fetch warning for target trip', targetTripId, pe);
+                }
+            }
+        }
+    }
+
+    // Persist newly fetched live trips into SessionDB cache
+    const activeUser = currentUser || (targetTripId && userTrips.find(t => String(t.id) === String(targetTripId))?.user?.username?.toLowerCase());
+    if (activeUser && activeUser !== 'demo' && userTrips.length > 0) {
+        SessionDB.save(activeUser, userTrips).catch(() => {});
     }
 
     if (!userTrips.length) {

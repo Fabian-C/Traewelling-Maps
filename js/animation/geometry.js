@@ -72,22 +72,137 @@ export function resampleCoordinatesByDistance(coords, sampleCount = 180) {
     return out;
 }
 
-export function extractRouteCoordinates(trip, sampleCount = null) {
-    const checkin = trip?.checkin || trip?.train || {};
-    const poly = checkin?.polyline || trip?.polyline;
-    let rawCoords = [];
+/**
+ * Recursively extracts [lon, lat] coordinate pairs from any GeoJSON structure
+ * (FeatureCollection, Feature, LineString, MultiLineString, arrays, or wrapped API data).
+ */
+export function extractCoordinatesFromGeoJSON(input) {
+    if (!input) return [];
+    let target = input;
+    if (target.data && typeof target.data === 'object') {
+        target = target.data;
+    }
+    if (!target) return [];
 
-    if (poly?.geometry?.coordinates && Array.isArray(poly.geometry.coordinates)) {
-        rawCoords = poly.geometry.coordinates;
-    } else if (Array.isArray(poly?.coordinates)) {
-        rawCoords = poly.coordinates;
-    } else if (Array.isArray(poly)) {
-        rawCoords = poly;
+    // 1. FeatureCollection
+    if (target.type === 'FeatureCollection' && Array.isArray(target.features)) {
+        const collected = [];
+        for (const feat of target.features) {
+            const coords = extractCoordinatesFromGeoJSON(feat);
+            if (coords && coords.length) collected.push(...coords);
+        }
+        return collected;
     }
 
-    const valid = rawCoords.filter(
-        c => Array.isArray(c) && c.length >= 2 && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1]))
-    ).map(c => [Number(c[0]), Number(c[1])]);
+    // 2. Array of coordinates, features, or nested lines
+    if (Array.isArray(target)) {
+        if (target.length === 0) return [];
+        // Single [lon, lat] coordinate pair: [number, number]
+        if (target.length >= 2 && Number.isFinite(Number(target[0])) && Number.isFinite(Number(target[1])) && !Array.isArray(target[0])) {
+            return [[Number(target[0]), Number(target[1])]];
+        }
+        // Array of coordinate pairs: [ [lon, lat], [lon, lat], ... ]
+        if (Array.isArray(target[0]) && Number.isFinite(Number(target[0][0])) && Number.isFinite(Number(target[0][1]))) {
+            return target
+                .filter(c => Array.isArray(c) && c.length >= 2 && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1])))
+                .map(c => [Number(c[0]), Number(c[1])]);
+        }
+        // Array of Features, geometries, or MultiLineStrings
+        const collected = [];
+        for (const item of target) {
+            const coords = extractCoordinatesFromGeoJSON(item);
+            if (coords && coords.length) collected.push(...coords);
+        }
+        return collected;
+    }
+
+    // 3. Single Feature
+    if (target.type === 'Feature' && target.geometry) {
+        return extractCoordinatesFromGeoJSON(target.geometry);
+    }
+
+    // 4. LineString geometry
+    if (target.type === 'LineString' && Array.isArray(target.coordinates)) {
+        return extractCoordinatesFromGeoJSON(target.coordinates);
+    }
+
+    // 5. MultiLineString geometry
+    if (target.type === 'MultiLineString' && Array.isArray(target.coordinates)) {
+        const collected = [];
+        for (const line of target.coordinates) {
+            const coords = extractCoordinatesFromGeoJSON(line);
+            if (coords && coords.length) collected.push(...coords);
+        }
+        return collected;
+    }
+
+    // 6. GeometryCollection
+    if (target.type === 'GeometryCollection' && Array.isArray(target.geometries)) {
+        const collected = [];
+        for (const geom of target.geometries) {
+            const coords = extractCoordinatesFromGeoJSON(geom);
+            if (coords && coords.length) collected.push(...coords);
+        }
+        return collected;
+    }
+
+    // 7. Object with coordinates property
+    if (Array.isArray(target.coordinates)) {
+        return extractCoordinatesFromGeoJSON(target.coordinates);
+    }
+
+    // 8. Object with geometry property
+    if (target.geometry) {
+        return extractCoordinatesFromGeoJSON(target.geometry);
+    }
+
+    return [];
+}
+
+export function extractRouteCoordinates(trip, sampleCount = null) {
+    const checkin = trip?.checkin || trip?.train || trip?.properties?.checkin || trip?.properties?.train || {};
+    const poly = checkin?.polyline || trip?.polyline || checkin?.geometry || trip?.geometry;
+    let valid = extractCoordinatesFromGeoJSON(poly);
+
+    // If no polyline coordinates found, check for intermediate stopovers along the route
+    if (valid.length < 2) {
+        const rawStopovers = Array.isArray(checkin?.stopovers)
+            ? checkin.stopovers
+            : (Array.isArray(trip?.stopovers) ? trip.stopovers : (Array.isArray(trip?.train?.stopovers) ? trip.train.stopovers : []));
+
+        if (rawStopovers.length > 0) {
+            const stopoverCoords = [];
+            // Add origin station coordinate
+            const orig = checkin?.origin?.station || checkin?.origin || trip?.origin || {};
+            const origLon = Number(orig.longitude ?? orig.lon ?? orig.lng);
+            const origLat = Number(orig.latitude ?? orig.lat);
+            if (Number.isFinite(origLon) && Number.isFinite(origLat)) {
+                stopoverCoords.push([origLon, origLat]);
+            }
+
+            // Add intermediate stopovers
+            for (const stop of rawStopovers) {
+                const stn = stop?.station || stop || {};
+                const sLon = Number(stn.longitude ?? stn.lon ?? stn.lng);
+                const sLat = Number(stn.latitude ?? stn.lat);
+                if (Number.isFinite(sLon) && Number.isFinite(sLat)) {
+                    stopoverCoords.push([sLon, sLat]);
+                }
+            }
+
+            // Add destination station coordinate
+            const dest = checkin?.destination?.station || checkin?.destination || trip?.destination || {};
+            const destLon = Number(dest.longitude ?? dest.lon ?? dest.lng);
+            const destLat = Number(dest.latitude ?? dest.lat);
+            if (Number.isFinite(destLon) && Number.isFinite(destLat)) {
+                stopoverCoords.push([destLon, destLat]);
+            }
+
+            if (stopoverCoords.length >= 2) {
+                valid = stopoverCoords;
+            }
+        }
+    }
 
     // Always preserve full authentic coordinate resolution unless caller explicitly requests resampling
     if (valid.length >= 2) {
@@ -97,8 +212,8 @@ export function extractRouteCoordinates(trip, sampleCount = null) {
         return valid;
     }
 
-    const orig = checkin?.origin?.station || checkin?.origin || {};
-    const dest = checkin?.destination?.station || checkin?.destination || {};
+    const orig = checkin?.origin?.station || checkin?.origin || trip?.origin || {};
+    const dest = checkin?.destination?.station || checkin?.destination || trip?.destination || {};
     const lon1 = Number(orig.longitude ?? orig.lon ?? orig.lng);
     const lat1 = Number(orig.latitude ?? orig.lat);
     const lon2 = Number(dest.longitude ?? dest.lon ?? dest.lng);

@@ -5,6 +5,7 @@ import {
     latToWorldY,
     computePolylineHaversineKm,
     resampleCoordinatesByDistance,
+    extractCoordinatesFromGeoJSON,
     extractRouteCoordinates,
     buildMapScene,
     smootherstep,
@@ -442,6 +443,106 @@ describe('Animation Geometry & Camera Smoothing', () => {
             expect(Number.isFinite(tile.left)).toBe(true);
             expect(Number.isFinite(tile.top)).toBe(true);
             expect(tile.size).toBeCloseTo(256 / Math.pow(2, 12 - 6), 5);
+        });
+    });
+
+    describe('GeoJSON Coordinate Extraction & Shared Link Geodata (extractCoordinatesFromGeoJSON & extractRouteCoordinates)', () => {
+        it('extracts real coordinates from FeatureCollection (Träwelling API polyline structure)', () => {
+            const featColl = {
+                type: 'FeatureCollection',
+                features: [{
+                    type: 'Feature',
+                    properties: { statusId: 9501851 },
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: [
+                            [13.19713, 52.53455],
+                            [13.20041, 52.53393],
+                            [13.36963, 52.52492]
+                        ]
+                    }
+                }]
+            };
+
+            const coords = extractCoordinatesFromGeoJSON(featColl);
+            expect(coords.length).toBe(3);
+            expect(coords[0]).toEqual([13.19713, 52.53455]);
+            expect(coords[2]).toEqual([13.36963, 52.52492]);
+
+            // When attached to a trip's checkin.polyline:
+            const trip = {
+                id: 9501851,
+                checkin: {
+                    polyline: featColl,
+                    origin: { latitude: 52.53, longitude: 13.19 },
+                    destination: { latitude: 52.52, longitude: 13.36 }
+                }
+            };
+            const routeCoords = extractRouteCoordinates(trip);
+            expect(routeCoords.length).toBe(3);
+            expect(routeCoords).toEqual([
+                [13.19713, 52.53455],
+                [13.20041, 52.53393],
+                [13.36963, 52.52492]
+            ]);
+        });
+
+        it('extracts coordinates from wrapped API responses, MultiLineStrings, and arrays of features', () => {
+            // Wrapped API response { data: { type: 'FeatureCollection', ... } }
+            const wrappedApi = {
+                data: {
+                    type: 'FeatureCollection',
+                    features: [{
+                        type: 'Feature',
+                        geometry: {
+                            type: 'LineString',
+                            coordinates: [[10.0, 50.0], [10.5, 50.5]]
+                        }
+                    }]
+                }
+            };
+            expect(extractCoordinatesFromGeoJSON(wrappedApi)).toEqual([[10.0, 50.0], [10.5, 50.5]]);
+
+            // MultiLineString
+            const multiLine = {
+                type: 'MultiLineString',
+                coordinates: [
+                    [[11.0, 51.0], [11.5, 51.5]],
+                    [[11.5, 51.5], [12.0, 52.0]]
+                ]
+            };
+            expect(extractCoordinatesFromGeoJSON(multiLine)).toEqual([
+                [11.0, 51.0], [11.5, 51.5], [11.5, 51.5], [12.0, 52.0]
+            ]);
+
+            // Array of Features
+            const featArray = [
+                { type: 'Feature', geometry: { type: 'LineString', coordinates: [[1.0, 2.0], [3.0, 4.0]] } },
+                { type: 'Feature', geometry: { type: 'LineString', coordinates: [[5.0, 6.0], [7.0, 8.0]] } }
+            ];
+            expect(extractCoordinatesFromGeoJSON(featArray).length).toBe(4);
+        });
+
+        it('uses authentic intermediate stopover coordinates when shape polyline is unavailable', () => {
+            const tripWithStops = {
+                id: 12345,
+                checkin: {
+                    origin: { station: { name: 'Hamburg Hbf', longitude: 10.0069, latitude: 53.5533 } },
+                    stopovers: [
+                        { station: { name: 'Hannover Hbf', longitude: 9.7416, latitude: 52.3768 } },
+                        { station: { name: 'Kassel-Wilhelmshöhe', longitude: 9.4471, latitude: 51.3130 } }
+                    ],
+                    destination: { station: { name: 'Frankfurt(Main)Hbf', longitude: 8.6638, latitude: 50.1071 } }
+                }
+            };
+
+            const routeCoords = extractRouteCoordinates(tripWithStops);
+            // Should connect Hamburg -> Hannover -> Kassel -> Frankfurt
+            expect(routeCoords.length).toBe(4);
+            expect(routeCoords[0]).toEqual([10.0069, 53.5533]);
+            expect(routeCoords[1]).toEqual([9.7416, 52.3768]);
+            expect(routeCoords[2]).toEqual([9.4471, 51.3130]);
+            expect(routeCoords[3]).toEqual([8.6638, 50.1071]);
         });
     });
 });

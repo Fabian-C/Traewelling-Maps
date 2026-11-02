@@ -9,6 +9,7 @@ import htm from 'https://esm.sh/htm@3.1.1';
 import { Player } from 'https://esm.sh/@remotion/player@4.0.539?deps=react@18.3.1,remotion@4.0.539';
 
 import { SessionDB } from '../cache/session.js';
+import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { TraewellingAPI } from '../api/traewelling.js';
 import { normalizeTripStatus } from '../data/processing.js';
 import { syncNavigationLinks } from '../ui/navigation.js';
@@ -190,7 +191,8 @@ const VIDEO_WIDTH = 960;
 const VIDEO_HEIGHT = 960;
 const DURATION_IN_FRAMES = 240;
 const FPS = 30;
-const api = new TraewellingAPI();
+const token = Storage.get(STORAGE_KEYS.TOKEN);
+const api = new TraewellingAPI(token);
 
 let currentMapStyle = 'traewelling-dark';
 let currentMode = 'single';
@@ -279,7 +281,9 @@ async function init() {
         allSessions = [];
     }
 
-    if (!currentUser && allSessions.length > 0) {
+    if (!currentUser && currentTripId) {
+        // Will be derived directly from the requested trip
+    } else if (!currentUser && allSessions.length > 0) {
         currentUser = allSessions[0].username || '';
     } else if (!currentUser) {
         currentUser = 'hash';
@@ -385,7 +389,10 @@ async function attachPolylinesToTrips(trips, maxFetchCount = 20) {
                 normalizeTripStatus(t);
                 const checkin = t.checkin || t.train;
                 if (checkin && polyMap.has(String(t.id))) {
-                    checkin.polyline = polyMap.get(String(t.id));
+                    const feat = polyMap.get(String(t.id));
+                    checkin.polyline = feat;
+                    if (t.train) t.train.polyline = feat;
+                    t.polyline = feat;
                 }
             });
         } catch (e) {
@@ -434,16 +441,24 @@ async function loadUserTrips(username) {
         }
     }
 
-    // If a specific check-in ID (?id=9245926) was requested and isn't in page 1, fetch that exact status
+    // If a specific check-in ID (?id=9245926 or ?trip=9245926) was requested and isn't loaded yet
     if (currentTripId && !userTrips.some(t => String(t.id) === String(currentTripId))) {
         try {
             const singleJson = await api.getStatus(currentTripId);
             if (singleJson?.data) {
                 const exactTrip = normalizeTripStatus(singleJson.data);
-                await attachPolylinesToTrips([exactTrip], 5);
                 userTrips.unshift(exactTrip);
-                if (exactTrip.user?.username && !username) {
-                    currentUser = exactTrip.user.username.toLowerCase();
+                const ownerUser = exactTrip.user?.username?.toLowerCase();
+                if (ownerUser && (!currentUser || currentUser === 'hash' || currentUser === 'resu')) {
+                    currentUser = ownerUser;
+                    syncNavigationLinks(currentUser);
+                }
+                if (ownerUser && !allSessions.some(s => (s.username || '').toLowerCase() === ownerUser)) {
+                    allSessions.push({
+                        username: ownerUser,
+                        displayName: exactTrip.user?.name || ownerUser,
+                        trips: [exactTrip]
+                    });
                 }
             }
         } catch (e) {
@@ -466,6 +481,39 @@ async function loadUserTrips(username) {
     if (!currentTrip && userTrips.length > 0) {
         currentTrip = userTrips[0];
         currentTripId = String(currentTrip.id);
+    }
+
+    // Guarantee that target trip has authentic high-resolution polyline geodata
+    if (currentTrip) {
+        const checkin = currentTrip.checkin || currentTrip.train || {};
+        if (!checkin.polyline) {
+            try {
+                const polyRes = await api.getPolyline(currentTrip.id);
+                const polyData = polyRes?.data;
+                const feature = polyData?.features?.[0] || polyData;
+                if (feature) {
+                    checkin.polyline = feature;
+                    if (currentTrip.train) currentTrip.train.polyline = feature;
+                    currentTrip.polyline = feature;
+                    SessionDB.savePolylinesBatch({ [currentTrip.id]: feature }).catch(() => {});
+                } else {
+                    const stopRes = await api.getStopovers([currentTrip.id]);
+                    const stops = stopRes?.data?.[currentTrip.id] || stopRes?.data;
+                    if (Array.isArray(stops) && stops.length > 0) {
+                        checkin.stopovers = stops;
+                        if (currentTrip.train) currentTrip.train.stopovers = stops;
+                    }
+                }
+            } catch (pe) {
+                console.warn('Direct polyline fetch warning for trip', currentTrip.id, pe);
+            }
+        }
+    }
+
+    // Persist newly fetched live trips into SessionDB cache
+    const activeOwner = currentUser || currentTrip?.user?.username?.toLowerCase();
+    if (activeOwner && activeOwner !== 'demo' && userTrips.length > 0) {
+        SessionDB.save(activeOwner, userTrips).catch(() => {});
     }
 
     if (currentMode === 'all') {

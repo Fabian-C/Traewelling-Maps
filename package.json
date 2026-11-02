@@ -10,7 +10,7 @@
     "format": "prettier --check \"{js,css,tests}/**/*.{js,css}\" \"*.html\"",
     "format:fix": "prettier --write \"{js,css,tests}/**/*.{js,css}\" \"*.html\"",
     "test": "vitest run",
-    "test:e2e": "node tests/e2e/e2e_stress_test.js && node tests/e2e/test_relational_studio.js && node tests/e2e/test_anim_all_timeframe.js"
+    "test:e2e": "node tests/e2e/e2e_stress_test.js && node tests/e2e/test_relational_studio.js && node tests/e2e/test_anim_all_timeframe.js && node tests/e2e/test_shared_anim_geodata.js"
   },
   "devDependencies": {
     "eslint": "^9.0.0",
