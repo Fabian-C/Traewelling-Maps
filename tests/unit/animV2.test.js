@@ -251,6 +251,50 @@ describe('Trip Clip V2 Native Engine', () => {
 
             player.destroy();
         });
+
+        it('handles fullscreen toggle with fallback class and syncs UI buttons', () => {
+            const player = new NativeTripPlayer(container);
+            expect(player.isFullscreen()).toBe(false);
+
+            // Toggle on
+            player.toggleFullscreen();
+            expect(player.isFullscreen()).toBe(true);
+            expect(player.dom.wrapper.classList.contains('is-fullscreen')).toBe(true);
+            expect(player.dom.fullscreenBtn.classList.contains('active')).toBe(true);
+            expect(player.dom.fullscreenBtn.getAttribute('title')).toContain('Exit Fullscreen');
+
+            // Exit fullscreen via exitFullscreen()
+            player.exitFullscreen();
+            expect(player.isFullscreen()).toBe(false);
+            expect(player.dom.wrapper.classList.contains('is-fullscreen')).toBe(false);
+            expect(player.dom.fullscreenBtn.classList.contains('active')).toBe(false);
+            expect(player.dom.fullscreenBtn.getAttribute('title')).toContain('Fullscreen (F)');
+
+            player.destroy();
+        });
+
+        it('decouples scrubber drag visual updates and throttles text changes', () => {
+            const player = new NativeTripPlayer(container, {
+                width: 400,
+                height: 400,
+                fps: 30,
+                totalFrames: 240
+            });
+
+            // Frame 0
+            expect(player.dom.timeCur.textContent).toBe('00:00');
+
+            // Seek to frame 15 (half second): curSecs is still 0, so text does not thrash
+            player.seekTo(15);
+            expect(player.dom.timeCur.textContent).toBe('00:00');
+
+            // Seek to frame 65 (2 seconds + 5 frames): curSecs updates to 00:02
+            player.seekTo(65);
+            expect(player.dom.timeCur.textContent).toBe('00:02');
+            expect(player.dom.scrubberFill.style.inlineSize).toContain('%');
+
+            player.destroy();
+        });
     });
 
     describe('VideoClipExporterV2', () => {
