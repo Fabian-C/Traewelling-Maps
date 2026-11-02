@@ -444,7 +444,11 @@ describe('Animation Geometry & Camera Smoothing', () => {
                 }
                 globalThis.Path2D = MockPathWithDraw;
 
-                const sharedRoute = [{ x: 100, y: 200 }, { x: 150, y: 250 }, { x: 200, y: 300 }];
+                const sharedRoute = [
+                    { x: 100, y: 200, lon: 13.38, lat: 52.52 },
+                    { x: 150, y: 250, lon: 13.39, lat: 52.53 },
+                    { x: 200, y: 300, lon: 13.40, lat: 52.54 }
+                ];
                 const commuterTrip1 = {
                     points: sharedRoute,
                     trip: { checkin: { category: 'suburban', routeColor: '#008800' } }
@@ -459,12 +463,12 @@ describe('Animation Geometry & Camera Smoothing', () => {
                 // Accumulate first trip
                 const cache1 = syncNetworkCompositePaths(scene, 1);
                 expect(cache1.outlinePath.paths.length).toBe(1);
-                expect(cache1.seenOutlineSegs.size).toBe(2);
+                expect(cache1.seenRouteSignatures.size).toBe(1);
 
                 // Accumulate duplicate commuter trip on same corridor
                 const cache2 = syncNetworkCompositePaths(scene, 2);
                 expect(cache2.outlinePath.paths.length).toBe(1); // Did not add a redundant duplicate path!
-                expect(cache2.seenOutlineSegs.size).toBe(2); // Total unique segments remains 2
+                expect(cache2.seenRouteSignatures.size).toBe(1); // Total unique routes remains 1
             } finally {
                 if (originalPath2D) globalThis.Path2D = originalPath2D;
                 else delete globalThis.Path2D;
