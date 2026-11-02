@@ -1917,6 +1917,7 @@ body.stats-open .active-filter-badges {
 
     .menu-content {
         max-height: 75vh;
+        max-height: min(75dvh, 600px);
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
     }

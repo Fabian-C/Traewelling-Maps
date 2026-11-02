@@ -533,6 +533,7 @@ body {
     overflow: auto;
     max-inline-size: 100%;
     max-height: 70vh;
+    max-height: min(70dvh, 720px);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
     background: var(--bg-panel);

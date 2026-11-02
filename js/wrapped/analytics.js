@@ -20,18 +20,18 @@ export const CATEGORY_LABELS = {
 };
 
 export const CATEGORY_COLORS = {
-    nationalExpress: '#e74c3c',
-    national: '#e67e22',
-    regionalExp: '#9b59b6',
-    regional: '#3498db',
-    suburban: '#2ecc71',
-    bus: '#1abc9c',
-    tram: '#f39c12',
-    subway: '#34495e',
-    taxi: '#f1c40f',
-    plane: '#95a5a6',
-    ferry: '#16a085',
-    unknown: '#7f8c8d'
+    nationalExpress: '#ff2e55',
+    national: '#00c8ff',
+    regionalExp: '#e11d48',
+    regional: '#db2777',
+    suburban: '#16a34a',
+    subway: '#8c6dab',
+    tram: '#06b6d4',
+    bus: '#22c55e',
+    ferry: '#0284c7',
+    plane: '#6366f1',
+    taxi: '#eab308',
+    unknown: '#38bdf8'
 };
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

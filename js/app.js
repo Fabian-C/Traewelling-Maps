@@ -1,16 +1,7 @@
 import { CONFIG } from './config/config.js';
 import { Storage, STORAGE_KEYS } from './storage/storage.js';
-import * as geometry from './utils/geometry.js';
-import * as color from './utils/color.js';
-import * as math from './utils/math.js';
-import * as format from './utils/format.js';
-import * as time from './utils/time.js';
-import * as dataUtils from './utils/data.js';
-
 import { SessionDB } from './cache/session.js';
-import { TraewellingAPI } from './api/traewelling.js';
-import * as dataProcessing from './data/processing.js';
-import * as analytics from './analytics/statistics.js';
+import { createEmptyStats } from './utils/data.js';
 import * as heatmap from './map/heatmap.js';
 
 import { UI } from './ui/ui.js';
@@ -19,44 +10,22 @@ import { syncNavigationLinks } from './ui/navigation.js';
 
 import { store, initializeState } from './state/store.js';
 
-import { RouteAnimation, isDensityActive } from './map/routeAnimation.js';
+import { RouteAnimation } from './map/routeAnimation.js';
 import { loadLayers, toggleLayer, reloadAllLayers } from './map/layers.js';
-import {
-    initMap,
-    fitMapToData,
-    waitForMapReady,
-    setupMapInteractions,
-    showPopup,
-    highlightRoute,
-    clearRouteHighlight,
-    findOverlayFeatureAtPoint
-} from './map/interactions.js';
-import {
-    toggleDelayOverlay,
-    removeDelayOverlay,
-    updateDelayOverlay,
-    updateDelayOverlaySummary,
-    updateHeatmapColors,
-    getPixelRadiusKm,
-    getDelayOverlayFeatureAtLngLat,
-    buildFeatureFromDelayOverlay,
-    invalidateDelayOverlayCache
-} from './map/delayOverlay.js';
+import { waitForMapReady } from './map/interactions.js';
+import { toggleDelayOverlay } from './map/delayOverlay.js';
 
 import {
     startDataFetch,
     cancelFetch,
     showFetchError,
-    refreshActiveTrips,
     processAndDisplayData
 } from './fetch/orchestrator.js';
 
 import {
-    fetchUserProfile,
     saveCurrentSession,
     loadSessionByUsername,
     deleteSession,
-    clearAllSessions,
     updateMenuAccountList,
     rememberToken,
     validateStoredToken,
@@ -214,7 +183,7 @@ export async function initApp() {
                     pasteBtn.textContent = '✅ Pasted';
                     setTimeout(() => { pasteBtn.textContent = '📋 Paste'; }, 2000);
                 }
-            } catch (err) {
+            } catch {
                 alert('Could not access clipboard automatically. Please tap and paste into the field.');
             }
         };
@@ -288,7 +257,7 @@ export async function initApp() {
             sessionToLoad = 'resu';
             try {
                 await SessionDB.save('resu', SAMPLE_FIXTURE_TRIPS, { displayName: 'Resu (Demo)' });
-            } catch (e) {}
+            } catch {}
         }
     } catch (e) {
         console.warn('Failed to check IndexedDB for session quick-load:', e);
@@ -456,7 +425,7 @@ function handlePreviewMode() {
 }
 
 // Auto-initialize state store
-initializeState(dataUtils.createEmptyStats);
+initializeState(createEmptyStats);
 
 // Immediately render cached accounts from localStorage (0ms display on startup)
 updateMenuAccountList();

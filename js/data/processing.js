@@ -79,7 +79,6 @@ export function indexTrip(trip, currentUsername = '') {
     const destName = train.destination?.name || train.destination?.station?.name || '';
     const bodyText = typeof trip.body === 'string' ? trip.body : '';
 
-    let mentionsText = '';
     const buddiesNoNotes = new Map();
     const buddiesWithNotes = new Map();
 
@@ -99,15 +98,13 @@ export function indexTrip(trip, currentUsername = '') {
     // 1. bodyMentions
     let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
     if (typeof mentions === 'string') {
-        try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
+        try { mentions = JSON.parse(mentions); } catch { mentions = []; }
     }
     if (Array.isArray(mentions)) {
         mentions.forEach(m => {
             const u = m.user?.username || m.username;
-            const d = m.user?.displayName || '';
             if (u) {
                 addBuddy(u);
-                mentionsText += ' ' + u + ' ' + d;
             }
         });
     }
@@ -115,24 +112,22 @@ export function indexTrip(trip, currentUsername = '') {
     // 2. createdBy
     let createdBy = trip.createdBy || trip.properties?.createdBy;
     if (typeof createdBy === 'string') {
-        try { createdBy = JSON.parse(createdBy); } catch (e) { createdBy = null; }
+        try { createdBy = JSON.parse(createdBy); } catch { createdBy = null; }
     }
     if (createdBy?.username) {
         addBuddy(createdBy.username);
-        mentionsText += ' ' + createdBy.username;
     }
 
     // 3. fellowPassengers
     let fps = trip.fellowPassengers || trip.properties?.fellowPassengers;
     if (typeof fps === 'string') {
-        try { fps = JSON.parse(fps); } catch (e) { fps = []; }
+        try { fps = JSON.parse(fps); } catch { fps = []; }
     }
     if (Array.isArray(fps)) {
         fps.forEach(fp => {
             const u = fp.user?.username || fp.username;
             if (u) {
                 addBuddy(u);
-                mentionsText += ' ' + u;
             }
         });
     }
@@ -219,7 +214,7 @@ export function extractTripTags(trip) {
     if (typeof rawTags === 'string') {
         try {
             rawTags = JSON.parse(rawTags);
-        } catch (e) {
+        } catch {
             rawTags = rawTags.includes(',') ? rawTags.split(',').map(s => s.trim()) : [rawTags];
         }
     }
@@ -284,7 +279,7 @@ export function buildTripSearchCorpus(trip) {
     let mentionsText = '';
     let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
     if (typeof mentions === 'string') {
-        try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
+        try { mentions = JSON.parse(mentions); } catch { mentions = []; }
     }
     if (Array.isArray(mentions)) {
         mentionsText = mentions.map(m => {
@@ -296,7 +291,7 @@ export function buildTripSearchCorpus(trip) {
 
     let createdBy = trip.createdBy || trip.properties?.createdBy;
     if (typeof createdBy === 'string') {
-        try { createdBy = JSON.parse(createdBy); } catch (e) { createdBy = null; }
+        try { createdBy = JSON.parse(createdBy); } catch { createdBy = null; }
     }
     if (createdBy?.username) {
         mentionsText += ' ' + createdBy.username;
@@ -304,7 +299,7 @@ export function buildTripSearchCorpus(trip) {
 
     let fps = trip.fellowPassengers || trip.properties?.fellowPassengers;
     if (typeof fps === 'string') {
-        try { fps = JSON.parse(fps); } catch (e) { fps = []; }
+        try { fps = JSON.parse(fps); } catch { fps = []; }
     }
     if (Array.isArray(fps)) {
         fps.forEach(fp => {
@@ -353,7 +348,6 @@ export function buildTripSearchCorpus(trip) {
     const parsedTags = extractTripTags(trip);
     let wagonTag = null;
     let seatTag = null;
-    let ticketTag = null;
     let travelClassTag = null;
 
     parsedTags.forEach(t => {
@@ -368,7 +362,6 @@ export function buildTripSearchCorpus(trip) {
             seatTag = v;
             extraTokens.push(v, `seat ${v}`, `platz ${v}`, `sitz ${v}`);
         } else if (k === 'trwl:ticket' || k === 'ticket') {
-            ticketTag = v;
             extraTokens.push(v, `ticket ${v}`);
         } else if (k === 'trwl:travel_class' || k === 'travel_class' || k === 'class' || k === 'klasse') {
             travelClassTag = v;
@@ -487,7 +480,7 @@ export function getTripSearchMatchReason(trip, query) {
     // 5. Travel buddies / mentions
     let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
     if (typeof mentions === 'string') {
-        try { mentions = JSON.parse(mentions); } catch (e) { mentions = []; }
+        try { mentions = JSON.parse(mentions); } catch { mentions = []; }
     }
     if (Array.isArray(mentions)) {
         const matchedBuddies = mentions
