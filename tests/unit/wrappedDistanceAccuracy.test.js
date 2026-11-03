@@ -59,3 +59,4 @@ describe('Rail Wrapped Distance & Analytics Accuracy', () => {
         expect(insights.totalKm).toBe(355);
     });
 });
+
