@@ -7,12 +7,15 @@ async function runWrappedRehydrationTest() {
 
     try { execSync('pkill -9 -f chrome-test-wrapped'); } catch {}
 
+    const dataDir = `/tmp/chrome-test-wrapped-${Date.now()}`;
     const chrome = spawn('chromium-browser', [
         '--headless=new',
         '--no-sandbox',
         '--disable-gpu',
+        '--disable-application-cache',
+        '--disable-cache',
         '--remote-debugging-port=9233',
-        '--user-data-dir=/tmp/chrome-test-wrapped',
+        `--user-data-dir=${dataDir}`,
         'about:blank'
     ]);
 
@@ -70,6 +73,8 @@ async function runWrappedRehydrationTest() {
 
     await send('Runtime.enable');
     await send('Page.enable');
+    await send('Network.enable');
+    await send('Network.setCacheDisabled', { cacheDisabled: true });
 
     const evalJs = async (expr) => {
         const res = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
@@ -84,7 +89,7 @@ async function runWrappedRehydrationTest() {
         await navigateTo('http://127.0.0.1:8000/wrapped.html');
         await new Promise(r => setTimeout(r, 1000));
 
-        await evalJs(`
+        const seedResult = await evalJs(`
             (async () => {
                 const { SessionDB } = await import('./js/cache/session.js');
                 await SessionDB.clear();
@@ -163,22 +168,19 @@ async function runWrappedRehydrationTest() {
 
                 await SessionDB.save('alice', aliceTrips, { username: 'alice', displayName: 'Alice' });
                 await SessionDB.save('bob', bobTrips, { username: 'bob', displayName: 'Bob' });
-                return true;
+                const checkAlice = await SessionDB.get('alice');
+                return {
+                    saved: true,
+                    aliceTripsCount: checkAlice?.trips?.length,
+                    aliceSession: checkAlice
+                };
             })()
         `);
+        console.log('   Step 1 seeding result:', seedResult);
 
         console.log('2. Navigating to Rail Wrapped for Alice (?user=alice)...');
         await navigateTo('http://127.0.0.1:8000/wrapped.html?user=alice');
         await new Promise(r => setTimeout(r, 1000));
-
-        const pageInfo = await evalJs(`
-            ({
-                url: location.href,
-                title: document.title,
-                mainSnippet: document.querySelector('main')?.innerHTML?.slice(0, 1000)
-            })
-        `);
-        console.log('   Page info after navigation:', pageInfo);
 
         const stateCheck = await evalJs(`
             (() => {
@@ -209,10 +211,11 @@ async function runWrappedRehydrationTest() {
 
         console.log('3. Testing Year Selector Pills...');
         const yearTest = await evalJs(`
-            (() => {
+            (async () => {
                 const pill2026 = document.querySelector('.control-pill[data-year="2026"]');
                 if (!pill2026) return { error: 'No 2026 pill found' };
                 pill2026.click();
+                await new Promise(r => setTimeout(r, 300));
                 return {
                     pillFound: true,
                     activeYearPill: document.querySelector('.control-pill.active')?.getAttribute('data-year'),
@@ -225,12 +228,13 @@ async function runWrappedRehydrationTest() {
 
         console.log('4. Testing Traveler Duel Mode with Bob...');
         const duelTest = await evalJs(`
-            (() => {
+            (async () => {
                 const duelBtn = document.getElementById('duelToggleBtn');
                 duelBtn.click();
+                await new Promise(r => setTimeout(r, 400));
                 const duelContainer = document.getElementById('duelContainer');
                 const pAName = document.getElementById('duelPlayerAName')?.textContent?.trim();
-                const pBName = document.getElementById('duelPlayerBName')?.textContent?.trim();
+                const pBName = document.getElementById('duelOpponentSelect')?.value;
                 const rows = document.querySelectorAll('#duelTableBody tr');
                 return {
                     duelActive: duelContainer?.classList.contains('active'),
@@ -309,6 +313,7 @@ async function runWrappedRehydrationTest() {
         ws.close();
         chrome.kill('SIGKILL');
         try { execSync('pkill -9 -f chrome-test-wrapped'); } catch {}
+        try { execSync(`rm -rf ${dataDir}`); } catch {}
     }
 }
 

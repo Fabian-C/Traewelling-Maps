@@ -24,8 +24,12 @@ let currentInsights = null;
 let currentCardCanvas = null;
 let duelOpponentSession = null;
 
-// Initialize on DOM load
-document.addEventListener('DOMContentLoaded', initWrapped);
+// Initialize on DOM ready or immediately if already loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWrapped);
+} else {
+    initWrapped();
+}
 
 export async function initWrapped() {
     try {
@@ -166,9 +170,7 @@ export async function initWrapped() {
     setupEventListeners();
     renderProfileDropdown();
 
-    console.log('[Wrapped init] targetUsername:', targetUsername, 'activeSession:', activeSession);
     if (!activeSession || !activeSession.trips || activeSession.trips.length === 0) {
-        console.log('[Wrapped init] Entering showEmptyState');
         showEmptyState();
         return;
     }
@@ -746,40 +748,24 @@ function renderDuelSection() {
 function showEmptyState() {
     const emptyEl = document.getElementById('wrappedEmptyState');
     const contentEl = document.getElementById('wrappedContent');
-    if (emptyEl && contentEl) {
+    if (emptyEl) {
         emptyEl.classList.remove('hidden');
         emptyEl.style.display = 'block';
+    }
+    if (contentEl) {
         contentEl.classList.add('hidden');
         contentEl.style.display = 'none';
-        return;
-    }
-    const main = document.querySelector('.wrapped-container');
-    if (main) {
-        main.innerHTML = `
-            <div class="panel-card" style="text-align: center; padding: 60px 20px; max-width: 600px; margin: 60px auto;">
-                <div style="margin-bottom: 16px; color: var(--accent-purple); display: flex; justify-content: center;">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                </div>
-                <h2 style="font-family: var(--font-heading); margin: 0 0 12px; font-size: 1.8rem;">No Travel Journeys Found Yet</h2>
-                <p style="color: var(--text-secondary); font-size: 15px; margin: 0 0 24px;">
-                    Start by exploring any Träwelling user profile or uploading exported GeoJSON data on the main map.
-                </p>
-                <div style="display: flex; justify-content: center; gap: 12px;">
-                    <a href="index.html" class="nav-link-btn primary" style="padding: 12px 24px; font-size: 14px; border-radius: 24px;">
-                        Open Map Explorer
-                    </a>
-                </div>
-            </div>
-        `;
     }
 }
 
 function hideEmptyState() {
     const emptyEl = document.getElementById('wrappedEmptyState');
     const contentEl = document.getElementById('wrappedContent');
-    if (emptyEl && contentEl) {
+    if (emptyEl) {
         emptyEl.classList.add('hidden');
         emptyEl.style.display = 'none';
+    }
+    if (contentEl) {
         contentEl.classList.remove('hidden');
         contentEl.style.display = 'block';
     }
