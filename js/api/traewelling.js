@@ -32,7 +32,7 @@ export class TraewellingAPI {
         }
     }
 
-    async request(endpoint, requireAuth = false, maxRetries = 2, fetchOptions = {}) {
+    async request(endpoint, requireAuth = false, maxRetries = 3, fetchOptions = {}) {
         if (requireAuth && !this.token) {
             throw new Error('API Error: Authentication token required');
         }
@@ -65,8 +65,15 @@ export class TraewellingAPI {
                 if (!response.ok) {
                     if ((response.status >= 500 || response.status === 429) && attempt < maxRetries) {
                         attempt++;
-                        console.warn(`Transient API error ${response.status}, retrying attempt ${attempt}...`);
-                        await new Promise(r => setTimeout(r, 1500 * attempt));
+                        let waitMs = 1500 * attempt;
+                        if (response.status === 429) {
+                            const retryAfter = parseInt(response.headers?.get?.('retry-after') || '0', 10);
+                            if (retryAfter > 0) {
+                                waitMs = (retryAfter + 1) * 1000;
+                            }
+                        }
+                        console.warn(`Transient API error ${response.status}, retrying attempt ${attempt} in ${waitMs}ms...`);
+                        await new Promise(r => setTimeout(r, waitMs));
                         continue;
                     }
                     let errorDetail = `${response.status} ${response.statusText}`;

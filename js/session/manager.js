@@ -25,7 +25,10 @@ export async function fetchUserProfile(username, token = null) {
             username: data.data?.username || username,
             displayName: data.data?.displayName || username,
             avatar: data.data?.profilePicture || null,
-            profileUrl: `https://traewelling.de/@${username}`
+            profileUrl: `https://traewelling.de/@${username}`,
+            totalDistance: typeof data.data?.totalDistance === 'number' ? data.data.totalDistance : null,
+            totalDuration: typeof data.data?.totalDuration === 'number' ? data.data.totalDuration : null,
+            points: typeof data.data?.points === 'number' ? data.data.points : null
         };
     } catch (e) {
         console.warn('Failed to fetch user profile:', e);
@@ -49,6 +52,9 @@ export async function saveCurrentSession(incremental = false) {
             tripCount: state.fetchedTrips?.length || 0,
             token: state.token,
             trips: state.fetchedTrips,
+            totalDistance: profile?.totalDistance || null,
+            totalDuration: profile?.totalDuration || null,
+            points: profile?.points || null,
             // Force timestamp update for incremental fetches to reset the 90-day timer
             timestamp: incremental ? Date.now() : undefined
         });

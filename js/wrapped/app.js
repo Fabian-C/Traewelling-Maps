@@ -137,18 +137,27 @@ export async function initWrapped() {
             try {
                 const token = Storage.get(STORAGE_KEYS.TOKEN);
                 const api = new TraewellingAPI(token);
+                const profileRes = await api.getPublicUser(targetUsername).catch(() => null);
+                const userProfile = profileRes?.data || null;
+
                 const apiRes = await api.getUserStatuses(targetUsername);
                 const rawTrips = apiRes?.data || [];
                 if (rawTrips.length > 0) {
                     const normTrips = rawTrips.map(normalizeTripStatus);
                     activeSession = {
                         username: targetUsername,
-                        displayName: targetUsername.charAt(0).toUpperCase() + targetUsername.slice(1),
+                        displayName: userProfile?.displayName || (targetUsername.charAt(0).toUpperCase() + targetUsername.slice(1)),
                         trips: normTrips,
                         tripCount: normTrips.length,
+                        totalDistance: userProfile?.totalDistance || null,
+                        totalDuration: userProfile?.totalDuration || null,
+                        points: userProfile?.points || null,
                         timestamp: Date.now()
                     };
-                    SessionDB.save(targetUsername, rawTrips).catch(() => {});
+                    SessionDB.save(targetUsername, {
+                        ...activeSession,
+                        trips: rawTrips
+                    }).catch(() => {});
                 }
             } catch (apiErr) {
                 console.warn('Live API fetch error in Wrapped for user', targetUsername, apiErr);
@@ -431,7 +440,16 @@ function renderWrapped() {
 
     // 2. KPI Cards
     setVal('kpiDistance', `${currentInsights.totalKm.toLocaleString()} km`);
-    setVal('kpiDistanceSub', `${currentInsights.earthCircumferences}× Earth circumferences · ${currentInsights.moonDistancePercent}% to Moon`);
+    const profileDistMeters = activeSession?.totalDistance || activeSession?.profile?.totalDistance;
+    const profileKm = (typeof profileDistMeters === 'number' && profileDistMeters > 0)
+        ? Math.round(profileDistMeters / 1000)
+        : null;
+    const baseDistanceSub = `${currentInsights.earthCircumferences}× Earth circumferences · ${currentInsights.moonDistancePercent}% to Moon`;
+    if (activeYear === 'all' && profileKm && Math.abs(profileKm - currentInsights.totalKm) > 50) {
+        setVal('kpiDistanceSub', `${baseDistanceSub} (Profile counter: ${profileKm.toLocaleString()} km)`);
+    } else {
+        setVal('kpiDistanceSub', baseDistanceSub);
+    }
 
     setVal('kpiTrips', currentInsights.totalTrips.toLocaleString());
     setVal('kpiTripsSub', `~${currentInsights.totalDurationHours} hours spent on tracks`);
