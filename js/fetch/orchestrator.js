@@ -17,6 +17,7 @@ import { initMap, fitMapToData, waitForMapReady, setupMapInteractions, clearRout
 import { toggleDelayOverlay, updateDelayOverlay, updateDelayOverlaySummary, invalidateDelayOverlayCache } from '../map/delayOverlay.js';
 import { fetchUserProfile, saveCurrentSession, rememberToken, logout } from '../session/manager.js';
 import { FunFacts } from '../ui/funFacts.js';
+import { LoadingGame } from '../ui/loadingGame/index.js';
 import { updateFilterBadges } from '../events/listeners.js';
 import { focusTripOnMap } from '../map/tripCycler.js';
 
@@ -129,6 +130,10 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
     UI.toggleFetch(true);
     UI.acquireWakeLock();
     FunFacts.start({ incremental }); // Start fun facts flying text (suppresses skeleton if incremental)
+    LoadingGame.start({ username, incremental });
+    if (incremental && Array.isArray(cachedTrips) && cachedTrips.length > 0) {
+        LoadingGame.onTripBatch(cachedTrips.slice(0, 50));
+    }
     
     document.getElementById('fetchError').classList.add('hidden');
     document.getElementById('retryFetchBtn').classList.add('hidden');
@@ -223,6 +228,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                         UI.updateFetchStats({ trips: totalDisplayTrips, pages: page, progress: 35 });
                         if (allStatuses.length > 0) {
                             FunFacts.showFactsFromTrips(allStatuses, Math.min(2, allStatuses.length));
+                            LoadingGame.onTripBatch(allStatuses);
                         }
                         break;
                     }
@@ -248,6 +254,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                     pagesInContainerBatch = 0;
                 }
                 FunFacts.showFactsFromTrips(res.data, Math.floor(Math.random() * 2) + 1);
+                LoadingGame.onTripBatch(res.data);
 
                 if (!res.links?.next) {
                     hasMore = false;
@@ -292,6 +299,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
 
         if (allStatuses.length === 0) {
             FunFacts.stop(); // Stop immediately so no skeleton or orphan facts linger
+            LoadingGame.stop();
             if (incremental && cachedTrips && cachedTrips.length > 0) {
                 state.fetchedTrips = cachedTrips;
                 state.activeTrips = state.fetchedTrips;
@@ -317,12 +325,14 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
                 }
                 state.isFetching = false;
                 FunFacts.stop();
+                LoadingGame.stop();
                 UI.releaseWakeLock();
                 return;
             }
 
             state.isFetching = false;
             FunFacts.stop();
+            LoadingGame.stop();
             UI.releaseWakeLock();
             return showFetchError({
                 type: 'no_trips',
@@ -633,11 +643,13 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
         }
         state.isFetching = false;
         FunFacts.stop(); // Stop fun facts when complete
+        LoadingGame.stop();
         UI.releaseWakeLock();
     } catch (error) {
         state.isFetching = false;
         console.error('Fetch error:', error);
         FunFacts.stop(); // Stop fun facts on error
+        LoadingGame.stop();
         UI.releaseWakeLock();
         const classified = classifyError(error, username);
         const canRetry = (classified.action === 'retry' || classified.type === 'network' || classified.type === 'rate_limit') &&
@@ -650,6 +662,7 @@ export function cancelFetch() {
     const state = store.get();
     state.cancelFetch = true; 
     FunFacts.stop(); // Stop fun facts when cancelled
+    LoadingGame.stop();
     state.isFetching = false; 
     UI.releaseWakeLock();
 }

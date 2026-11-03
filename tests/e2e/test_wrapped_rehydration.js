@@ -280,7 +280,7 @@ async function runWrappedRehydrationTest() {
         if (!emptyStateCheck.containerIntact) throw new Error('Container should remain intact');
 
         console.log('6. Switching back to Alice via profile dropdown without full page reload...');
-        const switchBackCheck = await evalJs(`
+        await evalJs(`
             (() => {
                 const profileSelect = document.getElementById('profileSelect');
                 if (!profileSelect) return { error: 'No profileSelect found' };

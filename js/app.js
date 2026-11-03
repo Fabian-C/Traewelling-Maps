@@ -36,6 +36,7 @@ import {
 
 import { setupEventListeners } from './events/listeners.js';
 import { exportTripsGeoJSON } from './export/geojson.js';
+import { LoadingGame } from './ui/loadingGame/index.js';
 
 /**
  * =========================================================================
@@ -63,6 +64,7 @@ window.cancelFetch = cancelFetch;
 window.showFetchError = showFetchError;
 window.processAndDisplayData = processAndDisplayData;
 window.saveCurrentSession = saveCurrentSession;
+window.LoadingGame = LoadingGame;
 window.loadSessionByUsername = loadSessionByUsername;
 window.deleteSession = deleteSession;
 window.logout = logout;
