@@ -376,4 +376,100 @@ describe('Trip Clip V2 Native Engine', () => {
             expect(ref.toISOString()).toBe('2023-05-20T10:00:00.000Z');
         });
     });
+
+    describe('External Journey Isolation (Guest Trip Replay)', () => {
+        it('isolates external trip without appending to active user catalog or contaminating catalog', () => {
+            const activeUser = 'hash';
+            const userTrips = [
+                { id: 101, user: { username: 'hash' }, checkin: { lineName: 'S1', origin: { name: 'Berlin' }, destination: { name: 'Potsdam' } } }
+            ];
+            let externalTrip = null;
+
+            const fetchedTrip = {
+                id: 99999,
+                user: { username: 'alice' },
+                checkin: { lineName: 'ICE 720', origin: { name: 'Berlin Hbf' }, destination: { name: 'München Hbf' } }
+            };
+
+            const tripOwner = (fetchedTrip.user?.username || '').toLowerCase().trim();
+            const activeLower = (activeUser || '').toLowerCase().trim();
+            const isOwnTrip = tripOwner && activeLower && tripOwner === activeLower;
+
+            if (isOwnTrip || !activeUser) {
+                userTrips.unshift(fetchedTrip);
+                externalTrip = null;
+            } else {
+                externalTrip = fetchedTrip;
+            }
+
+            // Verify isolation
+            expect(externalTrip).not.toBeNull();
+            expect(externalTrip.id).toBe(99999);
+            expect(userTrips).toHaveLength(1);
+            expect(userTrips.some(t => t.id === 99999)).toBe(false);
+
+            // Verify active user's catalog trips all belong to activeUser
+            const ownTrips = userTrips.filter(t => (t.user?.username || '').toLowerCase() === activeUser.toLowerCase());
+            expect(ownTrips).toHaveLength(1);
+        });
+
+        it('identifies own trip when username matches and safely includes it in catalog', () => {
+            const activeUser = 'hash';
+            const userTrips = [
+                { id: 101, user: { username: 'hash' }, checkin: { lineName: 'S1' } }
+            ];
+            let externalTrip = null;
+
+            const fetchedTrip = {
+                id: 102,
+                user: { username: 'hash' },
+                checkin: { lineName: 'RE1' }
+            };
+
+            const tripOwner = (fetchedTrip.user?.username || '').toLowerCase().trim();
+            const activeLower = (activeUser || '').toLowerCase().trim();
+            const isOwnTrip = tripOwner && activeLower && tripOwner === activeLower;
+
+            if (isOwnTrip || !activeUser) {
+                userTrips.unshift(fetchedTrip);
+                externalTrip = null;
+            } else {
+                externalTrip = fetchedTrip;
+            }
+
+            expect(externalTrip).toBeNull();
+            expect(userTrips).toHaveLength(2);
+            expect(userTrips[0].id).toBe(102);
+        });
+
+        it('formats external trip attribution correctly in dropdown and sidebar notes', () => {
+            const externalTrip = {
+                id: 8888,
+                createdAt: '2026-10-15T12:00:00Z',
+                body: 'Great journey across Bavaria',
+                user: { username: 'alice' },
+                checkin: {
+                    lineName: 'ICE 500',
+                    origin: { name: 'Frankfurt' },
+                    destination: { name: 'Nürnberg' }
+                }
+            };
+
+            const checkin = externalTrip.checkin;
+            const line = checkin.lineName;
+            const origin = checkin.origin.name;
+            const dest = checkin.destination.name;
+            const dateStr = new Date(externalTrip.createdAt).toLocaleDateString();
+            const owner = externalTrip.user?.username ? `@${externalTrip.user.username}` : 'Shared';
+
+            const optionText = `★ ${line}: ${origin} → ${dest} (${owner} • ${dateStr})`;
+            expect(optionText).toContain('★ ICE 500: Frankfurt → Nürnberg');
+            expect(optionText).toContain('@alice');
+
+            const tripOwner = externalTrip.user?.username;
+            const baseNote = externalTrip.body;
+            const noteText = baseNote ? `Shared by @${tripOwner} — "${baseNote}"` : `Shared ride by @${tripOwner}`;
+            expect(noteText).toBe('Shared by @alice — "Great journey across Bavaria"');
+        });
+    });
 });

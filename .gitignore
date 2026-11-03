@@ -11,6 +11,8 @@ tests/*_audit*.js
 # Test screenshots & image captures
 screenshot*.png
 *.png
+!favicon*.png
+!apple-touch-icon.png
 *.jpg
 *.jpeg
 *.webp

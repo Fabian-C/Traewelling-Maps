@@ -2,13 +2,13 @@
 import { SessionDB } from '../cache/session.js';
 import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { escapeHtml } from '../utils/format.js';
+import { TraewellingAPI } from '../api/traewelling.js';
+import { normalizeTripStatus } from '../data/processing.js';
 import {
     extractAvailableYears,
     filterTripsByYear,
     calculateWrappedInsights,
-    compareUsers,
-    CATEGORY_LABELS,
-    CATEGORY_COLORS
+    compareUsers
 } from './analytics.js';
 import {
     generateWrappedCardCanvas,
@@ -111,23 +111,69 @@ export async function initWrapped() {
 
     const normUser = u => (u || '').toLowerCase().replace(/^@/, '').trim();
 
-    if (allSessions.length > 0) {
-        if (requestedUser) {
-            const targetUser = normUser(requestedUser);
-            activeSession = allSessions.find(s => normUser(s.username) === targetUser) || allSessions[0];
-        } else {
-            activeSession = allSessions[0];
+    const targetUsername = requestedUser ? normUser(requestedUser) : (allSessions[0]?.username ? normUser(allSessions[0].username) : null);
+
+    if (targetUsername) {
+        try {
+            activeSession = await SessionDB.get(targetUsername);
+        } catch (e) {
+            console.warn('Failed to load active session from SessionDB:', e);
+        }
+
+        // If not found in IndexedDB or had no trips, check in allSessions (e.g. from fixture or localStorage)
+        if (!activeSession || !activeSession.trips || activeSession.trips.length === 0) {
+            const memSession = allSessions.find(s => normUser(s.username) === targetUsername);
+            if (memSession && memSession.trips && memSession.trips.length > 0) {
+                activeSession = memSession;
+            }
+        }
+
+        // Live API fallback if still no trips and not a demo account
+        if ((!activeSession || !activeSession.trips || activeSession.trips.length === 0) && targetUsername !== 'demo') {
+            try {
+                const token = Storage.get(STORAGE_KEYS.TOKEN);
+                const api = new TraewellingAPI(token);
+                const apiRes = await api.getUserStatuses(targetUsername);
+                const rawTrips = apiRes?.data || [];
+                if (rawTrips.length > 0) {
+                    const normTrips = rawTrips.map(normalizeTripStatus);
+                    activeSession = {
+                        username: targetUsername,
+                        displayName: targetUsername.charAt(0).toUpperCase() + targetUsername.slice(1),
+                        trips: normTrips,
+                        tripCount: normTrips.length,
+                        timestamp: Date.now()
+                    };
+                    SessionDB.save(targetUsername, rawTrips).catch(() => {});
+                }
+            } catch (apiErr) {
+                console.warn('Live API fetch error in Wrapped for user', targetUsername, apiErr);
+            }
         }
     }
 
+    // Ensure activeSession exists in allSessions so profile dropdown can display it
+    if (activeSession && !allSessions.some(s => normUser(s.username) === normUser(activeSession.username))) {
+        allSessions.unshift({
+            username: activeSession.username,
+            displayName: activeSession.displayName || activeSession.username,
+            tripCount: activeSession.tripCount || activeSession.trips?.length || 0,
+            timestamp: activeSession.timestamp || Date.now()
+        });
+    }
+
+    syncNavigationLinks(activeSession?.username || targetUsername || '');
     setupEventListeners();
     renderProfileDropdown();
 
+    console.log('[Wrapped init] targetUsername:', targetUsername, 'activeSession:', activeSession);
     if (!activeSession || !activeSession.trips || activeSession.trips.length === 0) {
+        console.log('[Wrapped init] Entering showEmptyState');
         showEmptyState();
         return;
     }
 
+    hideEmptyState();
     activeYear = requestedYear;
     updateUrlParams();
     renderWrapped();
@@ -139,14 +185,28 @@ function setupEventListeners() {
     // Profile Switcher
     const profileSelect = document.getElementById('profileSelect');
     if (profileSelect) {
-        profileSelect.addEventListener('change', (e) => {
+        profileSelect.addEventListener('change', async (e) => {
             const user = normUser(e.target.value);
-            const found = allSessions.find(s => normUser(s.username) === user);
+            let found = null;
+            try {
+                found = await SessionDB.get(user);
+            } catch (err) {
+                console.warn('Failed to load session for user:', user, err);
+            }
+            if (!found || !found.trips || found.trips.length === 0) {
+                found = allSessions.find(s => normUser(s.username) === user);
+            }
             if (found) {
                 activeSession = found;
+                duelOpponentSession = null;
                 activeYear = 'all';
                 updateUrlParams();
-                runWithTransition(() => renderWrapped());
+                if (!activeSession.trips || activeSession.trips.length === 0) {
+                    showEmptyState();
+                } else {
+                    hideEmptyState();
+                    runWithTransition(() => renderWrapped());
+                }
             }
         });
     }
@@ -154,14 +214,24 @@ function setupEventListeners() {
     // Duel Toggle
     const duelToggleBtn = document.getElementById('duelToggleBtn');
     if (duelToggleBtn) {
-        duelToggleBtn.addEventListener('click', () => {
+        duelToggleBtn.addEventListener('click', async () => {
             const container = document.getElementById('duelContainer');
             const isActive = container.classList.toggle('active');
             duelToggleBtn.classList.toggle('active', isActive);
             if (isActive) {
                 if (!duelOpponentSession && allSessions.length > 1) {
                     const currentNorm = normUser(activeSession?.username);
-                    duelOpponentSession = allSessions.find(s => normUser(s.username) !== currentNorm) || allSessions[1];
+                    const oppSummary = allSessions.find(s => normUser(s.username) !== currentNorm) || allSessions[1];
+                    if (oppSummary) {
+                        try {
+                            duelOpponentSession = await SessionDB.get(oppSummary.username);
+                        } catch (err) {
+                            console.warn('Failed to rehydrate duel opponent session:', err);
+                        }
+                        if (!duelOpponentSession || !duelOpponentSession.trips) {
+                            duelOpponentSession = oppSummary;
+                        }
+                    }
                 }
                 renderDuelSection();
                 container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -181,9 +251,16 @@ function setupEventListeners() {
     // Duel Opponent Switcher
     const duelSelect = document.getElementById('duelOpponentSelect');
     if (duelSelect) {
-        duelSelect.addEventListener('change', (e) => {
+        duelSelect.addEventListener('change', async (e) => {
             const user = normUser(e.target.value);
-            duelOpponentSession = allSessions.find(s => normUser(s.username) === user);
+            try {
+                duelOpponentSession = await SessionDB.get(user);
+            } catch (err) {
+                console.warn('Failed to rehydrate opponent session:', err);
+            }
+            if (!duelOpponentSession || !duelOpponentSession.trips) {
+                duelOpponentSession = allSessions.find(s => normUser(s.username) === user);
+            }
             renderDuelSection();
         });
     }
@@ -667,6 +744,15 @@ function renderDuelSection() {
 }
 
 function showEmptyState() {
+    const emptyEl = document.getElementById('wrappedEmptyState');
+    const contentEl = document.getElementById('wrappedContent');
+    if (emptyEl && contentEl) {
+        emptyEl.classList.remove('hidden');
+        emptyEl.style.display = 'block';
+        contentEl.classList.add('hidden');
+        contentEl.style.display = 'none';
+        return;
+    }
     const main = document.querySelector('.wrapped-container');
     if (main) {
         main.innerHTML = `
@@ -685,6 +771,17 @@ function showEmptyState() {
                 </div>
             </div>
         `;
+    }
+}
+
+function hideEmptyState() {
+    const emptyEl = document.getElementById('wrappedEmptyState');
+    const contentEl = document.getElementById('wrappedContent');
+    if (emptyEl && contentEl) {
+        emptyEl.classList.add('hidden');
+        emptyEl.style.display = 'none';
+        contentEl.classList.remove('hidden');
+        contentEl.style.display = 'block';
     }
 }
 

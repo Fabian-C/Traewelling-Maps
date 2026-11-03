@@ -1,5 +1,4 @@
 // Social card canvas generator for Rail Wrapped
-import { CATEGORY_LABELS } from './analytics.js';
 
 /**
  * Render a high-resolution 1080x1350 (4:5 portrait) shareable social card on an HTML5 canvas.

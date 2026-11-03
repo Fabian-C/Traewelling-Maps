@@ -79,6 +79,7 @@ let customTimeframeTo = '';
 let customTimeframeFromTime = '';
 let customTimeframeToTime = '';
 let userTrips = [];
+let externalTrip = null;
 let allSessions = [];
 let player = null;
 let activeExporter = null;
@@ -155,7 +156,8 @@ async function init() {
         allSessions = [];
     }
 
-    if (!currentUser && allSessions.length > 0) {
+    // Only default to first saved local session if no target trip and no user was specified
+    if (!currentUser && !currentTripId && allSessions.length > 0) {
         currentUser = allSessions[0].username || '';
     }
 
@@ -170,6 +172,7 @@ async function init() {
     }
 
     renderTripSelect();
+    renderUserSelect();
     renderPlayer();
 }
 
@@ -178,33 +181,66 @@ function renderUserSelect() {
     if (!userSelect) return;
     userSelect.innerHTML = '';
 
-    if (allSessions.length === 0) {
+    const isViewingExternal = Boolean(externalTrip && currentTrip && String(externalTrip.id) === String(currentTrip.id));
+    const extOwner = (externalTrip?.user?.username || '').toLowerCase();
+    const extDisplayName = externalTrip?.user?.displayName || externalTrip?.user?.username || 'Shared User';
+
+    const usersMap = new Map();
+
+    // 1. Add all local accounts from IndexedDB sessions
+    allSessions.forEach(sess => {
+        const u = sess.username.toLowerCase();
+        usersMap.set(u, {
+            value: u,
+            label: `${sess.displayName || sess.username} (@${sess.username})`
+        });
+    });
+
+    // 2. If an external trip from another user is loaded, include that user
+    if (extOwner && !usersMap.has(extOwner)) {
+        usersMap.set(extOwner, {
+            value: extOwner,
+            label: `${extDisplayName} (@${extOwner}) (Shared)`
+        });
+    }
+
+    // 3. If currentUser is set (e.g. from URL) and not in usersMap
+    if (currentUser && !usersMap.has(currentUser.toLowerCase())) {
+        usersMap.set(currentUser.toLowerCase(), {
+            value: currentUser.toLowerCase(),
+            label: `@${currentUser} (Shared)`
+        });
+    }
+
+    if (usersMap.size === 0) {
+        const fallbackUser = isViewingExternal ? extOwner : (currentUser || 'demo');
         const opt = document.createElement('option');
-        opt.value = currentUser || 'demo';
-        opt.textContent = `@${currentUser || 'demo'}`;
+        opt.value = fallbackUser;
+        opt.textContent = isViewingExternal ? `@${fallbackUser} (Shared)` : `@${fallbackUser}`;
         userSelect.appendChild(opt);
         return;
     }
 
-    let hasSelected = false;
-    allSessions.forEach(sess => {
+    // Target selected user:
+    // If viewing an external journey from another user, ALWAYS show that creator in the account field!
+    // Never show the viewer or local account as the owner of an external journey.
+    const activeSelectedUser = isViewingExternal ? extOwner : (currentUser || '').toLowerCase();
+
+    let matchedSelected = false;
+    usersMap.forEach((u) => {
         const opt = document.createElement('option');
-        opt.value = sess.username;
-        opt.textContent = `${sess.displayName || sess.username} (@${sess.username})`;
-        if (sess.username === currentUser) {
+        opt.value = u.value;
+        opt.textContent = u.label;
+        if (u.value === activeSelectedUser) {
             opt.selected = true;
-            hasSelected = true;
+            matchedSelected = true;
         }
         userSelect.appendChild(opt);
     });
 
-    // If currentUser is from a shared link not in local sessions, add an option for them
-    if (currentUser && !hasSelected) {
-        const sharedOpt = document.createElement('option');
-        sharedOpt.value = currentUser;
-        sharedOpt.textContent = `@${currentUser} (Shared)`;
-        sharedOpt.selected = true;
-        userSelect.appendChild(sharedOpt);
+    // Fallback selection guard
+    if (!matchedSelected && userSelect.options.length > 0) {
+        userSelect.options[0].selected = true;
     }
 }
 
@@ -272,7 +308,6 @@ function showTripMissingNotice(targetTripId, username) {
 async function loadUserTrips(username, targetTripId = '') {
     const token = Storage.get(STORAGE_KEYS.TOKEN);
     const api = new TraewellingAPI(token);
-    let targetFetched = false;
 
     // 1. Check if user is cached in local SessionDB
     if (username) {
@@ -315,11 +350,22 @@ async function loadUserTrips(username, targetTripId = '') {
                 } catch (pe) {
                     console.warn('Polyline fetch warning for status', targetTripId, pe);
                 }
-                userTrips.unshift(fetchedTrip);
-                targetFetched = true;
-                if (!currentUser && fetchedTrip.user?.username) {
-                    currentUser = fetchedTrip.user.username.toLowerCase();
-                    renderUserSelect();
+
+                // Ownership verification: check if fetchedTrip belongs to active username
+                const tripOwner = (fetchedTrip.user?.username || '').toLowerCase().trim();
+                const activeLower = (username || '').toLowerCase().trim();
+                const isOwnTrip = tripOwner && activeLower && tripOwner === activeLower;
+
+                if (isOwnTrip || !username) {
+                    userTrips.unshift(fetchedTrip);
+                    externalTrip = null;
+                    if (!currentUser && tripOwner) {
+                        currentUser = tripOwner;
+                        renderUserSelect();
+                    }
+                } else {
+                    // Isolated guest trip: do NOT append into active user's catalog or database
+                    externalTrip = fetchedTrip;
                 }
             }
         } catch (se) {
@@ -360,7 +406,9 @@ async function loadUserTrips(username, targetTripId = '') {
 
     // 4b. Ensure the requested target trip definitely has its polyline geodata
     if (targetTripId) {
-        const targetTrip = userTrips.find(t => String(t.id) === String(targetTripId));
+        const targetTrip = (externalTrip && String(externalTrip.id) === String(targetTripId))
+            ? externalTrip
+            : userTrips.find(t => String(t.id) === String(targetTripId));
         if (targetTrip) {
             const checkin = targetTrip.checkin || targetTrip.train || {};
             if (!checkin.polyline) {
@@ -388,18 +436,20 @@ async function loadUserTrips(username, targetTripId = '') {
         }
     }
 
-    // Persist newly fetched live trips into SessionDB cache
-    const activeUser = currentUser || (targetTripId && userTrips.find(t => String(t.id) === String(targetTripId))?.user?.username?.toLowerCase());
+    // Persist newly fetched live trips into SessionDB cache (only own trips)
+    const activeUser = currentUser;
     if (activeUser && activeUser !== 'demo' && userTrips.length > 0) {
         SessionDB.save(activeUser, userTrips).catch(() => {});
     }
 
-    if (!userTrips.length) {
+    if (!userTrips.length && !externalTrip) {
         userTrips = DEMO_FIXTURE_TRIPS;
     }
 
     // 5. If targetTripId was requested but neither direct fetch nor user history contained it:
-    if (targetTripId && !userTrips.some(t => String(t.id) === String(targetTripId))) {
+    const targetFound = (externalTrip && String(externalTrip.id) === String(targetTripId)) ||
+        userTrips.some(t => String(t.id) === String(targetTripId));
+    if (targetTripId && !targetFound) {
         showTripMissingNotice(targetTripId, username);
     }
 }
@@ -416,6 +466,27 @@ function renderTripSelect() {
     tripSelect.appendChild(allOpt);
 
     let matchedSelected = false;
+
+    // If an external journey from another user is loaded, surface it cleanly at the top of the selector
+    if (externalTrip) {
+        const checkin = externalTrip.checkin || externalTrip.train || {};
+        const line = checkin.lineName || checkin.number || 'Trip';
+        const origin = checkin.origin?.name || checkin.origin?.station?.name || externalTrip.origin || 'Origin';
+        const dest = checkin.destination?.name || checkin.destination?.station?.name || externalTrip.destination || 'Destination';
+        const dateStr = externalTrip.createdAt ? new Date(externalTrip.createdAt).toLocaleDateString() : '';
+        const owner = externalTrip.user?.username ? `@${externalTrip.user.username}` : 'Shared';
+
+        const opt = document.createElement('option');
+        opt.value = String(externalTrip.id);
+        opt.textContent = `★ ${line}: ${origin} → ${dest} (${owner} • ${dateStr})`;
+        if (currentMode !== 'all' && String(externalTrip.id) === String(currentTripId)) {
+            opt.selected = true;
+            matchedSelected = true;
+            currentTrip = externalTrip;
+        }
+        tripSelect.appendChild(opt);
+    }
+
     userTrips.forEach((trip) => {
         const checkin = trip.checkin || trip.train || {};
         const line = checkin.lineName || checkin.number || 'Trip';
@@ -429,16 +500,32 @@ function renderTripSelect() {
         if (currentMode !== 'all' && String(trip.id) === String(currentTripId)) {
             opt.selected = true;
             matchedSelected = true;
+            currentTrip = trip;
         }
         tripSelect.appendChild(opt);
     });
 
     if (currentMode !== 'all') {
-        currentTrip = userTrips.find(t => String(t.id) === String(currentTripId)) || userTrips[0];
-        currentTripId = String(currentTrip?.id || '');
+        if (!matchedSelected) {
+            if (externalTrip && (!currentTripId || String(externalTrip.id) === String(currentTripId))) {
+                currentTrip = externalTrip;
+                currentTripId = String(externalTrip.id);
+                matchedSelected = true;
+            } else {
+                currentTrip = userTrips.find(t => String(t.id) === String(currentTripId)) || externalTrip || userTrips[0];
+                currentTripId = String(currentTrip?.id || '');
+            }
+        }
         // Guard against HTML select falling back to allOpt: explicitly select option index 1 if target was unmatched
         if (!matchedSelected && tripSelect.options.length > 1) {
             tripSelect.options[1].selected = true;
+            if (externalTrip) {
+                currentTrip = externalTrip;
+                currentTripId = String(externalTrip.id);
+            } else if (userTrips[0]) {
+                currentTrip = userTrips[0];
+                currentTripId = String(userTrips[0].id);
+            }
         }
     } else {
         currentTrip = null;
@@ -504,7 +591,16 @@ function renderSidebarDetails() {
         delayEl.textContent = (depD || arrD) ? `+${depD}m / +${arrD}m` : 'On time';
     }
     if (durationEl) durationEl.textContent = durationMins ? formatHumanDuration(durationMins) : '—';
-    if (noteEl) noteEl.textContent = currentTrip.body || currentTrip.message || '—';
+    if (noteEl) {
+        const isExternal = externalTrip && currentTrip && String(externalTrip.id) === String(currentTrip.id);
+        const tripOwner = currentTrip.user?.username;
+        const baseNote = currentTrip.body || currentTrip.message || '';
+        if (isExternal && tripOwner) {
+            noteEl.textContent = baseNote ? `Shared by @${tripOwner} — "${baseNote}"` : `Shared ride by @${tripOwner}`;
+        } else {
+            noteEl.textContent = baseNote || '—';
+        }
+    }
 }
 
 function renderPlayer() {
@@ -557,11 +653,15 @@ function renderPlayer() {
         window.__nativePlayer = player;
     }
 
+    const displayUser = (currentMode === 'single' && currentTrip?.user?.username)
+        ? currentTrip.user.username
+        : (currentUser || 'Traveler');
+
     player.load({
         trip: currentTrip,
         trips: activeTrips,
         mode: currentMode,
-        username: currentUser,
+        username: displayUser,
         mapStyle: currentMapStyle,
         totalFrames,
         fps: FPS,
@@ -614,9 +714,12 @@ async function triggerVideoDownload() {
     const checkin = currentTrip?.checkin || currentTrip?.train || {};
     const cleanLine = (checkin.lineName || checkin.number || 'trip').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
     const tfPart = currentTimeframe === 'all' ? 'all' : currentTimeframe.replace(/[^a-zA-Z0-9_-]/g, '-');
+    const exportUser = (currentMode === 'single' && currentTrip?.user?.username)
+        ? currentTrip.user.username
+        : (currentUser || 'clip');
     const filename = currentMode === 'all'
         ? `traewelling-${currentUser || 'clip'}-${tfPart}-${activeTrips.length}-rides.mp4`
-        : `traewelling-${currentUser || 'clip'}-${cleanLine}-${currentTrip?.id || 'video'}.mp4`;
+        : `traewelling-${exportUser}-${cleanLine}-${currentTrip?.id || 'video'}.mp4`;
 
     try {
         if (downloadBtn) {
@@ -642,7 +745,7 @@ async function triggerVideoDownload() {
             trip: currentTrip,
             trips: activeTrips,
             mode: currentMode,
-            username: currentUser || 'Traveler',
+            username: (currentMode === 'single' && currentTrip?.user?.username) ? currentTrip.user.username : (currentUser || 'Traveler'),
             mapStyle: currentMapStyle,
             width: VIDEO_WIDTH,
             height: VIDEO_HEIGHT,
@@ -681,10 +784,26 @@ function setupControls() {
     const userSelect = document.getElementById('userSelect');
     if (userSelect) {
         userSelect.addEventListener('change', async (e) => {
-            currentUser = (e.target.value || '').trim();
+            const selectedVal = (e.target.value || '').trim();
+            const extOwner = (externalTrip?.user?.username || '').toLowerCase();
+
+            if (externalTrip && selectedVal.toLowerCase() === extOwner) {
+                currentMode = 'single';
+                currentTrip = externalTrip;
+                currentTripId = String(externalTrip.id);
+                renderTripSelect();
+                renderUserSelect();
+                updateUrlParams();
+                renderPlayer();
+                return;
+            }
+
+            currentUser = selectedVal.toLowerCase();
             currentTripId = '';
+            currentTrip = null;
             await loadUserTrips(currentUser);
             renderTripSelect();
+            renderUserSelect();
             updateUrlParams();
             syncNavigationLinks(currentUser);
             renderPlayer();
@@ -706,8 +825,13 @@ function setupControls() {
             } else {
                 currentMode = 'single';
                 currentTripId = val;
-                currentTrip = userTrips.find(t => String(t.id) === String(val)) || null;
+                if (externalTrip && String(externalTrip.id) === String(val)) {
+                    currentTrip = externalTrip;
+                } else {
+                    currentTrip = userTrips.find(t => String(t.id) === String(val)) || null;
+                }
             }
+            renderUserSelect();
             syncToolbarPills();
             renderSidebarDetails();
             updateUrlParams();
@@ -774,7 +898,9 @@ function setupControls() {
     if (shareBtn) {
         shareBtn.addEventListener('click', async () => {
             const url = new URL(window.location.origin + window.location.pathname.replace(/\/+$/, ''));
-            if (currentUser) url.searchParams.set('user', currentUser);
+            const isExternal = externalTrip && currentTrip && String(externalTrip.id) === String(currentTrip.id);
+            const shareUser = (isExternal && externalTrip?.user?.username) ? externalTrip.user.username : currentUser;
+            if (shareUser) url.searchParams.set('user', shareUser);
             if (currentMode === 'all') {
                 url.searchParams.set('mode', 'all');
                 if (currentTimeframe && currentTimeframe !== 'all') {
@@ -794,7 +920,7 @@ function setupControls() {
             if (navigator.share && window.innerWidth <= 768) {
                 try {
                     await navigator.share({
-                        title: `Träwelling Trip Clip — @${currentUser || 'traveler'}`,
+                        title: `Träwelling Trip Clip — @${shareUser || 'traveler'}`,
                         text: currentTrip ? `Watch animated train journey: ${document.getElementById('sidebarRoute')?.textContent || 'Trip Clip'}` : 'Watch my Träwelling Trip Clip!',
                         url: shareUrl
                     });
@@ -850,7 +976,9 @@ function setupControls() {
 
 function updateUrlParams() {
     const params = new URLSearchParams();
-    if (currentUser) params.set('user', currentUser);
+    const isViewingExternal = Boolean(externalTrip && currentTrip && String(externalTrip.id) === String(currentTrip.id));
+    const activeAccount = isViewingExternal ? (externalTrip.user?.username || currentUser) : currentUser;
+    if (activeAccount) params.set('user', activeAccount);
     if (currentMode === 'all') {
         params.set('mode', 'all');
     } else if (currentTripId) {
