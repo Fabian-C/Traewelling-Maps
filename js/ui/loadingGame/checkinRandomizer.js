@@ -113,13 +113,16 @@ export const CheckinRandomizer = {
 
     /**
      * Pick and display the next random check-in
+     * @param {boolean} animated Whether to cross-fade
      */
-    nextRandom() {
+    nextRandom(animated = true) {
         const pool = this.checkinsWithText.length > 0 ? this.checkinsWithText : this.allCheckins;
         if (pool.length === 0) {
             this.render();
             return;
         }
+
+        const wasEmpty = !this.currentTrip;
 
         // Avoid repeating the exact same trip consecutively if we have more than 1
         let nextTrip;
@@ -133,7 +136,7 @@ export const CheckinRandomizer = {
         }
 
         this.currentTrip = nextTrip;
-        this.renderCardContent(true);
+        this.renderCardContent(wasEmpty ? false : animated);
         this.resetProgress();
     },
 

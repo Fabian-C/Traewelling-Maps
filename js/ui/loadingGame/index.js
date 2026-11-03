@@ -4,11 +4,12 @@
  * Allows switching or removing games anytime by swapping or setting activeGame.
  */
 
+import { CheckinRandomizer } from './checkinRandomizer.js';
 import { DelayBingo } from './delayBingo.js';
 
 export const LoadingGame = {
-    // Current active game implementation (defaults to DB Delay Bingo)
-    activeGame: DelayBingo,
+    // Current active game implementation (defaults to Check-in Text Randomizer)
+    activeGame: CheckinRandomizer,
 
     /**
      * Set or swap the active game engine at runtime.
@@ -80,4 +81,4 @@ export const LoadingGame = {
     }
 };
 
-export { DelayBingo };
+export { CheckinRandomizer, DelayBingo };

@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { LoadingGame, DelayBingo } from '../../js/ui/loadingGame/index.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { LoadingGame, DelayBingo, CheckinRandomizer } from '../../js/ui/loadingGame/index.js';
 import { BINGO_TILE_POOL, FREE_CENTER_TILE } from '../../js/ui/loadingGame/delayBingo.js';
 
 // Minimal mock DOM element for Node unit testing
@@ -307,6 +307,99 @@ describe('Loading Screen Game: DB Delay Bingo & Modular Architecture', () => {
             }).not.toThrow();
 
             LoadingGame.setActiveGame(DelayBingo);
+        });
+    });
+
+    describe('Check-in Text Randomizer Loading Feature', () => {
+        afterEach(() => {
+            CheckinRandomizer.destroy();
+        });
+
+        it('is configured as the default active game in LoadingGame', () => {
+            LoadingGame.setActiveGame(CheckinRandomizer);
+            expect(LoadingGame.activeGame).toBe(CheckinRandomizer);
+        });
+
+        it('collects check-ins and categorizes trips with text notes', () => {
+            CheckinRandomizer.start({ username: 'hash' });
+
+            const trips = [
+                {
+                    id: 101,
+                    body: 'Im ICE 920 nach Hamburg mit @alice ☕',
+                    createdAt: '2024-05-01T12:00:00Z',
+                    train: { lineName: 'ICE 920', category: 'nationalExpress' }
+                },
+                {
+                    id: 102,
+                    body: '   ', // whitespace only
+                    train: { lineName: 'RE 1', category: 'regional' }
+                },
+                {
+                    id: 103,
+                    body: 'Pünktlich angekommen! #bahnliebe',
+                    train: { lineName: 'S 3', category: 'suburban' }
+                }
+            ];
+
+            CheckinRandomizer.onTripBatch(trips);
+
+            expect(CheckinRandomizer.allCheckins.length).toBe(3);
+            expect(CheckinRandomizer.checkinsWithText.length).toBe(2);
+            expect(CheckinRandomizer.currentTrip).toBeDefined();
+            expect(['Im ICE 920 nach Hamburg mit @alice ☕', 'Pünktlich angekommen! #bahnliebe']).toContain(CheckinRandomizer.currentTrip.body);
+        });
+
+        it('picks random check-ins without crashing and avoids duplicates if multiple available', () => {
+            CheckinRandomizer.start({ username: 'hash' });
+
+            const trips = [
+                { id: 201, body: 'Note A', train: { lineName: 'ICE 1' } },
+                { id: 202, body: 'Note B', train: { lineName: 'ICE 2' } }
+            ];
+
+            CheckinRandomizer.onTripBatch(trips);
+            const firstTrip = CheckinRandomizer.currentTrip;
+            expect(firstTrip).toBeDefined();
+
+            CheckinRandomizer.nextRandom();
+            const secondTrip = CheckinRandomizer.currentTrip;
+            expect(secondTrip).toBeDefined();
+            expect(secondTrip.id).not.toBe(firstTrip.id);
+        });
+
+        it('safely escapes HTML in check-in body text to prevent XSS injection', () => {
+            CheckinRandomizer.start({ username: 'hash' });
+
+            const maliciousTrip = {
+                id: 999,
+                body: '<img src=x onerror=alert(1)> & "quotes"',
+                train: { lineName: 'RE 5', origin: { name: 'Berlin <Hbf>' }, destination: { name: 'Potsdam & Co' } }
+            };
+
+            CheckinRandomizer.onTripBatch([maliciousTrip]);
+            const html = CheckinRandomizer.generateCardHtml();
+
+            expect(html).not.toContain('<img src=x onerror=alert(1)>');
+            expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+            expect(html).toContain('&amp; &quot;quotes&quot;');
+            expect(html).toContain('Berlin &lt;Hbf&gt;');
+        });
+
+        it('toggles pause and minimize states cleanly', () => {
+            CheckinRandomizer.start({ username: 'hash' });
+
+            expect(CheckinRandomizer.isPaused).toBe(false);
+            CheckinRandomizer.togglePause();
+            expect(CheckinRandomizer.isPaused).toBe(true);
+            CheckinRandomizer.togglePause();
+            expect(CheckinRandomizer.isPaused).toBe(false);
+
+            expect(CheckinRandomizer.isMinimized).toBe(false);
+            CheckinRandomizer.toggleMinimize();
+            expect(CheckinRandomizer.isMinimized).toBe(true);
+            CheckinRandomizer.toggleMinimize();
+            expect(CheckinRandomizer.isMinimized).toBe(false);
         });
     });
 });
