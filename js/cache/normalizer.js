@@ -131,6 +131,12 @@ export function normalizeTrip(trip, username = '') {
     const durationMin = computeTripDurationMinutes(trip) || 0;
     const businessType = getTripBusinessType(trip) || 'private';
 
+    const buddies = Array.isArray(trip.users)
+        ? trip.users.map((u) => ({ username: u.username, displayName: u.name || u.displayName || u.username }))
+        : Array.isArray(trip.buddies)
+          ? trip.buddies
+          : [];
+
     const statusId = trip.id ? Number(trip.id) : Date.now();
     const status = {
         id: statusId,
@@ -139,15 +145,88 @@ export function normalizeTrip(trip, username = '') {
         origin_id: originStn ? originStn.id : null,
         destination_id: destStn ? destStn.id : null,
         departure_time: depTime,
+        departure_planned: originStationObj.departurePlanned || null,
+        departure_platform: originStationObj.departurePlatformReal || originStationObj.platform || null,
         arrival_time: arrTime,
+        arrival_planned: destStationObj.arrivalPlanned || null,
+        arrival_platform: destStationObj.arrivalPlatformReal || destStationObj.platform || null,
         departure_delay: depDelayMin,
         arrival_delay: arrDelayMin,
         distance_km: distanceKm,
         duration_min: durationMin,
         business_type: businessType,
         body: typeof trip.body === 'string' ? trip.body : '',
+        buddies: buddies,
+        visibility: typeof trip.visibility === 'number' ? trip.visibility : (typeof trip.properties?.visibility === 'number' ? trip.properties.visibility : 0),
         created_at: trip.createdAt || depTime || new Date().toISOString()
     };
 
-    return { stations, tripRun, status };
+    return { stations, tripRun, status, polyline };
+}
+
+/**
+ * Reconstruct a canonical trip object from normalized relational records.
+ * @param {Object} status Normalized status row
+ * @param {Map<string|number, Object>} stationsMap Map of stations keyed by ID
+ * @param {Map<string, Object>} tripRunsMap Map of line runs keyed by tripRun ID
+ * @param {Object<number, Object>} polylineMap Map of polylines keyed by status ID
+ * @returns {Object|null} Rehydrated trip object
+ */
+export function denormalizeTrip(status, stationsMap = new Map(), tripRunsMap = new Map(), polylineMap = {}) {
+    if (!status) return null;
+    const run = tripRunsMap.get(String(status.trip_id)) || {};
+    const originStn = stationsMap.get(status.origin_id) || {};
+    const destStn = stationsMap.get(status.destination_id) || {};
+    const polyline = polylineMap[status.id] || run.polyline || null;
+
+    const rawDistMeters = Math.round((status.distance_km || 0) * 1000);
+    const lineName = run.line_name || 'Train';
+    const category = run.category || 'regional';
+    const operator = run.operator_name || 'Unknown';
+
+    let businessNum = 0;
+    if (status.business_type === 'business' || status.business_type === 1) businessNum = 1;
+    else if (status.business_type === 'commute' || status.business_type === 2) businessNum = 2;
+
+    const buddies = Array.isArray(status.buddies) ? status.buddies : [];
+
+    return {
+        id: status.id,
+        body: status.body || '',
+        createdAt: status.created_at || status.departure_time,
+        business: businessNum,
+        visibility: status.visibility !== undefined ? status.visibility : 0,
+        train: {
+            lineName: lineName,
+            number: run.train_number || null,
+            category: category,
+            operator: operator,
+            distance: rawDistMeters,
+            totalDistance: rawDistMeters,
+            duration: status.duration_min || 0,
+            origin: {
+                id: originStn.id || status.origin_id,
+                name: originStn.name || 'Unknown',
+                latitude: originStn.latitude ?? null,
+                longitude: originStn.longitude ?? null,
+                departureReal: status.departure_time || null,
+                departurePlanned: status.departure_planned || status.departure_time || null,
+                departure: status.departure_time || null,
+                platform: status.departure_platform || null
+            },
+            destination: {
+                id: destStn.id || status.destination_id,
+                name: destStn.name || 'Unknown',
+                latitude: destStn.latitude ?? null,
+                longitude: destStn.longitude ?? null,
+                arrivalReal: status.arrival_time || null,
+                arrivalPlanned: status.arrival_planned || status.arrival_time || null,
+                arrival: status.arrival_time || null,
+                platform: status.arrival_platform || null
+            },
+            polyline: polyline
+        },
+        users: buddies,
+        buddies: buddies
+    };
 }

@@ -1,5 +1,6 @@
 // Data processing functions
 import { CONFIG } from '../config/config.js';
+import { getTripBuddies } from '../trips/formatters.js';
 
 const KNOWN_CATEGORIES = new Set([
     'nationalExpress', 'national', 'regionalExp', 'regional',
@@ -276,37 +277,8 @@ export function buildTripSearchCorpus(trip) {
     const destName = destData.name || destData.station?.name || '';
 
     // Mentions & buddy text
-    let mentionsText = '';
-    let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
-    if (typeof mentions === 'string') {
-        try { mentions = JSON.parse(mentions); } catch { mentions = []; }
-    }
-    if (Array.isArray(mentions)) {
-        mentionsText = mentions.map(m => {
-            const u = m.user?.username || m.username || '';
-            const d = m.user?.displayName || '';
-            return `${u} ${d}`;
-        }).join(' ');
-    }
-
-    let createdBy = trip.createdBy || trip.properties?.createdBy;
-    if (typeof createdBy === 'string') {
-        try { createdBy = JSON.parse(createdBy); } catch { createdBy = null; }
-    }
-    if (createdBy?.username) {
-        mentionsText += ' ' + createdBy.username;
-    }
-
-    let fps = trip.fellowPassengers || trip.properties?.fellowPassengers;
-    if (typeof fps === 'string') {
-        try { fps = JSON.parse(fps); } catch { fps = []; }
-    }
-    if (Array.isArray(fps)) {
-        fps.forEach(fp => {
-            const u = fp.user?.username || fp.username;
-            if (u) mentionsText += ' ' + u;
-        });
-    }
+    const allBuddies = getTripBuddies(trip);
+    const mentionsText = allBuddies.map(b => `${b.username} ${b.displayName}`).join(' ');
 
     // Stopovers station names if present
     let stopoversText = '';
@@ -478,17 +450,11 @@ export function getTripSearchMatchReason(trip, query) {
     }
 
     // 5. Travel buddies / mentions
-    let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
-    if (typeof mentions === 'string') {
-        try { mentions = JSON.parse(mentions); } catch { mentions = []; }
-    }
-    if (Array.isArray(mentions)) {
-        const matchedBuddies = mentions
-            .map(m => m.user?.username || m.username || '')
-            .filter(u => u && u.toLowerCase().includes(q));
-        if (matchedBuddies.length > 0) {
-            reasons.push(`Buddy @${matchedBuddies.join(', @')}`);
-        }
+    const matchedBuddies = getTripBuddies(trip)
+        .map(b => b.username)
+        .filter(u => u && u.toLowerCase().includes(q));
+    if (matchedBuddies.length > 0) {
+        reasons.push(`Buddy @${matchedBuddies.join(', @')}`);
     }
 
     // 6. Tags

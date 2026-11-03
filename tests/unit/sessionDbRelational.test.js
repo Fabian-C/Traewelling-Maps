@@ -350,10 +350,16 @@ describe('Normalized Relational Cache Architecture', () => {
             const saved = await SessionDB.save('alice', [trip], { displayName: 'Alice' });
             expect(saved.username).toBe('alice');
 
-            // Verify monolithic session is intact
+            // Verify raw trips array is NOT duplicated in sessions store on disk
+            const rawStoredSession = SessionDB._db.stores.sessions.data['alice'];
+            expect(rawStoredSession.trips).toBeUndefined();
+
+            // Verify session rehydrates transparently for backward-compatibility
             const session = await SessionDB.get('alice');
             expect(session.trips.length).toBe(1);
             expect(session.trips[0].id).toBe(501);
+            expect(session.trips[0].train.lineName).toBe('RE 1');
+            expect(session.trips[0].train.origin.name).toBe('Potsdam Hbf');
 
             // Verify normalized stores received entities
             const statuses = await SessionDB.getStatusesByUser('alice');
@@ -460,6 +466,15 @@ describe('Normalized Relational Cache Architecture', () => {
 
             const stn = await SessionDB.getStation(8000001);
             expect(stn.name).toBe('Aachen Hbf');
+
+            // Verify sessions store has trips purged to reclaim disk storage
+            expect(db.stores.sessions.data['legacy_user'].trips).toBeUndefined();
+
+            // Verify transparent rehydration on get
+            const rehydrated = await SessionDB.get('legacy_user');
+            expect(rehydrated.trips.length).toBe(1);
+            expect(rehydrated.trips[0].id).toBe(777);
+            expect(rehydrated.trips[0].train.lineName).toBe('IC 2020');
         });
 
         it('saves and retrieves materialized GeoJSON cache', async () => {

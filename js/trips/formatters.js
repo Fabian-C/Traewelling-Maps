@@ -39,7 +39,9 @@ export function getTripBuddies(trip, currentUser = '') {
             if (typeof m === 'string') {
                 addBuddy(m);
             } else if (m && typeof m === 'object') {
-                addBuddy(m.username || m.name, m.displayName || m.name || m.username);
+                const u = m.user?.username || m.username || m.name;
+                const d = m.user?.displayName || m.displayName || m.name || u;
+                addBuddy(u, d);
             }
         });
     }
@@ -54,12 +56,23 @@ export function getTripBuddies(trip, currentUser = '') {
             if (typeof c === 'string') {
                 addBuddy(c);
             } else if (c && typeof c === 'object') {
-                addBuddy(c.username || c.name, c.displayName || c.name || c.username);
+                const u = c.user?.username || c.username || c.name;
+                const d = c.user?.displayName || c.displayName || c.name || u;
+                addBuddy(u, d);
             }
         });
     }
 
-    // 3. Regex @mentions in body text
+    // 3. createdBy
+    let createdBy = trip.createdBy || trip.properties?.createdBy;
+    if (typeof createdBy === 'string') {
+        try { createdBy = JSON.parse(createdBy); } catch { createdBy = null; }
+    }
+    if (createdBy?.username) {
+        addBuddy(createdBy.username, createdBy.displayName || createdBy.username);
+    }
+
+    // 4. Regex @mentions in body text
     const body = trip.body || trip.properties?.body || '';
     if (typeof body === 'string' && body.includes('@')) {
         const matches = body.match(/@([a-zA-Z0-9_\-\.]+)/g);

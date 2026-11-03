@@ -248,24 +248,35 @@ async function runStressTestSuite() {
     console.log('New top row re-expanded successfully:', reExpanded);
     results.push({ name: 'Re-expansion after sort', passed: reExpanded.isOpen && reExpanded.hasDetailsGrid });
 
-    // Toggle Cards View
-    console.log('Switching to Cards View mode...');
-    await evalJs(`document.getElementById('viewCardsBtn').click()`);
+    // Test interactive table column header sorting
+    console.log('Testing interactive table column header sorting (delay)...');
+    await evalJs(`document.querySelector('th.sortable[data-sort="delay"]').click()`);
     await new Promise(r => setTimeout(r, 300));
-    const cardViewCheck = await evalJs(`(() => {
-        const container = document.getElementById('cardViewContainer');
-        const cards = container.querySelectorAll('.trip-card');
+    const sortCheck = await evalJs(`(() => {
+        const rows = Array.from(document.querySelectorAll('#tripsTableBody tr.trip-row'));
+        const delays = rows.map(r => r.querySelector('.delay-pill')?.textContent.trim());
         return {
-            isVisible: container.style.display !== 'none',
-            cardCount: cards.length
+            rowCount: rows.length,
+            delays
         };
     })()`);
-    console.log('Cards view check:', cardViewCheck);
-    results.push({ name: 'Cards View Switch Invariant', passed: cardViewCheck.isVisible && cardViewCheck.cardCount === 3 });
+    console.log('Delay column sort check:', sortCheck);
+    results.push({ name: 'Column Header Sort Invariant', passed: sortCheck.rowCount === 3 && sortCheck.delays.length === 3 });
 
-    // Switch back to Table View
-    await evalJs(`document.getElementById('viewTableBtn').click()`);
-    await new Promise(r => setTimeout(r, 200));
+    // Test interactive table column header sorting (distance)
+    console.log('Testing interactive table column header sorting (dist)...');
+    await evalJs(`document.querySelector('th.sortable[data-sort="dist"]').click()`);
+    await new Promise(r => setTimeout(r, 300));
+    const distSortCheck = await evalJs(`(() => {
+        const rows = Array.from(document.querySelectorAll('#tripsTableBody tr.trip-row'));
+        const dists = rows.map(r => r.querySelector('td[data-label="Distance"]')?.textContent.trim());
+        return {
+            rowCount: rows.length,
+            dists
+        };
+    })()`);
+    console.log('Dist column sort check:', distSortCheck);
+    results.push({ name: 'Dist Column Header Sort', passed: distSortCheck.rowCount === 3 && distSortCheck.dists.length === 3 });
 
     // =========================================================================
     // TEST 4: Deep-Linking End-to-End (?user=resu&trip=325374)

@@ -24,17 +24,17 @@ export const CONFIG = {
         }
     },
     LAYER_CONFIG: [
-        ['nationalExpress', '#ff2e55'],
-        ['regionalExp', '#e11d48'],
-        ['national', '#00c8ff'],
-        ['regional', '#db2777'],
-        ['suburban', '#16a34a'],
-        ['bus', '#22c55e'],
-        ['tram', '#06b6d4'],
-        ['subway', '#8c6dab'],
-        ['taxi', '#eab308'],
-        ['plane', '#6366f1'],
-        ['ferry', '#0284c7'],
-        ['unknown', '#38bdf8']
+        ['nationalExpress', '#0073ff'],
+        ['regionalExp', '#d1024e'],
+        ['national', '#00eeff'],
+        ['regional', '#a6026c'],
+        ['suburban', '#fc0000'],
+        ['bus', '#238443'],
+        ['tram', '#2FC5CC'],
+        ['subway', '#F69A00'],
+        ['taxi', '#f1c40f'],
+        ['plane', '#111111'],
+        ['ferry', '#0055aa'],
+        ['unknown', '#888888']
     ]
 };

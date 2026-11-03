@@ -7,7 +7,7 @@ import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js
 import { formatDelayMinutes, formatHumanDuration, formatTotalTime, calculateCO2Saved, formatSpeed, escapeHtml } from '../utils/format.js';
 import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
 import { extractTripDetails, formatTimeShort } from '../ui/tripDetails.js';
-import { VECTOR_COUNTRIES } from '../animation/vectorData.js';
+import { spatialPreviewEngine } from './mapPreview.js';
 
 let sqlEngine = null;
 let sqlAutocomplete = null;
@@ -16,7 +16,6 @@ export async function loadStudioModules() {
     if (!sqlEngine) {
         sqlEngine = await import('./sqlEngine.js');
         window.executeTripQuery = sqlEngine.executeTripQuery;
-        window.visualFilterToSQL = sqlEngine.visualFilterToSQL;
     }
     if (!sqlAutocomplete) {
         sqlAutocomplete = await import('./sqlAutocomplete.js');
@@ -34,12 +33,7 @@ let durationDisplayMode = 'standard'; // 'standard' | 'days' | 'months'
 
 // Studio state
 let appMode = 'standard'; // 'standard' | 'studio'
-let studioTab = 'visual'; // 'visual' | 'sql'
 let studioTableMode = Storage.get(STORAGE_KEYS.STUDIO_TABLE_MODE, 'unified'); // 'unified' | 'raw'
-let visualRules = [
-    { column: 'delay_dep', operator: 'greater_than', value: '15' }
-];
-let visualLogicMode = 'AND';
 let sqlQueryResult = null;
 
 // Filter state
@@ -51,7 +45,6 @@ const filterState = {
     selectedBuddy: 'all',
     selectedPurpose: 'all',
     sortBy: 'date-desc',
-    viewMode: 'table',
     page: 1,
     pageSize: 100
 };
@@ -448,38 +441,6 @@ function setupEventListeners() {
         });
     }
 
-    // View Mode Toggle (Table vs Cards)
-    const viewTableBtn = document.getElementById('viewTableBtn');
-    const viewCardsBtn = document.getElementById('viewCardsBtn');
-    const tableView = document.getElementById('tableViewContainer');
-    const cardsView = document.getElementById('cardViewContainer');
-
-    if (viewTableBtn && viewCardsBtn) {
-        viewTableBtn.addEventListener('click', () => {
-            filterState.viewMode = 'table';
-            viewTableBtn.classList.add('active');
-            viewCardsBtn.classList.remove('active');
-            tableView.style.display = 'block';
-            cardsView.style.display = 'none';
-            const sqlTableToggle = document.getElementById('sqlTableModeToggle');
-            if (sqlTableToggle && appMode === 'studio') {
-                sqlTableToggle.style.display = 'inline-flex';
-            }
-        });
-
-        viewCardsBtn.addEventListener('click', () => {
-            filterState.viewMode = 'cards';
-            viewCardsBtn.classList.add('active');
-            viewTableBtn.classList.remove('active');
-            tableView.style.display = 'none';
-            cardsView.style.display = 'grid';
-            const sqlTableToggle = document.getElementById('sqlTableModeToggle');
-            if (sqlTableToggle) {
-                sqlTableToggle.style.display = 'none';
-            }
-        });
-    }
-
     // Page Size Selector
     const pageSizeSelect = document.getElementById('pageSizeSelect');
     if (pageSizeSelect) {
@@ -710,9 +671,6 @@ async function initStudioWorkbench() {
     if (sqlInput && !sqlInput.value.trim() && recipes.length > 0) {
         sqlInput.value = recipes[0].sql;
     }
-
-    // Render initial visual rules
-    renderVisualRules();
 }
 
 /**
@@ -792,31 +750,21 @@ function setupStudioEventListeners() {
                 }
             } else {
                 renderResults();
+                const spatialPanel = document.getElementById('spatialSqlPanel');
+                if (spatialPanel && spatialPanel.style.display !== 'none') {
+                    renderSpatialSqlPreview();
+                }
             }
         });
     }
 
-    // 2. Studio Sub-tabs (Visual Builder vs SQL Console)
-    const tabVisualBtn = document.getElementById('studioTabVisualBtn');
+    // 2. Studio SQL Console Tab
     const tabSqlBtn = document.getElementById('studioTabSqlBtn');
-    const visualPane = document.getElementById('studioVisualPane');
-    const sqlPane = document.getElementById('studioSqlPane');
-
-    if (tabVisualBtn && tabSqlBtn) {
-        tabVisualBtn.addEventListener('click', () => {
-            studioTab = 'visual';
-            tabVisualBtn.classList.add('active');
-            tabSqlBtn.classList.remove('active');
-            if (visualPane) visualPane.style.display = 'block';
-            if (sqlPane) sqlPane.style.display = 'none';
-        });
-
+    if (tabSqlBtn) {
         tabSqlBtn.addEventListener('click', () => {
-            studioTab = 'sql';
             tabSqlBtn.classList.add('active');
-            tabVisualBtn.classList.remove('active');
-            if (visualPane) visualPane.style.display = 'none';
-            if (sqlPane) sqlPane.style.display = 'block';
+            const sqlInput = document.getElementById('sqlQueryInput');
+            if (sqlInput) sqlInput.focus();
         });
     }
 
@@ -1030,42 +978,7 @@ function setupStudioEventListeners() {
         });
     });
 
-    // 6. Visual Query Builder Controls
-    const addRuleBtn = document.getElementById('addRuleBtn');
-    const clearRulesBtn = document.getElementById('clearRulesBtn');
-    const applyRulesBtn = document.getElementById('applyVisualRulesBtn');
-    const logicSelect = document.getElementById('visualLogicMode');
-
-    if (addRuleBtn) {
-        addRuleBtn.addEventListener('click', () => {
-            visualRules.push({ column: 'line', operator: 'contains', value: '' });
-            renderVisualRules();
-        });
-    }
-
-    if (clearRulesBtn) {
-        clearRulesBtn.addEventListener('click', () => {
-            visualRules = [];
-            renderVisualRules();
-        });
-    }
-
-    if (logicSelect) {
-        logicSelect.addEventListener('change', (e) => {
-            visualLogicMode = e.target.value;
-        });
-    }
-
-    if (applyRulesBtn) {
-        applyRulesBtn.addEventListener('click', async () => {
-            await loadStudioModules();
-            const generatedSql = sqlEngine.visualFilterToSQL(visualRules, visualLogicMode);
-            if (sqlInput) sqlInput.value = generatedSql;
-            runSqlQuery(generatedSql);
-        });
-    }
-
-    // 7. Database Schema & Tables Guide Drawer
+    // 6. Database Schema & Tables Guide Drawer
     const schemaToggleBtn = document.getElementById('sqlSchemaToggleBtn');
     const schemaDrawer = document.getElementById('sqlSchemaDrawer');
     const closeSchemaBtn = document.getElementById('closeSchemaDrawerBtn');
@@ -1257,27 +1170,37 @@ function setupStudioEventListeners() {
 
     // 9. Spatial SQL Map Preview Controls
     const toggleSpatialBtn = document.getElementById('toggleSpatialPreviewBtn');
+    const toggleStandardSpatialBtn = document.getElementById('toggleStandardSpatialBtn');
     const spatialPanel = document.getElementById('spatialSqlPanel');
     const closeSpatialBtn = document.getElementById('closeSpatialPanelBtn');
 
-    if (toggleSpatialBtn && spatialPanel) {
-        toggleSpatialBtn.addEventListener('click', () => {
-            const isVisible = spatialPanel.style.display !== 'none';
-            if (isVisible) {
-                spatialPanel.style.display = 'none';
-                toggleSpatialBtn.classList.remove('active');
-            } else {
-                spatialPanel.style.display = 'block';
-                toggleSpatialBtn.classList.add('active');
-                renderSpatialSqlPreview();
-            }
-        });
+    const toggleSpatialPanel = () => {
+        if (!spatialPanel) return;
+        const isVisible = spatialPanel.style.display !== 'none';
+        if (isVisible) {
+            spatialPanel.style.display = 'none';
+            if (toggleSpatialBtn) toggleSpatialBtn.classList.remove('active');
+            if (toggleStandardSpatialBtn) toggleStandardSpatialBtn.classList.remove('active');
+        } else {
+            spatialPanel.style.display = 'block';
+            if (toggleSpatialBtn) toggleSpatialBtn.classList.add('active');
+            if (toggleStandardSpatialBtn) toggleStandardSpatialBtn.classList.add('active');
+            renderSpatialSqlPreview();
+        }
+    };
+
+    if (toggleSpatialBtn) {
+        toggleSpatialBtn.addEventListener('click', toggleSpatialPanel);
+    }
+    if (toggleStandardSpatialBtn) {
+        toggleStandardSpatialBtn.addEventListener('click', toggleSpatialPanel);
     }
 
-    if (closeSpatialBtn && spatialPanel && toggleSpatialBtn) {
+    if (closeSpatialBtn && spatialPanel) {
         closeSpatialBtn.addEventListener('click', () => {
             spatialPanel.style.display = 'none';
-            toggleSpatialBtn.classList.remove('active');
+            if (toggleSpatialBtn) toggleSpatialBtn.classList.remove('active');
+            if (toggleStandardSpatialBtn) toggleStandardSpatialBtn.classList.remove('active');
         });
     }
 
@@ -1285,369 +1208,37 @@ function setupStudioEventListeners() {
     initStudioWorkbench();
 }
 
-let renderedSpatialPoints = [];
+let studioStationsCache = [];
 
 /**
- * Render small spatial map preview canvas for current SQL query results
+ * Render small spatial map preview canvas for current SQL query results or filtered trips
  */
 export function renderSpatialSqlPreview() {
-    const panel = document.getElementById('spatialSqlPanel');
-    const canvas = document.getElementById('spatialSqlCanvas');
-    const badge = document.getElementById('spatialSqlBadge');
-    const tooltip = document.getElementById('spatialSqlTooltip');
-    if (!panel || !canvas) return;
+    const user = activeSession?.username || (allSessions.length ? allSessions[0].username : '');
+    const titleEl = document.getElementById('spatialSqlTitle') || document.querySelector('.spatial-sql-title');
+    if (titleEl) {
+        titleEl.textContent = appMode === 'studio' ? 'Spatial Query Preview' : 'Spatial Map Preview';
+    }
+    spatialPreviewEngine.init(user);
+    spatialPreviewEngine.indexStations(allTrips, studioStationsCache);
+    spatialPreviewEngine.updateData({
+        sqlQueryResult: appMode === 'studio' ? sqlQueryResult : null,
+        trips: filteredTrips.length ? filteredTrips : allTrips,
+        activeUser: user
+    });
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    renderedSpatialPoints = [];
-
-    const rows = sqlQueryResult?.rows || [];
-    const isStations = sqlQueryResult?.table === 'stations' || rows.some(r => r.latitude !== undefined && r.longitude !== undefined);
-    const rawTrips = sqlQueryResult?.rawTrips || [];
-
-    const points = [];
-    const lines = [];
-
-    if (isStations) {
-        rows.forEach((r, idx) => {
-            const lat = Number(r.latitude);
-            const lon = Number(r.longitude);
-            if (Number.isFinite(lat) && Number.isFinite(lon) && (lat !== 0 || lon !== 0)) {
-                points.push({
-                    lat,
-                    lon,
-                    label: String(r.name || r.id || `Station #${idx + 1}`),
-                    type: 'station',
-                    rowIdx: idx,
-                    id: String(r.id || '')
+    if (!studioStationsCache.length && user) {
+        SessionDB.getAllStations().then(stns => {
+            if (stns && stns.length) {
+                studioStationsCache = stns;
+                spatialPreviewEngine.indexStations(allTrips, studioStationsCache);
+                spatialPreviewEngine.updateData({
+                    sqlQueryResult: appMode === 'studio' ? sqlQueryResult : null,
+                    trips: filteredTrips.length ? filteredTrips : allTrips,
+                    activeUser: user
                 });
             }
-        });
-    } else if (rawTrips.length > 0) {
-        rawTrips.forEach((t, idx) => {
-            const train = t.train || t.checkin || {};
-            const orig = train.origin?.station || train.origin || {};
-            const dest = train.destination?.station || train.destination || {};
-            const origLat = Number(orig.latitude ?? orig.lat);
-            const origLon = Number(orig.longitude ?? orig.lng ?? orig.lon);
-            const destLat = Number(dest.latitude ?? dest.lat);
-            const destLon = Number(dest.longitude ?? dest.lng ?? dest.lon);
-
-            const poly = train.polyline || t.polyline;
-            let coords = [];
-            if (poly?.geometry?.coordinates && Array.isArray(poly.geometry.coordinates)) {
-                coords = poly.geometry.coordinates;
-            } else if (Array.isArray(poly?.coordinates)) {
-                coords = poly.coordinates;
-            } else if (Array.isArray(poly)) {
-                coords = poly;
-            }
-
-            if (coords.length >= 2) {
-                lines.push({
-                    coords: coords.map(c => [Number(c[0]), Number(c[1])]),
-                    label: `${train.lineName || train.number || 'Trip'}: ${orig.name || 'Origin'} → ${dest.name || 'Destination'}`,
-                    rowIdx: idx
-                });
-            } else if (Number.isFinite(origLat) && Number.isFinite(origLon) && Number.isFinite(destLat) && Number.isFinite(destLon)) {
-                lines.push({
-                    coords: [[origLon, origLat], [destLon, destLat]],
-                    label: `${train.lineName || train.number || 'Trip'}: ${orig.name || 'Origin'} → ${dest.name || 'Destination'}`,
-                    rowIdx: idx
-                });
-            }
-
-            if (Number.isFinite(origLat) && Number.isFinite(origLon)) {
-                points.push({ lat: origLat, lon: origLon, label: orig.name || 'Origin', type: 'endpoint', rowIdx: idx });
-            }
-            if (Number.isFinite(destLat) && Number.isFinite(destLon)) {
-                points.push({ lat: destLat, lon: destLon, label: dest.name || 'Destination', type: 'endpoint', rowIdx: idx });
-            }
-        });
-    }
-
-    const featureCount = isStations ? points.length : lines.length;
-
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-
-    if (points.length === 0 && lines.length === 0) {
-        if (badge) {
-            badge.textContent = `0 spatial features`;
-        }
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '13px system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('No geographic coordinates found in current SQL query results.', w / 2, h / 2);
-        return;
-    }
-
-    let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
-    points.forEach(p => {
-        if (p.lon < minLon) minLon = p.lon;
-        if (p.lon > maxLon) maxLon = p.lon;
-        if (p.lat < minLat) minLat = p.lat;
-        if (p.lat > maxLat) maxLat = p.lat;
-    });
-    lines.forEach(l => {
-        l.coords.forEach(([lon, lat]) => {
-            if (lon < minLon) minLon = lon;
-            if (lon > maxLon) maxLon = lon;
-            if (lat < minLat) minLat = lat;
-            if (lat > maxLat) maxLat = lat;
-        });
-    });
-
-    if (badge) {
-        badge.textContent = `${featureCount} spatial ${isStations ? 'stations' : 'routes'} • ${minLat.toFixed(1)}°N–${maxLat.toFixed(1)}°N, ${minLon.toFixed(1)}°E–${maxLon.toFixed(1)}°E`;
-    }
-
-    // Minimum bounding box span to prevent excessive zooming into a single point
-    if (maxLon - minLon < 0.2) { minLon -= 0.35; maxLon += 0.35; }
-    if (maxLat - minLat < 0.2) { minLat -= 0.25; maxLat += 0.25; }
-
-    // Geographic aspect ratio correction for European latitudes (equirectangular projection)
-    const avgLat = (minLat + maxLat) / 2;
-    const cosLat = Math.cos((avgLat * Math.PI) / 180);
-
-    // Padding around data bounds (12% margin)
-    const marginLon = (maxLon - minLon) * 0.12;
-    const marginLat = (maxLat - minLat) * 0.12;
-    const viewMinLon = minLon - marginLon;
-    const viewMaxLon = maxLon + marginLon;
-    const viewMinLat = minLat - marginLat;
-    const viewMaxLat = maxLat + marginLat;
-
-    const geoW = (viewMaxLon - viewMinLon) * cosLat;
-    const geoH = (viewMaxLat - viewMinLat);
-
-    const centerLon = (viewMinLon + viewMaxLon) / 2;
-    const centerLat = (viewMinLat + viewMaxLat) / 2;
-
-    const padX = 24;
-    const padY = 20;
-    const drawW = w - 2 * padX;
-    const drawH = h - 2 * padY;
-
-    // Uniform scale preserving true geographic proportions
-    const scale = Math.min(drawW / Math.max(0.0001, geoW), drawH / Math.max(0.0001, geoH));
-
-    const projectX = (lon) => (w / 2) + (lon - centerLon) * cosLat * scale;
-    const projectY = (lat) => (h / 2) - (lat - centerLat) * scale;
-
-    // 1. Draw European country vector boundaries as cartographic geographic reference
-    if (Array.isArray(VECTOR_COUNTRIES) && VECTOR_COUNTRIES.length > 0) {
-        ctx.save();
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.13)';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
-
-        for (const country of VECTOR_COUNTRIES) {
-            const geom = country.geometry;
-            if (!geom) continue;
-
-            const polys = geom.type === 'Polygon' ? [geom.coordinates] : (geom.type === 'MultiPolygon' ? geom.coordinates : []);
-            for (const rings of polys) {
-                const exteriorRing = rings[0];
-                if (!exteriorRing || exteriorRing.length < 3) continue;
-
-                ctx.beginPath();
-                for (let i = 0; i < exteriorRing.length; i++) {
-                    const [cLon, cLat] = exteriorRing[i];
-                    const cx = projectX(cLon);
-                    const cy = projectY(cLat);
-                    if (i === 0) ctx.moveTo(cx, cy);
-                    else ctx.lineTo(cx, cy);
-                }
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-            }
-        }
-
-        // Prominent European country label watermarks
-        const COUNTRY_CENTROIDS = [
-            { name: 'GERMANY', lon: 10.45, lat: 51.16 },
-            { name: 'AUSTRIA', lon: 14.30, lat: 47.60 },
-            { name: 'SWITZERLAND', lon: 8.22, lat: 46.85 },
-            { name: 'NETHERLANDS', lon: 5.29, lat: 52.13 },
-            { name: 'BELGIUM', lon: 4.46, lat: 50.50 },
-            { name: 'FRANCE', lon: 2.80, lat: 48.50 },
-            { name: 'CZECHIA', lon: 15.47, lat: 49.81 },
-            { name: 'DENMARK', lon: 9.50, lat: 55.67 },
-            { name: 'POLAND', lon: 19.14, lat: 52.10 }
-        ];
-
-        ctx.font = '700 9px system-ui, sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        COUNTRY_CENTROIDS.forEach(c => {
-            const cx = projectX(c.lon);
-            const cy = projectY(c.lat);
-            if (cx >= padX + 20 && cx <= w - padX - 20 && cy >= padY + 12 && cy <= h - padY - 12) {
-                ctx.fillText(c.name, cx, cy);
-            }
-        });
-
-        ctx.restore();
-    }
-
-    // 2. Subtle Coordinate Grid & Graticule Labels
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
-    ctx.lineWidth = 1;
-    for (let c = 1; c <= 4; c++) {
-        const gx = padX + (c / 5) * drawW;
-        ctx.beginPath();
-        ctx.moveTo(gx, padY);
-        ctx.lineTo(gx, h - padY);
-        ctx.stroke();
-    }
-    for (let r = 1; r <= 3; r++) {
-        const gy = padY + (r / 4) * drawH;
-        ctx.beginPath();
-        ctx.moveTo(padX, gy);
-        ctx.lineTo(w - padX, gy);
-        ctx.stroke();
-    }
-    ctx.restore();
-
-    // 3. Draw Route Polylines
-    lines.forEach(line => {
-        if (!line.coords.length) return;
-
-        // Outer glow
-        ctx.beginPath();
-        ctx.strokeStyle = 'rgba(245, 158, 11, 0.25)';
-        ctx.lineWidth = 5;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        line.coords.forEach(([lon, lat], i) => {
-            const px = projectX(lon);
-            const py = projectY(lat);
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-        });
-        ctx.stroke();
-
-        // Core line
-        ctx.beginPath();
-        ctx.strokeStyle = 'rgba(245, 158, 11, 0.85)';
-        ctx.lineWidth = 2.2;
-        line.coords.forEach(([lon, lat], i) => {
-            const px = projectX(lon);
-            const py = projectY(lat);
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-        });
-        ctx.stroke();
-    });
-
-    // 4. Draw Station Points
-    points.forEach(p => {
-        const px = projectX(p.lon);
-        const py = projectY(p.lat);
-        renderedSpatialPoints.push({ x: px, y: py, ...p });
-
-        // Outer aura
-        ctx.beginPath();
-        ctx.arc(px, py, 7, 0, Math.PI * 2);
-        ctx.fillStyle = p.type === 'station' ? 'rgba(56, 189, 248, 0.22)' : 'rgba(245, 158, 11, 0.22)';
-        ctx.fill();
-
-        // Inner pip
-        ctx.beginPath();
-        ctx.arc(px, py, 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = p.type === 'station' ? '#38bdf8' : '#fbbf24';
-        ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-    });
-
-    // 5. Smart Station Labels (When <= 25 stations, display callout name pills directly on the canvas)
-    if (points.length > 0 && points.length <= 25) {
-        ctx.save();
-        ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        ctx.textBaseline = 'middle';
-
-        points.forEach(p => {
-            const px = projectX(p.lon);
-            const py = projectY(p.lat);
-            const text = p.label || 'Station';
-            const metrics = ctx.measureText(text);
-            const textWidth = Math.min(120, metrics.width);
-            const truncatedText = text.length > 18 ? text.slice(0, 17) + '…' : text;
-
-            const pillX = px + 8;
-            const pillY = py - 8;
-            const pillW = textWidth + 10;
-            const pillH = 16;
-
-            // Translucent dark pill background
-            ctx.fillStyle = 'rgba(13, 17, 28, 0.88)';
-            ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-            ctx.lineWidth = 1;
-
-            if (typeof ctx.roundRect === 'function') {
-                ctx.beginPath();
-                ctx.roundRect(pillX, pillY, pillW, pillH, 4);
-                ctx.fill();
-                ctx.stroke();
-            } else {
-                ctx.fillRect(pillX, pillY, pillW, pillH);
-                ctx.strokeRect(pillX, pillY, pillW, pillH);
-            }
-
-            ctx.fillStyle = '#f8fafc';
-            ctx.fillText(truncatedText, pillX + 5, py);
-        });
-        ctx.restore();
-    }
-
-    if (!canvas.dataset.hasListeners) {
-        canvas.dataset.hasListeners = 'true';
-        canvas.addEventListener('mousemove', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
-            const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-            const hit = renderedSpatialPoints.find(p => Math.hypot(p.x - mouseX, p.y - mouseY) <= 12);
-            if (hit && tooltip) {
-                tooltip.style.display = 'block';
-                tooltip.style.left = `${(hit.x / canvas.width) * 100}%`;
-                tooltip.style.top = `${(hit.y / canvas.height) * 100}%`;
-                tooltip.innerHTML = `<strong>${escapeHtml(hit.label)}</strong><br><span style="color: #94a3b8; font-size: 10px;">${hit.lat.toFixed(4)}°, ${hit.lon.toFixed(4)}°</span>`;
-            } else if (tooltip) {
-                tooltip.style.display = 'none';
-            }
-        });
-
-        canvas.addEventListener('mouseleave', () => {
-            if (tooltip) tooltip.style.display = 'none';
-        });
-
-        canvas.addEventListener('click', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
-            const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
-            const hit = renderedSpatialPoints.find(p => Math.hypot(p.x - mouseX, p.y - mouseY) <= 14);
-            if (hit) {
-                const targetRow = document.querySelector(`#tripsTableBody tr:nth-child(${hit.rowIdx + 1})`);
-                if (targetRow) {
-                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    targetRow.style.outline = '2px solid #38bdf8';
-                    targetRow.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
-                    setTimeout(() => {
-                        targetRow.style.outline = '';
-                        targetRow.style.backgroundColor = '';
-                    }, 2000);
-                }
-            }
-        });
+        }).catch(() => {});
     }
 }
 
@@ -1699,6 +1290,10 @@ export async function getStudioDatasets() {
         if (!routes.length) routes = Array.from(routeMap.values());
     }
 
+    if (stations.length) {
+        studioStationsCache = stations;
+    }
+
     return {
         trips: flattenedTrips,
         statuses,
@@ -1722,17 +1317,8 @@ export async function runSqlQuery(sql) {
         const result = sqlEngine.executeTripQuery(sql, datasets.trips, { tables: datasets });
         sqlQueryResult = result;
 
-        // Ensure table view is visible
-        const tableView = document.getElementById('tableViewContainer');
-        const cardsView = document.getElementById('cardViewContainer');
-        const viewTableBtn = document.getElementById('viewTableBtn');
-        const viewCardsBtn = document.getElementById('viewCardsBtn');
-        if (tableView && cardsView) {
-            tableView.style.display = 'block';
-            cardsView.style.display = 'none';
-            if (viewTableBtn) viewTableBtn.classList.add('active');
-            if (viewCardsBtn) viewCardsBtn.classList.remove('active');
-        }
+        // Reset raw SQL sort on new query execution
+        rawSqlSort = { column: null, direction: 'asc' };
 
         // Update target table badge in console toolbar
         const targetBadge = document.querySelector('.sql-editor-target code');
@@ -1785,196 +1371,6 @@ export async function runSqlQuery(sql) {
     }
 }
 window.runSqlQuery = runSqlQuery;
-
-const VISUAL_CATEGORY_OPTIONS = [
-    { value: 'highspeed', label: 'High-Speed (ICE/TGV)' },
-    { value: 'regional', label: 'Regional (RE/RB)' },
-    { value: 'suburban', label: 'Suburban (S-Bahn)' },
-    { value: 'subway', label: 'Subway (U-Bahn)' },
-    { value: 'tram', label: 'Tram / Streetcar' },
-    { value: 'bus', label: 'Bus' },
-    { value: 'ferry', label: 'Ferry' }
-];
-
-const VISUAL_BUSINESS_OPTIONS = [
-    { value: 'private', label: 'Private / Leisure' },
-    { value: 'commute', label: 'Commute' },
-    { value: 'business', label: 'Business / Work' }
-];
-
-/**
- * Render visual filter rule rows
- */
-function renderVisualRules() {
-    const container = document.getElementById('visualRulesContainer');
-    if (!container) return;
-
-    if (!visualRules.length) {
-        container.innerHTML = `<div class="visual-rules-empty">No conditions set. All journeys match. Click <strong>Add Condition</strong> above.</div>`;
-        return;
-    }
-
-    const columns = sqlEngine?.TRIP_COLUMNS || [];
-    container.innerHTML = visualRules.map((rule, idx) => {
-        const colOptions = columns.map(c => `
-            <option value="${c.name}" ${c.name === rule.column ? 'selected' : ''}>${c.label} (${c.name})</option>
-        `).join('');
-
-        const selectedCol = columns.find(c => c.name === rule.column);
-        const isNum = selectedCol?.type === 'number';
-        const isDate = selectedCol?.type === 'datetime';
-        const isCategory = rule.column === 'category';
-        const isBusiness = rule.column === 'business';
-
-        let operators;
-        if (isNum) {
-            operators = [
-                { id: 'greater_than', label: '> greater than' },
-                { id: 'less_than', label: '< less than' },
-                { id: 'greater_equal', label: '>= at least' },
-                { id: 'less_equal', label: '<= at most' },
-                { id: 'equals', label: '= equals' },
-                { id: 'not_equals', label: '!= not equals' },
-                { id: 'is_empty', label: 'is empty (NULL)' },
-                { id: 'is_not_empty', label: 'is not empty' }
-            ];
-        } else if (isDate) {
-            operators = [
-                { id: 'after', label: 'on or after (>=)' },
-                { id: 'before', label: 'on or before (<=)' },
-                { id: 'equals', label: '= exact date' },
-                { id: 'is_empty', label: 'is empty (NULL)' },
-                { id: 'is_not_empty', label: 'is not empty' }
-            ];
-        } else if (isCategory) {
-            operators = [
-                { id: 'equals', label: 'is mode (=)' },
-                { id: 'not_equals', label: 'is not mode (!=)' },
-                { id: 'is_empty', label: 'is empty' },
-                { id: 'is_not_empty', label: 'is not empty' }
-            ];
-        } else if (isBusiness) {
-            operators = [
-                { id: 'equals', label: 'is purpose (=)' },
-                { id: 'not_equals', label: 'is not purpose (!=)' },
-                { id: 'is_empty', label: 'is empty' },
-                { id: 'is_not_empty', label: 'is not empty' }
-            ];
-        } else {
-            operators = [
-                { id: 'contains', label: 'contains' },
-                { id: 'starts_with', label: 'starts with' },
-                { id: 'equals', label: 'equals' },
-                { id: 'not_equals', label: 'does not equal' },
-                { id: 'is_empty', label: 'is empty' },
-                { id: 'is_not_empty', label: 'is not empty' }
-            ];
-        }
-
-        const opOptions = operators.map(o => `
-            <option value="${o.id}" ${o.id === rule.operator ? 'selected' : ''}>${o.label}</option>
-        `).join('');
-
-        const hideValue = rule.operator === 'is_empty' || rule.operator === 'is_not_empty';
-
-        let valueControlHtml = '';
-        if (!hideValue) {
-            if (isCategory) {
-                const catOpts = VISUAL_CATEGORY_OPTIONS.map(c => `
-                    <option value="${c.value}" ${rule.value === c.value ? 'selected' : ''}>${c.label}</option>
-                `).join('');
-                valueControlHtml = `<select class="rule-select rule-val-element rule-val-select" aria-label="Select Category">${catOpts}</select>`;
-            } else if (isBusiness) {
-                const bizOpts = VISUAL_BUSINESS_OPTIONS.map(b => `
-                    <option value="${b.value}" ${rule.value === b.value ? 'selected' : ''}>${b.label}</option>
-                `).join('');
-                valueControlHtml = `<select class="rule-select rule-val-element rule-val-select" aria-label="Select Purpose">${bizOpts}</select>`;
-            } else if (isDate) {
-                valueControlHtml = `<input type="date" class="rule-input rule-val-element rule-val-date" value="${escapeHtml(rule.value || '')}" aria-label="Filter Date" placeholder="YYYY-MM-DD">`;
-            } else if (isNum) {
-                valueControlHtml = `<input type="number" class="rule-input rule-val-element" value="${escapeHtml(rule.value ?? '')}" placeholder="Value..." step="any" aria-label="Filter Number">`;
-            } else {
-                valueControlHtml = `<input type="text" class="rule-input rule-val-element" value="${escapeHtml(rule.value || '')}" placeholder="Value or text..." aria-label="Filter Text">`;
-            }
-        }
-
-        return `
-            <div class="visual-rule-row" data-rule-index="${idx}">
-                <div class="rule-field-col">
-                    <select class="rule-select rule-col-select" aria-label="Select Column">${colOptions}</select>
-                </div>
-                <div class="rule-field-op">
-                    <select class="rule-select rule-op-select" aria-label="Select Operator">${opOptions}</select>
-                </div>
-                <div class="rule-field-val ${hideValue ? 'val-hidden' : ''}">
-                    ${valueControlHtml}
-                </div>
-                <div class="rule-field-del">
-                    <button type="button" class="rule-delete-btn" title="Remove condition" aria-label="Remove condition">✕</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    // Attach listeners
-    container.querySelectorAll('.visual-rule-row').forEach(rowEl => {
-        const idx = parseInt(rowEl.dataset.ruleIndex, 10);
-        const colSelect = rowEl.querySelector('.rule-col-select');
-        const opSelect = rowEl.querySelector('.rule-op-select');
-        const valElem = rowEl.querySelector('.rule-val-element');
-        const delBtn = rowEl.querySelector('.rule-delete-btn');
-
-        if (colSelect) {
-            colSelect.addEventListener('change', (e) => {
-                const newCol = e.target.value;
-                visualRules[idx].column = newCol;
-                const colDef = (sqlEngine?.TRIP_COLUMNS || []).find(c => c.name === newCol);
-                if (newCol === 'category') {
-                    visualRules[idx].operator = 'equals';
-                    visualRules[idx].value = 'highspeed';
-                } else if (newCol === 'business') {
-                    visualRules[idx].operator = 'equals';
-                    visualRules[idx].value = 'commute';
-                } else if (colDef?.type === 'datetime') {
-                    visualRules[idx].operator = 'after';
-                    visualRules[idx].value = '';
-                } else if (colDef?.type === 'number') {
-                    visualRules[idx].operator = 'greater_than';
-                    visualRules[idx].value = '';
-                } else {
-                    visualRules[idx].operator = 'contains';
-                    visualRules[idx].value = '';
-                }
-                renderVisualRules();
-            });
-        }
-        if (opSelect) {
-            opSelect.addEventListener('change', (e) => {
-                visualRules[idx].operator = e.target.value;
-                renderVisualRules();
-            });
-        }
-        if (valElem) {
-            const handleValChange = (e) => {
-                visualRules[idx].value = e.target.value;
-            };
-            valElem.addEventListener('input', handleValChange);
-            valElem.addEventListener('change', handleValChange);
-            valElem.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    document.getElementById('applyVisualRulesBtn')?.click();
-                }
-            });
-        }
-        if (delBtn) {
-            delBtn.addEventListener('click', () => {
-                visualRules.splice(idx, 1);
-                renderVisualRules();
-            });
-        }
-    });
-}
 
 function downloadFile(content, filename, mimeType) {
     const blob = new Blob([content], { type: mimeType });
@@ -2083,57 +1479,120 @@ export function applyFiltersAndRender() {
 
     // Render Table or Cards
     renderResults();
+
+    // Update Spatial Map preview if active
+    const spatialPanel = document.getElementById('spatialSqlPanel');
+    if (spatialPanel && spatialPanel.style.display !== 'none') {
+        renderSpatialSqlPreview();
+    }
+}
+
+let rawSqlSort = { column: null, direction: 'asc' };
+
+/**
+ * Sort raw SQL result rows by specific column
+ */
+function sortRawSqlRows(rows, column, direction = 'asc') {
+    if (!column || !Array.isArray(rows)) return rows;
+    const isDesc = direction === 'desc';
+    rows.sort((a, b) => {
+        const valA = a[column];
+        const valB = b[column];
+        if (valA === valB) return 0;
+        if (valA === null || valA === undefined || valA === '') return 1;
+        if (valB === null || valB === undefined || valB === '') return -1;
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+            return isDesc ? valB - valA : valA - valB;
+        }
+        const numA = Number(valA);
+        const numB = Number(valB);
+        if (!isNaN(numA) && !isNaN(numB) && typeof valA !== 'boolean' && typeof valB !== 'boolean') {
+            return isDesc ? numB - numA : numA - numB;
+        }
+        return isDesc
+            ? String(valB).localeCompare(String(valA))
+            : String(valA).localeCompare(String(valB));
+    });
+    return rows;
 }
 
 /**
- * Sort trips array in-place
+ * Sort trips array in-place across all supported fields
  */
 function sortTrips(trips, sortBy) {
-    trips.sort((a, b) => {
-        const trainA = a.train || a.checkin || {};
-        const trainB = b.train || b.checkin || {};
+    if (!sortBy || !Array.isArray(trips)) return;
+    const isDesc = sortBy.endsWith('-desc');
+    const field = sortBy.replace(/-(asc|desc)$/, '');
 
-        if (sortBy === 'date-desc') {
-            const timeA = new Date(trainA.origin?.departureReal || trainA.origin?.departure || a.createdAt || 0).getTime();
-            const timeB = new Date(trainB.origin?.departureReal || trainB.origin?.departure || b.createdAt || 0).getTime();
-            return timeB - timeA;
+    trips.sort((a, b) => {
+        const rawA = a._rawTrip || a;
+        const rawB = b._rawTrip || b;
+        const trainA = rawA.train || rawA.checkin || rawA.properties?.train || rawA.properties?.checkin || rawA.properties || rawA || {};
+        const trainB = rawB.train || rawB.checkin || rawB.properties?.train || rawB.properties?.checkin || rawB.properties || rawB || {};
+
+        let valA, valB;
+
+        if (field === 'date') {
+            valA = new Date(trainA.origin?.departureReal || trainA.origin?.departure || trainA.departure || rawA.createdAt || 0).getTime();
+            valB = new Date(trainB.origin?.departureReal || trainB.origin?.departure || trainB.departure || rawB.createdAt || 0).getTime();
+            return isDesc ? valB - valA : valA - valB;
         }
-        if (sortBy === 'date-asc') {
-            const timeA = new Date(trainA.origin?.departureReal || trainA.origin?.departure || a.createdAt || 0).getTime();
-            const timeB = new Date(trainB.origin?.departureReal || trainB.origin?.departure || b.createdAt || 0).getTime();
-            return timeA - timeB;
+        if (field === 'line') {
+            valA = (trainA.lineName || trainA.number || trainA.name || a.line || '').toLowerCase();
+            valB = (trainB.lineName || trainB.number || trainB.name || b.line || '').toLowerCase();
+            return isDesc ? valB.localeCompare(valA) : valA.localeCompare(valB);
         }
-        if (sortBy === 'dist-desc') {
-            const distA = typeof trainA.totalDistance === 'number' ? trainA.totalDistance : (trainA.distance || 0);
-            const distB = typeof trainB.totalDistance === 'number' ? trainB.totalDistance : (trainB.distance || 0);
-            return distB - distA;
+        if (field === 'origin') {
+            valA = (trainA.origin?.name || a.origin || '').toLowerCase();
+            valB = (trainB.origin?.name || b.origin || '').toLowerCase();
+            return isDesc ? valB.localeCompare(valA) : valA.localeCompare(valB);
         }
-        if (sortBy === 'dist-asc') {
-            const distA = typeof trainA.totalDistance === 'number' ? trainA.totalDistance : (trainA.distance || 0);
-            const distB = typeof trainB.totalDistance === 'number' ? trainB.totalDistance : (trainB.distance || 0);
-            return distA - distB;
+        if (field === 'destination') {
+            valA = (trainA.destination?.name || a.destination || '').toLowerCase();
+            valB = (trainB.destination?.name || b.destination || '').toLowerCase();
+            return isDesc ? valB.localeCompare(valA) : valA.localeCompare(valB);
         }
-        if (sortBy === 'delay-desc') {
-            const delayA = deriveDelaySeconds(trainA).arrival || 0;
-            const delayB = deriveDelaySeconds(trainB).arrival || 0;
-            return delayB - delayA;
+        if (field === 'dist') {
+            valA = typeof trainA.totalDistance === 'number' ? trainA.totalDistance : (trainA.distance || a.distance_km || 0);
+            valB = typeof trainB.totalDistance === 'number' ? trainB.totalDistance : (trainB.distance || b.distance_km || 0);
+            return isDesc ? valB - valA : valA - valB;
         }
-        if (sortBy === 'delay-asc') {
-            const delayA = deriveDelaySeconds(trainA).arrival || 0;
-            const delayB = deriveDelaySeconds(trainB).arrival || 0;
-            return delayA - delayB;
+        if (field === 'dur') {
+            valA = a.duration_min !== undefined ? a.duration_min : computeTripDurationMinutes(trainA);
+            valB = b.duration_min !== undefined ? b.duration_min : computeTripDurationMinutes(trainB);
+            return isDesc ? valB - valA : valA - valB;
         }
-        if (sortBy === 'dur-desc') {
-            const durA = computeTripDurationMinutes(trainA);
-            const durB = computeTripDurationMinutes(trainB);
-            return durB - durA;
+        if (field === 'delay') {
+            valA = a.delay_arr !== undefined ? a.delay_arr : (deriveDelaySeconds(trainA).arrival || 0);
+            valB = b.delay_arr !== undefined ? b.delay_arr : (deriveDelaySeconds(trainB).arrival || 0);
+            return isDesc ? valB - valA : valA - valB;
         }
-        if (sortBy === 'dur-asc') {
-            const durA = computeTripDurationMinutes(trainA);
-            const durB = computeTripDurationMinutes(trainB);
-            return durA - durB;
+        if (field === 'buddies') {
+            valA = a.buddy_count !== undefined ? a.buddy_count : getTripBuddies(rawA, activeSession?.username).length;
+            valB = b.buddy_count !== undefined ? b.buddy_count : getTripBuddies(rawB, activeSession?.username).length;
+            return isDesc ? valB - valA : valA - valB;
         }
-        return 0;
+
+        // Fallback for custom SQL projected columns
+        valA = a[field] !== undefined ? a[field] : (rawA[field] !== undefined ? rawA[field] : trainA[field]);
+        valB = b[field] !== undefined ? b[field] : (rawB[field] !== undefined ? rawB[field] : trainB[field]);
+
+        if (valA === valB) return 0;
+        if (valA === null || valA === undefined) return 1;
+        if (valB === null || valB === undefined) return -1;
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+            return isDesc ? valB - valA : valA - valB;
+        }
+        const nA = Number(valA);
+        const nB = Number(valB);
+        if (!isNaN(nA) && !isNaN(nB) && typeof valA !== 'boolean' && typeof valB !== 'boolean') {
+            return isDesc ? nB - nA : nA - nB;
+        }
+        return isDesc
+            ? String(valB).localeCompare(String(valA))
+            : String(valA).localeCompare(String(valB));
     });
 }
 
@@ -2229,9 +1688,9 @@ function renderResults() {
             items = sqlQueryResult.rows || [];
             total = items.length;
         } else {
-            items = (sqlQueryResult.rawTrips && sqlQueryResult.rawTrips.length > 0)
-                ? sqlQueryResult.rawTrips
-                : (sqlQueryResult.rows || []).map(r => r._rawTrip || allTrips.find(t => String(t.id) === String(r.id)) || r);
+            items = (sqlQueryResult.rows && sqlQueryResult.rows.length > 0)
+                ? sqlQueryResult.rows
+                : (sqlQueryResult.rawTrips || []);
             total = items.length;
         }
     } else {
@@ -2267,6 +1726,27 @@ function renderResults() {
         ? sqlQueryResult.columns
         : (isRawSqlMode && pageItems.length > 0 ? Object.keys(pageItems[0]).filter(k => !k.startsWith('_')) : []);
 
+    // Custom SQL projected columns for Unified Mode
+    const CORE_UNIFIED_FIELDS = new Set([
+        'id', 'status_id', '_rawtrip',
+        'departure', 'dep_time', 'dep_planned', 'created_at',
+        'line', 'line_name', 'category',
+        'origin', 'origin_name', 'origin_id',
+        'destination', 'destination_name', 'destination_id',
+        'distance_km', 'duration_min',
+        'delay_arr', 'delay_dep', 'delay_arr_min', 'delay_dep_min',
+        'buddies', 'buddy_count', 'buddies_count', 'buddy_usernames'
+    ]);
+    const tripSchemaColNames = new Set(sqlEngine?.TRIP_COLUMNS?.map(c => c.name.toLowerCase()) || []);
+    const customCols = (!isRawSqlMode && isStudio && sqlQueryResult?.columns)
+        ? sqlQueryResult.columns.filter(col => {
+            const lower = col.toLowerCase();
+            if (CORE_UNIFIED_FIELDS.has(lower)) return false;
+            if (sqlQueryResult.isSelectAll && tripSchemaColNames.has(lower)) return false;
+            return true;
+        })
+        : [];
+
     // 1. Render Table
     const thead = document.querySelector('.trips-table thead');
     if (thead) {
@@ -2284,17 +1764,44 @@ function renderResults() {
                         const typeStr = colTypeMap.get(col) || (col.endsWith('_km') || col.endsWith('_min') || col.endsWith('_count') || col === 'id' || col === 'year' ? 'number' : 'string');
                         const isNum = (typeStr === 'number');
                         const badgeText = isNum ? 'NUM' : (typeStr === 'datetime' ? 'DATE' : 'TEXT');
+                        const isSorted = rawSqlSort.column === col;
+                        const sortDir = isSorted ? rawSqlSort.direction : 'idle';
+                        const sortIcon = isSorted ? (rawSqlSort.direction === 'desc' ? '▼' : '▲') : '↕';
+                        const ariaSort = isSorted ? (rawSqlSort.direction === 'desc' ? 'descending' : 'ascending') : 'none';
                         return `
-                            <th class="sql-raw-th ${isNum ? 'numeric' : ''}" title="Column: ${escapeHtml(col)} (${badgeText})">
+                            <th class="sql-raw-th sortable ${isNum ? 'numeric' : ''}" data-col="${escapeHtml(col)}" tabindex="0" role="columnheader" aria-sort="${ariaSort}" title="Click to sort by ${escapeHtml(col)}">
                                 <div class="sql-th-content">
                                     <span class="sql-th-name">${escapeHtml(col)}</span>
                                     <span class="sql-th-type">${badgeText}</span>
+                                    <span class="sql-th-sort-arrow ${sortDir}">${sortIcon}</span>
                                 </div>
                             </th>
                         `;
                     }).join('')}
                 </tr>
             `;
+
+            thead.querySelectorAll('th.sql-raw-th.sortable').forEach(th => {
+                const col = th.dataset.col;
+                const triggerSort = () => {
+                    if (!col || !sqlQueryResult?.rows) return;
+                    let nextDir = 'asc';
+                    if (rawSqlSort.column === col) {
+                        nextDir = rawSqlSort.direction === 'asc' ? 'desc' : 'asc';
+                    }
+                    rawSqlSort = { column: col, direction: nextDir };
+                    sortRawSqlRows(sqlQueryResult.rows, col, nextDir);
+                    filterState.page = 1;
+                    renderResults();
+                };
+                th.addEventListener('click', triggerSort);
+                th.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        triggerSort();
+                    }
+                });
+            });
         } else {
             const getSortIndicator = (field) => {
                 if (filterState.sortBy === `${field}-desc`) return '<span class="sort-arrow desc" aria-hidden="true">▼</span>';
@@ -2307,17 +1814,25 @@ function renderResults() {
                 return 'none';
             };
 
+            const customThsHtml = customCols.map(col => {
+                const label = col.replace(/_/g, ' ');
+                return `<th class="th-custom-col sortable" data-sort="${escapeHtml(col)}" aria-sort="${getAriaSort(col)}" role="columnheader" tabindex="0" title="Click to sort by ${escapeHtml(label)}">
+                    <span class="custom-col-title">${escapeHtml(label)}</span> ${getSortIndicator(col)}
+                </th>`;
+            }).join('');
+
             thead.innerHTML = `
                 <tr>
                     <th class="th-expand" aria-label="Expand checkin"></th>
                     <th class="sortable" data-sort="date" aria-sort="${getAriaSort('date')}" role="columnheader" tabindex="0" title="Click to sort by departure time">Departure ${getSortIndicator('date')}</th>
-                    <th>Line / Mode</th>
-                    <th>Origin</th>
-                    <th>Destination</th>
+                    <th class="sortable" data-sort="line" aria-sort="${getAriaSort('line')}" role="columnheader" tabindex="0" title="Click to sort by line">Line / Mode ${getSortIndicator('line')}</th>
+                    <th class="sortable" data-sort="origin" aria-sort="${getAriaSort('origin')}" role="columnheader" tabindex="0" title="Click to sort by origin">Origin ${getSortIndicator('origin')}</th>
+                    <th class="sortable" data-sort="destination" aria-sort="${getAriaSort('destination')}" role="columnheader" tabindex="0" title="Click to sort by destination">Destination ${getSortIndicator('destination')}</th>
                     <th class="sortable" data-sort="dist" aria-sort="${getAriaSort('dist')}" role="columnheader" tabindex="0" title="Click to sort by distance">Distance ${getSortIndicator('dist')}</th>
                     <th class="sortable" data-sort="dur" aria-sort="${getAriaSort('dur')}" role="columnheader" tabindex="0" title="Click to sort by duration">Duration ${getSortIndicator('dur')}</th>
                     <th class="sortable" data-sort="delay" aria-sort="${getAriaSort('delay')}" role="columnheader" tabindex="0" title="Click to sort by delay">Delay ${getSortIndicator('delay')}</th>
-                    <th>Companions</th>
+                    <th class="sortable" data-sort="buddies" aria-sort="${getAriaSort('buddies')}" role="columnheader" tabindex="0" title="Click to sort by travel companions">Companions ${getSortIndicator('buddies')}</th>
+                    ${customThsHtml}
                     <th>Actions</th>
                 </tr>
             `;
@@ -2333,10 +1848,14 @@ function renderResults() {
                 }
                 filterState.sortBy = nextSort;
                 const sortSelect = document.getElementById('sortSelect');
-                if (sortSelect) sortSelect.value = nextSort;
+                if (sortSelect) {
+                    const hasOption = Array.from(sortSelect.options).some(o => o.value === nextSort);
+                    if (hasOption) sortSelect.value = nextSort;
+                }
                 filterState.page = 1;
-                if (isStudio && sqlQueryResult?.rawTrips) {
-                    sortTrips(sqlQueryResult.rawTrips, nextSort);
+                if (isStudio && sqlQueryResult) {
+                    if (sqlQueryResult.rows) sortTrips(sqlQueryResult.rows, nextSort);
+                    if (sqlQueryResult.rawTrips) sortTrips(sqlQueryResult.rawTrips, nextSort);
                     renderResults();
                 } else {
                     applyFiltersAndRender();
@@ -2362,7 +1881,7 @@ function renderResults() {
     const tbody = document.getElementById('tripsTableBody');
     if (tbody) {
         if (pageItems.length === 0) {
-            const colSpan = isScalarCount ? 1 : (isRawSqlMode ? Math.max(1, rawCols.length + 1) : 10);
+            const colSpan = isScalarCount ? 1 : (isRawSqlMode ? Math.max(1, rawCols.length + 1) : (10 + customCols.length));
             const errorMsg = isStudio && sqlQueryResult?.error;
             const emptyIcon = errorMsg
                 ? '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-bottom: 8px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'
@@ -2481,6 +2000,16 @@ function renderResults() {
                     `).join('')}</div>`
                     : '<span style="color: var(--text-muted);">—</span>';
 
+                const customTdsHtml = customCols.map(col => {
+                    const val = item[col] !== undefined ? item[col] : (trip[col] !== undefined ? trip[col] : null);
+                    if (val === null || val === undefined || val === '') {
+                        return `<td class="td-custom-col" data-label="${escapeHtml(col)}"><span class="sql-null-pill">NULL</span></td>`;
+                    }
+                    const isNum = typeof val === 'number';
+                    const formattedVal = isNum ? (Number.isInteger(val) ? val.toLocaleString() : Number(val).toFixed(2)) : escapeHtml(String(val));
+                    return `<td class="td-custom-col ${isNum ? 'numeric' : ''}" data-label="${escapeHtml(col)}">${formattedVal}</td>`;
+                }).join('');
+
                 return `
                     <tr class="trip-row" data-trip-id="${trip.id}" id="tripRow-${trip.id}" title="Click row or arrow to expand comments &amp; details">
                         <td class="expand-cell" onclick="event.stopPropagation()">
@@ -2494,6 +2023,7 @@ function renderResults() {
                         <td data-label="Duration">${durStr}</td>
                         <td data-label="Delay"><span class="delay-pill ${delayPillClass}">${delayText}</span></td>
                         <td data-label="Companions" style="max-width: 170px;">${buddyBadgesHtml}</td>
+                        ${customTdsHtml}
                         <td data-label="Actions">
                             <button type="button" class="nav-link-btn inspect-trip-btn" data-trip-id="${trip.id}" style="padding: 4px 8px; font-size: 11px;">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -2502,7 +2032,7 @@ function renderResults() {
                         </td>
                     </tr>
                     <tr class="trip-expand-row" id="expandRow-${trip.id}" style="display: none;">
-                        <td colspan="10" class="trip-expand-cell">
+                        <td colspan="${10 + customCols.length}" class="trip-expand-cell">
                             <div class="expand-card-container">
                                 <div class="expand-comment-card ${bodyText ? '' : 'empty'}">
                                     <span class="comment-icon">
@@ -2515,7 +2045,7 @@ function renderResults() {
                                 ${buddies.length > 0 ? `
                                     <div class="expand-buddies-row">
                                         <span class="expand-buddies-label">
-                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                                             <span>Travel Companions (${buddies.length}):</span>
                                         </span>
                                         <div class="expand-buddies-chips">
@@ -2584,115 +2114,6 @@ function renderResults() {
         }
     }
 
-    // 2. Render Cards
-    const cardsGrid = document.getElementById('cardViewContainer');
-    if (cardsGrid) {
-        if (pageItems.length === 0) {
-            const errorMsg = isStudio && sqlQueryResult?.error;
-            const emptyCardsIcon = errorMsg
-                ? '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-bottom: 8px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'
-                : '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-bottom: 8px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
-            cardsGrid.innerHTML = `
-                <div style="grid-column: 1 / -1; text-align: center; padding: 48px 16px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
-                    <div>${emptyCardsIcon}</div>
-                    <div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">
-                        ${errorMsg ? 'SQL Query Error' : (isStudio ? 'No records match your SQL query' : 'No journeys match your active filters')}
-                    </div>
-                    <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
-                        ${errorMsg ? escapeHtml(sqlQueryResult.error) : (isStudio ? 'Try checking your WHERE conditions, column names, or table names.' : 'Try loosening your search query, transport category, or delay tier.')}
-                    </div>
-                    ${isStudio ? `<button type="button" class="studio-action-btn primary" id="emptyCardsResetBtn">Reset to Default Query</button>` : `<button type="button" class="studio-action-btn primary" id="emptyCardsResetBtn">Reset All Filters</button>`}
-                </div>
-            `;
-            const emptyCardsResetBtn = cardsGrid.querySelector('#emptyCardsResetBtn');
-            if (emptyCardsResetBtn) {
-                emptyCardsResetBtn.addEventListener('click', () => {
-                    if (isStudio) {
-                        const defaultSql = sqlEngine?.QUERY_RECIPES?.[0]?.sql || 'SELECT * FROM trips';
-                        const input = document.getElementById('sqlQueryInput');
-                        if (input) input.value = defaultSql;
-                        runSqlQuery(defaultSql);
-                    } else {
-                        const rBtn = document.getElementById('resetFiltersBtn');
-                        if (rBtn) rBtn.click();
-                    }
-                });
-            }
-        } else {
-            cardsGrid.innerHTML = pageItems.map(item => {
-                const trip = item._rawTrip || (item.train || item.checkin ? item : allTrips.find(t => String(t.id) === String(item.id))) || item;
-                const train = trip.train || trip.checkin || {};
-                const cat = normalizeCategory(train.category || 'regional');
-                const lineName = train.lineName || train.number || train.name || 'Train';
-                const origin = train.origin?.name || '—';
-                const dest = train.destination?.name || '—';
-                const rawDist = typeof train.totalDistance === 'number' ? train.totalDistance : (train.distance || 0);
-                const distKm = (rawDist / 1000).toFixed(1);
-                const durationMin = computeTripDurationMinutes(train);
-                const durStr = durationMin > 0 ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m` : '—';
-
-                const delays = deriveDelaySeconds(train);
-                const arrDelaySec = delays.arrival !== null ? delays.arrival : 0;
-                const arrDelayMin = Math.round(arrDelaySec / 60);
-
-                let delayPillClass = 'on-time';
-                if (arrDelayMin > 30) delayPillClass = 'severe';
-                else if (arrDelayMin > 15) delayPillClass = 'moderate';
-                else if (arrDelayMin > 5) delayPillClass = 'minor';
-                const delayText = arrDelayMin > 0 ? `+${arrDelayMin}m` : (arrDelayMin < 0 ? `${arrDelayMin}m` : 'On-time');
-
-                const rawDate = train.origin?.departureReal || train.origin?.departure || trip.createdAt;
-                const dateStr = rawDate ? new Date(rawDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-
-                const buddies = getTripBuddies(trip, activeSession?.username);
-                const bodyText = (trip.body || trip.properties?.body || '').trim();
-
-                return `
-                    <div class="trip-card" data-trip-id="${trip.id}">
-                        <div class="trip-card-header">
-                            <span class="line-badge ${cat}">${escapeHtml(lineName)}</span>
-                            <span class="trip-card-date">${dateStr}</span>
-                        </div>
-                        <div class="trip-card-route">
-                            <div class="trip-card-station">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                                <span>${escapeHtml(origin)}</span>
-                            </div>
-                            <div class="trip-card-arrow">↓</div>
-                            <div class="trip-card-station">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                                <span>${escapeHtml(dest)}</span>
-                            </div>
-                        </div>
-                        ${bodyText ? `
-                            <div class="trip-card-comment" style="padding: 8px 12px; font-size: 12.5px; background: rgba(15, 23, 42, 0.6); border-radius: 6px; border-left: 2px solid var(--accent-primary); margin: 6px 0; color: var(--text-primary); line-height: 1.4;">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle; margin-right: 4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                                <span>${renderLinkedComment(bodyText)}</span>
-                            </div>
-                        ` : ''}
-                        ${buddies.length > 0 ? `
-                            <div class="trip-card-buddies" style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 4px 0;">
-                                <span style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">With:</span>
-                                <div class="buddy-pills-list">
-                                    ${buddies.map(b => `
-                                        <a href="https://traewelling.de/profile/${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" onclick="event.stopPropagation()">
-                                            <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
-                                            <span>@${escapeHtml(b.username)}</span>
-                                        </a>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        ` : ''}
-                        <div class="trip-card-footer">
-                            <span>${distKm} km · ${durStr}</span>
-                            <span class="delay-pill ${delayPillClass}">${delayText}</span>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-    }
-
     // Toggle row expansion helper
     function toggleTripExpansion(tripId) {
         const row = document.getElementById(`tripRow-${tripId}`);
@@ -2738,17 +2159,7 @@ function renderResults() {
         });
     });
 
-    // Attach card click listener to open modal
-    document.querySelectorAll('.trip-card[data-trip-id]').forEach(card => {
-        card.addEventListener('click', (e) => {
-            if (e.target.closest('a, button')) return;
-            const tripId = card.dataset.tripId;
-            const trip = allTrips.find(t => String(t.id) === String(tripId));
-            if (trip) openTripDetailModal(trip);
-        });
-    });
-
-    // Attach inspect buttons (table & cards & expanded row)
+    // Attach inspect buttons (table & expanded row)
     document.querySelectorAll('.inspect-trip-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();

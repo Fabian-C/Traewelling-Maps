@@ -71,7 +71,7 @@ body {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border-subtle);
-    padding: 12px 24px;
+    padding: max(12px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) 12px max(24px, env(safe-area-inset-left));
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -971,78 +971,6 @@ tr.trip-row.expanded {
 }
 
 /* ==========================================================================
-   Card View Grid
-   ========================================================================== */
-
-.cards-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
-    gap: 16px;
-}
-
-.trip-card {
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    box-shadow: var(--shadow-card);
-    transition: transform 0.2s ease, border-color 0.2s ease;
-    cursor: pointer;
-}
-
-.trip-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--border-glow);
-    background: var(--bg-card-hover);
-}
-
-.trip-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.trip-card-date {
-    font-size: 12px;
-    color: var(--text-muted);
-    font-weight: 500;
-}
-
-.trip-card-route {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.trip-card-station {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.trip-card-arrow {
-    color: var(--text-muted);
-    font-size: 12px;
-    margin-left: 4px;
-}
-
-.trip-card-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-top: 10px;
-    border-top: 1px solid var(--border-subtle);
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-
-/* ==========================================================================
    Pagination Bar
    ========================================================================== */
 
@@ -1095,7 +1023,7 @@ tr.trip-row.expanded {
     border-radius: var(--radius-lg);
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
     color: var(--text-primary);
-    padding: 24px;
+    padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
     max-width: min(600px, calc(100vw - 32px));
     width: 100%;
     max-height: min(88vh, 88dvh);
@@ -1334,23 +1262,6 @@ tr.trip-row.expanded {
     gap: 6px;
 }
 
-/* Visual Query Builder */
-.visual-builder-controls {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-}
-
-.visual-logic-select {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--text-secondary);
-}
-
 .studio-action-btn {
     background: rgba(56, 189, 248, 0.12);
     border: 1px solid rgba(56, 189, 248, 0.3);
@@ -1391,104 +1302,6 @@ tr.trip-row.expanded {
 
 .studio-action-btn.primary:hover {
     background: linear-gradient(135deg, #0369a1, #0284c7);
-}
-
-.visual-rules-container {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.visual-rules-empty {
-    text-align: center;
-    padding: 28px 16px;
-    color: var(--text-muted);
-    font-size: 13px;
-    background: rgba(15, 23, 42, 0.4);
-    border: 1px dashed rgba(56, 189, 248, 0.2);
-    border-radius: 10px;
-}
-
-.visual-rule-row {
-    display: grid;
-    grid-template-columns: minmax(130px, 1.3fr) minmax(130px, 1.2fr) minmax(160px, 2fr) 38px;
-    gap: 10px;
-    align-items: center;
-    padding: 10px 14px;
-    background: rgba(15, 23, 42, 0.65);
-    border: 1px solid rgba(56, 189, 248, 0.2);
-    border-radius: 10px;
-    transition: all 0.15s ease;
-}
-
-.visual-rule-row:hover {
-    border-color: rgba(56, 189, 248, 0.45);
-    background: rgba(15, 23, 42, 0.85);
-}
-
-.rule-field-col,
-.rule-field-op,
-.rule-field-val {
-    width: 100%;
-    min-width: 0;
-}
-
-.rule-field-val.val-hidden {
-    visibility: hidden;
-}
-
-.rule-field-del {
-    display: flex;
-    justify-content: flex-end;
-}
-
-.rule-select,
-.rule-input {
-    width: 100%;
-    height: 38px;
-    box-sizing: border-box;
-    padding: 6px 12px;
-    font-size: 13px;
-    background: rgba(2, 6, 23, 0.85);
-    border: 1px solid rgba(56, 189, 248, 0.25);
-    border-radius: 8px;
-    color: #f8fafc;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.rule-select option {
-    background: #0f172a;
-    color: #f8fafc;
-}
-
-.rule-input:focus,
-.rule-select:focus {
-    outline: none;
-    border-color: var(--accent-cyan);
-    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
-}
-
-.rule-delete-btn {
-    width: 38px;
-    height: 38px;
-    box-sizing: border-box;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(239, 68, 68, 0.12);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    color: #f87171;
-    font-size: 15px;
-    cursor: pointer;
-    border-radius: 8px;
-    transition: all 0.15s ease;
-    flex-shrink: 0;
-}
-
-.rule-delete-btn:hover {
-    color: #ffffff;
-    background: rgba(239, 68, 68, 0.35);
-    border-color: #ef4444;
 }
 
 /* SQL Query Console */
@@ -2408,10 +2221,6 @@ body:has(dialog[open]) {
         gap: 4px;
     }
 
-    .cards-grid {
-        grid-template-columns: 1fr;
-    }
-
     .studio-subnav {
         flex-direction: column;
         align-items: stretch;
@@ -2449,74 +2258,6 @@ body:has(dialog[open]) {
 
     .export-btn-group {
         flex-shrink: 0;
-    }
-
-    .visual-builder-controls {
-        display: grid;
-        grid-template-columns: 1fr auto auto;
-        gap: 8px;
-        align-items: center;
-    }
-
-    .visual-logic-select {
-        grid-column: 1;
-    }
-
-    #addRuleBtn {
-        grid-column: 2;
-    }
-
-    #clearRulesBtn {
-        grid-column: 3;
-    }
-
-    #applyVisualRulesBtn {
-        grid-column: 1 / -1;
-        width: 100%;
-        justify-content: center;
-        padding: 10px 16px;
-        font-size: 14px;
-        margin-top: 4px;
-    }
-
-    .visual-rule-row {
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        padding: 12px;
-    }
-
-    .rule-field-col {
-        grid-column: 1;
-    }
-
-    .rule-field-op {
-        grid-column: 2;
-    }
-
-    .rule-field-val {
-        grid-column: 1;
-    }
-
-    .rule-field-val.val-hidden {
-        display: none;
-    }
-
-    .rule-field-del {
-        grid-column: 2;
-        display: flex;
-        justify-content: flex-end;
-    }
-
-    .rule-select,
-    .rule-input {
-        height: 42px;
-        font-size: 14px;
-    }
-
-    .rule-delete-btn {
-        width: 42px;
-        height: 42px;
-        font-size: 16px;
     }
 
     .sql-editor-footer {
@@ -2569,35 +2310,6 @@ body:has(dialog[open]) {
         gap: 8px;
     }
 
-    .visual-builder-controls {
-        gap: 6px;
-        margin-bottom: 8px;
-    }
-
-    .visual-rule-row {
-        grid-template-columns: minmax(110px, 1.2fr) minmax(110px, 1fr) minmax(140px, 1.8fr) 34px;
-        padding: 6px 10px;
-        gap: 6px;
-    }
-
-    .rule-field-col { grid-column: auto; }
-    .rule-field-op { grid-column: auto; }
-    .rule-field-val { grid-column: auto; }
-    .rule-field-del { grid-column: auto; }
-
-    .rule-select,
-    .rule-input {
-        height: 34px;
-        padding: 4px 8px;
-        font-size: 12px;
-    }
-
-    .rule-delete-btn {
-        width: 34px;
-        height: 34px;
-        font-size: 14px;
-    }
-
     .sql-editor-textarea {
         min-height: 75px;
         max-height: 120px;
@@ -2641,8 +2353,62 @@ body:has(dialog[open]) {
     text-align: left;
 }
 
+.sql-raw-th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sql-raw-th.sortable:hover {
+    background: rgba(56, 189, 248, 0.15);
+}
+
+.sql-raw-th.sortable:hover .sql-th-name {
+    color: #ffffff;
+}
+
+.sql-th-sort-arrow {
+    font-size: 10px;
+    margin-left: 2px;
+}
+
+.sql-th-sort-arrow.asc,
+.sql-th-sort-arrow.desc {
+    color: var(--accent-cyan);
+    font-weight: bold;
+}
+
+.sql-th-sort-arrow.idle {
+    color: var(--text-muted);
+    opacity: 0.4;
+}
+
 .sql-raw-th.numeric {
     text-align: right;
+}
+
+/* Custom Dynamic SQL Projection Columns in Unified Table */
+.th-custom-col {
+    background: rgba(56, 189, 248, 0.08);
+    color: var(--accent-cyan);
+    font-family: var(--font-mono, monospace);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    border-bottom: 2px solid rgba(56, 189, 248, 0.35);
+    white-space: nowrap;
+}
+
+.td-custom-col {
+    font-family: var(--font-mono, monospace);
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: rgba(56, 189, 248, 0.02);
+    white-space: nowrap;
+}
+
+.td-custom-col.numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
 .sql-th-content {
@@ -2813,7 +2579,44 @@ body:has(dialog[open]) {
     width: 100%;
     height: 100%;
     display: block;
-    cursor: crosshair;
+    cursor: grab;
+    touch-action: none;
+}
+
+.spatial-sql-canvas:active {
+    cursor: grabbing;
+}
+
+.spatial-sql-controls {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 10;
+}
+
+.spatial-control-btn {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-primary, #f8fafc);
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    user-select: none;
+}
+
+.spatial-control-btn:hover {
+    background: rgba(56, 189, 248, 0.25);
+    border-color: rgba(56, 189, 248, 0.5);
 }
 
 .spatial-sql-tooltip {
@@ -2828,7 +2631,7 @@ body:has(dialog[open]) {
     font-size: 11px;
     border-radius: 6px;
     white-space: nowrap;
-    transform: translate(-50%, -125%);
+    transform: none;
 }
 
 .spatial-sql-legend {

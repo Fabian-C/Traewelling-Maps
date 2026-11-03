@@ -1,7 +1,7 @@
 // IndexedDB for session storage
 import { CONFIG } from '../config/config.js';
 import { Storage, STORAGE_KEYS } from '../storage/storage.js';
-import { normalizeTrip, extractStation, getStationId } from './normalizer.js';
+import { normalizeTrip, extractStation, getStationId, denormalizeTrip } from './normalizer.js';
 
 export const SessionDB = {
     DB_NAME: 'TraewellingMap',
@@ -20,6 +20,7 @@ export const SessionDB = {
 
     // Normalization utilities
     normalizeTrip,
+    denormalizeTrip,
     extractStation,
     getStationId,
 
@@ -144,7 +145,6 @@ export const SessionDB = {
                 avatar: meta.avatar || null,
                 tripCount: meta.tripCount || (trips ? trips.length : 0),
                 token: meta.token || null,
-                trips: trips, // Store trip data for caching
                 timestamp: meta.timestamp !== undefined ? meta.timestamp : Date.now()
             };
 
@@ -214,7 +214,7 @@ export const SessionDB = {
                 this.getAll()
                     .then((all) => this.saveStoredMetadata(all))
                     .catch(() => {});
-                resolve(session);
+                resolve({ ...session, trips: trips || [] });
             };
             tx.onerror = () => reject(tx.error);
         });
@@ -270,6 +270,18 @@ export const SessionDB = {
             const tx = db.transaction([this.STORE_NAME], 'readonly');
             const store = tx.objectStore(this.STORE_NAME);
             const req = store.get(username);
+
+            const returnSession = async (sess) => {
+                if (!sess) {
+                    resolve(null);
+                    return;
+                }
+                if (!sess.trips || sess.trips.length === 0) {
+                    sess.trips = await this.rehydrateUserTrips(sess.username);
+                }
+                resolve(sess);
+            };
+
             req.onsuccess = () => {
                 let session = req.result || null;
                 if (!session) {
@@ -292,7 +304,7 @@ export const SessionDB = {
                             this.delete(session.username).catch(() => {});
                             resolve(null);
                         } else {
-                            resolve(session);
+                            returnSession(session);
                         }
                     };
                     allReq.onerror = () => {
@@ -302,7 +314,7 @@ export const SessionDB = {
                             const session =
                                 fallbackData.find((s) => s.username && s.username.toLowerCase() === target) || null;
                             if (session && !this.isExpired(session)) {
-                                resolve(session);
+                                returnSession(session);
                                 return;
                             }
                         }
@@ -314,11 +326,36 @@ export const SessionDB = {
                     this.delete(username).catch(() => {});
                     resolve(null);
                 } else {
-                    resolve(session);
+                    returnSession(session);
                 }
             };
             req.onerror = () => reject(req.error);
         });
+    },
+
+    // Rehydrate complete journey objects from normalized statuses, stations, and line runs
+    async rehydrateUserTrips(username) {
+        if (!username) return [];
+        try {
+            const statuses = await this.getStatusesByUser(username);
+            if (!statuses || !statuses.length) return [];
+
+            statuses.sort((a, b) => new Date(b.departure_time || b.created_at || 0) - new Date(a.departure_time || a.created_at || 0));
+
+            const allStations = await this.getAllStations();
+            const stationsMap = new Map(allStations.map((stn) => [stn.id, stn]));
+
+            const allRuns = await this.getAllTrips();
+            const tripRunsMap = new Map(allRuns.map((run) => [run.id, run]));
+
+            const statusIds = statuses.map((s) => s.id);
+            const polyMap = await this.getPolylinesBatch(statusIds);
+
+            return statuses.map((s) => this.denormalizeTrip(s, stationsMap, tripRunsMap, polyMap));
+        } catch (e) {
+            console.warn('Failed to rehydrate trips from normalized relational stores:', e);
+            return [];
+        }
     },
 
     // Delete a session and all its associated cached routes and stopovers
@@ -587,10 +624,15 @@ export const SessionDB = {
                 const session = getReq.result || {
                     username,
                     displayName: username,
-                    trips: [],
                     timestamp: Date.now()
                 };
-                const existingIds = new Set((session.trips || []).map((t) => String(t.id)));
+
+                // Check existing status IDs to prevent duplicate inserts
+                const existingIds = new Set();
+                if (Array.isArray(session.trips)) {
+                    session.trips.forEach((t) => t?.id && existingIds.add(String(t.id)));
+                }
+
                 const addedTrips = [];
                 for (const trip of newTrips) {
                     if (trip?.id && !existingIds.has(String(trip.id))) {
@@ -598,9 +640,10 @@ export const SessionDB = {
                         addedTrips.push(trip);
                     }
                 }
-                session.trips = [...addedTrips, ...(session.trips || [])];
-                session.tripCount = session.trips.length;
+
+                session.tripCount = existingIds.size;
                 session.timestamp = Date.now();
+                delete session.trips; // Reclaim space; trips are rehydrated on-demand from statuses
                 sessStore.put(session);
 
                 if (storesToOpen.includes(this.GEOJSON_CACHE_STORE) && addedTrips.length > 0) {
@@ -642,6 +685,17 @@ export const SessionDB = {
             };
 
             tx.oncomplete = () => {
+                if (Array.isArray(newTrips)) {
+                    const polyMap = {};
+                    newTrips.forEach((t) => {
+                        if (t?.id && t.train?.polyline) {
+                            polyMap[t.id] = t.train.polyline;
+                        }
+                    });
+                    if (Object.keys(polyMap).length > 0) {
+                        this.savePolylinesBatch(polyMap).catch(() => {});
+                    }
+                }
                 this.getAll()
                     .then((all) => this.saveStoredMetadata(all))
                     .catch(() => {});
@@ -803,13 +857,17 @@ export const SessionDB = {
                 return;
             }
 
-            const tx = db.transaction([this.STATIONS_STORE, this.TRIPS_STORE, this.STATUSES_STORE], 'readwrite');
+            const txStores = [this.STORE_NAME, this.STATIONS_STORE, this.TRIPS_STORE, this.STATUSES_STORE];
+            if (db.objectStoreNames.contains(this.POLYLINES_STORE)) txStores.push(this.POLYLINES_STORE);
+            const tx = db.transaction(txStores, 'readwrite');
+            const sessStore = tx.objectStore(this.STORE_NAME);
             const stnStore = tx.objectStore(this.STATIONS_STORE);
             const tripStore = tx.objectStore(this.TRIPS_STORE);
             const statusStore = tx.objectStore(this.STATUSES_STORE);
+            const polyStore = txStores.includes(this.POLYLINES_STORE) ? tx.objectStore(this.POLYLINES_STORE) : null;
 
             for (const sess of all) {
-                if (Array.isArray(sess.trips)) {
+                if (Array.isArray(sess.trips) && sess.trips.length > 0) {
                     for (const trip of sess.trips) {
                         const norm = this.normalizeTrip(trip, sess.username);
                         if (norm) {
@@ -822,8 +880,15 @@ export const SessionDB = {
                             if (norm.status) {
                                 statusStore.put(norm.status);
                             }
+                            if (polyStore && trip?.id && trip.train?.polyline) {
+                                polyStore.put({ statusId: Number(trip.id), polyline: trip.train.polyline });
+                            }
                         }
                     }
+                    const cleanSess = { ...sess };
+                    cleanSess.tripCount = sess.tripCount || sess.trips.length;
+                    delete cleanSess.trips;
+                    sessStore.put(cleanSess);
                 }
             }
 

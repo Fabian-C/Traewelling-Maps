@@ -12,8 +12,8 @@
 
 .menu {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: max(8px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
     z-index: 1000;
     background: var(--menu-bg);
     border: 1px solid var(--border-color);
@@ -2223,7 +2223,7 @@ body.stats-open .active-filter-badges {
 /* GeoJSON Export Toast */
 .export-toast {
     position: fixed;
-    bottom: 24px;
+    bottom: max(24px, env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%) translateY(20px);
     background: rgba(20, 24, 36, 0.95);
@@ -2478,7 +2478,7 @@ body.drag-over::after {
 
 .floating-trip-cycler {
     position: fixed;
-    bottom: 24px;
+    bottom: max(24px, env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     z-index: 500;
