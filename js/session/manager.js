@@ -64,10 +64,10 @@ export async function saveCurrentSession(incremental = false) {
     }
 }
 
-export async function loadSessionByUsername(username) {
+export async function loadSessionByUsername(username, preloadedSession = null) {
     const state = store.get();
     try {
-        const session = await SessionDB.get(username);
+        const session = preloadedSession || await SessionDB.get(username);
         if (!session) {
             console.warn('Session not found:', username);
             return;

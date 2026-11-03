@@ -210,6 +210,8 @@ export const SessionDB = {
                         this.savePolylinesBatch(polyMap).catch(() => {});
                     }
                 }
+                this._stationsCache = null;
+                this._tripRunsCache = null;
                 this.prune(); // Clean old sessions
                 this.getAll()
                     .then((all) => this.saveStoredMetadata(all))
@@ -453,6 +455,8 @@ export const SessionDB = {
             const tx = db.transaction(stores, 'readwrite');
             stores.forEach((s) => tx.objectStore(s).clear());
             tx.oncomplete = () => {
+                this._stationsCache = null;
+                this._tripRunsCache = null;
                 Storage.remove(this.META_CACHE_KEY);
                 Storage.remove(this.MIGRATED_KEY);
                 resolve();
@@ -745,13 +749,19 @@ export const SessionDB = {
 
     // Retrieve all normalized stations
     async getAllStations() {
+        if (this._stationsCache && Array.isArray(this._stationsCache) && this._stationsCache.length > 0) {
+            return this._stationsCache;
+        }
         const db = await this.open();
         if (!db.objectStoreNames.contains(this.STATIONS_STORE)) return [];
         return new Promise((resolve) => {
             try {
                 const tx = db.transaction([this.STATIONS_STORE], 'readonly');
                 const req = tx.objectStore(this.STATIONS_STORE).getAll();
-                req.onsuccess = () => resolve(req.result || []);
+                req.onsuccess = () => {
+                    this._stationsCache = req.result || [];
+                    resolve(this._stationsCache);
+                };
                 req.onerror = () => resolve([]);
             } catch {
                 resolve([]);
@@ -778,13 +788,19 @@ export const SessionDB = {
 
     // Retrieve all normalized trips (line runs)
     async getAllTrips() {
+        if (this._tripRunsCache && Array.isArray(this._tripRunsCache) && this._tripRunsCache.length > 0) {
+            return this._tripRunsCache;
+        }
         const db = await this.open();
         if (!db.objectStoreNames.contains(this.TRIPS_STORE)) return [];
         return new Promise((resolve) => {
             try {
                 const tx = db.transaction([this.TRIPS_STORE], 'readonly');
                 const req = tx.objectStore(this.TRIPS_STORE).getAll();
-                req.onsuccess = () => resolve(req.result || []);
+                req.onsuccess = () => {
+                    this._tripRunsCache = req.result || [];
+                    resolve(this._tripRunsCache);
+                };
                 req.onerror = () => resolve([]);
             } catch {
                 resolve([]);

@@ -240,11 +240,13 @@ export async function initApp() {
     syncNavigationLinks(userParam);
 
     let sessionToLoad = null;
+    let preloadedSession = null;
     try {
         if (userParam) {
             const cached = await SessionDB.get(userParam);
             if (cached?.trips?.length > 0) {
                 sessionToLoad = cached.username;
+                preloadedSession = cached;
             }
         }
         if (!sessionToLoad && deepTripId) {
@@ -252,6 +254,7 @@ export async function initApp() {
             const found = allSessions.find(s => Array.isArray(s.trips) && s.trips.some(t => String(t.id) === String(deepTripId)));
             if (found) {
                 sessionToLoad = found.username;
+                preloadedSession = found;
             }
         }
         // If not cached in IndexedDB yet, resolve from fixture dataset for deep links and demo users
@@ -269,7 +272,7 @@ export async function initApp() {
         console.log(`⚡ Instant load for @${sessionToLoad} from IndexedDB without query modal`);
         const setupEl = document.getElementById('setupScreen');
         if (setupEl) setupEl.classList.add('hidden');
-        await loadSessionByUsername(sessionToLoad);
+        await loadSessionByUsername(sessionToLoad, preloadedSession);
     } else if (userParam) {
         const userInput = document.getElementById('username');
         if (userInput) {

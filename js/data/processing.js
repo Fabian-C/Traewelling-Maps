@@ -532,7 +532,15 @@ export function processTripsToGeoJSON(trips) {
                 return;
             }
         } else {
-            isApproximated = isApproximatedPolyline(geometry.coordinates, category);
+            if (polyline?.properties?.isApproximated !== undefined) {
+                isApproximated = polyline.properties.isApproximated;
+            } else if (idx?.isApproximated !== undefined) {
+                isApproximated = idx.isApproximated;
+            } else {
+                isApproximated = isApproximatedPolyline(geometry.coordinates, category);
+                if (idx) idx.isApproximated = isApproximated;
+                if (polyline?.properties) polyline.properties.isApproximated = isApproximated;
+            }
         }
 
         const trainSummary = train ? { ...train, polyline: undefined, stopovers: undefined } : null;

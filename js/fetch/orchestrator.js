@@ -870,7 +870,25 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
     analytics.initializeDateInputs(state.fetchedTrips);
 
     const activeTrips = refreshActiveTrips();
-    const categories = dataProcessing.processTripsToGeoJSON(activeTrips);
+    let categories = null;
+
+    // Check materialized GeoJSON cache for instant render on unfiltered datasets
+    const isUnfiltered = activeTrips.length === state.fetchedTrips.length;
+    if (isUnfiltered && state.username) {
+        try {
+            const cachedMat = await SessionDB.getMaterializedGeoJSON(state.username);
+            if (cachedMat?.count === activeTrips.length && cachedMat?.geojson) {
+                categories = cachedMat.geojson;
+            }
+        } catch (_) {}
+    }
+
+    if (!categories) {
+        categories = dataProcessing.processTripsToGeoJSON(activeTrips);
+        if (isUnfiltered && state.username && activeTrips.length > 0) {
+            SessionDB.saveMaterializedGeoJSON(state.username, categories, activeTrips.length).catch(() => {});
+        }
+    }
 
     // Populate initial state.layers.data with route data so layer counts are accurate immediately
     state.layers.order.forEach(layerId => {

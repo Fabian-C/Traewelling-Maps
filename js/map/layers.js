@@ -381,84 +381,89 @@ export function syncMapLayerOrder() {
     try {
         const baseOpacity = heatmap.getCurrentBaseOpacity(state);
 
-        // 1. Remove all route line layers from map (keeps GeoJSON sources intact)
-        state.layers.order.forEach((layerId) => {
-            if (state.map.getLayer(layerId)) {
-                try {
-                    state.map.removeLayer(layerId);
-                } catch (_) {}
-            }
-            const approxLayerId = `${layerId}-approximated`;
-            if (state.map.getLayer(approxLayerId)) {
-                try {
-                    state.map.removeLayer(approxLayerId);
-                } catch (_) {}
-            }
-        });
-
-        // 2. Base railway layer stays underneath all route lines if present
+        // 1. Ensure base railway layer stays underneath all route lines if present
         if (state.map.getLayer('open-railway-map')) {
             try {
                 state.map.moveLayer('open-railway-map');
             } catch (_) {}
         }
 
-        // 3. Re-add route line layers in reverse menu order:
-        // Bottom of menu (index N-1) is added first (bottom of stack)
+        // 2. Synchronize route line layers in reverse menu order:
+        // Bottom of menu (index N-1) is moved/added first (bottom of stack)
         // ...
-        // Top of menu (index 0) is added last (top of all route layers)
+        // Top of menu (index 0) is moved/added last (top of all route layers)
         for (let i = state.layers.order.length - 1; i >= 0; i--) {
             const layerId = state.layers.order[i];
             const layerData = state.layers.data.get(layerId);
             const isVisible = layerData?.visible ?? true;
             const config = CONFIG.LAYER_CONFIG.find(([id]) => id === layerId);
             const color = layerData?.color || config?.[1] || '#888888';
+            const approxLayerId = `${layerId}-approximated`;
 
             if (state.map.getSource(layerId)) {
-                // Solid line layer (for accurate track polylines)
-                try {
-                    state.map.addLayer({
-                        id: layerId,
-                        type: 'line',
-                        source: layerId,
-                        filter: ['!=', ['get', 'isApproximated'], true],
-                        layout: {
-                            'line-join': 'round',
-                            'line-cap': 'round',
-                            'visibility': (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible'
-                        },
-                        paint: {
-                            'line-color': color,
-                            'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.75, 8, 2.5, 12, 4, 16, 10, 18, 16],
-                            'line-opacity': baseOpacity
-                        }
-                    });
-                } catch (e) {
-                    console.warn(`Failed to re-add layer ${layerId}:`, e);
+                // Check if solid layer already exists
+                if (state.map.getLayer(layerId)) {
+                    try {
+                        state.map.setPaintProperty(layerId, 'line-color', color);
+                        state.map.setPaintProperty(layerId, 'line-opacity', baseOpacity);
+                        state.map.setLayoutProperty(layerId, 'visibility', (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible');
+                        state.map.moveLayer(layerId);
+                    } catch (_) {}
+                } else {
+                    // Solid line layer (for accurate track polylines)
+                    try {
+                        state.map.addLayer({
+                            id: layerId,
+                            type: 'line',
+                            source: layerId,
+                            filter: ['!=', ['get', 'isApproximated'], true],
+                            layout: {
+                                'line-join': 'round',
+                                'line-cap': 'round',
+                                'visibility': (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible'
+                            },
+                            paint: {
+                                'line-color': color,
+                                'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.75, 8, 2.5, 12, 4, 16, 10, 18, 16],
+                                'line-opacity': baseOpacity
+                            }
+                        });
+                    } catch (e) {
+                        console.warn(`Failed to add layer ${layerId}:`, e);
+                    }
                 }
 
-                // Dashed line layer (for approximated straight-line routes)
-                try {
-                    const approxLayerId = `${layerId}-approximated`;
-                    state.map.addLayer({
-                        id: approxLayerId,
-                        type: 'line',
-                        source: layerId,
-                        filter: ['==', ['get', 'isApproximated'], true],
-                        layout: {
-                            'line-join': 'round',
-                            'line-cap': 'butt',
-                            'visibility': (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible'
-                        },
-                        paint: {
-                            'line-color': color,
-                            'line-dasharray': [2, 2],
-                            'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.75, 8, 2.5, 12, 4, 16, 10, 18, 16],
-                            'line-opacity': baseOpacity * 0.85
-                        }
-                    });
-                } catch (e) {
-                    console.warn(`Failed to re-add approx layer ${layerId}:`, e);
+                // Check if dashed approx layer already exists
+                if (state.map.getLayer(approxLayerId)) {
+                    try {
+                        state.map.setPaintProperty(approxLayerId, 'line-color', color);
+                        state.map.setPaintProperty(approxLayerId, 'line-opacity', baseOpacity * 0.85);
+                        state.map.setLayoutProperty(approxLayerId, 'visibility', (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible');
+                        state.map.moveLayer(approxLayerId);
+                    } catch (_) {}
+                } else {
+                    // Dashed line layer (for approximated straight-line routes)
+                    try {
+                        state.map.addLayer({
+                            id: approxLayerId,
+                            type: 'line',
+                            source: layerId,
+                            filter: ['==', ['get', 'isApproximated'], true],
+                            layout: {
+                                'line-join': 'round',
+                                'line-cap': 'butt',
+                                'visibility': (state.heatmap?.enabled || !isVisible) ? 'none' : 'visible'
+                            },
+                            paint: {
+                                'line-color': color,
+                                'line-dasharray': [2, 2],
+                                'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.75, 8, 2.5, 12, 4, 16, 10, 18, 16],
+                                'line-opacity': baseOpacity * 0.85
+                            }
+                        });
+                    } catch (e) {
+                        console.warn(`Failed to add approx layer ${layerId}:`, e);
+                    }
                 }
             }
         }
