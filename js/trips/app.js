@@ -634,7 +634,15 @@ function setupCoPassengerScanner() {
 
         const { unscannedTrips } = getUnscannedTrips(allTrips, username, { forceFullRescan });
         if (!unscannedTrips.length) {
-            alert('All your trips have already been checked for travel buddies up to the latest check-in!');
+            if (progressBar && progressText) {
+                progressBar.style.display = 'flex';
+                progressText.textContent = 'All trips are already up to date with Träwelling!';
+                setTimeout(() => {
+                    if (!activeScanController && progressBar) {
+                        progressBar.style.display = 'none';
+                    }
+                }, 3000);
+            }
             return;
         }
 
@@ -690,7 +698,7 @@ function setupCoPassengerScanner() {
     let clickTimer = null;
 
     btn.addEventListener('click', () => {
-        if (btn.disabled) return;
+        if (btn.disabled || activeScanController) return;
         clickCount++;
         clearTimeout(clickTimer);
 
@@ -706,7 +714,7 @@ function setupCoPassengerScanner() {
             if (count > 0 && count < 3) {
                 executeScan({ forceFullRescan: false });
             }
-        }, 350);
+        }, 650);
     });
 }
 
