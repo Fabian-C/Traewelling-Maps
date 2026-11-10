@@ -7,6 +7,7 @@ import { TraewellingAPI } from '../api/traewelling.js';
 import { processAndDisplayData } from '../fetch/orchestrator.js';
 import { UI } from '../ui/ui.js';
 import { updateMenuAccountList } from '../session/manager.js';
+import { getTripBuddies } from '../trips/formatters.js';
 
 /**
  * Convert an array of Träwelling trips into a standard GeoJSON FeatureCollection
@@ -95,12 +96,20 @@ export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
             });
         }
 
+        const bId = train.trip || train.tripId || trip.trip || trip.backend_trip_id || trip.properties?.backendTripId || trip.properties?.backend_trip_id || null;
+        const activeUser = metadata.username || store.get()?.username || '';
+        const buddiesList = getTripBuddies(trip, activeUser);
+        const coPassengers = Array.isArray(trip.co_passengers) && trip.co_passengers.length ? trip.co_passengers : (Array.isArray(trip.properties?.co_passengers) && trip.properties.co_passengers.length ? trip.properties.co_passengers : null);
+        const bodyMentions = Array.isArray(trip.bodyMentions) && trip.bodyMentions.length ? trip.bodyMentions : (Array.isArray(trip.properties?.bodyMentions) && trip.properties.bodyMentions.length ? trip.properties.bodyMentions : null);
+
         features.push({
             type: 'Feature',
             geometry: polyline.geometry,
             properties: {
                 statusId: trip.id,
+                id: trip.id,
                 lineName: train.lineName || train.number || train.name || 'Unknown',
+                line: train.lineName || train.number || train.name || 'Unknown',
                 category: normalizeCategory(train.category),
                 origin: originData.name || originData.station?.name || 'Unknown',
                 destination: destData.name || destData.station?.name || 'Unknown',
@@ -124,12 +133,17 @@ export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
                 wagonClass: trip._index?.wagonClass || wagonCls || null,
                 tags: parsedTags.length ? parsedTags : null,
                 business: businessLabel,
-                message: trip.body || null,
+                message: trip.body || trip.message || null,
+                body: trip.body || trip.message || null,
                 originLatitude: originData.station?.latitude ?? originData.latitude ?? (Array.isArray(polyline.geometry.coordinates?.[0]) ? polyline.geometry.coordinates[0][1] : null),
                 originLongitude: originData.station?.longitude ?? originData.longitude ?? (Array.isArray(polyline.geometry.coordinates?.[0]) ? polyline.geometry.coordinates[0][0] : null),
                 destLatitude: destData.station?.latitude ?? destData.latitude ?? (Array.isArray(polyline.geometry.coordinates?.[polyline.geometry.coordinates.length - 1]) ? polyline.geometry.coordinates[polyline.geometry.coordinates.length - 1][1] : null),
                 destLongitude: destData.station?.longitude ?? destData.longitude ?? (Array.isArray(polyline.geometry.coordinates?.[polyline.geometry.coordinates.length - 1]) ? polyline.geometry.coordinates[polyline.geometry.coordinates.length - 1][0] : null),
-                buddies: Array.isArray(trip.buddies) ? trip.buddies : (Array.isArray(trip.fellowPassengers) ? trip.fellowPassengers : null),
+                backendTripId: bId,
+                backend_trip_id: bId,
+                buddies: buddiesList.length ? buddiesList : (Array.isArray(trip.buddies) && trip.buddies.length ? trip.buddies : (Array.isArray(trip.fellowPassengers) && trip.fellowPassengers.length ? trip.fellowPassengers : null)),
+                co_passengers: coPassengers,
+                bodyMentions: bodyMentions,
                 isApproximated: !!polyline.properties?.isApproximated,
                 createdAt: trip.createdAt || null,
                 traewellingUrl: trip.id ? `https://traewelling.de/status/${trip.id}` : null,
@@ -150,13 +164,14 @@ export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
 }
 
 /**
- * Download a GeoJSON file to the user's computer
- * @param {Object} geojsonData GeoJSON object
+ * Generic file download helper
+ * @param {string} content File content string
  * @param {string} filename Name of the file
+ * @param {string} mimeType MIME type
  */
-export function downloadGeoJSONFile(geojsonData, filename = 'traewelling-trips.geojson') {
-    const jsonString = JSON.stringify(geojsonData, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/geo+json;charset=utf-8' });
+export function downloadFile(content, filename, mimeType = 'text/plain;charset=utf-8') {
+    if (typeof document === 'undefined') return;
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -167,6 +182,482 @@ export function downloadGeoJSONFile(geojsonData, filename = 'traewelling-trips.g
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
     }, 100);
+}
+
+/**
+ * Download a GeoJSON file to the user's computer
+ * @param {Object|string} geojsonData GeoJSON object or string
+ * @param {string} filename Name of the file
+ */
+export function downloadGeoJSONFile(geojsonData, filename = 'traewelling-trips.geojson') {
+    const jsonString = typeof geojsonData === 'string' ? geojsonData : JSON.stringify(geojsonData, null, 2);
+    downloadFile(jsonString, filename, 'application/geo+json;charset=utf-8');
+}
+
+/**
+ * Download a GPX file to the user's computer
+ * @param {string} gpxData GPX XML string
+ * @param {string} filename Name of the file
+ */
+export function downloadGPXFile(gpxData, filename = 'traewelling-trips.gpx') {
+    downloadFile(gpxData, filename, 'application/gpx+xml;charset=utf-8');
+}
+
+/**
+ * Download a KML file to the user's computer
+ * @param {string} kmlData KML XML string
+ * @param {string} filename Name of the file
+ */
+export function downloadKMLFile(kmlData, filename = 'traewelling-trips.kml') {
+    downloadFile(kmlData, filename, 'application/vnd.google-earth.kml+xml;charset=utf-8');
+}
+
+/**
+ * Download a CSV file to the user's computer
+ * @param {string} csvData CSV string
+ * @param {string} filename Name of the file
+ */
+export function downloadCSVFile(csvData, filename = 'traewelling-trips.csv') {
+    downloadFile(csvData, filename, 'text/csv;charset=utf-8');
+}
+
+/**
+ * Download a JSON file to the user's computer
+ * @param {Object|string} jsonData JSON data or string
+ * @param {string} filename Name of the file
+ */
+export function downloadJSONFile(jsonData, filename = 'traewelling-trips.json') {
+    const jsonString = typeof jsonData === 'string' ? jsonData : JSON.stringify(jsonData, null, 2);
+    downloadFile(jsonString, filename, 'application/json;charset=utf-8');
+}
+
+/**
+ * Convert an array of Träwelling trips into standard GPX 1.1 format with trackpoints
+ * and linearly interpolated timestamps between departure and arrival.
+ * @param {Array} trips Array of trip objects
+ * @param {Object} metadata Metadata for header
+ * @returns {string} GPX 1.1 XML string
+ */
+export function tripsToGPX(trips = [], metadata = {}) {
+    const creator = 'Träwelling Map Explorer';
+    const title = metadata.title || (metadata.username ? `Träwelling Journeys - ${metadata.username}` : 'Träwelling Journeys');
+    const timestamp = new Date().toISOString();
+
+    const escapeXml = (str) => {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
+    };
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xml += `<gpx version="1.1" creator="${escapeXml(creator)}" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">\n`;
+    xml += `  <metadata>\n`;
+    xml += `    <name>${escapeXml(title)}</name>\n`;
+    xml += `    <time>${timestamp}</time>\n`;
+    xml += `  </metadata>\n`;
+
+    trips.forEach(trip => {
+        const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
+        const polyline = (trip.geometry?.coordinates && trip.geometry.coordinates.length >= 2) ? trip : train.polyline;
+        const coords = polyline?.geometry?.coordinates;
+        if (!Array.isArray(coords) || coords.length < 2) return;
+
+        const line = train.lineName || train.number || train.name || trip.properties?.lineName || 'Journey';
+        const origin = train.origin?.name || train.origin?.station?.name || trip.properties?.origin || 'Start';
+        const dest = train.destination?.name || train.destination?.station?.name || trip.properties?.destination || 'Destination';
+        const trkName = `${line}: ${origin} → ${dest}`;
+        const trkDesc = `Category: ${train.category || 'Train'}, Operator: ${train.operator?.name || 'Unknown'}, Distance: ${Math.round((train.totalDistance || 0) / 1000)} km`;
+
+        xml += `  <trk>\n`;
+        xml += `    <name>${escapeXml(trkName)}</name>\n`;
+        xml += `    <desc>${escapeXml(trkDesc)}</desc>\n`;
+        xml += `    <type>${escapeXml(train.category || 'rail')}</type>\n`;
+        xml += `    <trkseg>\n`;
+
+        // Calculate time interpolation if timestamps exist
+        const depStr = train.origin?.departureReal || train.origin?.departurePlanned || train.origin?.departure || trip.createdAt || trip.properties?.actualDeparture || trip.properties?.plannedDeparture;
+        const arrStr = train.destination?.arrivalReal || train.destination?.arrivalPlanned || train.destination?.arrival || trip.properties?.actualArrival || trip.properties?.plannedArrival;
+        const depMs = depStr ? Date.parse(depStr) : NaN;
+        let arrMs = arrStr ? Date.parse(arrStr) : NaN;
+        if (isNaN(arrMs) && !isNaN(depMs)) {
+            const dur = computeTripDurationMinutes(train) || trip.properties?.durationMinutes;
+            if (dur && dur > 0) arrMs = depMs + dur * 60000;
+        }
+
+        const hasTimes = !isNaN(depMs) && !isNaN(arrMs) && arrMs > depMs;
+        const totalPoints = coords.length;
+
+        coords.forEach((coord, idx) => {
+            const lon = coord[0];
+            const lat = coord[1];
+            const ele = coord[2];
+            xml += `      <trkpt lat="${lat}" lon="${lon}">\n`;
+            if (typeof ele === 'number') {
+                xml += `        <ele>${ele}</ele>\n`;
+            }
+            if (hasTimes) {
+                const fraction = idx / (totalPoints - 1);
+                const ptTime = new Date(depMs + Math.round(fraction * (arrMs - depMs))).toISOString();
+                xml += `        <time>${ptTime}</time>\n`;
+            }
+            xml += `      </trkpt>\n`;
+        });
+
+        xml += `    </trkseg>\n`;
+        xml += `  </trk>\n`;
+    });
+
+    xml += `</gpx>\n`;
+    return xml;
+}
+
+/**
+ * Convert an array of Träwelling trips into standard KML 2.2 format for Google Earth / GIS
+ * @param {Array} trips Array of trip objects
+ * @param {Object} metadata Metadata for header
+ * @returns {string} KML XML string
+ */
+export function tripsToKML(trips = [], metadata = {}) {
+    const title = metadata.title || (metadata.username ? `Träwelling Journeys - ${metadata.username}` : 'Träwelling Journeys');
+
+    const escapeXml = (str) => {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
+    };
+
+    let kml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    kml += `<kml xmlns="http://www.opengis.net/kml/2.2">\n`;
+    kml += `  <Document>\n`;
+    kml += `    <name>${escapeXml(title)}</name>\n`;
+
+    trips.forEach(trip => {
+        const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
+        const polyline = (trip.geometry?.coordinates && trip.geometry.coordinates.length >= 2) ? trip : train.polyline;
+        const coords = polyline?.geometry?.coordinates;
+        if (!Array.isArray(coords) || coords.length < 2) return;
+
+        const line = train.lineName || train.number || train.name || trip.properties?.lineName || 'Journey';
+        const origin = train.origin?.name || train.origin?.station?.name || trip.properties?.origin || 'Start';
+        const dest = train.destination?.name || train.destination?.station?.name || trip.properties?.destination || 'Destination';
+        const placemarkName = `${line}: ${origin} → ${dest}`;
+        const distanceKm = Math.round((train.totalDistance || trip.properties?.totalDistance || 0) / 100) / 10;
+        const departure = train.origin?.departureReal || train.origin?.departurePlanned || trip.properties?.actualDeparture || 'N/A';
+        const arrival = train.destination?.arrivalReal || train.destination?.arrivalPlanned || trip.properties?.actualArrival || 'N/A';
+
+        kml += `    <Placemark>\n`;
+        kml += `      <name>${escapeXml(placemarkName)}</name>\n`;
+        kml += `      <description><![CDATA[`;
+        kml += `<b>Line:</b> ${escapeXml(line)}<br>`;
+        kml += `<b>Origin:</b> ${escapeXml(origin)}<br>`;
+        kml += `<b>Destination:</b> ${escapeXml(dest)}<br>`;
+        kml += `<b>Departure:</b> ${escapeXml(departure)}<br>`;
+        kml += `<b>Arrival:</b> ${escapeXml(arrival)}<br>`;
+        kml += `<b>Distance:</b> ${distanceKm} km<br>`;
+        if (trip.id) {
+            kml += `<a href="https://traewelling.de/status/${trip.id}">View on Träwelling</a>`;
+        }
+        kml += `]]></description>\n`;
+        kml += `      <LineString>\n`;
+        kml += `        <tessellate>1</tessellate>\n`;
+        kml += `        <coordinates>\n`;
+        const coordStr = coords.map(c => `${c[0]},${c[1]},${c[2] || 0}`).join(' ');
+        kml += `          ${coordStr}\n`;
+        kml += `        </coordinates>\n`;
+        kml += `      </LineString>\n`;
+        kml += `    </Placemark>\n`;
+    });
+
+    kml += `  </Document>\n`;
+    kml += `</kml>\n`;
+    return kml;
+}
+
+/**
+ * Convert an array of Träwelling trips into standard CSV format
+ * @param {Array} trips Array of trip objects
+ * @returns {string} RFC 4180 CSV string
+ */
+export function tripsToCSV(trips = []) {
+    const columns = [
+        'id', 'line', 'category', 'origin', 'destination',
+        'planned_departure', 'actual_departure', 'delay_dep_min',
+        'planned_arrival', 'actual_arrival', 'delay_arr_min',
+        'distance_km', 'duration_min', 'operator', 'platform',
+        'seat', 'wagon', 'class', 'ticket', 'business',
+        'buddies', 'backend_trip_id', 'notes', 'traewelling_url'
+    ];
+
+    const escapeCsv = (val) => {
+        if (val === null || val === undefined) return '""';
+        return `"${String(val).replace(/"/g, '""')}"`;
+    };
+
+    const header = columns.map(escapeCsv).join(',');
+    const rows = trips.map(trip => {
+        const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
+        const origin = train.origin || trip.properties?.origin || {};
+        const dest = train.destination || trip.properties?.destination || {};
+        const delays = deriveDelaySeconds(train);
+        const depDelayMin = delays.departure !== null ? formatDelayMinutes(delays.departure) : (trip.properties?.departureDelayMinutes ?? '');
+        const arrDelayMin = delays.arrival !== null ? formatDelayMinutes(delays.arrival) : (trip.properties?.arrivalDelayMinutes ?? '');
+        const distanceKm = trip.properties?.distanceKm ?? (train.totalDistance ? Math.round(train.totalDistance / 10) / 100 : '');
+        const durationMin = computeTripDurationMinutes(train) || trip.properties?.durationMinutes || '';
+
+        const buddiesList = getTripBuddies(trip);
+        const buddiesStr = buddiesList.length ? buddiesList.map(b => `@${b.username}`).join(', ') : '';
+        const bId = train.trip || train.tripId || trip.trip || trip.backend_trip_id || trip.properties?.backendTripId || trip.properties?.backend_trip_id || '';
+
+        const rowValues = [
+            trip.id || '',
+            train.lineName || train.number || train.name || trip.properties?.lineName || '',
+            normalizeCategory(train.category || trip.properties?.category),
+            origin.name || origin.station?.name || (typeof origin === 'string' ? origin : '') || '',
+            dest.name || dest.station?.name || (typeof dest === 'string' ? dest : '') || '',
+            origin.departurePlanned || train.plannedDeparture || trip.properties?.plannedDeparture || '',
+            origin.departureReal || origin.departure || train.departure || trip.properties?.actualDeparture || '',
+            depDelayMin,
+            dest.arrivalPlanned || train.plannedArrival || trip.properties?.plannedArrival || '',
+            dest.arrivalReal || dest.arrival || train.arrival || trip.properties?.actualArrival || '',
+            arrDelayMin,
+            distanceKm,
+            durationMin,
+            train.operator?.name || (typeof train.operator === 'string' ? train.operator : '') || trip.properties?.operator || '',
+            origin.departurePlatformReal || origin.platform || train.platform || trip.properties?.platform || '',
+            train.seat?.number || trip.seat?.number || (typeof train.seat === 'string' ? train.seat : '') || trip.properties?.seat || '',
+            train.seat?.wagon || train.wagon || trip.properties?.wagon || '',
+            train.class || train.travelClass || trip.properties?.class || '',
+            trip.ticket?.name || (typeof trip.ticket === 'string' ? trip.ticket : '') || trip.properties?.ticket || '',
+            trip.business === 1 ? 'business' : (trip.business === 2 ? 'commute' : 'private'),
+            buddiesStr,
+            bId,
+            trip.body || trip.message || trip.properties?.message || trip.properties?.body || '',
+            trip.id ? `https://traewelling.de/status/${trip.id}` : ''
+        ];
+        return rowValues.map(escapeCsv).join(',');
+    });
+
+    return [header, ...rows].join('\n');
+}
+
+/**
+ * Convert an array of Träwelling trips into standard JSON format
+ * @param {Array} trips Array of trip objects
+ * @param {Object} metadata Metadata for header
+ * @returns {Object} JSON payload
+ */
+export function tripsToJSON(trips = [], metadata = {}) {
+    return {
+        generator: 'Träwelling Map Explorer',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        username: metadata.username || null,
+        tripCount: trips.length,
+        trips: trips
+    };
+}
+
+/**
+ * Parse standard CSV text back into trip objects
+ * @param {string} csvText CSV formatted string
+ * @returns {{ trips: Array, username: string|null }}
+ */
+export function parseCSVToTrips(csvText) {
+    if (!csvText || typeof csvText !== 'string') return { trips: [], username: null };
+
+    // Standard RFC-4180 CSV parser
+    const rows = [];
+    let currentRow = [];
+    let currentCell = '';
+    let insideQuotes = false;
+    let i = 0;
+    const len = csvText.length;
+
+    while (i < len) {
+        const char = csvText[i];
+        if (insideQuotes) {
+            if (char === '"') {
+                if (i + 1 < len && csvText[i + 1] === '"') {
+                    currentCell += '"';
+                    i += 2;
+                    continue;
+                } else {
+                    insideQuotes = false;
+                }
+            } else {
+                currentCell += char;
+            }
+        } else {
+            if (char === '"') {
+                insideQuotes = true;
+            } else if (char === ',') {
+                currentRow.push(currentCell.trim());
+                currentCell = '';
+            } else if (char === '\n' || char === '\r') {
+                if (char === '\r' && i + 1 < len && csvText[i + 1] === '\n') {
+                    i++;
+                }
+                currentRow.push(currentCell.trim());
+                if (currentRow.some(c => c.length > 0)) {
+                    rows.push(currentRow);
+                }
+                currentRow = [];
+                currentCell = '';
+            } else {
+                currentCell += char;
+            }
+        }
+        i++;
+    }
+    if (currentCell.length > 0 || currentRow.length > 0) {
+        currentRow.push(currentCell.trim());
+        if (currentRow.some(c => c.length > 0)) {
+            rows.push(currentRow);
+        }
+    }
+
+    if (rows.length < 2) return { trips: [], username: null };
+
+    const headers = rows[0].map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, '_'));
+    const colIndex = (names) => {
+        for (const name of names) {
+            const idx = headers.indexOf(name);
+            if (idx !== -1) return idx;
+        }
+        return -1;
+    };
+
+    const idIdx = colIndex(['id', 'status_id', 'statusid']);
+    const lineIdx = colIndex(['line', 'linename', 'train', 'line_name']);
+    const catIdx = colIndex(['category', 'type']);
+    const origIdx = colIndex(['origin', 'start', 'from']);
+    const destIdx = colIndex(['destination', 'dest', 'to']);
+    const depPlannedIdx = colIndex(['planned_departure', 'departure_planned']);
+    const depRealIdx = colIndex(['actual_departure', 'departure_real', 'departure', 'departure_time']);
+    const arrPlannedIdx = colIndex(['planned_arrival', 'arrival_planned']);
+    const arrRealIdx = colIndex(['actual_arrival', 'arrival_real', 'arrival', 'arrival_time']);
+    const distIdx = colIndex(['distance_km', 'distance', 'total_distance']);
+    const opIdx = colIndex(['operator', 'provider']);
+    const platIdx = colIndex(['platform', 'track']);
+    const seatIdx = colIndex(['seat']);
+    const wagonIdx = colIndex(['wagon', 'coach']);
+    const classIdx = colIndex(['class', 'travel_class']);
+    const ticketIdx = colIndex(['ticket']);
+    const bizIdx = colIndex(['business']);
+    const buddiesIdx = colIndex(['buddies', 'fellow_passengers', 'co_passengers']);
+    const backendTripIdx = colIndex(['backend_trip_id', 'trip_id', 'tripid', 'trip']);
+    const notesIdx = colIndex(['notes', 'message', 'body', 'comment']);
+    const origLatIdx = colIndex(['origin_lat', 'orig_lat', 'origin_latitude']);
+    const origLonIdx = colIndex(['origin_lon', 'orig_lon', 'origin_longitude', 'orig_lng']);
+    const destLatIdx = colIndex(['dest_lat', 'dest_latitude', 'destination_latitude']);
+    const destLonIdx = colIndex(['dest_lon', 'dest_longitude', 'destination_longitude', 'dest_lng']);
+
+    const trips = [];
+    for (let r = 1; r < rows.length; r++) {
+        const row = rows[r];
+        const val = (idx) => (idx !== -1 && idx < row.length ? row[idx] : null);
+
+        const id = val(idIdx) ? (parseInt(val(idIdx), 10) || val(idIdx)) : Date.now() + r;
+        const line = val(lineIdx) || 'Unknown';
+        const category = normalizeCategory(val(catIdx));
+        const originName = val(origIdx) || 'Unknown';
+        const destName = val(destIdx) || 'Unknown';
+        const depPlanned = val(depPlannedIdx);
+        const depReal = val(depRealIdx);
+        const arrPlanned = val(arrPlannedIdx);
+        const arrReal = val(arrRealIdx);
+        const distKm = parseFloat(val(distIdx)) || 0;
+        const totalDistanceMeters = Math.round(distKm * 1000);
+        const operatorName = val(opIdx);
+        const bId = val(backendTripIdx) ? (parseInt(val(backendTripIdx), 10) || val(backendTripIdx)) : null;
+        const notes = val(notesIdx) || '';
+        const buddiesRaw = val(buddiesIdx);
+
+        let parsedBuddies = [];
+        if (buddiesRaw) {
+            try {
+                if (buddiesRaw.startsWith('[') && buddiesRaw.endsWith(']')) {
+                    parsedBuddies = JSON.parse(buddiesRaw);
+                } else {
+                    parsedBuddies = buddiesRaw.split(',').map(s => s.trim().replace(/^@/, '')).filter(Boolean).map(u => ({ username: u, displayName: u }));
+                }
+            } catch (e) {
+                parsedBuddies = buddiesRaw.split(',').map(s => s.trim().replace(/^@/, '')).filter(Boolean).map(u => ({ username: u, displayName: u }));
+            }
+        }
+
+        const origLat = parseFloat(val(origLatIdx));
+        const origLon = parseFloat(val(origLonIdx));
+        const destLat = parseFloat(val(destLatIdx));
+        const destLon = parseFloat(val(destLonIdx));
+        const hasCoords = !isNaN(origLat) && !isNaN(origLon) && !isNaN(destLat) && !isNaN(destLon);
+
+        const trip = {
+            id: id,
+            backend_trip_id: bId,
+            body: notes,
+            createdAt: depReal || depPlanned || new Date().toISOString(),
+            business: val(bizIdx) === 'business' || val(bizIdx) === '1' ? 1 : (val(bizIdx) === 'commute' || val(bizIdx) === '2' ? 2 : 0),
+            ticket: val(ticketIdx) || null,
+            buddies: parsedBuddies,
+            train: {
+                trip: bId,
+                category: category,
+                lineName: line,
+                totalDistance: totalDistanceMeters,
+                distance: totalDistanceMeters,
+                origin: {
+                    name: originName,
+                    departurePlanned: depPlanned,
+                    departureReal: depReal,
+                    platform: val(platIdx),
+                    station: {
+                        name: originName,
+                        latitude: hasCoords ? origLat : null,
+                        longitude: hasCoords ? origLon : null
+                    }
+                },
+                destination: {
+                    name: destName,
+                    arrivalPlanned: arrPlanned,
+                    arrivalReal: arrReal,
+                    station: {
+                        name: destName,
+                        latitude: hasCoords ? destLat : null,
+                        longitude: hasCoords ? destLon : null
+                    }
+                },
+                operator: operatorName ? { name: operatorName } : null,
+                seat: val(seatIdx) ? { number: val(seatIdx), wagon: val(wagonIdx) } : null,
+                wagon: val(wagonIdx) || null,
+                class: val(classIdx) || null,
+                ticket: val(ticketIdx) ? { name: val(ticketIdx) } : null,
+                polyline: hasCoords ? {
+                    type: 'Feature',
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: [[origLon, origLat], [destLon, destLat]]
+                    },
+                    properties: { statusId: id, isApproximated: true }
+                } : null
+            }
+        };
+        trip.checkin = trip.train;
+        trips.push(trip);
+    }
+
+    return {
+        trips,
+        username: 'Imported CSV'
+    };
 }
 
 /**
@@ -388,11 +879,12 @@ export async function handleStopoverToggleChange(e) {
 }
 
 /**
- * Trigger export flow with scope selection (active or all)
+ * Generic export flow dispatcher
+ * @param {'geojson'|'gpx'|'kml'|'csv'|'json'} format Format to export
  * @param {'active'|'all'} scope Which trips to export
  * @param {'download'|'copy'} action Action to perform
  */
-export async function exportTripsGeoJSON(scope = 'active', action = 'download') {
+export async function exportTrips(format = 'geojson', scope = 'active', action = 'download') {
     const state = store.get();
     let trips = scope === 'all' 
         ? (state.fetchedTrips || []) 
@@ -400,13 +892,17 @@ export async function exportTripsGeoJSON(scope = 'active', action = 'download') 
 
     if (scope === 'active') {
         const layerVisibility = new Map();
-        state.layers.data.forEach((layer, id) => {
-            layerVisibility.set(id, layer.visible);
-        });
-        trips = trips.filter(trip => {
-            const cat = normalizeCategory(trip.train?.category || trip.checkin?.category);
-            return layerVisibility.has(cat) ? layerVisibility.get(cat) : true;
-        });
+        if (state.layers?.data) {
+            state.layers.data.forEach((layer, id) => {
+                layerVisibility.set(id, layer.visible);
+            });
+        }
+        if (layerVisibility.size > 0) {
+            trips = trips.filter(trip => {
+                const cat = normalizeCategory(trip.train?.category || trip.checkin?.category);
+                return layerVisibility.has(cat) ? layerVisibility.get(cat) : true;
+            });
+        }
     }
 
     if (!trips.length) {
@@ -414,7 +910,7 @@ export async function exportTripsGeoJSON(scope = 'active', action = 'download') 
         return;
     }
 
-    const includeStopovers = document.getElementById('exportIncludeStopovers')?.checked || false;
+    const includeStopovers = (document.getElementById('exportIncludeStopovers')?.checked || false) && format === 'geojson';
 
     if (includeStopovers) {
         updateExportStopoverStatusUI({ show: true, text: 'Preparing stopover data...', progress: 0, loading: true });
@@ -444,28 +940,57 @@ export async function exportTripsGeoJSON(scope = 'active', action = 'download') 
         }
     }
 
-    const geojson = tripsToGeoJSON(trips, {
-        username: state.username,
-        scope: scope
-    }, { includeStopovers });
-
     const dateStr = new Date().toISOString().split('T')[0];
     const username = state.username || 'user';
-    const stopoverSuffix = includeStopovers ? '-with-stopovers' : '';
-    const filename = `traewelling-${username}-${scope}-trips${stopoverSuffix}-${dateStr}.geojson`;
-    const stopoverNote = includeStopovers ? ' with intermediate stations' : '';
+    const metadata = { username: state.username, scope, title: `Träwelling Journeys - ${username}` };
 
-    if (action === 'download') {
-        downloadGeoJSONFile(geojson, filename);
-        showExportToast(`Downloaded ${geojson.features.length} routes${stopoverNote} as GeoJSON!`);
-    } else if (action === 'copy') {
-        const success = await copyGeoJSONToClipboard(geojson);
-        if (success) {
-            showExportToast(`Copied GeoJSON (${geojson.features.length} routes${stopoverNote}) to clipboard!`);
-        } else {
-            prompt('Copy GeoJSON text:', JSON.stringify(geojson));
+    if (format === 'geojson') {
+        const geojson = tripsToGeoJSON(trips, metadata, { includeStopovers });
+        const stopoverSuffix = includeStopovers ? '-with-stopovers' : '';
+        const filename = `traewelling-${username}-${scope}-trips${stopoverSuffix}-${dateStr}.geojson`;
+        const stopoverNote = includeStopovers ? ' with intermediate stations' : '';
+
+        if (action === 'download') {
+            downloadGeoJSONFile(geojson, filename);
+            showExportToast(`Downloaded ${geojson.features.length} routes${stopoverNote} as GeoJSON!`);
+        } else if (action === 'copy') {
+            const success = await copyGeoJSONToClipboard(geojson);
+            if (success) {
+                showExportToast(`Copied GeoJSON (${geojson.features.length} routes${stopoverNote}) to clipboard!`);
+            } else {
+                prompt('Copy GeoJSON text:', JSON.stringify(geojson));
+            }
         }
+    } else if (format === 'gpx') {
+        const gpx = tripsToGPX(trips, metadata);
+        const filename = `traewelling-${username}-${scope}-trips-${dateStr}.gpx`;
+        downloadGPXFile(gpx, filename);
+        showExportToast(`Downloaded ${trips.length} routes as GPX!`);
+    } else if (format === 'kml') {
+        const kml = tripsToKML(trips, metadata);
+        const filename = `traewelling-${username}-${scope}-trips-${dateStr}.kml`;
+        downloadKMLFile(kml, filename);
+        showExportToast(`Downloaded ${trips.length} routes as KML!`);
+    } else if (format === 'csv') {
+        const csv = tripsToCSV(trips, metadata);
+        const filename = `traewelling-${username}-${scope}-trips-${dateStr}.csv`;
+        downloadCSVFile(csv, filename);
+        showExportToast(`Downloaded ${trips.length} journeys as CSV!`);
+    } else if (format === 'json') {
+        const jsonData = tripsToJSON(trips, metadata);
+        const filename = `traewelling-${username}-${scope}-trips-${dateStr}.json`;
+        downloadJSONFile(jsonData, filename);
+        showExportToast(`Downloaded ${trips.length} journeys as JSON!`);
     }
+}
+
+/**
+ * Trigger GeoJSON export flow with scope selection (active or all)
+ * @param {'active'|'all'} scope Which trips to export
+ * @param {'download'|'copy'} action Action to perform
+ */
+export async function exportTripsGeoJSON(scope = 'active', action = 'download') {
+    return exportTrips('geojson', scope, action);
 }
 
 /**
@@ -526,6 +1051,11 @@ export function parseGeoJSONToTrips(data) {
             trips: data.data.filter(t => t && (t.train?.polyline || t.polyline || t.id)),
             username: username || 'Exported Trips'
         };
+    } else if (data.trips && Array.isArray(data.trips)) {
+        return {
+            trips: data.trips.filter(t => t && (t.train?.polyline || t.polyline || t.id)),
+            username: username || 'Exported Trips'
+        };
     }
 
     const trips = [];
@@ -539,12 +1069,13 @@ export function parseGeoJSONToTrips(data) {
         }
 
         const statusId = p.statusId || p.id || (Date.now() + idx);
+        const backendTripId = p.backend_trip_id || p.backendTripId || p.tripId || null;
         const distanceMeters = typeof p.totalDistance === 'number'
             ? p.totalDistance
             : (typeof p.distanceKm === 'number' ? Math.round(p.distanceKm * 1000) : (p.distance || 0));
 
         let businessType = 0;
-        if (p.business === 'work' || p.business === 1 || p.business === '1') businessType = 1;
+        if (p.business === 'work' || p.business === 1 || p.business === '1' || p.business === 'business') businessType = 1;
         else if (p.business === 'commute' || p.business === 2 || p.business === '2') businessType = 2;
 
         const originName = typeof p.origin === 'string'
@@ -561,15 +1092,23 @@ export function parseGeoJSONToTrips(data) {
         const destLat = typeof p.destLatitude === 'number' ? p.destLatitude : (destCoords ? destCoords[1] : null);
         const destLon = typeof p.destLongitude === 'number' ? p.destLongitude : (destCoords ? destCoords[0] : null);
 
+        const coPassengers = Array.isArray(p.co_passengers) ? p.co_passengers : (Array.isArray(p.coPassengers) ? p.coPassengers : []);
+        const bodyMentions = Array.isArray(p.bodyMentions) ? p.bodyMentions : [];
+        const buddies = Array.isArray(p.buddies) ? p.buddies : [];
+
         const trip = {
             id: statusId,
+            backend_trip_id: backendTripId,
             body: p.message || p.body || '',
             createdAt: p.createdAt || p.actualDeparture || p.plannedDeparture || new Date().toISOString(),
             business: businessType,
             ticket: p.ticket || null,
             tags: Array.isArray(p.tags) ? p.tags : [],
-            buddies: Array.isArray(p.buddies) ? p.buddies : [],
+            buddies: buddies,
+            co_passengers: coPassengers,
+            bodyMentions: bodyMentions,
             train: {
+                trip: backendTripId,
                 category: normalizeCategory(p.category || p.train?.category),
                 lineName: p.lineName || p.train?.lineName || p.line || p.name || '',
                 totalDistance: distanceMeters,
@@ -638,7 +1177,7 @@ export function parseGeoJSONToTrips(data) {
 }
 
 /**
- * Handle user uploading or dropping a GeoJSON / JSON file.
+ * Handle user uploading or dropping a travel data file (GeoJSON, JSON, or CSV).
  * Automatically converts routes, switches screens, and displays trips on map.
  * @param {File} file The selected file object
  */
@@ -647,14 +1186,40 @@ export async function handleGeoJSONUpload(file) {
 
     try {
         const text = await file.text();
-        let parsed;
-        try {
-            parsed = JSON.parse(text);
-        } catch (jsonErr) {
-            throw new Error('The selected file is not valid JSON.');
+        const fileName = (file.name || '').toLowerCase();
+        let trips = [];
+        let username = null;
+
+        if (fileName.endsWith('.csv') || file.type?.includes('csv')) {
+            const parsed = parseCSVToTrips(text);
+            trips = parsed.trips;
+            username = parsed.username;
+        } else {
+            let parsed = null;
+            try {
+                parsed = JSON.parse(text);
+            } catch (jsonErr) {
+                // If JSON parse fails, attempt CSV fallback
+                try {
+                    const csvParsed = parseCSVToTrips(text);
+                    if (csvParsed.trips && csvParsed.trips.length > 0) {
+                        trips = csvParsed.trips;
+                        username = csvParsed.username;
+                    } else {
+                        throw jsonErr;
+                    }
+                } catch (fallbackErr) {
+                    throw new Error('The selected file is not valid JSON or CSV.');
+                }
+            }
+
+            if (!trips.length && parsed) {
+                const parsedResult = parseGeoJSONToTrips(parsed);
+                trips = parsedResult.trips;
+                username = parsedResult.username;
+            }
         }
 
-        const { trips, username } = parseGeoJSONToTrips(parsed);
         if (!trips || !trips.length) {
             alert('No valid travel routes or polyline features were found in this file.');
             return;
@@ -663,12 +1228,12 @@ export async function handleGeoJSONUpload(file) {
         const state = store.get();
         // Determine clean username from parsed metadata, filename, or fallback
         let rawName = username;
-        if (!rawName) {
+        if (!rawName || rawName === 'Exported Trips' || rawName === 'Imported CSV') {
             const match = file.name.match(/traewelling-([a-zA-Z0-9_\-]+?)-(?:all|filtered|full|trips)/i);
             if (match && match[1]) {
                 rawName = match[1];
             } else {
-                rawName = file.name.replace(/\.(geojson|json)$/i, '').replace(/[^a-zA-Z0-9_\-]/g, '_');
+                rawName = file.name.replace(/\.(geojson|json|csv)$/i, '').replace(/[^a-zA-Z0-9_\-]/g, '_');
             }
         }
         const usernameKey = (rawName || 'imported_travels').toLowerCase().trim();
@@ -682,8 +1247,10 @@ export async function handleGeoJSONUpload(file) {
         };
 
         // Transition from setup screen
-        UI.toggleSetup(false);
-        UI.toggleFetch(false);
+        if (typeof UI !== 'undefined' && UI.toggleSetup) {
+            UI.toggleSetup(false);
+            UI.toggleFetch(false);
+        }
 
         // Process, populate layers, and display data on the map
         await processAndDisplayData(trips, { hideFetchUI: true });
@@ -698,14 +1265,25 @@ export async function handleGeoJSONUpload(file) {
                 trips: trips,
                 timestamp: Date.now()
             });
-            updateMenuAccountList();
+
+            // Restore any co-passengers attached to the imported trips
+            for (const trip of trips) {
+                const bId = trip.backend_trip_id || trip.train?.trip;
+                if (bId && Array.isArray(trip.co_passengers) && trip.co_passengers.length > 0) {
+                    await SessionDB.saveTripCoPassengers(bId, trip.co_passengers).catch(() => {});
+                }
+            }
+
+            if (typeof updateMenuAccountList === 'function') {
+                updateMenuAccountList();
+            }
         } catch (dbErr) {
             console.warn('Could not cache imported trips in SessionDB:', dbErr);
         }
 
         showExportToast(`Loaded ${trips.length} routes from ${file.name}!`);
     } catch (err) {
-        console.error('Error importing GeoJSON file:', err);
+        console.error('Error importing file:', err);
         alert(`Failed to import file: ${err.message || 'Unknown error'}`);
     }
 }

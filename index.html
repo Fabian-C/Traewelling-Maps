@@ -158,9 +158,9 @@
                     </summary>
                     <div class="setup-dropdown-content">
                         <div class="import-dropzone" id="setupFileDropzone" tabindex="0" role="button"
-                            aria-label="Upload GeoJSON file">
+                            aria-label="Upload GeoJSON, JSON, or CSV file">
                             <input type="file" id="setupFileInput"
-                                accept=".geojson,.json,application/geo+json,application/json" style="display: none;">
+                                accept=".geojson,.json,.csv,application/geo+json,application/json,text/csv" style="display: none;">
                             <div class="import-dropzone-icon">
                                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -169,7 +169,7 @@
                                     </path>
                                 </svg>
                             </div>
-                            <div class="import-dropzone-title">Upload GeoJSON / JSON</div>
+                            <div class="import-dropzone-title">Upload GeoJSON / JSON / CSV</div>
                             <div class="import-dropzone-hint">Click to browse or drop file here</div>
                         </div>
                     </div>
@@ -847,9 +847,17 @@
 
                     <div style="padding: 0 16px 10px; display: flex; flex-direction: column; gap: 8px;">
                         <button class="btn-primary" id="exportActiveGeoJsonBtn"
-                            style="font-size: 13px; padding: 10px 14px;">Download Filtered Trips</button>
+                            style="font-size: 13px; padding: 10px 14px;">Download Filtered (GeoJSON)</button>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+                            <button class="btn-secondary" id="exportActiveGpxBtn"
+                                style="font-size: 12px; padding: 8px 6px;" title="Export filtered routes to GPX (Garmin / Strava / Komoot)">GPX</button>
+                            <button class="btn-secondary" id="exportActiveCsvBtn"
+                                style="font-size: 12px; padding: 8px 6px;" title="Export filtered routes to CSV (Excel / Sheets)">CSV</button>
+                            <button class="btn-secondary" id="exportActiveKmlBtn"
+                                style="font-size: 12px; padding: 8px 6px;" title="Export filtered routes to KML (Google Earth)">KML</button>
+                        </div>
                         <button class="btn-secondary" id="exportAllGeoJsonBtn"
-                            style="font-size: 13px; padding: 10px 14px;">Download All Loaded Trips</button>
+                            style="font-size: 13px; padding: 10px 14px;">Download All Loaded (GeoJSON)</button>
                         <button class="btn-outline" id="copyGeoJsonBtn"
                             style="font-size: 13px; padding: 10px 14px;">Copy GeoJSON to Clipboard</button>
                     </div>
@@ -857,7 +865,7 @@
                     <div
                         style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 4px 16px 14px; padding-top: 12px;">
                         <input type="file" id="menuFileInput"
-                            accept=".geojson,.json,application/geo+json,application/json" style="display: none;">
+                            accept=".geojson,.json,.csv,application/geo+json,application/json,text/csv" style="display: none;">
                         <button class="btn-secondary" id="menuImportBtn"
                             style="font-size: 13px; padding: 10px 14px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -866,7 +874,7 @@
                                     d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z">
                                 </path>
                             </svg>
-                            <span>Upload &amp; Load GeoJSON</span>
+                            <span>Upload &amp; Load File (GeoJSON / CSV)</span>
                         </button>
                     </div>
                 </div>

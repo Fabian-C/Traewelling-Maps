@@ -15,7 +15,7 @@ import * as dataProcessing from '../data/processing.js';
 import * as analytics from '../analytics/statistics.js';
 import { updateAllStatistics as updateAllStats } from '../analytics/statistics.js';
 import { reloadAllLayers, loadLayers, syncMapLayerOrder } from '../map/layers.js';
-import { exportTripsGeoJSON, handleStopoverToggleChange, handleGeoJSONUpload } from '../export/geojson.js';
+import { exportTrips, exportTripsGeoJSON, handleStopoverToggleChange, handleGeoJSONUpload } from '../export/geojson.js';
 import { clearRouteHighlight } from '../map/interactions.js';
 
 export function setupEventListeners() {
@@ -418,18 +418,30 @@ export function setupEventListeners() {
         };
     }
 
-    // GeoJSON Export listeners
+    // Export listeners
     const exportActiveBtn = document.getElementById('exportActiveGeoJsonBtn');
     if (exportActiveBtn) {
-        exportActiveBtn.onclick = () => exportTripsGeoJSON('active', 'download');
+        exportActiveBtn.onclick = () => exportTrips('geojson', 'active', 'download');
+    }
+    const exportActiveGpxBtn = document.getElementById('exportActiveGpxBtn');
+    if (exportActiveGpxBtn) {
+        exportActiveGpxBtn.onclick = () => exportTrips('gpx', 'active', 'download');
+    }
+    const exportActiveCsvBtn = document.getElementById('exportActiveCsvBtn');
+    if (exportActiveCsvBtn) {
+        exportActiveCsvBtn.onclick = () => exportTrips('csv', 'active', 'download');
+    }
+    const exportActiveKmlBtn = document.getElementById('exportActiveKmlBtn');
+    if (exportActiveKmlBtn) {
+        exportActiveKmlBtn.onclick = () => exportTrips('kml', 'active', 'download');
     }
     const exportAllBtn = document.getElementById('exportAllGeoJsonBtn');
     if (exportAllBtn) {
-        exportAllBtn.onclick = () => exportTripsGeoJSON('all', 'download');
+        exportAllBtn.onclick = () => exportTrips('geojson', 'all', 'download');
     }
     const copyGeoJsonBtn = document.getElementById('copyGeoJsonBtn');
     if (copyGeoJsonBtn) {
-        copyGeoJsonBtn.onclick = () => exportTripsGeoJSON('active', 'copy');
+        copyGeoJsonBtn.onclick = () => exportTrips('geojson', 'active', 'copy');
     }
     const exportIncludeStopovers = document.getElementById('exportIncludeStopovers');
     if (exportIncludeStopovers) {
@@ -505,7 +517,7 @@ export function setupEventListeners() {
         document.body.classList.remove('drag-over');
         const file = e.dataTransfer?.files?.[0];
         const fileName = (file?.name || '').toLowerCase();
-        if (file && (fileName.endsWith('.geojson') || fileName.endsWith('.json') || file.type?.includes('json'))) {
+        if (file && (fileName.endsWith('.geojson') || fileName.endsWith('.json') || fileName.endsWith('.csv') || file.type?.includes('json') || file.type?.includes('csv'))) {
             handleGeoJSONUpload(file);
         }
     });

@@ -1,7 +1,7 @@
 import { SessionDB } from '../cache/session.js';
 import { TraewellingAPI } from '../api/traewelling.js';
 import { Storage, STORAGE_KEYS } from '../storage/storage.js';
-import { tripsToGeoJSON } from '../export/geojson.js';
+import { tripsToGeoJSON, tripsToCSV, tripsToJSON, parseGeoJSONToTrips, parseCSVToTrips, downloadCSVFile, downloadJSONFile } from '../export/geojson.js';
 import { syncNavigationLinks } from '../ui/navigation.js';
 import { getTripBuddies, renderLinkedComment, hasJourneyOverlap } from './formatters.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
@@ -304,6 +304,25 @@ async function hydrateTripsWithCoPassengers(tripsList) {
     }
 }
 
+export async function switchActiveSession(session) {
+    if (!session) return;
+    activeSession = session;
+    allTrips = activeSession.trips || [];
+    await hydrateTripsWithCoPassengers(allTrips);
+    flattenedTrips = [];
+    populateYearPills(allTrips);
+    populateBuddyDropdown(allTrips);
+    filterState.page = 1;
+    updateUrlParams();
+    syncNavigationLinks(activeSession.username);
+    if (appMode === 'studio') {
+        const currentSql = document.getElementById('sqlQueryInput')?.value || sqlEngine?.QUERY_RECIPES?.[0]?.sql;
+        if (currentSql) runSqlQuery(currentSql);
+    } else {
+        applyFiltersAndRender();
+    }
+}
+
 /**
  * Setup UI event listeners
  */
@@ -327,21 +346,7 @@ function setupEventListeners() {
                 session = allSessions.find(s => s.username?.toLowerCase() === user);
             }
             if (session) {
-                activeSession = session;
-                allTrips = activeSession.trips || [];
-                await hydrateTripsWithCoPassengers(allTrips);
-                flattenedTrips = [];
-                populateYearPills(allTrips);
-                populateBuddyDropdown(allTrips);
-                filterState.page = 1;
-                updateUrlParams();
-                syncNavigationLinks(activeSession.username);
-                if (appMode === 'studio') {
-                    const currentSql = document.getElementById('sqlQueryInput')?.value || sqlEngine?.QUERY_RECIPES?.[0]?.sql;
-                    if (currentSql) runSqlQuery(currentSql);
-                } else {
-                    applyFiltersAndRender();
-                }
+                await switchActiveSession(session);
             }
         });
     }
@@ -558,7 +563,7 @@ function setupEventListeners() {
         });
     }
 
-    // Export Filtered Button
+    // Export Filtered Button (GeoJSON)
     const exportBtn = document.getElementById('exportFilteredBtn');
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
@@ -576,6 +581,124 @@ function setupEventListeners() {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        });
+    }
+
+    // Export Filtered CSV Button
+    const exportFilteredCsvBtn = document.getElementById('exportFilteredCsvBtn');
+    if (exportFilteredCsvBtn) {
+        exportFilteredCsvBtn.addEventListener('click', () => {
+            if (filteredTrips.length === 0) {
+                alert('No trips match the current filter criteria to export.');
+                return;
+            }
+            const csv = tripsToCSV(filteredTrips);
+            downloadCSVFile(csv, `traewelling-${activeSession?.username || 'trips'}-filtered.csv`);
+        });
+    }
+
+    // Export Filtered JSON Button
+    const exportFilteredJsonBtn = document.getElementById('exportFilteredJsonBtn');
+    if (exportFilteredJsonBtn) {
+        exportFilteredJsonBtn.addEventListener('click', () => {
+            if (filteredTrips.length === 0) {
+                alert('No trips match the current filter criteria to export.');
+                return;
+            }
+            const jsonData = tripsToJSON(filteredTrips, { username: activeSession?.username });
+            downloadJSONFile(jsonData, `traewelling-${activeSession?.username || 'trips'}-filtered.json`);
+        });
+    }
+
+    // Navigation Import Button & File Input
+    const navImportBtn = document.getElementById('navImportBtn');
+    const tripsImportFileInput = document.getElementById('tripsImportFileInput');
+    if (navImportBtn && tripsImportFileInput) {
+        navImportBtn.addEventListener('click', () => tripsImportFileInput.click());
+        tripsImportFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const fileName = (file.name || '').toLowerCase();
+                let trips = [];
+                let username = null;
+
+                if (fileName.endsWith('.csv') || file.type?.includes('csv')) {
+                    const parsed = parseCSVToTrips(text);
+                    trips = parsed.trips;
+                    username = parsed.username;
+                } else {
+                    let parsed = null;
+                    try {
+                        parsed = JSON.parse(text);
+                    } catch (jsonErr) {
+                        try {
+                            const csvParsed = parseCSVToTrips(text);
+                            if (csvParsed.trips && csvParsed.trips.length > 0) {
+                                trips = csvParsed.trips;
+                                username = csvParsed.username;
+                            } else {
+                                throw jsonErr;
+                            }
+                        } catch (fallbackErr) {
+                            throw new Error('The selected file is not valid JSON or CSV.');
+                        }
+                    }
+
+                    if (!trips.length && parsed) {
+                        const parsedResult = parseGeoJSONToTrips(parsed);
+                        trips = parsedResult.trips;
+                        username = parsedResult.username;
+                    }
+                }
+
+                if (!trips || !trips.length) {
+                    alert('No valid journeys were found in the selected file.');
+                    return;
+                }
+
+                let rawName = username;
+                if (!rawName || rawName === 'Exported Trips' || rawName === 'Imported CSV') {
+                    const match = file.name.match(/traewelling-([a-zA-Z0-9_\-]+?)-(?:all|filtered|full|trips)/i);
+                    if (match && match[1]) {
+                        rawName = match[1];
+                    } else {
+                        rawName = file.name.replace(/\.(geojson|json|csv)$/i, '').replace(/[^a-zA-Z0-9_\-]/g, '_');
+                    }
+                }
+                const usernameKey = (rawName || 'imported_travels').toLowerCase().trim();
+                const displayName = rawName ? (rawName.charAt(0).toUpperCase() + rawName.slice(1)) : 'Imported Travels';
+
+                const newSession = {
+                    username: usernameKey,
+                    displayName: displayName,
+                    avatar: null,
+                    tripCount: trips.length,
+                    trips: trips,
+                    timestamp: Date.now()
+                };
+
+                await SessionDB.save(usernameKey, newSession);
+
+                for (const t of trips) {
+                    const bId = t.backend_trip_id || t.train?.trip;
+                    if (bId && Array.isArray(t.co_passengers) && t.co_passengers.length > 0) {
+                        await SessionDB.saveTripCoPassengers(bId, t.co_passengers).catch(() => {});
+                    }
+                }
+
+                allSessions = await SessionDB.getSessionSummaries();
+                renderProfileDropdown();
+                const select = document.getElementById('profileSelect');
+                if (select) select.value = usernameKey;
+                await switchActiveSession(newSession);
+            } catch (err) {
+                console.error('Import error on trips page:', err);
+                alert(`Import failed: ${err.message || 'Unknown error'}`);
+            } finally {
+                e.target.value = '';
+            }
         });
     }
 
