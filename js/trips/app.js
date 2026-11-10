@@ -9,6 +9,7 @@ import { formatDelayMinutes, formatHumanDuration, formatTotalTime, calculateCO2S
 import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
 import { extractTripDetails, formatTimeShort } from '../ui/tripDetails.js';
 import { spatialPreviewEngine } from './mapPreview.js';
+import { getUnscannedTrips, startIncrementalScan } from './coPassengerScanner.js';
 
 let sqlEngine = null;
 let sqlAutocomplete = null;
@@ -570,6 +571,115 @@ function setupEventListeners() {
 
     // Setup Studio Database Workbench Listeners
     setupStudioEventListeners();
+
+    // Setup Incremental Co-Passenger Batch Scanner
+    setupCoPassengerScanner();
+}
+
+let activeScanController = null;
+
+export function updateScanButtonState() {
+    const btn = document.getElementById('btnScanCoPassengers');
+    const badge = document.getElementById('scanCoPassengersBadge');
+    const text = document.getElementById('scanCoPassengersText');
+    if (!btn || !text) return;
+
+    const username = activeSession?.username || '';
+    if (!username || !allTrips || !allTrips.length) {
+        btn.style.display = 'none';
+        return;
+    }
+    btn.style.display = 'inline-flex';
+
+    const { unscannedTrips } = getUnscannedTrips(allTrips, username);
+    if (unscannedTrips.length > 0) {
+        text.textContent = 'Scan for Travel Buddies';
+        if (badge) {
+            badge.textContent = `${unscannedTrips.length} new`;
+            badge.style.display = 'inline-block';
+            badge.style.background = 'rgba(56, 189, 248, 0.25)';
+            badge.style.color = '#38bdf8';
+        }
+    } else {
+        text.textContent = 'Travel Buddies Up to Date';
+        if (badge) {
+            badge.textContent = '✓';
+            badge.style.display = 'inline-block';
+            badge.style.background = 'rgba(16, 185, 129, 0.2)';
+            badge.style.color = '#10b981';
+        }
+    }
+}
+
+function setupCoPassengerScanner() {
+    const btn = document.getElementById('btnScanCoPassengers');
+    const progressBar = document.getElementById('scanProgressBar');
+    const progressText = document.getElementById('scanProgressText');
+    const cancelBtn = document.getElementById('btnCancelScan');
+
+    if (!btn) return;
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            if (activeScanController) {
+                activeScanController.cancel();
+                activeScanController = null;
+            }
+        });
+    }
+
+    btn.addEventListener('click', () => {
+        const username = activeSession?.username || '';
+        if (!username) return;
+
+        const { unscannedTrips } = getUnscannedTrips(allTrips, username);
+        if (!unscannedTrips.length) {
+            alert('All your trips have already been checked for travel buddies up to the latest check-in!');
+            return;
+        }
+
+        btn.disabled = true;
+        if (progressBar) progressBar.style.display = 'flex';
+
+        activeScanController = startIncrementalScan({
+            trips: allTrips,
+            username,
+            onProgress: ({ status, foundBuddies }) => {
+                if (progressText) {
+                    progressText.textContent = `${status} (${foundBuddies} travel buddies found)`;
+                }
+            },
+            onComplete: async ({ scannedCount, foundBuddiesCount, cancelled }) => {
+                btn.disabled = false;
+                activeScanController = null;
+                if (progressText) {
+                    progressText.textContent = cancelled
+                        ? `Scan paused. Checked ${scannedCount} trips, found ${foundBuddiesCount} buddies.`
+                        : `Scan complete! Checked ${scannedCount} new trips, found ${foundBuddiesCount} buddies.`;
+                }
+                setTimeout(() => {
+                    if (progressBar) progressBar.style.display = 'none';
+                }, 4000);
+
+                if (sqlEngine) {
+                    flattenedTrips = allTrips.map(sqlEngine.flattenTripRecord);
+                }
+                populateBuddyDropdown(allTrips);
+                applyFiltersAndRender();
+                updateScanButtonState();
+            },
+            onError: (err) => {
+                btn.disabled = false;
+                activeScanController = null;
+                if (progressText) {
+                    progressText.textContent = `Error: ${err.message}`;
+                }
+                setTimeout(() => {
+                    if (progressBar) progressBar.style.display = 'none';
+                }, 5000);
+            }
+        });
+    });
 }
 
 export function getFilteredGeoJSON() {
@@ -1483,6 +1593,9 @@ export function applyFiltersAndRender() {
 
     // Render Table or Cards
     renderResults();
+
+    // Update Incremental Co-Passenger Batch Scanner Button
+    updateScanButtonState();
 
     // Update Spatial Map preview if active
     const spatialPanel = document.getElementById('spatialSqlPanel');

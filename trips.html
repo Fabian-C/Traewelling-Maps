@@ -426,6 +426,12 @@
                 Showing journeys...
             </div>
             <div class="results-actions-group">
+                <button type="button" class="nav-link-btn" id="btnScanCoPassengers" style="padding: 4px 10px; font-size: 12px; background: rgba(56, 189, 248, 0.12); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); display: inline-flex; align-items: center; gap: 5px; cursor: pointer;" title="Scan trips for travel companions up to the last scan watermark">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    <span id="scanCoPassengersText">Scan for Travel Buddies</span>
+                    <span id="scanCoPassengersBadge" class="studio-badge" style="display: none; background: rgba(56, 189, 248, 0.25); color: #38bdf8; font-size: 10px; padding: 1px 5px; border-radius: 4px;"></span>
+                </button>
+
                 <!-- In Database Studio: Table Layout Mode (Unified Explorer vs Raw SQL Table) -->
                 <div class="view-mode-toggle" id="sqlTableModeToggle" role="group" aria-label="Table display format" style="display: none;">
                     <button type="button" class="view-btn active" id="btnTableUnified" title="Unified Explorer Table with check-in drawers">
@@ -449,6 +455,15 @@
                 </label>
             </div>
         </section>
+
+        <!-- Incremental Scan Progress Banner -->
+        <div id="scanProgressBar" style="display: none; margin: 8px 0 12px; padding: 10px 14px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; font-size: 12px; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="spinner" style="width: 14px; height: 14px; border: 2px solid rgba(56,189,248,0.3); border-top-color: var(--accent-cyan); border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite;"></span>
+                <span id="scanProgressText">Scanning check-ins for travel companions...</span>
+            </div>
+            <button type="button" id="btnCancelScan" class="studio-btn studio-btn-sm" style="padding: 2px 10px; font-size: 11px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: var(--text-muted); border-radius: 4px; cursor: pointer;">Cancel</button>
+        </div>
 
         <!-- Results Display: Table View (adhering to modern-web-guidance responsive-table) -->
         <section class="table-wrapper" id="tableViewContainer" tabindex="0" role="region" aria-label="Trip database table">
