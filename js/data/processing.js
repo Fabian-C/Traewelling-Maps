@@ -1,6 +1,6 @@
 // Data processing functions
 import { CONFIG } from '../config/config.js';
-import { getTripBuddies } from '../trips/formatters.js';
+import { getTripBuddies, hasJourneyOverlap } from '../trips/formatters.js';
 
 const KNOWN_CATEGORIES = new Set([
     'nationalExpress', 'national', 'regionalExp', 'regional',
@@ -140,6 +140,9 @@ export function indexTrip(trip, currentUsername = '') {
         }
         if (Array.isArray(arr)) {
             arr.forEach(fp => {
+                if (fp && typeof fp === 'object' && !hasJourneyOverlap(trip, fp)) {
+                    return;
+                }
                 const u = fp.user?.username || fp.username || fp.name || (typeof fp === 'string' ? fp : '');
                 if (u) {
                     addBuddy(u);

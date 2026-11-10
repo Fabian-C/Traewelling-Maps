@@ -4,7 +4,7 @@ import { normalizeTrip, denormalizeTrip } from '../../js/cache/normalizer.js';
 import { SessionDB } from '../../js/cache/session.js';
 import { executeTripQuery, flattenTripRecord, TABLE_SCHEMAS } from '../../js/trips/sqlEngine.js';
 import { extractTripDetails } from '../../js/ui/tripDetails.js';
-import { getTripBuddies } from '../../js/trips/formatters.js';
+import { getTripBuddies, hasJourneyOverlap } from '../../js/trips/formatters.js';
 
 describe('Upstream Trip Data & Co-Passenger Enrichment', () => {
 
@@ -297,15 +297,24 @@ describe('Upstream Trip Data & Co-Passenger Enrichment', () => {
             expect(Array.from(buddiesBefore).sort()).toEqual(['Hash', 'Magginator']);
         });
 
-        it('discovers fellow train travelers after enrichment while deduplicating existing text buddies', () => {
+        it('discovers fellow train travelers after enrichment while deduplicating existing text buddies and filtering non-overlapping legs', () => {
             // Simulate upstream enrichment on ICE 692 and RE8
             sampleTrips[0].co_passengers = [
                 { username: 'Hash', origin: 'Berlin Südkreuz', destination: 'Berlin Hbf' } // already in text, deduplicate!
             ];
+            // Floxy's trip: Frankfurt(Main)Hbf -> Berlin (Dep: 09:17, Arr: 13:22)
+            sampleTrips[1].train.origin.departurePlanned = '2026-11-03T09:17:00Z';
+            sampleTrips[1].train.destination.arrivalPlanned = '2026-11-03T13:22:00Z';
+
             sampleTrips[1].co_passengers = [
-                { username: 'Marci44', origin: 'Stuttgart Hbf', destination: 'Mannheim Hbf' },
-                { username: 'ichbinreis', origin: 'Frankfurt', destination: 'Berlin' },
-                { username: 'viehmann', origin: 'Fulda', destination: 'Leipzig' }
+                // 1. Same trip leg: Frankfurt -> Berlin (traveled together)
+                { username: 'ichbinreis', origin: 'Frankfurt', destination: 'Berlin', departure_time: '2026-11-03T09:17:00Z', arrival_time: '2026-11-03T13:22:00Z' },
+                // 2. Boarded midway: Erfurt -> Berlin (traveled together between Erfurt and Berlin)
+                { username: 'DanielKeller', origin: 'Erfurt', destination: 'Berlin', departure_time: '2026-11-03T10:45:00Z', arrival_time: '2026-11-03T13:22:00Z' },
+                // 3. Different leg BEFORE Floxy boarded: Stuttgart -> Mannheim (NOT together)
+                { username: 'Marci44', origin: 'Stuttgart Hbf', destination: 'Mannheim Hbf', departure_time: '2026-11-03T07:52:00Z', arrival_time: '2026-11-03T08:26:00Z' },
+                // 4. Branch off leg AFTER Floxy alighted: Leipzig -> Dresden (NOT together)
+                { username: 'viehmann', origin: 'Leipzig', destination: 'Dresden', departure_time: '2026-11-03T14:10:00Z', arrival_time: '2026-11-03T15:20:00Z' }
             ];
 
             const buddiesAfter = new Set();
@@ -313,20 +322,23 @@ describe('Upstream Trip Data & Co-Passenger Enrichment', () => {
                 getTripBuddies(t, 'floxy').forEach(b => buddiesAfter.add(b.username));
             });
 
-            // Grew from 2 to 5 distinct buddies, with @Hash cleanly deduplicated
-            expect(buddiesAfter.size).toBe(5);
+            // Floxy's buddies: Hash (RE8 text + checkin), Magginator (U6 text), ichbinreis (ICE 692), DanielKeller (ICE 692)
+            // Marci44 and viehmann are excluded because their train legs did not overlap Floxy's ride!
+            expect(buddiesAfter.size).toBe(4);
             expect(buddiesAfter.has('Hash')).toBe(true);
             expect(buddiesAfter.has('Magginator')).toBe(true);
-            expect(buddiesAfter.has('Marci44')).toBe(true);
             expect(buddiesAfter.has('ichbinreis')).toBe(true);
-            expect(buddiesAfter.has('viehmann')).toBe(true);
+            expect(buddiesAfter.has('DanielKeller')).toBe(true);
+            expect(buddiesAfter.has('Marci44')).toBe(false);
+            expect(buddiesAfter.has('viehmann')).toBe(false);
 
-            // Verify flattened record on ICE 692 has buddy_count: 3
+            // Verify flattened record on ICE 692 only counts overlapping travel buddies
             const flattenedIce = flattenTripRecord(sampleTrips[1]);
-            expect(flattenedIce.buddy_count).toBe(3);
-            expect(flattenedIce.buddies).toContain('@Marci44');
+            expect(flattenedIce.buddy_count).toBe(2);
             expect(flattenedIce.buddies).toContain('@ichbinreis');
-            expect(flattenedIce.buddies).toContain('@viehmann');
+            expect(flattenedIce.buddies).toContain('@DanielKeller');
+            expect(flattenedIce.buddies).not.toContain('@Marci44');
+            expect(flattenedIce.buddies).not.toContain('@viehmann');
         });
 
         it('retains co_passengers even when trip.buddies or trip.fellowPassengers is an empty array', () => {
@@ -346,6 +358,85 @@ describe('Upstream Trip Data & Co-Passenger Enrichment', () => {
             const flattened = flattenTripRecord(trip);
             expect(flattened.buddy_count).toBe(1);
             expect(flattened.buddies).toBe('@Marci44');
+        });
+    });
+
+    describe('hasJourneyOverlap (Segment & Temporal Validation)', () => {
+        const userTrip = {
+            train: {
+                origin: { name: 'Augsburg Hbf', departurePlanned: '2026-11-04T06:18:00Z' },
+                destination: { name: 'Stuttgart Hbf', arrivalPlanned: '2026-11-04T07:48:00Z' }
+            }
+        };
+
+        it('returns true for exact same train journey', () => {
+            const companion = {
+                origin: 'Augsburg Hbf',
+                destination: 'Stuttgart Hbf',
+                departure_time: '2026-11-04T06:18:00Z',
+                arrival_time: '2026-11-04T07:48:00Z'
+            };
+            expect(hasJourneyOverlap(userTrip, companion)).toBe(true);
+        });
+
+        it('returns true when companion boards midway between start and end', () => {
+            const companion = {
+                origin: 'Ulm Hbf',
+                destination: 'Stuttgart Hbf',
+                departure_time: '2026-11-04T06:55:00Z',
+                arrival_time: '2026-11-04T07:48:00Z'
+            };
+            expect(hasJourneyOverlap(userTrip, companion)).toBe(true);
+        });
+
+        it('returns true when companion alights midway between start and end', () => {
+            const companion = {
+                origin: 'Augsburg Hbf',
+                destination: 'Ulm Hbf',
+                departure_time: '2026-11-04T06:18:00Z',
+                arrival_time: '2026-11-04T06:55:00Z'
+            };
+            expect(hasJourneyOverlap(userTrip, companion)).toBe(true);
+        });
+
+        it('returns true when companion rides an enclosing journey (started before, ends after)', () => {
+            const companion = {
+                origin: 'München Hbf',
+                destination: 'Frankfurt(Main)Hbf',
+                departure_time: '2026-11-04T05:40:00Z',
+                arrival_time: '2026-11-04T09:15:00Z'
+            };
+            expect(hasJourneyOverlap(userTrip, companion)).toBe(true);
+        });
+
+        it('returns false when companion rode a later leg of the same train (e.g. Frankfurt -> Berlin)', () => {
+            const companion = {
+                origin: 'Frankfurt(Main)Hbf',
+                destination: 'Berlin Südkreuz',
+                departure_time: '2026-11-04T09:17:00Z',
+                arrival_time: '2026-11-04T13:22:00Z'
+            };
+            expect(hasJourneyOverlap(userTrip, companion)).toBe(false);
+        });
+
+        it('returns false when companion boarded at user destination station for a later leg (Stuttgart -> Mannheim)', () => {
+            const companion = {
+                origin: 'Stuttgart Hbf',
+                destination: 'Mannheim Hbf',
+                departure_time: '2026-11-04T07:52:00Z',
+                arrival_time: '2026-11-04T08:26:00Z'
+            };
+            expect(hasJourneyOverlap(userTrip, companion)).toBe(false);
+        });
+
+        it('returns false when companion alighted at user departure station prior to departure (München -> Augsburg)', () => {
+            const companion = {
+                origin: 'München Hbf',
+                destination: 'Augsburg Hbf',
+                departure_time: '2026-11-04T05:30:00Z',
+                arrival_time: '2026-11-04T06:15:00Z'
+            };
+            expect(hasJourneyOverlap(userTrip, companion)).toBe(false);
         });
     });
 

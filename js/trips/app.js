@@ -3,7 +3,7 @@ import { TraewellingAPI } from '../api/traewelling.js';
 import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { tripsToGeoJSON } from '../export/geojson.js';
 import { syncNavigationLinks } from '../ui/navigation.js';
-import { getTripBuddies, renderLinkedComment } from './formatters.js';
+import { getTripBuddies, renderLinkedComment, hasJourneyOverlap } from './formatters.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
 import { formatDelayMinutes, formatHumanDuration, formatTotalTime, calculateCO2Saved, formatSpeed, escapeHtml } from '../utils/format.js';
 import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
@@ -2515,7 +2515,10 @@ export function openTripDetailModal(trip) {
                 enrichBtn.style.display = 'inline-flex';
                 enrichBtn.disabled = false;
                 if (trip.co_passengers && trip.co_passengers.length > 0) {
-                    enrichBtn.innerHTML = `<span>Enriched (${trip.co_passengers.length})</span>`;
+                    const withUser = getTripBuddies(trip, activeSession?.username);
+                    enrichBtn.innerHTML = withUser.length > 0
+                        ? `<span>Enriched (${withUser.length})</span>`
+                        : `<span>Enriched (0 on your segment)</span>`;
                 } else {
                     enrichBtn.innerHTML = `
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -2533,7 +2536,9 @@ export function openTripDetailModal(trip) {
                             if (filtered.length > 0) {
                                 const updated = getTripBuddies(trip, activeSession?.username);
                                 renderBuddies(updated);
-                                enrichBtn.innerHTML = `<span>Enriched (${filtered.length})</span>`;
+                                enrichBtn.innerHTML = updated.length > 0
+                                    ? `<span>Enriched (${updated.length})</span>`
+                                    : `<span>Enriched (0 on your segment)</span>`;
                             }
                         }
                     }).catch(() => {});
@@ -2567,7 +2572,10 @@ export function openTripDetailModal(trip) {
                         trip.co_passengers = companions;
                         const updated = getTripBuddies(trip, activeSession?.username);
                         renderBuddies(updated);
-                        enrichBtn.innerHTML = `<span>Updated (${companions.length})</span>`;
+                        const withUser = updated.length;
+                        enrichBtn.innerHTML = withUser > 0
+                            ? `<span>Updated (${withUser})</span>`
+                            : `<span>Updated (0 on your segment)</span>`;
                         enrichBtn.disabled = false;
 
                         populateBuddyDropdown(allTrips);

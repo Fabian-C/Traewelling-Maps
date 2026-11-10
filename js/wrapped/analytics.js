@@ -1,5 +1,6 @@
 // Analytics calculation engine for Träwelling Rail Wrapped
 import { normalizeCategory, normalizeTripStatus } from '../data/processing.js';
+import { hasJourneyOverlap } from '../trips/formatters.js';
 
 export const EARTH_CIRCUMFERENCE_KM = 40075;
 export const MOON_DISTANCE_KM = 384400;
@@ -363,10 +364,18 @@ export function calculateWrappedInsights(trips = [], username = '') {
             trip.bodyMentions.forEach(m => recordBuddy(m.user?.username || m.username, m.user?.displayName, m.user?.profilePicture));
         }
         if (Array.isArray(trip.fellowPassengers)) {
-            trip.fellowPassengers.forEach(fp => recordBuddy(fp.user?.username || fp.username, fp.user?.displayName, fp.user?.profilePicture));
+            trip.fellowPassengers.forEach(fp => {
+                if (hasJourneyOverlap(trip, fp)) {
+                    recordBuddy(fp.user?.username || fp.username, fp.user?.displayName, fp.user?.profilePicture);
+                }
+            });
         }
         if (Array.isArray(trip.co_passengers)) {
-            trip.co_passengers.forEach(cp => recordBuddy(cp.user?.username || cp.username, cp.user?.displayName || cp.display_name, cp.user?.profilePicture));
+            trip.co_passengers.forEach(cp => {
+                if (hasJourneyOverlap(trip, cp)) {
+                    recordBuddy(cp.user?.username || cp.username, cp.user?.displayName || cp.display_name, cp.user?.profilePicture);
+                }
+            });
         }
         if (trip.createdBy?.username) {
             recordBuddy(trip.createdBy.username, trip.createdBy.displayName, trip.createdBy.profilePicture);

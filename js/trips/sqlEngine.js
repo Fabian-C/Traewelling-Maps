@@ -1,6 +1,7 @@
 // Lightweight in-memory SQL parser & evaluator for Träwelling Trips dataset
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
 import { normalizeCategory, getTripBusinessType } from '../data/processing.js';
+import { hasJourneyOverlap } from './formatters.js';
 
 export const TRIP_COLUMNS = [
     { name: 'id', label: 'ID', type: 'number', description: 'Check-in Status ID' },
@@ -205,7 +206,12 @@ export function flattenTripRecord(trip) {
             try { arr = JSON.parse(arr); } catch (e) { return; }
         }
         if (Array.isArray(arr)) {
-            arr.forEach(c => addBuddy(c.username || c.user?.username || c.name || c));
+            arr.forEach(c => {
+                if (c && typeof c === 'object' && !hasJourneyOverlap(trip, c)) {
+                    return;
+                }
+                addBuddy(c.username || c.user?.username || c.name || c);
+            });
         }
     });
     const bodyText = trip.body || trip.properties?.body || '';
