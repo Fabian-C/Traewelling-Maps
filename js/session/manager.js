@@ -341,7 +341,7 @@ export async function validateStoredToken(token) {
             username: user.data.username,
             displayName: user.data.displayName,
             avatar: user.data.profilePicture,
-            profileUrl: `https://traewelling.de/profile/${user.data.username}`,
+            profileUrl: `https://traewelling.de/@${user.data.username}`,
             validated: true
         };
         state.token = token;

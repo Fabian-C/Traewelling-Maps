@@ -191,7 +191,7 @@ export function renderTagsBadgesHTML(customTags) {
 export function renderBuddiesBadgesHTML(buddies) {
     if (!buddies || !buddies.length) return '';
     return buddies.map(b => 
-        `<a href="https://traewelling.de/profile/${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="mention-link" title="Open @${escapeHtml(b.username)} on Träwelling">@${escapeHtml(b.username)}</a>`
+        `<a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="mention-link" title="Open @${escapeHtml(b.username)} on Träwelling">@${escapeHtml(b.username)}</a>`
     ).join(' ');
 }
 

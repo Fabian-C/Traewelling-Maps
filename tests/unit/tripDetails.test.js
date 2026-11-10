@@ -107,7 +107,7 @@ describe('ui/tripDetails shared component', () => {
         it('renders travel buddies badges with safe profile links', () => {
             const buddies = [{ username: 'train_lover<script>' }];
             const html = renderBuddiesBadgesHTML(buddies);
-            expect(html).toContain('https://traewelling.de/profile/train_lover%3Cscript%3E');
+            expect(html).toContain('https://traewelling.de/@train_lover%3Cscript%3E');
             expect(html).toContain('@train_lover&lt;script&gt;');
             expect(html).not.toContain('<script>');
         });

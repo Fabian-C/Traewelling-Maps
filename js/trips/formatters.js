@@ -93,7 +93,7 @@ export function renderLinkedComment(text) {
     if (!text || typeof text !== 'string') return '';
     const safe = escapeHtml(text);
     return safe.replace(/@([a-zA-Z0-9_\-\.]+)/g, (match, username) => {
-        return `<a href="https://traewelling.de/profile/${encodeURIComponent(username)}" target="_blank" rel="noopener noreferrer" class="comment-mention-link" title="Open @${username} on Träwelling" onclick="event.stopPropagation()">@${username}</a>`;
+        return `<a href="https://traewelling.de/@${encodeURIComponent(username)}" target="_blank" rel="noopener noreferrer" class="comment-mention-link" title="Open @${username} on Träwelling" onclick="event.stopPropagation()">@${username}</a>`;
     });
 }
 

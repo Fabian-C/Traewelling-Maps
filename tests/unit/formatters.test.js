@@ -11,8 +11,8 @@ describe('trips/formatters', () => {
             const raw = '<script>alert(1)</script> with @alice & @bob';
             const rendered = renderLinkedComment(raw);
             expect(rendered).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
-            expect(rendered).toContain('https://traewelling.de/profile/alice');
-            expect(rendered).toContain('https://traewelling.de/profile/bob');
+            expect(rendered).toContain('https://traewelling.de/@alice');
+            expect(rendered).toContain('https://traewelling.de/@bob');
             expect(rendered).not.toContain('<script>');
         });
 
