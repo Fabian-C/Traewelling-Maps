@@ -26,7 +26,7 @@ export function extractTripDetails(tripOrFeature, currentUsername = '') {
 
     const rawId = props.statusId || tripOrFeature.id || props.id;
     const statusId = rawId !== undefined && rawId !== null && rawId !== 'unknown' ? String(rawId) : null;
-    const rawTripBackendId = props.backend_trip_id || props.backendTripId || train.trip || props.trip || tripOrFeature.trip || null;
+    const rawTripBackendId = props.backend_trip_id || props.backendTripId || train.trip || props.trip || tripOrFeature.trip || tripOrFeature.checkin?.trip || tripOrFeature.train?.trip || props.checkin?.trip || null;
     const backendTripId = rawTripBackendId !== null && rawTripBackendId !== undefined && rawTripBackendId !== '' ? Number(rawTripBackendId) : null;
 
     const lineName = train.lineName || train.number || train.name || props.lineName || 'Train';
