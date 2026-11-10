@@ -17,6 +17,7 @@ export const TRIP_COLUMNS = [
     { name: 'duration_min', label: 'Duration (min)', type: 'number', description: 'Trip duration in minutes' },
     { name: 'operator', label: 'Operator', type: 'string', description: 'Transport company / provider' },
     { name: 'business', label: 'Purpose', type: 'string', description: 'Travel purpose (private, business, commute)' },
+    { name: 'backend_trip_id', label: 'Trip ID', type: 'number', description: 'Träwelling upstream trip ID' },
     { name: 'buddies', label: 'Companions', type: 'string', description: 'Fellow passengers / buddies' },
     { name: 'buddy_count', label: 'Buddy Count', type: 'number', description: 'Number of fellow passengers / buddies' },
     { name: 'notes', label: 'Notes', type: 'string', description: 'Check-in message body' }
@@ -58,6 +59,19 @@ export const ROUTE_COLUMNS = [
     { name: 'destination_station_id', label: 'Destination ID', type: 'string', description: 'Destination terminal station ID' }
 ];
 
+export const CO_PASSENGER_COLUMNS = [
+    { name: 'trip_id', label: 'Trip ID', type: 'number', description: 'Träwelling upstream trip ID' },
+    { name: 'status_id', label: 'Status ID', type: 'number', description: 'Companion check-in status ID' },
+    { name: 'username', label: 'Username', type: 'string', description: 'Companion username' },
+    { name: 'display_name', label: 'Name', type: 'string', description: 'Companion display name' },
+    { name: 'origin', label: 'Origin', type: 'string', description: 'Boarding station' },
+    { name: 'destination', label: 'Destination', type: 'string', description: 'Exit station' },
+    { name: 'departure_time', label: 'Departure', type: 'datetime', description: 'Companion departure time' },
+    { name: 'arrival_time', label: 'Arrival', type: 'datetime', description: 'Companion arrival time' },
+    { name: 'body', label: 'Notes', type: 'string', description: 'Companion check-in message' },
+    { name: 'created_at', label: 'Checked In', type: 'datetime', description: 'Check-in timestamp' }
+];
+
 export const TABLE_SCHEMAS = {
     trips: {
         name: 'trips',
@@ -86,6 +100,13 @@ export const TABLE_SCHEMAS = {
         description: 'Normalized transit line runs, categories, and operators.',
         columns: ROUTE_COLUMNS,
         defaultQuery: 'SELECT id, line_name, category, operator_name FROM routes ORDER BY line_name ASC LIMIT 50'
+    },
+    co_passengers: {
+        name: 'co_passengers',
+        label: 'Co-Passengers (Companions)',
+        description: 'Other Träwelling users who checked into the same train run or connection.',
+        columns: CO_PASSENGER_COLUMNS,
+        defaultQuery: 'SELECT trip_id, username, origin, destination, body FROM co_passengers ORDER BY trip_id DESC LIMIT 50'
     }
 };
 
@@ -145,6 +166,14 @@ export const QUERY_RECIPES = [
     {
         title: 'Routes: Operating Transit Providers',
         sql: 'SELECT id, line_name, category, operator_name FROM routes ORDER BY operator_name ASC LIMIT 50'
+    },
+    {
+        title: 'Co-Passengers: Shared Journeys',
+        sql: 'SELECT trip_id, username, origin, destination, body FROM co_passengers ORDER BY trip_id DESC LIMIT 50'
+    },
+    {
+        title: 'Co-Passengers: Top Companions Ranked',
+        sql: 'SELECT username, COUNT(*) AS shared_trips FROM co_passengers GROUP BY username ORDER BY shared_trips DESC'
     }
 ];
 
@@ -177,12 +206,12 @@ export function flattenTripRecord(trip) {
     if (Array.isArray(mentions)) {
         mentions.forEach(m => addBuddy(m.username || m.name || m));
     }
-    let companions = trip.buddies || trip.properties?.buddies || trip.companions || trip.properties?.companions || trip.fellowPassengers;
+    let companions = trip.buddies || trip.properties?.buddies || trip.companions || trip.properties?.companions || trip.fellowPassengers || trip.co_passengers || trip.properties?.co_passengers;
     if (typeof companions === 'string') {
         try { companions = JSON.parse(companions); } catch (e) { companions = []; }
     }
     if (Array.isArray(companions)) {
-        companions.forEach(c => addBuddy(c.username || c.name || c));
+        companions.forEach(c => addBuddy(c.username || c.user?.username || c.name || c));
     }
     const bodyText = trip.body || trip.properties?.body || '';
     if (bodyText.includes('@')) {
@@ -214,6 +243,7 @@ export function flattenTripRecord(trip) {
         duration_min: computeTripDurationMinutes(train) || 0,
         operator: train.operator?.name || (typeof train.operator === 'string' ? train.operator : 'Unknown'),
         business: businessStr,
+        backend_trip_id: train.trip || train.tripId || trip.trip || trip.backend_trip_id || null,
         buddies: buddiesStr,
         buddy_count: buddyCount,
         buddies_count: buddyCount,
@@ -403,14 +433,15 @@ export function executeTripQuery(sql, records = [], options = {}) {
     let targetTable = 'trips';
     if (matchWord('FROM')) {
         const tableTok = consume();
-        const validTables = ['trips', 'trip', 'checkins', 'checkin', 'statuses', 'status', 'stations', 'station', 'routes', 'route', 'trips_runs'];
+        const validTables = ['trips', 'trip', 'checkins', 'checkin', 'statuses', 'status', 'stations', 'station', 'routes', 'route', 'trips_runs', 'co_passengers', 'copassengers', 'companions', 'buddies'];
         if (!tableTok || !validTables.includes(String(tableTok.value).toLowerCase())) {
-            throw new Error("Target table must be 'trips', 'statuses', 'stations', or 'routes'");
+            throw new Error("Target table must be 'trips', 'statuses', 'stations', 'routes', or 'co_passengers'");
         }
         const rawTable = String(tableTok.value).toLowerCase();
         if (['statuses', 'status'].includes(rawTable)) targetTable = 'statuses';
         else if (['stations', 'station'].includes(rawTable)) targetTable = 'stations';
         else if (['routes', 'route', 'trips_runs'].includes(rawTable)) targetTable = 'routes';
+        else if (['co_passengers', 'copassengers', 'companions', 'buddies'].includes(rawTable)) targetTable = 'co_passengers';
         else targetTable = 'trips';
     }
 

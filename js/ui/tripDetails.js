@@ -26,6 +26,8 @@ export function extractTripDetails(tripOrFeature, currentUsername = '') {
 
     const rawId = props.statusId || tripOrFeature.id || props.id;
     const statusId = rawId !== undefined && rawId !== null && rawId !== 'unknown' ? String(rawId) : null;
+    const rawTripBackendId = props.backend_trip_id || props.backendTripId || train.trip || props.trip || tripOrFeature.trip || null;
+    const backendTripId = rawTripBackendId !== null && rawTripBackendId !== undefined && rawTripBackendId !== '' ? Number(rawTripBackendId) : null;
 
     const lineName = train.lineName || train.number || train.name || props.lineName || 'Train';
     const rawCategory = normalizeCategory(props.category || train.category || tripOrFeature.layer?.id?.replace('-approximated', '') || 'regional');
@@ -114,6 +116,7 @@ export function extractTripDetails(tripOrFeature, currentUsername = '') {
 
     return {
         statusId,
+        backendTripId,
         lineName,
         category: rawCategory,
         categoryName,
@@ -190,9 +193,10 @@ export function renderTagsBadgesHTML(customTags) {
  */
 export function renderBuddiesBadgesHTML(buddies) {
     if (!buddies || !buddies.length) return '';
-    return buddies.map(b => 
-        `<a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="mention-link" title="Open @${escapeHtml(b.username)} on Träwelling">@${escapeHtml(b.username)}</a>`
-    ).join(' ');
+    return buddies.map(b => {
+        const seg = (b.origin && b.destination) ? ` (${escapeHtml(b.origin)} → ${escapeHtml(b.destination)})` : '';
+        return `<a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="mention-link" title="Open @${escapeHtml(b.username)} on Träwelling">@${escapeHtml(b.username)}${seg}</a>`;
+    }).join(' ');
 }
 
 /**

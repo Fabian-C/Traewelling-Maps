@@ -47,7 +47,7 @@ export function getTripBuddies(trip, currentUser = '') {
     }
 
     // 2. Companions / buddies / fellowPassengers array
-    let companions = trip.companions || trip.properties?.companions || trip.buddies || trip.properties?.buddies || trip.fellowPassengers;
+    let companions = trip.companions || trip.properties?.companions || trip.buddies || trip.properties?.buddies || trip.fellowPassengers || trip.co_passengers || trip.properties?.co_passengers;
     if (typeof companions === 'string') {
         try { companions = JSON.parse(companions); } catch { companions = []; }
     }

@@ -11,10 +11,11 @@ export const SessionDB = {
     STATIONS_STORE: 'stations',
     TRIPS_STORE: 'trips',
     STATUSES_STORE: 'statuses',
+    CO_PASSENGERS_STORE: 'co_passengers',
     GEOJSON_CACHE_STORE: 'geojson_cache',
     META_CACHE_KEY: STORAGE_KEYS.SESSIONS_META,
     MIGRATED_KEY: 'tw_db_relational_v4_migrated',
-    VERSION: 5,
+    VERSION: 6,
     MAX_SESSIONS: 15,
     _db: null,
 
@@ -102,6 +103,10 @@ export const SessionDB = {
                 }
                 if (!db.objectStoreNames.contains(this.GEOJSON_CACHE_STORE)) {
                     db.createObjectStore(this.GEOJSON_CACHE_STORE, { keyPath: 'username' });
+                }
+                if (!db.objectStoreNames.contains(this.CO_PASSENGERS_STORE)) {
+                    const coStore = db.createObjectStore(this.CO_PASSENGERS_STORE, { keyPath: 'trip_id' });
+                    coStore.createIndex('trip_id', 'trip_id', { unique: false });
                 }
             };
 
@@ -384,6 +389,7 @@ export const SessionDB = {
             if (db.objectStoreNames.contains(this.POLYLINES_STORE)) stores.push(this.POLYLINES_STORE);
             if (db.objectStoreNames.contains(this.STOPOVERS_STORE)) stores.push(this.STOPOVERS_STORE);
             if (db.objectStoreNames.contains(this.STATUSES_STORE)) stores.push(this.STATUSES_STORE);
+            if (db.objectStoreNames.contains(this.CO_PASSENGERS_STORE)) stores.push(this.CO_PASSENGERS_STORE);
             if (db.objectStoreNames.contains(this.GEOJSON_CACHE_STORE)) stores.push(this.GEOJSON_CACHE_STORE);
 
             const tx = db.transaction(stores, 'readwrite');
@@ -450,6 +456,7 @@ export const SessionDB = {
             if (db.objectStoreNames.contains(this.STATIONS_STORE)) stores.push(this.STATIONS_STORE);
             if (db.objectStoreNames.contains(this.TRIPS_STORE)) stores.push(this.TRIPS_STORE);
             if (db.objectStoreNames.contains(this.STATUSES_STORE)) stores.push(this.STATUSES_STORE);
+            if (db.objectStoreNames.contains(this.CO_PASSENGERS_STORE)) stores.push(this.CO_PASSENGERS_STORE);
             if (db.objectStoreNames.contains(this.GEOJSON_CACHE_STORE)) stores.push(this.GEOJSON_CACHE_STORE);
 
             const tx = db.transaction(stores, 'readwrite');
@@ -846,6 +853,88 @@ export const SessionDB = {
                 tx.onerror = () => reject(tx.error);
             } catch (e) {
                 reject(e);
+            }
+        });
+    },
+
+    // Save co-passengers for a given trip ID
+    async saveTripCoPassengers(tripId, passengers = []) {
+        if (!tripId || !Array.isArray(passengers)) return;
+        const db = await this.open();
+        if (!db.objectStoreNames.contains(this.CO_PASSENGERS_STORE)) return;
+        return new Promise((resolve, reject) => {
+            try {
+                const tx = db.transaction([this.CO_PASSENGERS_STORE], 'readwrite');
+                const store = tx.objectStore(this.CO_PASSENGERS_STORE);
+                const record = {
+                    trip_id: Number(tripId),
+                    passengers: passengers.map(p => ({
+                        trip_id: Number(tripId),
+                        status_id: p.status_id || p.id || null,
+                        co_status_id: p.co_status_id || p.id || null,
+                        username: p.user?.username || p.username || 'unknown',
+                        display_name: p.user?.name || p.display_name || p.user?.username || '',
+                        origin: p.checkin?.origin?.name || p.origin || 'Unknown',
+                        destination: p.checkin?.destination?.name || p.destination || 'Unknown',
+                        departure_time: p.checkin?.origin?.departureReal || p.checkin?.origin?.departurePlanned || p.departure_time || null,
+                        arrival_time: p.checkin?.destination?.arrivalReal || p.checkin?.destination?.arrivalPlanned || p.arrival_time || null,
+                        body: p.body || '',
+                        created_at: p.createdAt || p.created_at || null
+                    })),
+                    updatedAt: Date.now()
+                };
+                store.put(record);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            } catch (e) {
+                reject(e);
+            }
+        });
+    },
+
+    // Retrieve cached co-passengers for a trip ID
+    async getTripCoPassengers(tripId) {
+        if (!tripId) return [];
+        const db = await this.open();
+        if (!db.objectStoreNames.contains(this.CO_PASSENGERS_STORE)) return [];
+        return new Promise((resolve) => {
+            try {
+                const tx = db.transaction([this.CO_PASSENGERS_STORE], 'readonly');
+                const store = tx.objectStore(this.CO_PASSENGERS_STORE);
+                const req = store.get(Number(tripId));
+                req.onsuccess = () => {
+                    const rec = req.result;
+                    resolve(rec?.passengers || []);
+                };
+                req.onerror = () => resolve([]);
+            } catch {
+                resolve([]);
+            }
+        });
+    },
+
+    // Retrieve all cached co-passengers across all trips (flattened rows for SQL Studio)
+    async getAllCoPassengers() {
+        const db = await this.open();
+        if (!db.objectStoreNames.contains(this.CO_PASSENGERS_STORE)) return [];
+        return new Promise((resolve) => {
+            try {
+                const tx = db.transaction([this.CO_PASSENGERS_STORE], 'readonly');
+                const store = tx.objectStore(this.CO_PASSENGERS_STORE);
+                const req = store.getAll();
+                req.onsuccess = () => {
+                    const allRecs = req.result || [];
+                    const flattened = [];
+                    allRecs.forEach(r => {
+                        if (Array.isArray(r.passengers)) {
+                            flattened.push(...r.passengers);
+                        }
+                    });
+                    resolve(flattened);
+                };
+                req.onerror = () => resolve([]);
+            } catch {
+                resolve([]);
             }
         });
     },

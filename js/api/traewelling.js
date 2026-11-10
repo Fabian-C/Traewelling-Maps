@@ -116,6 +116,10 @@ export class TraewellingAPI {
         if (!statusIds || !statusIds.length) return Promise.resolve(null);
         return this.request(`/stopovers/${statusIds.join(',')}`).catch(() => null);
     }
+    getTripStatuses(tripId) {
+        if (!tripId) return Promise.resolve(null);
+        return this.request(`/trips/${encodeURIComponent(tripId)}/statuses`).catch(() => null);
+    }
     getAuthenticatedUser() { return this.request('/auth/user', true); }
     getPublicUser(username) { return this.request(`/user/${encodeURIComponent(username)}`); }
 }

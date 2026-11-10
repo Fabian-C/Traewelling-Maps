@@ -86,7 +86,13 @@ export function normalizeTrip(trip, username = '') {
     const lineName = train.lineName || train.number || train.name || 'Unknown';
     const category = normalizeCategory(train.category || 'regional');
     const operator = train.operator?.name || train.operator || 'Unknown';
+    const backendTripId = (typeof train.trip === 'number' || typeof train.trip === 'string')
+        ? Number(train.trip)
+        : (typeof trip.trip === 'number' || typeof trip.trip === 'string')
+            ? Number(trip.trip)
+            : (typeof train.tripId === 'number' ? Number(train.tripId) : null);
     const tripRunId =
+        backendTripId ||
         train.tripId ||
         train.hafasId ||
         train.journeyId ||
@@ -95,6 +101,7 @@ export function normalizeTrip(trip, username = '') {
 
     const tripRun = {
         id: String(tripRunId),
+        backend_trip_id: backendTripId,
         line_name: lineName,
         train_number: train.number ? String(train.number) : null,
         category: category,
@@ -142,6 +149,7 @@ export function normalizeTrip(trip, username = '') {
         id: statusId,
         username: String(username).toLowerCase(),
         trip_id: String(tripRunId),
+        backend_trip_id: backendTripId,
         origin_id: originStn ? originStn.id : null,
         destination_id: destStn ? destStn.id : null,
         departure_time: depTime,
@@ -197,6 +205,8 @@ export function denormalizeTrip(status, stationsMap = new Map(), tripRunsMap = n
         business: businessNum,
         visibility: status.visibility !== undefined ? status.visibility : 0,
         train: {
+            trip: run.backend_trip_id || status.backend_trip_id || null,
+            tripId: run.backend_trip_id || status.backend_trip_id || null,
             lineName: lineName,
             number: run.train_number || null,
             category: category,

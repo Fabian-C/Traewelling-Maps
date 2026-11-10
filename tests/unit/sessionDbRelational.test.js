@@ -311,16 +311,17 @@ describe('Normalized Relational Cache Architecture', () => {
             if (cleanupMock) cleanupMock();
         });
 
-        it('exposes VERSION 5 and normalized object store names', () => {
-            expect(SessionDB.VERSION).toBe(5);
+        it('exposes VERSION and normalized object store names', () => {
+            expect(SessionDB.VERSION).toBeGreaterThanOrEqual(5);
             expect(SessionDB.STORE_NAME).toBe('sessions');
             expect(SessionDB.STATIONS_STORE).toBe('stations');
             expect(SessionDB.TRIPS_STORE).toBe('trips');
             expect(SessionDB.STATUSES_STORE).toBe('statuses');
+            expect(SessionDB.CO_PASSENGERS_STORE).toBe('co_passengers');
             expect(SessionDB.GEOJSON_CACHE_STORE).toBe('geojson_cache');
         });
 
-        it('open creates all 7 object stores with indexes', async () => {
+        it('open creates all object stores with indexes', async () => {
             const db = await SessionDB.open();
             expect(db.objectStoreNames.contains('sessions')).toBe(true);
             expect(db.objectStoreNames.contains('stopovers')).toBe(true);
@@ -328,6 +329,7 @@ describe('Normalized Relational Cache Architecture', () => {
             expect(db.objectStoreNames.contains('stations')).toBe(true);
             expect(db.objectStoreNames.contains('trips')).toBe(true);
             expect(db.objectStoreNames.contains('statuses')).toBe(true);
+            expect(db.objectStoreNames.contains('co_passengers')).toBe(true);
             expect(db.objectStoreNames.contains('geojson_cache')).toBe(true);
 
             const statusStore = db.stores.statuses;

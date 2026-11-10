@@ -1,4 +1,5 @@
 import { SessionDB } from '../cache/session.js';
+import { TraewellingAPI } from '../api/traewelling.js';
 import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { tripsToGeoJSON } from '../export/geojson.js';
 import { syncNavigationLinks } from '../ui/navigation.js';
@@ -1255,6 +1256,7 @@ export async function getStudioDatasets() {
     let statuses = [];
     let stations = [];
     let routes = [];
+    let co_passengers = [];
 
     try {
         if (activeUser) {
@@ -1262,6 +1264,7 @@ export async function getStudioDatasets() {
         }
         stations = await SessionDB.getAllStations();
         routes = await SessionDB.getAllTrips();
+        co_passengers = await SessionDB.getAllCoPassengers();
     } catch (e) {
         console.warn('SessionDB relational query fallback:', e);
     }
@@ -1298,7 +1301,8 @@ export async function getStudioDatasets() {
         trips: flattenedTrips,
         statuses,
         stations,
-        routes
+        routes,
+        co_passengers
     };
 }
 
@@ -1311,7 +1315,7 @@ export async function runSqlQuery(sql) {
     await loadStudioModules();
 
     const datasets = await getStudioDatasets();
-    if (!datasets.trips.length && !datasets.statuses.length && !datasets.stations.length && !datasets.routes.length) return;
+    if (!datasets.trips.length && !datasets.statuses.length && !datasets.stations.length && !datasets.routes.length && !datasets.co_passengers?.length) return;
 
     try {
         const result = sqlEngine.executeTripQuery(sql, datasets.trips, { tables: datasets });
@@ -2206,6 +2210,7 @@ export function openTripDetailModal(trip) {
 
     const {
         statusId,
+        backendTripId,
         category,
         lineName,
         origin,
@@ -2286,6 +2291,105 @@ export function openTripDetailModal(trip) {
         notesText.innerHTML = renderLinkedComment(bodyText);
     } else {
         notesSec.style.display = 'none';
+    }
+
+    // Co-Passengers (Train Run)
+    const coPassengersSec = document.getElementById('modalCoPassengersSection');
+    const coPassengersList = document.getElementById('modalCoPassengersList');
+    const enrichBtn = document.getElementById('modalEnrichCoPassengersBtn');
+
+    const renderCoPassengers = (passengers) => {
+        if (!coPassengersList) return;
+        if (!passengers || !passengers.length) {
+            coPassengersList.innerHTML = `<span style="color: var(--text-muted); font-size: 12px; font-style: italic;">No other passengers found on this train run.</span>`;
+            return;
+        }
+        coPassengersList.innerHTML = passengers.map(p => {
+            const u = p.username || p.user?.username || 'unknown';
+            const fromTo = (p.origin && p.destination) ? ` · ${escapeHtml(p.origin)} → ${escapeHtml(p.destination)}` : '';
+            const msg = p.body ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">💬 ${escapeHtml(p.body)}</div>` : '';
+            return `
+                <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px 10px; width: 100%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <a href="https://traewelling.de/@${encodeURIComponent(u)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 2px 6px; font-size: 12px; font-weight: 600;">
+                            @${escapeHtml(u)}
+                        </a>
+                        <span style="font-size: 11px; color: var(--text-muted);">${fromTo}</span>
+                    </div>
+                    ${msg}
+                </div>
+            `;
+        }).join('');
+    };
+
+    if (coPassengersSec) {
+        if (backendTripId) {
+            coPassengersSec.style.display = 'block';
+            if (coPassengersList) coPassengersList.innerHTML = '';
+
+            SessionDB.getTripCoPassengers(backendTripId).then(cached => {
+                const currentU = (activeSession?.username || '').toLowerCase();
+                const filtered = cached ? cached.filter(p => (p.username || '').toLowerCase() !== currentU) : [];
+                if (filtered.length > 0) {
+                    renderCoPassengers(filtered);
+                    if (enrichBtn) {
+                        enrichBtn.innerHTML = `<span>Cached (${filtered.length})</span>`;
+                        enrichBtn.disabled = false;
+                    }
+                } else {
+                    if (coPassengersList) {
+                        coPassengersList.innerHTML = `<span style="color: var(--text-muted); font-size: 12px;">Click "Enrich from Träwelling" to fetch co-travelers on this connection.</span>`;
+                    }
+                    if (enrichBtn) {
+                        enrichBtn.innerHTML = `<span>🔄 Enrich from Träwelling</span>`;
+                        enrichBtn.disabled = false;
+                    }
+                }
+            }).catch(() => {});
+
+            if (enrichBtn) {
+                enrichBtn.onclick = async () => {
+                    enrichBtn.disabled = true;
+                    enrichBtn.textContent = 'Fetching...';
+                    try {
+                        const api = new TraewellingAPI(Storage.get(STORAGE_KEYS.TOKEN));
+                        const resp = await api.getTripStatuses(backendTripId);
+                        const rawStatuses = resp?.data || [];
+                        const currentU = (activeSession?.username || '').toLowerCase();
+                        const companions = rawStatuses
+                            .filter(s => (s.user?.username || '').toLowerCase() !== currentU)
+                            .map(s => ({
+                                trip_id: Number(backendTripId),
+                                status_id: s.id,
+                                co_status_id: s.id,
+                                username: s.user?.username || 'unknown',
+                                display_name: s.user?.name || s.user?.username || '',
+                                origin: s.checkin?.origin?.name || 'Unknown',
+                                destination: s.checkin?.destination?.name || 'Unknown',
+                                departure_time: s.checkin?.origin?.departureReal || s.checkin?.origin?.departurePlanned || null,
+                                arrival_time: s.checkin?.destination?.arrivalReal || s.checkin?.destination?.arrivalPlanned || null,
+                                body: s.body || '',
+                                created_at: s.createdAt || null
+                            }));
+
+                        await SessionDB.saveTripCoPassengers(backendTripId, companions);
+                        trip.co_passengers = companions;
+                        renderCoPassengers(companions);
+                        enrichBtn.innerHTML = `<span>Updated (${companions.length})</span>`;
+                        enrichBtn.disabled = false;
+                    } catch (err) {
+                        console.warn('Enrichment failed:', err);
+                        if (coPassengersList) {
+                            coPassengersList.innerHTML = `<span style="color: #ef4444; font-size: 12px;">Failed to fetch: ${escapeHtml(err.message || 'Network error')}</span>`;
+                        }
+                        enrichBtn.innerHTML = `<span>Retry</span>`;
+                        enrichBtn.disabled = false;
+                    }
+                };
+            }
+        } else {
+            coPassengersSec.style.display = 'none';
+        }
     }
 
     const tripId = statusId || trip.id;
