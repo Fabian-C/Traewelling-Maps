@@ -269,5 +269,66 @@ describe('Upstream Trip Data & Co-Passenger Enrichment', () => {
         });
     });
 
+    describe('Real-World User Scenario (Floxy)', () => {
+        const sampleTrips = [
+            {
+                id: 9580001,
+                body: 'Traveling with @Hash today!',
+                train: { lineName: 'RE8', origin: { name: 'Berlin Südkreuz' }, destination: { name: 'Berlin Hbf' } }
+            },
+            {
+                id: 9580002,
+                body: 'ICE ride across Germany',
+                train: { lineName: 'ICE 692', origin: { name: 'Frankfurt(Main)Hbf' }, destination: { name: 'Berlin' } }
+            },
+            {
+                id: 9580003,
+                body: 'Quick metro with @Magginator',
+                train: { lineName: 'U6', origin: { name: 'Mariendorf' }, destination: { name: 'Friedrichstr' } }
+            }
+        ];
+
+        it('discovers only text mentions prior to upstream enrichment', () => {
+            const buddiesBefore = new Set();
+            sampleTrips.forEach(t => {
+                getTripBuddies(t, 'floxy').forEach(b => buddiesBefore.add(b.username));
+            });
+
+            expect(Array.from(buddiesBefore).sort()).toEqual(['Hash', 'Magginator']);
+        });
+
+        it('discovers fellow train travelers after enrichment while deduplicating existing text buddies', () => {
+            // Simulate upstream enrichment on ICE 692 and RE8
+            sampleTrips[0].co_passengers = [
+                { username: 'Hash', origin: 'Berlin Südkreuz', destination: 'Berlin Hbf' } // already in text, deduplicate!
+            ];
+            sampleTrips[1].co_passengers = [
+                { username: 'Marci44', origin: 'Stuttgart Hbf', destination: 'Mannheim Hbf' },
+                { username: 'ichbinreis', origin: 'Frankfurt', destination: 'Berlin' },
+                { username: 'viehmann', origin: 'Fulda', destination: 'Leipzig' }
+            ];
+
+            const buddiesAfter = new Set();
+            sampleTrips.forEach(t => {
+                getTripBuddies(t, 'floxy').forEach(b => buddiesAfter.add(b.username));
+            });
+
+            // Grew from 2 to 5 distinct buddies, with @Hash cleanly deduplicated
+            expect(buddiesAfter.size).toBe(5);
+            expect(buddiesAfter.has('Hash')).toBe(true);
+            expect(buddiesAfter.has('Magginator')).toBe(true);
+            expect(buddiesAfter.has('Marci44')).toBe(true);
+            expect(buddiesAfter.has('ichbinreis')).toBe(true);
+            expect(buddiesAfter.has('viehmann')).toBe(true);
+
+            // Verify flattened record on ICE 692 has buddy_count: 3
+            const flattenedIce = flattenTripRecord(sampleTrips[1]);
+            expect(flattenedIce.buddy_count).toBe(3);
+            expect(flattenedIce.buddies).toContain('@Marci44');
+            expect(flattenedIce.buddies).toContain('@ichbinreis');
+            expect(flattenedIce.buddies).toContain('@viehmann');
+        });
+    });
+
 });
 
