@@ -1,6 +1,4 @@
 // UI module
-import { store } from '../state/store.js';
-import { CONFIG } from '../config/config.js';
 import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { clearAllSessions } from '../session/manager.js';
 

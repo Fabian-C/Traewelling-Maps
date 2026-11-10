@@ -1,5 +1,5 @@
 // Autocomplete & Smart Recommendations Engine for Database Studio SQL Console
-import { TRIP_COLUMNS, STATUS_COLUMNS, STATION_COLUMNS, ROUTE_COLUMNS, TABLE_SCHEMAS } from './sqlEngine.js';
+import { TRIP_COLUMNS, TABLE_SCHEMAS } from './sqlEngine.js';
 
 export const SQL_KEYWORDS = [
     { label: 'SELECT', insertText: 'SELECT ', type: 'keyword', detail: 'Select columns or expressions' },

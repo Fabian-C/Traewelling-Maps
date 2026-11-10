@@ -7,15 +7,14 @@ import { SessionDB } from '../cache/session.js';
 import { TraewellingAPI } from '../api/traewelling.js';
 import * as dataProcessing from '../data/processing.js';
 import * as analytics from '../analytics/statistics.js';
-import * as heatmap from '../map/heatmap.js';
 import { UI } from '../ui/ui.js';
 import { RateLimitUI } from '../ui/rateLimit.js';
 import { RouteAnimation } from '../map/routeAnimation.js';
 import { applyAllFilters } from '../filters/filterManager.js';
 import { loadLayers, syncMapLayerOrder } from '../map/layers.js';
 import { initMap, fitMapToData, waitForMapReady, setupMapInteractions, clearRouteHighlight } from '../map/interactions.js';
-import { toggleDelayOverlay, updateDelayOverlay, updateDelayOverlaySummary, invalidateDelayOverlayCache } from '../map/delayOverlay.js';
-import { fetchUserProfile, saveCurrentSession, rememberToken, logout } from '../session/manager.js';
+import { updateDelayOverlay, updateDelayOverlaySummary, invalidateDelayOverlayCache } from '../map/delayOverlay.js';
+import { fetchUserProfile, saveCurrentSession, rememberToken } from '../session/manager.js';
 import { FunFacts } from '../ui/funFacts.js';
 import { LoadingGame } from '../ui/loadingGame/index.js';
 import { updateFilterBadges } from '../events/listeners.js';
@@ -535,8 +534,7 @@ export async function startDataFetch(resumeFromState = false, incremental = fals
             const stopoversToFetch = allTripsWithTrain.filter(s => !Array.isArray(s.train.stopovers));
 
             if (stopoversToFetch.length > 0 && !state.cancelFetch) {
-                let initialBatchSize = 60;
-                let fetchQueue = [stopoversToFetch];
+                const initialBatchSize = 60;
                 let processedCount = 0;
                 const totalToFetch = stopoversToFetch.length;
 

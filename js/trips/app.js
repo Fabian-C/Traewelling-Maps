@@ -3,9 +3,9 @@ import { TraewellingAPI } from '../api/traewelling.js';
 import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { tripsToGeoJSON, tripsToCSV, tripsToJSON, parseGeoJSONToTrips, parseCSVToTrips, downloadCSVFile, downloadJSONFile } from '../export/geojson.js';
 import { syncNavigationLinks } from '../ui/navigation.js';
-import { getTripBuddies, renderLinkedComment, hasJourneyOverlap } from './formatters.js';
+import { getTripBuddies, renderLinkedComment } from './formatters.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
-import { formatDelayMinutes, formatHumanDuration, formatTotalTime, calculateCO2Saved, formatSpeed, escapeHtml } from '../utils/format.js';
+import { formatTotalTime, calculateCO2Saved, formatSpeed, escapeHtml } from '../utils/format.js';
 import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
 import { extractTripDetails, formatTimeShort } from '../ui/tripDetails.js';
 import { spatialPreviewEngine } from './mapPreview.js';
@@ -30,7 +30,6 @@ let activeSession = null;
 let allTrips = [];
 let filteredTrips = [];
 let flattenedTrips = [];
-let currentModalTrip = null;
 let durationDisplayMode = 'standard'; // 'standard' | 'days' | 'months'
 
 // Studio state
@@ -212,7 +211,7 @@ export async function initTripExplorer() {
             allSessions.unshift(activeSession);
             try {
                 await SessionDB.save(activeSession.username, activeSession.trips, { displayName: activeSession.displayName });
-            } catch (e) {}
+            } catch {}
         }
     }
 
@@ -335,12 +334,12 @@ function setupEventListeners() {
             let session = null;
             try {
                 session = await SessionDB.get(user);
-            } catch (err) {}
+            } catch {}
             if (!session || !session.trips?.length) {
                 try {
                     const fullList = await SessionDB.getAll();
                     session = fullList.find(s => s.username?.toLowerCase() === user) || null;
-                } catch (err) {}
+                } catch {}
             }
             if (!session) {
                 session = allSessions.find(s => s.username?.toLowerCase() === user);
@@ -641,7 +640,7 @@ function setupEventListeners() {
                             } else {
                                 throw jsonErr;
                             }
-                        } catch (fallbackErr) {
+                        } catch {
                             throw new Error('The selected file is not valid JSON or CSV.');
                         }
                     }
@@ -1728,7 +1727,7 @@ function downloadFile(content, filename, mimeType) {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => {
-        try { URL.revokeObjectURL(url); } catch (e) {}
+        try { URL.revokeObjectURL(url); } catch {}
     }, 1000);
 }
 
@@ -2590,8 +2589,8 @@ export function openTripDetailModal(trip) {
     const arrDelayMin = Math.round(arrDelaySec / 60);
     const delayFormatted = arrDelayMin > 0 ? `+${arrDelayMin} min late` : (arrDelayMin < 0 ? `${Math.abs(arrDelayMin)} min early` : 'Punctual (On-time)');
 
-    // Store active modal trip for export actions
-    currentModalTrip = trip;
+    // Store active modal trip for devtools & export actions
+    window.currentModalTrip = trip;
 
     // Modal elements
     document.getElementById('modalLineBadge').textContent = lineName;
@@ -2816,7 +2815,7 @@ function formatTime(isoStr) {
     try {
         const d = new Date(isoStr);
         return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
+    } catch {
         return '—';
     }
 }

@@ -172,7 +172,6 @@ export const RouteAnimation = {
         state.layers.data.forEach((layer, categoryId) => {
             if (!layer.visible) return;
             const layerColor = hexToRgbArray(layer.color || '#ffffff');
-            const categorySpeed = this.config.speeds[categoryId] || 0.9;
             layer.data.features.forEach(feature => {
                 const coords = feature.geometry?.coordinates;
                 if (!coords || coords.length < 2) return;

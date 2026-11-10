@@ -1,7 +1,7 @@
 // Statistics and analytics functions
 import { store } from '../state/store.js';
 import { escapeHtml } from '../utils/format.js';
-import { normalizeCategory, indexTrip, indexTrips, getTripBusinessType, matchesTripSearch } from '../data/processing.js';
+import { normalizeCategory, indexTrip, getTripBusinessType, matchesTripSearch } from '../data/processing.js';
 
 export function resetStatistics(statisticsObj) {
     if (!statisticsObj) {
@@ -41,7 +41,7 @@ export function updateStatisticsWithTrip(trip, statisticsObj) {
         timestamp = idx.timestamp;
     } else {
         let train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin;
-        if (typeof train === 'string') try { train = JSON.parse(train); } catch (e) { train = {}; }
+        if (typeof train === 'string') try { train = JSON.parse(train); } catch { train = {}; }
         train = train || {};
         distance = (typeof train.totalDistance === 'number' ? train.totalDistance : train.distance) || 0;
         lineName = train.lineName || train.number || 'Unknown';

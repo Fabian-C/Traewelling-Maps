@@ -6,16 +6,14 @@ import { RouteAnimation } from '../map/routeAnimation.js';
 import { UI } from '../ui/ui.js';
 import { TraewellingAPI } from '../api/traewelling.js';
 import { invalidateDelayOverlayCache, updateDelayOverlay, updateDelayOverlaySummary, toggleDelayOverlay } from '../map/delayOverlay.js';
-import { SessionDB } from '../cache/session.js';
-import { applyAllFilters } from '../filters/filterManager.js';
 import { updateRouteDensity, toggleHeatmap } from '../map/heatmap.js';
 import { logout, rememberToken } from '../session/manager.js';
-import { startDataFetch, refreshActiveTrips, processAndDisplayData } from '../fetch/orchestrator.js';
+import { startDataFetch, refreshActiveTrips } from '../fetch/orchestrator.js';
 import * as dataProcessing from '../data/processing.js';
 import * as analytics from '../analytics/statistics.js';
 import { updateAllStatistics as updateAllStats } from '../analytics/statistics.js';
-import { reloadAllLayers, loadLayers, syncMapLayerOrder } from '../map/layers.js';
-import { exportTrips, exportTripsGeoJSON, handleStopoverToggleChange, handleGeoJSONUpload } from '../export/geojson.js';
+import { loadLayers, syncMapLayerOrder } from '../map/layers.js';
+import { exportTrips, handleStopoverToggleChange, handleGeoJSONUpload } from '../export/geojson.js';
 import { clearRouteHighlight } from '../map/interactions.js';
 
 export function setupEventListeners() {
@@ -376,7 +374,7 @@ export function setupEventListeners() {
                 state.authMethod = 'token';
                 UI.syncTokenInputs(token);
                 rememberToken(token, { autoValidate: false, authMethod: 'token' });
-            } catch (error) {
+            } catch {
                 UI.setTokenStatus('Invalid token', 'error');
                 state.tokenOwner.validated = false;
             } finally {

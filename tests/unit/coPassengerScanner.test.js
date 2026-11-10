@@ -7,7 +7,6 @@ import {
     getUnscannedTrips,
     startIncrementalScan
 } from '../../js/trips/coPassengerScanner.js';
-import { Storage } from '../../js/storage/storage.js';
 import { SessionDB } from '../../js/cache/session.js';
 
 describe('Incremental Co-Passenger Batch Scanner', () => {

@@ -6,7 +6,7 @@
 import { escapeHtml, formatHumanDuration } from '../utils/format.js';
 import { normalizeCategory, extractTripTags } from '../data/processing.js';
 import { CATEGORY_NAMES } from '../map/layers.js';
-import { getTripBuddies, renderLinkedComment } from '../trips/formatters.js';
+import { getTripBuddies } from '../trips/formatters.js';
 
 /**
  * Normalizes all nested trip and check-in properties into a unified structure

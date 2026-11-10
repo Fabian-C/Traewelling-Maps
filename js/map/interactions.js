@@ -2,16 +2,13 @@
 import { CONFIG } from '../config/config.js';
 import { store } from '../state/store.js';
 import { RouteAnimation } from './routeAnimation.js';
-import { getTapTolerancePx, snapLngLatToLine, computeRouteLengthKm } from '../utils/geometry.js';
-import { getDelayColor } from '../utils/color.js';
-import { getDelayWidth } from '../utils/math.js';
+import { getTapTolerancePx, snapLngLatToLine } from '../utils/geometry.js';
 import { getPixelRadiusKm } from './delayOverlay.js';
 import { getDelayOverlayFeatureAtLngLat, buildFeatureFromDelayOverlay } from './delayOverlay.js';
 import { setupEventListeners } from '../events/listeners.js';
 import { updateRouteDensity } from './heatmap.js';
 import { escapeHtml } from '../utils/format.js';
-import { CATEGORY_NAMES } from './layers.js';
-import { normalizeCategory, extractTripTags, getTripSearchMatchReason } from '../data/processing.js';
+import { getTripSearchMatchReason } from '../data/processing.js';
 import {
     extractTripDetails,
     formatTimeShort,
@@ -481,8 +478,6 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
             actualDeparture,
             plannedArrival,
             actualArrival,
-            departureDelay,
-            arrivalDelay,
             platform,
             distanceKm: distance,
             durationDisplay,

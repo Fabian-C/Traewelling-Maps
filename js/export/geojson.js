@@ -589,7 +589,7 @@ export function parseCSVToTrips(csvText) {
                 } else {
                     parsedBuddies = buddiesRaw.split(',').map(s => s.trim().replace(/^@/, '')).filter(Boolean).map(u => ({ username: u, displayName: u }));
                 }
-            } catch (e) {
+            } catch {
                 parsedBuddies = buddiesRaw.split(',').map(s => s.trim().replace(/^@/, '')).filter(Boolean).map(u => ({ username: u, displayName: u }));
             }
         }
@@ -751,7 +751,6 @@ export async function fetchStopoversForTrips(trips = [], onProgress = null) {
     const initialBatchSize = 60;
     const totalToFetch = stillMissing.length;
     let completedCount = targetTrips.length - totalToFetch;
-    let processedMissing = 0;
 
     const fetchExportBatchDynamic = async (subBatch) => {
         if (!subBatch.length) return;
@@ -773,9 +772,8 @@ export async function fetchStopoversForTrips(trips = [], onProgress = null) {
                 t.train.stopovers = filtered;
                 newlyFetched[t.id] = filtered;
             });
-            processedMissing += subBatch.length;
             completedCount += subBatch.length;
-        } catch (err) {
+        } catch {
             if (subBatch.length > 5) {
                 const mid = Math.ceil(subBatch.length / 2);
                 await fetchExportBatchDynamic(subBatch.slice(0, mid));
@@ -784,7 +782,6 @@ export async function fetchStopoversForTrips(trips = [], onProgress = null) {
                 subBatch.forEach(t => {
                     if (!Array.isArray(t.train.stopovers)) t.train.stopovers = [];
                 });
-                processedMissing += subBatch.length;
                 completedCount += subBatch.length;
             }
         }
@@ -1031,7 +1028,7 @@ export function parseGeoJSONToTrips(data) {
     if (!data) return { trips: [], username: null };
 
     let features = [];
-    let username = data.username || null;
+    const username = data.username || null;
 
     if (data.type === 'FeatureCollection' && Array.isArray(data.features)) {
         features = data.features;
@@ -1208,7 +1205,7 @@ export async function handleGeoJSONUpload(file) {
                     } else {
                         throw jsonErr;
                     }
-                } catch (fallbackErr) {
+                } catch {
                     throw new Error('The selected file is not valid JSON or CSV.');
                 }
             }

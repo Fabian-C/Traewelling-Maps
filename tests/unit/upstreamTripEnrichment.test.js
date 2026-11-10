@@ -105,8 +105,6 @@ describe('Upstream Trip Data & Co-Passenger Enrichment', () => {
     });
 
     describe('SessionDB co_passengers store & methods', () => {
-        let cleanupMock;
-
         beforeEach(() => {
             SessionDB._db = null;
             // Setup simple in-memory mock IndexedDB
