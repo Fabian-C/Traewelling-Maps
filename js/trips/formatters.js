@@ -15,7 +15,7 @@ export function getTripBuddies(trip, currentUser = '') {
     const buddies = new Map();
     const currentClean = (currentUser || '').toLowerCase().trim();
 
-    const addBuddy = (u, display = '') => {
+    const addBuddy = (u, display = '', origin = '', destination = '', body = '') => {
         if (!u || typeof u !== 'string') return;
         const clean = u.replace(/^@/, '').trim();
         if (!clean) return;
@@ -24,8 +24,19 @@ export function getTripBuddies(trip, currentUser = '') {
         if (!buddies.has(key)) {
             buddies.set(key, {
                 username: clean,
-                displayName: display || clean
+                displayName: display || clean,
+                origin: origin || null,
+                destination: destination || null,
+                body: body || null
             });
+        } else {
+            const existing = buddies.get(key);
+            if (origin && !existing.origin) existing.origin = origin;
+            if (destination && !existing.destination) existing.destination = destination;
+            if (body && !existing.body) existing.body = body;
+            if (display && (!existing.displayName || existing.displayName === existing.username)) {
+                existing.displayName = display;
+            }
         }
     };
 
@@ -46,7 +57,7 @@ export function getTripBuddies(trip, currentUser = '') {
         });
     }
 
-    // 2. Companions / buddies / fellowPassengers array
+    // 2. Companions / buddies / fellowPassengers / co_passengers array
     let companions = trip.companions || trip.properties?.companions || trip.buddies || trip.properties?.buddies || trip.fellowPassengers || trip.co_passengers || trip.properties?.co_passengers;
     if (typeof companions === 'string') {
         try { companions = JSON.parse(companions); } catch { companions = []; }
@@ -58,7 +69,10 @@ export function getTripBuddies(trip, currentUser = '') {
             } else if (c && typeof c === 'object') {
                 const u = c.user?.username || c.username || c.name;
                 const d = c.user?.displayName || c.displayName || c.name || u;
-                addBuddy(u, d);
+                const orig = c.origin?.name || c.checkin?.origin?.name || c.origin || '';
+                const dest = c.destination?.name || c.checkin?.destination?.name || c.destination || '';
+                const body = c.body || '';
+                addBuddy(u, d, orig, dest, body);
             }
         });
     }

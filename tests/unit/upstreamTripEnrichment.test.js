@@ -192,45 +192,50 @@ describe('Upstream Trip Data & Co-Passenger Enrichment', () => {
         });
     });
 
-    describe('SQL Engine co_passengers table & queries', () => {
-        it('defines co_passengers in TABLE_SCHEMAS', () => {
-            expect(TABLE_SCHEMAS.co_passengers).toBeDefined();
-            expect(TABLE_SCHEMAS.co_passengers.name).toBe('co_passengers');
-            const colNames = TABLE_SCHEMAS.co_passengers.columns.map(c => c.name);
-            expect(colNames).toContain('trip_id');
-            expect(colNames).toContain('username');
-            expect(colNames).toContain('origin');
-            expect(colNames).toContain('destination');
+    describe('SQL Engine Unified Buddies on trips', () => {
+        it('includes buddies and buddy_count in trips schema without separate co_passengers table', () => {
+            expect(TABLE_SCHEMAS.co_passengers).toBeUndefined();
+            expect(TABLE_SCHEMAS.trips).toBeDefined();
+            const colNames = TABLE_SCHEMAS.trips.columns.map(c => c.name);
+            expect(colNames).toContain('buddies');
+            expect(colNames).toContain('buddy_count');
         });
 
-        it('queries co_passengers table using executeTripQuery', () => {
-            const coPassengers = [
-                { trip_id: 9289803, username: 'Astro', origin: 'Berlin', destination: 'Potsdam', body: 'Hi' },
-                { trip_id: 9289804, username: 'Bob', origin: 'Hamburg', destination: 'Bremen', body: '' }
-            ];
-
-            const result = executeTripQuery('SELECT username, origin FROM co_passengers WHERE trip_id = 9289803', [], {
-                tables: { co_passengers: coPassengers }
-            });
-
-            expect(result.table).toBe('co_passengers');
-            expect(result.rows.length).toBe(1);
-            expect(result.rows[0].username).toBe('Astro');
-            expect(result.rows[0].origin).toBe('Berlin');
-        });
-
-        it('merges co_passengers in flattenTripRecord into buddies and buddy_count', () => {
+        it('queries trips table with buddies using executeTripQuery', () => {
             const trip = {
                 id: 9577959,
+                line: 'U6',
+                origin: 'Alt-Mariendorf',
+                destination: 'Friedrichstraße',
+                buddies: '@Astro, @Max',
+                buddy_count: 2
+            };
+
+            const result = executeTripQuery('SELECT line, buddies, buddy_count FROM trips WHERE buddy_count >= 2', [trip]);
+
+            expect(result.table).toBe('trips');
+            expect(result.rows.length).toBe(1);
+            expect(result.rows[0].buddies).toBe('@Astro, @Max');
+            expect(result.rows[0].buddy_count).toBe(2);
+        });
+
+        it('merges co_passengers and text mentions in flattenTripRecord into deduplicated buddies and buddy_count', () => {
+            const trip = {
+                id: 9577959,
+                body: 'Riding with @astro and @someone',
                 train: { lineName: 'U6', origin: { name: 'A' }, destination: { name: 'B' } },
                 co_passengers: [
-                    { username: 'Astro' }
+                    { username: 'Astro' },
+                    { username: 'Elena' }
                 ]
             };
 
             const flattened = flattenTripRecord(trip);
-            expect(flattened.buddies).toContain('@Astro');
-            expect(flattened.buddy_count).toBeGreaterThanOrEqual(1);
+            // astro is in both text mention and co_passengers: should be deduplicated
+            expect(flattened.buddies.toLowerCase()).toContain('@astro');
+            expect(flattened.buddies.toLowerCase()).toContain('@someone');
+            expect(flattened.buddies.toLowerCase()).toContain('@elena');
+            expect(flattened.buddy_count).toBe(3);
         });
     });
 

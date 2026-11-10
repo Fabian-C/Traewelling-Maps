@@ -145,8 +145,10 @@ export function startIncrementalScan({
         const total = unscannedTrips.length;
         const currentClean = (username || '').toLowerCase().trim();
 
+        const BATCH_SIZE = 5;
+
         try {
-            for (let i = 0; i < total; i++) {
+            for (let i = 0; i < total; i += BATCH_SIZE) {
                 if (isCancelled) {
                     onProgress({
                         current: i,
@@ -158,67 +160,71 @@ export function startIncrementalScan({
                     break;
                 }
 
-                const trip = unscannedTrips[i];
-                const tripBackendId = getTripBackendId(trip);
-                const lineName = trip.train?.lineName || trip.checkin?.lineName || 'Transit';
+                const chunk = unscannedTrips.slice(i, i + BATCH_SIZE);
 
-                onProgress({
-                    current: i + 1,
-                    total,
-                    percentage: Math.round(((i + 1) / total) * 100),
-                    status: `Checking ${lineName} (${i + 1}/${total})...`,
-                    foundBuddies: foundBuddiesCount,
-                    currentTrip: trip
-                });
+                await Promise.all(chunk.map(async (trip, chunkIdx) => {
+                    if (isCancelled) return;
+                    const tripBackendId = getTripBackendId(trip);
+                    const lineName = trip.train?.lineName || trip.checkin?.lineName || 'Transit';
 
-                if (tripBackendId) {
-                    // 1. Check if already cached in IndexedDB
-                    let cached = null;
-                    try {
-                        cached = await SessionDB.getTripCoPassengers(tripBackendId);
-                    } catch {}
+                    onProgress({
+                        current: Math.min(i + chunkIdx + 1, total),
+                        total,
+                        percentage: Math.round((Math.min(i + chunkIdx + 1, total) / total) * 100),
+                        status: `Checking ${lineName} (${Math.min(i + chunkIdx + 1, total)}/${total})...`,
+                        foundBuddies: foundBuddiesCount,
+                        currentTrip: trip
+                    });
 
-                    if (cached && Array.isArray(cached) && cached.length > 0 && !forceFullRescan) {
-                        const others = cached.filter(p => (p.username || '').toLowerCase() !== currentClean);
-                        foundBuddiesCount += others.length;
-                        trip.co_passengers = others;
-                    } else {
-                        // 2. Fetch from upstream API
+                    if (tripBackendId) {
+                        // 1. Check if already cached in IndexedDB
+                        let cached = null;
                         try {
-                            const resp = await api.getTripStatuses(tripBackendId);
-                            const rawStatuses = resp?.data || [];
-                            const companions = rawStatuses
-                                .filter(s => (s.user?.username || '').toLowerCase() !== currentClean)
-                                .map(s => ({
-                                    trip_id: Number(tripBackendId),
-                                    status_id: s.id,
-                                    co_status_id: s.id,
-                                    username: s.user?.username || 'unknown',
-                                    display_name: s.user?.name || s.user?.username || '',
-                                    origin: s.checkin?.origin?.name || 'Unknown',
-                                    destination: s.checkin?.destination?.name || 'Unknown',
-                                    departure_time: s.checkin?.origin?.departureReal || s.checkin?.origin?.departurePlanned || null,
-                                    arrival_time: s.checkin?.destination?.arrivalReal || s.checkin?.destination?.arrivalPlanned || null,
-                                    body: s.body || '',
-                                    created_at: s.createdAt || null
-                                }));
+                            cached = await SessionDB.getTripCoPassengers(tripBackendId);
+                        } catch {}
 
-                            await SessionDB.saveTripCoPassengers(tripBackendId, companions);
-                            trip.co_passengers = companions;
-                            if (companions.length > 0) {
-                                foundBuddiesCount += companions.length;
+                        if (cached && Array.isArray(cached) && cached.length > 0 && !forceFullRescan) {
+                            const others = cached.filter(p => (p.username || '').toLowerCase() !== currentClean);
+                            foundBuddiesCount += others.length;
+                            trip.co_passengers = others;
+                        } else {
+                            // 2. Fetch from upstream API
+                            try {
+                                const resp = await api.getTripStatuses(tripBackendId);
+                                const rawStatuses = resp?.data || [];
+                                const companions = rawStatuses
+                                    .filter(s => (s.user?.username || '').toLowerCase() !== currentClean)
+                                    .map(s => ({
+                                        trip_id: Number(tripBackendId),
+                                        status_id: s.id,
+                                        co_status_id: s.id,
+                                        username: s.user?.username || 'unknown',
+                                        display_name: s.user?.name || s.user?.username || '',
+                                        origin: s.checkin?.origin?.name || 'Unknown',
+                                        destination: s.checkin?.destination?.name || 'Unknown',
+                                        departure_time: s.checkin?.origin?.departureReal || s.checkin?.origin?.departurePlanned || null,
+                                        arrival_time: s.checkin?.destination?.arrivalReal || s.checkin?.destination?.arrivalPlanned || null,
+                                        body: s.body || '',
+                                        created_at: s.createdAt || null
+                                    }));
+
+                                await SessionDB.saveTripCoPassengers(tripBackendId, companions);
+                                trip.co_passengers = companions;
+                                if (companions.length > 0) {
+                                    foundBuddiesCount += companions.length;
+                                }
+                            } catch (err) {
+                                console.warn(`[CoPassengerScanner] Skipped trip ${tripBackendId}:`, err.message);
                             }
-                        } catch (err) {
-                            console.warn(`[CoPassengerScanner] Skipped trip ${tripBackendId}:`, err.message);
                         }
                     }
-                }
 
-                scannedCount++;
+                    scannedCount++;
+                }));
 
-                // Polite pause between queries to avoid UI stutter and respect server
-                if (i < total - 1 && !isCancelled) {
-                    await new Promise(r => setTimeout(r, 150));
+                // Polite pause between chunks to avoid UI stutter and respect server
+                if (i + BATCH_SIZE < total && !isCancelled) {
+                    await new Promise(r => setTimeout(r, 50));
                 }
             }
 

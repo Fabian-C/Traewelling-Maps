@@ -30,8 +30,7 @@ export const SQL_TABLES = [
     { label: 'trips', insertText: 'trips ', type: 'table', detail: 'Denormalized journeys table (default)' },
     { label: 'statuses', insertText: 'statuses ', type: 'table', detail: 'Normalized check-in events referencing trips & stations' },
     { label: 'stations', insertText: 'stations ', type: 'table', detail: 'Normalized transit stops & station coordinates' },
-    { label: 'routes', insertText: 'routes ', type: 'table', detail: 'Normalized transit line runs, categories & operators' },
-    { label: 'co_passengers', insertText: 'co_passengers ', type: 'table', detail: 'Upstream co-travelers and companions sharing the same trip run' }
+    { label: 'routes', insertText: 'routes ', type: 'table', detail: 'Normalized transit line runs, categories & operators' }
 ];
 
 export const SQL_VALUES = [
@@ -92,12 +91,6 @@ export const SQL_SNIPPETS = [
         insertText: 'SELECT id, line_name, category, operator_name FROM routes ORDER BY line_name ASC LIMIT 50',
         type: 'recipe',
         detail: 'List line runs and transport providers'
-    },
-    {
-        label: 'SELECT * FROM co_passengers',
-        insertText: 'SELECT trip_id, username, origin, destination, body FROM co_passengers ORDER BY trip_id DESC LIMIT 50',
-        type: 'recipe',
-        detail: 'List fellow co-travelers and companions'
     },
     {
         label: 'delay_dep > 15',
@@ -189,7 +182,7 @@ export function getSQLCompletions(sql = '', cursorPos = 0) {
         if (['statuses', 'status'].includes(t)) targetTable = 'statuses';
         else if (['stations', 'station'].includes(t)) targetTable = 'stations';
         else if (['routes', 'route', 'trips_runs'].includes(t)) targetTable = 'routes';
-        else if (['co_passengers', 'copassengers', 'companions', 'buddies'].includes(t)) targetTable = 'co_passengers';
+        else targetTable = 'trips';
     }
 
     // Map column objects into suggestion items based on detected active table

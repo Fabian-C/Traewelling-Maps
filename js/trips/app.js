@@ -1386,7 +1386,31 @@ export function renderSpatialSqlPreview() {
  */
 export async function getStudioDatasets() {
     await loadStudioModules();
-    if (!flattenedTrips.length && allTrips.length) {
+
+    let allCoPassengers = [];
+    try {
+        allCoPassengers = await SessionDB.getAllCoPassengers();
+    } catch (e) {
+        console.warn('SessionDB co_passengers query fallback:', e);
+    }
+
+    if (allCoPassengers.length > 0) {
+        const coByTrip = new Map();
+        for (const cp of allCoPassengers) {
+            const tid = Number(cp.trip_id);
+            if (!coByTrip.has(tid)) coByTrip.set(tid, []);
+            coByTrip.get(tid).push(cp);
+        }
+        for (const trip of allTrips) {
+            const bId = Number(trip.properties?.backend_trip_id || trip.backend_trip_id || trip.train?.trip || trip.checkin?.trip);
+            if (bId && coByTrip.has(bId)) {
+                trip.co_passengers = coByTrip.get(bId);
+            }
+        }
+        if (sqlEngine?.flattenTripRecord) {
+            flattenedTrips = allTrips.map(sqlEngine.flattenTripRecord);
+        }
+    } else if (!flattenedTrips.length && allTrips.length) {
         flattenedTrips = allTrips.map(sqlEngine.flattenTripRecord);
     }
 
@@ -1394,7 +1418,6 @@ export async function getStudioDatasets() {
     let statuses = [];
     let stations = [];
     let routes = [];
-    let co_passengers = [];
 
     try {
         if (activeUser) {
@@ -1402,7 +1425,6 @@ export async function getStudioDatasets() {
         }
         stations = await SessionDB.getAllStations();
         routes = await SessionDB.getAllTrips();
-        co_passengers = await SessionDB.getAllCoPassengers();
     } catch (e) {
         console.warn('SessionDB relational query fallback:', e);
     }
@@ -1439,8 +1461,7 @@ export async function getStudioDatasets() {
         trips: flattenedTrips,
         statuses,
         stations,
-        routes,
-        co_passengers
+        routes
     };
 }
 
@@ -1453,7 +1474,7 @@ export async function runSqlQuery(sql) {
     await loadStudioModules();
 
     const datasets = await getStudioDatasets();
-    if (!datasets.trips.length && !datasets.statuses.length && !datasets.stations.length && !datasets.routes.length && !datasets.co_passengers?.length) return;
+    if (!datasets.trips.length && !datasets.statuses.length && !datasets.stations.length && !datasets.routes.length) return;
 
     try {
         const result = sqlEngine.executeTripQuery(sql, datasets.trips, { tables: datasets });
@@ -2409,86 +2430,77 @@ export function openTripDetailModal(trip) {
     document.getElementById('modalSeat').textContent = `Wagon ${wagon || '—'}, Seat ${seat || '—'}`;
     document.getElementById('modalTicket').textContent = String(ticket || '—');
 
-    // Buddies
+    // Buddies & Travel Companions (Unified)
     const buddiesSec = document.getElementById('modalBuddiesSection');
     const buddiesList = document.getElementById('modalBuddiesList');
-    if (buddies && buddies.length > 0) {
-        buddiesSec.style.display = 'block';
-        buddiesList.innerHTML = buddies.map(b => {
-            return `<a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 4px 10px; font-size: 12px;" title="Open @${escapeHtml(b.username)} profile on Träwelling">
-                <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
-                <span>@${escapeHtml(b.username)}</span>
-            </a>`;
-        }).join('');
-    } else {
-        buddiesSec.style.display = 'none';
-    }
-
-    // Notes
-    const notesSec = document.getElementById('modalNotesSection');
-    const notesText = document.getElementById('modalNotesText');
-    if (bodyText) {
-        notesSec.style.display = 'block';
-        notesText.innerHTML = renderLinkedComment(bodyText);
-    } else {
-        notesSec.style.display = 'none';
-    }
-
-    // Co-Passengers (Train Run)
-    const coPassengersSec = document.getElementById('modalCoPassengersSection');
-    const coPassengersList = document.getElementById('modalCoPassengersList');
     const enrichBtn = document.getElementById('modalEnrichCoPassengersBtn');
 
-    const renderCoPassengers = (passengers) => {
-        if (!coPassengersList) return;
-        if (!passengers || !passengers.length) {
-            coPassengersList.innerHTML = `<span style="color: var(--text-muted); font-size: 12px; font-style: italic;">No other passengers found on this train run.</span>`;
-            return;
+    const renderBuddies = (buddiesListArray) => {
+        if (!buddiesList) return;
+        if (buddiesListArray && buddiesListArray.length > 0) {
+            buddiesList.innerHTML = buddiesListArray.map(b => {
+                const fromTo = (b.origin && b.destination) ? ` · ${escapeHtml(b.origin)} → ${escapeHtml(b.destination)}` : '';
+                const msg = b.body ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">💬 ${escapeHtml(b.body)}</div>` : '';
+                if (fromTo || msg) {
+                    return `
+                        <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px 10px; width: 100%;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 2px 6px; font-size: 12px; font-weight: 600;">
+                                    <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
+                                    <span>@${escapeHtml(b.username)}</span>
+                                </a>
+                                ${fromTo ? `<span style="font-size: 11px; color: var(--text-muted);">${fromTo}</span>` : ''}
+                            </div>
+                            ${msg}
+                        </div>
+                    `;
+                }
+                return `<a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 4px 10px; font-size: 12px;" title="Open @${escapeHtml(b.username)} profile on Träwelling">
+                    <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
+                    <span>@${escapeHtml(b.username)}</span>
+                </a>`;
+            }).join('');
+        } else {
+            buddiesList.innerHTML = `<span style="color: var(--text-muted); font-size: 12px; font-style: italic;">No buddies recorded yet.</span>`;
         }
-        coPassengersList.innerHTML = passengers.map(p => {
-            const u = p.username || p.user?.username || 'unknown';
-            const fromTo = (p.origin && p.destination) ? ` · ${escapeHtml(p.origin)} → ${escapeHtml(p.destination)}` : '';
-            const msg = p.body ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">💬 ${escapeHtml(p.body)}</div>` : '';
-            return `
-                <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px 10px; width: 100%;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <a href="https://traewelling.de/@${encodeURIComponent(u)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 2px 6px; font-size: 12px; font-weight: 600;">
-                            @${escapeHtml(u)}
-                        </a>
-                        <span style="font-size: 11px; color: var(--text-muted);">${fromTo}</span>
-                    </div>
-                    ${msg}
-                </div>
-            `;
-        }).join('');
     };
 
-    if (coPassengersSec) {
-        if (backendTripId) {
-            coPassengersSec.style.display = 'block';
-            if (coPassengersList) coPassengersList.innerHTML = '';
+    const hasBuddies = buddies && buddies.length > 0;
+    if (buddiesSec) {
+        if (hasBuddies || backendTripId) {
+            buddiesSec.style.display = 'block';
+            renderBuddies(buddies);
+        } else {
+            buddiesSec.style.display = 'none';
+        }
 
-            SessionDB.getTripCoPassengers(backendTripId).then(cached => {
-                const currentU = (activeSession?.username || '').toLowerCase();
-                const filtered = cached ? cached.filter(p => (p.username || '').toLowerCase() !== currentU) : [];
-                if (filtered.length > 0) {
-                    renderCoPassengers(filtered);
-                    if (enrichBtn) {
-                        enrichBtn.innerHTML = `<span>Cached (${filtered.length})</span>`;
-                        enrichBtn.disabled = false;
-                    }
+        if (enrichBtn) {
+            if (backendTripId) {
+                enrichBtn.style.display = 'inline-flex';
+                enrichBtn.disabled = false;
+                if (trip.co_passengers && trip.co_passengers.length > 0) {
+                    enrichBtn.innerHTML = `<span>Enriched (${trip.co_passengers.length})</span>`;
                 } else {
-                    if (coPassengersList) {
-                        coPassengersList.innerHTML = `<span style="color: var(--text-muted); font-size: 12px;">Click "Enrich from Träwelling" to fetch co-travelers on this connection.</span>`;
-                    }
-                    if (enrichBtn) {
-                        enrichBtn.innerHTML = `<span>🔄 Enrich from Träwelling</span>`;
-                        enrichBtn.disabled = false;
-                    }
+                    enrichBtn.innerHTML = `
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        <span>Enrich from Träwelling</span>
+                    `;
                 }
-            }).catch(() => {});
 
-            if (enrichBtn) {
+                // Check IndexedDB cache if not loaded yet on trip
+                if (!trip.co_passengers) {
+                    SessionDB.getTripCoPassengers(backendTripId).then(cached => {
+                        const currentU = (activeSession?.username || '').toLowerCase();
+                        const filtered = cached ? cached.filter(p => (p.username || '').toLowerCase() !== currentU) : [];
+                        if (filtered.length > 0) {
+                            trip.co_passengers = filtered;
+                            const updated = getTripBuddies(trip, activeSession?.username);
+                            renderBuddies(updated);
+                            enrichBtn.innerHTML = `<span>Enriched (${filtered.length})</span>`;
+                        }
+                    }).catch(() => {});
+                }
+
                 enrichBtn.onclick = async () => {
                     enrichBtn.disabled = true;
                     enrichBtn.textContent = 'Fetching...';
@@ -2515,22 +2527,30 @@ export function openTripDetailModal(trip) {
 
                         await SessionDB.saveTripCoPassengers(backendTripId, companions);
                         trip.co_passengers = companions;
-                        renderCoPassengers(companions);
+                        const updated = getTripBuddies(trip, activeSession?.username);
+                        renderBuddies(updated);
                         enrichBtn.innerHTML = `<span>Updated (${companions.length})</span>`;
                         enrichBtn.disabled = false;
                     } catch (err) {
                         console.warn('Enrichment failed:', err);
-                        if (coPassengersList) {
-                            coPassengersList.innerHTML = `<span style="color: #ef4444; font-size: 12px;">Failed to fetch: ${escapeHtml(err.message || 'Network error')}</span>`;
-                        }
-                        enrichBtn.innerHTML = `<span>Retry</span>`;
+                        enrichBtn.innerHTML = `<span>⚠️ Failed</span>`;
                         enrichBtn.disabled = false;
                     }
                 };
+            } else {
+                enrichBtn.style.display = 'none';
             }
-        } else {
-            coPassengersSec.style.display = 'none';
         }
+    }
+
+    // Notes
+    const notesSec = document.getElementById('modalNotesSection');
+    const notesText = document.getElementById('modalNotesText');
+    if (bodyText) {
+        notesSec.style.display = 'block';
+        notesText.innerHTML = renderLinkedComment(bodyText);
+    } else {
+        notesSec.style.display = 'none';
     }
 
     const tripId = statusId || trip.id;

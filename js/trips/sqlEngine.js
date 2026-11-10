@@ -59,19 +59,6 @@ export const ROUTE_COLUMNS = [
     { name: 'destination_station_id', label: 'Destination ID', type: 'string', description: 'Destination terminal station ID' }
 ];
 
-export const CO_PASSENGER_COLUMNS = [
-    { name: 'trip_id', label: 'Trip ID', type: 'number', description: 'Träwelling upstream trip ID' },
-    { name: 'status_id', label: 'Status ID', type: 'number', description: 'Companion check-in status ID' },
-    { name: 'username', label: 'Username', type: 'string', description: 'Companion username' },
-    { name: 'display_name', label: 'Name', type: 'string', description: 'Companion display name' },
-    { name: 'origin', label: 'Origin', type: 'string', description: 'Boarding station' },
-    { name: 'destination', label: 'Destination', type: 'string', description: 'Exit station' },
-    { name: 'departure_time', label: 'Departure', type: 'datetime', description: 'Companion departure time' },
-    { name: 'arrival_time', label: 'Arrival', type: 'datetime', description: 'Companion arrival time' },
-    { name: 'body', label: 'Notes', type: 'string', description: 'Companion check-in message' },
-    { name: 'created_at', label: 'Checked In', type: 'datetime', description: 'Check-in timestamp' }
-];
-
 export const TABLE_SCHEMAS = {
     trips: {
         name: 'trips',
@@ -100,13 +87,6 @@ export const TABLE_SCHEMAS = {
         description: 'Normalized transit line runs, categories, and operators.',
         columns: ROUTE_COLUMNS,
         defaultQuery: 'SELECT id, line_name, category, operator_name FROM routes ORDER BY line_name ASC LIMIT 50'
-    },
-    co_passengers: {
-        name: 'co_passengers',
-        label: 'Co-Passengers (Companions)',
-        description: 'Other Träwelling users who checked into the same train run or connection.',
-        columns: CO_PASSENGER_COLUMNS,
-        defaultQuery: 'SELECT trip_id, username, origin, destination, body FROM co_passengers ORDER BY trip_id DESC LIMIT 50'
     }
 };
 
@@ -168,12 +148,8 @@ export const QUERY_RECIPES = [
         sql: 'SELECT id, line_name, category, operator_name FROM routes ORDER BY operator_name ASC LIMIT 50'
     },
     {
-        title: 'Co-Passengers: Shared Journeys',
-        sql: 'SELECT trip_id, username, origin, destination, body FROM co_passengers ORDER BY trip_id DESC LIMIT 50'
-    },
-    {
-        title: 'Co-Passengers: Top Companions Ranked',
-        sql: 'SELECT username, COUNT(*) AS shared_trips FROM co_passengers GROUP BY username ORDER BY shared_trips DESC'
+        title: 'Travel Buddies: Journeys with Companions',
+        sql: 'SELECT line, origin, destination, buddies, buddy_count, departure FROM trips WHERE buddy_count > 0 ORDER BY departure DESC LIMIT 50'
     }
 ];
 
@@ -192,12 +168,16 @@ export function flattenTripRecord(trip) {
     const depDelaySec = delays.departure !== null ? delays.departure : (delays.worst || 0);
     const arrDelaySec = delays.arrival !== null ? delays.arrival : (delays.worst || 0);
 
-    // Extract companions including bodyMentions, buddies, companions, and @mentions
-    const buddiesSet = new Set();
+    // Extract companions including bodyMentions, buddies, companions, and @mentions (case-insensitive deduplication)
+    const buddiesMap = new Map();
     const addBuddy = (u) => {
         if (!u || typeof u !== 'string') return;
         const clean = u.replace(/^@/, '').trim();
-        if (clean) buddiesSet.add(`@${clean}`);
+        if (!clean) return;
+        const key = clean.toLowerCase();
+        if (!buddiesMap.has(key)) {
+            buddiesMap.set(key, `@${clean}`);
+        }
     };
     let mentions = trip.bodyMentions || trip.properties?.bodyMentions;
     if (typeof mentions === 'string') {
@@ -218,8 +198,8 @@ export function flattenTripRecord(trip) {
         const matches = bodyText.match(/@([a-zA-Z0-9_\-\.]+)/g);
         if (matches) matches.forEach(m => addBuddy(m));
     }
-    const buddiesStr = buddiesSet.size ? Array.from(buddiesSet).join(', ') : null;
-    const buddyCount = buddiesSet.size;
+    const buddiesStr = buddiesMap.size ? Array.from(buddiesMap.values()).join(', ') : null;
+    const buddyCount = buddiesMap.size;
 
     const bType = getTripBusinessType(trip);
     const businessStr = bType === 1 ? 'business' : (bType === 2 ? 'commute' : 'private');
@@ -433,15 +413,14 @@ export function executeTripQuery(sql, records = [], options = {}) {
     let targetTable = 'trips';
     if (matchWord('FROM')) {
         const tableTok = consume();
-        const validTables = ['trips', 'trip', 'checkins', 'checkin', 'statuses', 'status', 'stations', 'station', 'routes', 'route', 'trips_runs', 'co_passengers', 'copassengers', 'companions', 'buddies'];
+        const validTables = ['trips', 'trip', 'checkins', 'checkin', 'statuses', 'status', 'stations', 'station', 'routes', 'route', 'trips_runs', 'companions', 'buddies'];
         if (!tableTok || !validTables.includes(String(tableTok.value).toLowerCase())) {
-            throw new Error("Target table must be 'trips', 'statuses', 'stations', 'routes', or 'co_passengers'");
+            throw new Error("Target table must be 'trips', 'statuses', 'stations', or 'routes'");
         }
         const rawTable = String(tableTok.value).toLowerCase();
         if (['statuses', 'status'].includes(rawTable)) targetTable = 'statuses';
         else if (['stations', 'station'].includes(rawTable)) targetTable = 'stations';
         else if (['routes', 'route', 'trips_runs'].includes(rawTable)) targetTable = 'routes';
-        else if (['co_passengers', 'copassengers', 'companions', 'buddies'].includes(rawTable)) targetTable = 'co_passengers';
         else targetTable = 'trips';
     }
 

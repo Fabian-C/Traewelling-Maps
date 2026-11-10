@@ -204,5 +204,50 @@ describe('Incremental Co-Passenger Batch Scanner', () => {
             expect(completeResult.scannedCount).toBe(2);
             expect(globalThis.fetch).toHaveBeenCalledTimes(2);
         });
+
+        it('executes in concurrent batches of up to 5 trips', async () => {
+            const trips = [
+                { id: 10, checkin: { trip: 1010 } },
+                { id: 9, checkin: { trip: 1009 } },
+                { id: 8, checkin: { trip: 1008 } },
+                { id: 7, checkin: { trip: 1007 } },
+                { id: 6, checkin: { trip: 1006 } },
+                { id: 5, checkin: { trip: 1005 } },
+                { id: 4, checkin: { trip: 1004 } }
+            ];
+
+            let maxConcurrent = 0;
+            let currentRunning = 0;
+
+            globalThis.fetch = vi.fn().mockImplementation(async () => {
+                currentRunning++;
+                if (currentRunning > maxConcurrent) maxConcurrent = currentRunning;
+                await new Promise(r => setTimeout(r, 20));
+                currentRunning--;
+                return {
+                    ok: true,
+                    json: async () => ({ data: [] })
+                };
+            });
+            vi.spyOn(SessionDB, 'saveTripCoPassengers').mockResolvedValue();
+
+            let completeResult = null;
+            await new Promise((resolve) => {
+                startIncrementalScan({
+                    trips,
+                    username: 'alice',
+                    onComplete: (res) => {
+                        completeResult = res;
+                        resolve();
+                    }
+                });
+            });
+
+            expect(completeResult.scannedCount).toBe(7);
+            expect(globalThis.fetch).toHaveBeenCalledTimes(7);
+            // Parallel batch size is 5, so peak concurrency should be > 1 and <= 5
+            expect(maxConcurrent).toBeGreaterThanOrEqual(2);
+            expect(maxConcurrent).toBeLessThanOrEqual(5);
+        });
     });
 });
