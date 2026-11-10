@@ -102,7 +102,7 @@ export function getTripBuddies(trip, currentUser = '') {
     const buddies = new Map();
     const currentClean = (currentUser || '').toLowerCase().trim();
 
-    const addBuddy = (u, display = '', origin = '', destination = '', body = '') => {
+    const addBuddy = (u, display = '', origin = '', destination = '', body = '', statusId = null) => {
         if (!u || typeof u !== 'string') return;
         const clean = u.replace(/^@/, '').trim();
         if (!clean) return;
@@ -114,13 +114,15 @@ export function getTripBuddies(trip, currentUser = '') {
                 displayName: display || clean,
                 origin: origin || null,
                 destination: destination || null,
-                body: body || null
+                body: body || null,
+                status_id: statusId || null
             });
         } else {
             const existing = buddies.get(key);
             if (origin && !existing.origin) existing.origin = origin;
             if (destination && !existing.destination) existing.destination = destination;
             if (body && !existing.body) existing.body = body;
+            if (statusId && !existing.status_id) existing.status_id = statusId;
             if (display && (!existing.displayName || existing.displayName === existing.username)) {
                 existing.displayName = display;
             }
@@ -139,7 +141,8 @@ export function getTripBuddies(trip, currentUser = '') {
             } else if (m && typeof m === 'object') {
                 const u = m.user?.username || m.username || m.name;
                 const d = m.user?.displayName || m.displayName || m.name || u;
-                addBuddy(u, d);
+                const sId = m.statusId || m.status_id || null;
+                addBuddy(u, d, '', '', '', sId);
             }
         });
     }
@@ -178,7 +181,8 @@ export function getTripBuddies(trip, currentUser = '') {
                     const orig = c.origin?.name || c.checkin?.origin?.name || c.origin || '';
                     const dest = c.destination?.name || c.checkin?.destination?.name || c.destination || '';
                     const body = c.body || '';
-                    addBuddy(u, d, orig, dest, body);
+                    const sId = c.status_id || c.co_status_id || c.statusId || c.id || null;
+                    addBuddy(u, d, orig, dest, body, sId);
                 }
             });
         }

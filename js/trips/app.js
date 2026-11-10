@@ -2481,20 +2481,37 @@ export function openTripDetailModal(trip) {
                     return `
                         <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px 10px; width: 100%;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 2px 6px; font-size: 12px; font-weight: 600;">
-                                    <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
-                                    <span>@${escapeHtml(b.username)}</span>
-                                </a>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 2px 6px; font-size: 12px; font-weight: 600;">
+                                        <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
+                                        <span>@${escapeHtml(b.username)}</span>
+                                    </a>
+                                    ${b.status_id ? `
+                                        <a href="https://traewelling.de/status/${encodeURIComponent(b.status_id)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 2px 6px; font-size: 11px; opacity: 0.85;" title="Open check-in #${escapeHtml(String(b.status_id))} on Träwelling">
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                            <span>#${escapeHtml(String(b.status_id))}</span>
+                                        </a>
+                                    ` : ''}
+                                </div>
                                 ${fromTo ? `<span style="font-size: 11px; color: var(--text-muted);">${fromTo}</span>` : ''}
                             </div>
                             ${msg}
                         </div>
                     `;
                 }
-                return `<a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 4px 10px; font-size: 12px;" title="Open @${escapeHtml(b.username)} profile on Träwelling">
-                    <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
-                    <span>@${escapeHtml(b.username)}</span>
-                </a>`;
+                return `
+                    <span style="display: inline-flex; align-items: center; gap: 4px;">
+                        <a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 4px 10px; font-size: 12px;" title="Open @${escapeHtml(b.username)} profile on Träwelling">
+                            <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
+                            <span>@${escapeHtml(b.username)}</span>
+                        </a>
+                        ${b.status_id ? `
+                            <a href="https://traewelling.de/status/${encodeURIComponent(b.status_id)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 4px 6px; font-size: 11px; opacity: 0.85;" title="Open check-in #${escapeHtml(String(b.status_id))} on Träwelling">
+                                #${escapeHtml(String(b.status_id))}
+                            </a>
+                        ` : ''}
+                    </span>
+                `;
             }).join('');
         } else {
             buddiesList.innerHTML = `<span style="color: var(--text-muted); font-size: 12px; font-style: italic;">No buddies recorded yet.</span>`;

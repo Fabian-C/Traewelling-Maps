@@ -195,7 +195,8 @@ export function renderBuddiesBadgesHTML(buddies) {
     if (!buddies || !buddies.length) return '';
     return buddies.map(b => {
         const seg = (b.origin && b.destination) ? ` (${escapeHtml(b.origin)} → ${escapeHtml(b.destination)})` : '';
-        return `<a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="mention-link" title="Open @${escapeHtml(b.username)} on Träwelling">@${escapeHtml(b.username)}${seg}</a>`;
+        const statusLink = b.status_id ? ` <a href="https://traewelling.de/status/${encodeURIComponent(b.status_id)}" target="_blank" rel="noopener noreferrer" class="mention-link" style="opacity: 0.8; font-size: 0.9em;" title="View check-in #${escapeHtml(String(b.status_id))} on Träwelling">#${escapeHtml(String(b.status_id))}</a>` : '';
+        return `<a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="mention-link" title="Open @${escapeHtml(b.username)} on Träwelling">@${escapeHtml(b.username)}${seg}</a>${statusLink}`;
     }).join(' ');
 }
 
