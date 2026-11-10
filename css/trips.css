@@ -2676,3 +2676,15 @@ body:has(dialog[open]) {
     border-top: 1px dashed rgba(255, 255, 255, 0.5);
 }
 
+#scanCoPassengersBadge.up-to-date {
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+#scanCoPassengersBadge.up-to-date:hover {
+    background: rgba(16, 185, 129, 0.45) !important;
+    transform: scale(1.18);
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+}
+
+

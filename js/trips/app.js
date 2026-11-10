@@ -627,6 +627,8 @@ export function updateScanButtonState() {
             badge.style.display = 'inline-block';
             badge.style.background = 'rgba(56, 189, 248, 0.25)';
             badge.style.color = '#38bdf8';
+            badge.classList.remove('up-to-date');
+            badge.title = `${unscannedTrips.length} unscanned trips. Click to scan.`;
         }
     } else {
         text.textContent = 'Travel Buddies Up to Date';
@@ -635,12 +637,15 @@ export function updateScanButtonState() {
             badge.style.display = 'inline-block';
             badge.style.background = 'rgba(16, 185, 129, 0.2)';
             badge.style.color = '#10b981';
+            badge.classList.add('up-to-date');
+            badge.title = 'Click to force full re-scan of all trips';
         }
     }
 }
 
 function setupCoPassengerScanner() {
     const btn = document.getElementById('btnScanCoPassengers');
+    const badge = document.getElementById('scanCoPassengersBadge');
     const progressBar = document.getElementById('scanProgressBar');
     const progressText = document.getElementById('scanProgressText');
     const cancelBtn = document.getElementById('btnCancelScan');
@@ -721,16 +726,35 @@ function setupCoPassengerScanner() {
         });
     };
 
-    // Hidden trigger: clicking 3 times in succession forces a full re-scan
+    // Clicking the green tick badge directly forces a full re-scan immediately
+    if (badge) {
+        badge.addEventListener('click', (e) => {
+            if (btn.disabled || activeScanController) return;
+            e.stopPropagation();
+            e.preventDefault();
+            executeScan({ forceFullRescan: true });
+        });
+    }
+
+    // Clicking the scan button
     let clickCount = 0;
     let clickTimer = null;
 
     btn.addEventListener('click', () => {
         if (btn.disabled || activeScanController) return;
+        const username = activeSession?.username || '';
+        const { unscannedTrips } = getUnscannedTrips(allTrips, username);
+
+        // If already up to date, clicking the button directly initiates a full re-scan
+        if (!unscannedTrips.length) {
+            executeScan({ forceFullRescan: true });
+            return;
+        }
+
         clickCount++;
         clearTimeout(clickTimer);
 
-        if (clickCount >= 3) {
+        if (clickCount >= 2) {
             clickCount = 0;
             executeScan({ forceFullRescan: true });
             return;
@@ -739,10 +763,10 @@ function setupCoPassengerScanner() {
         clickTimer = setTimeout(() => {
             const count = clickCount;
             clickCount = 0;
-            if (count > 0 && count < 3) {
+            if (count === 1) {
                 executeScan({ forceFullRescan: false });
             }
-        }, 650);
+        }, 350);
     });
 }
 
