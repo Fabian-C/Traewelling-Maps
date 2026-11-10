@@ -628,11 +628,11 @@ function setupCoPassengerScanner() {
         });
     }
 
-    btn.addEventListener('click', () => {
+    const executeScan = ({ forceFullRescan = false } = {}) => {
         const username = activeSession?.username || '';
         if (!username) return;
 
-        const { unscannedTrips } = getUnscannedTrips(allTrips, username);
+        const { unscannedTrips } = getUnscannedTrips(allTrips, username, { forceFullRescan });
         if (!unscannedTrips.length) {
             alert('All your trips have already been checked for travel buddies up to the latest check-in!');
             return;
@@ -640,10 +640,14 @@ function setupCoPassengerScanner() {
 
         btn.disabled = true;
         if (progressBar) progressBar.style.display = 'flex';
+        if (progressText && forceFullRescan) {
+            progressText.textContent = `Force re-scanning all ${unscannedTrips.length} trips...`;
+        }
 
         activeScanController = startIncrementalScan({
             trips: allTrips,
             username,
+            forceFullRescan,
             onProgress: ({ status, foundBuddies }) => {
                 if (progressText) {
                     progressText.textContent = `${status} (${foundBuddies} travel buddies found)`;
@@ -655,7 +659,7 @@ function setupCoPassengerScanner() {
                 if (progressText) {
                     progressText.textContent = cancelled
                         ? `Scan paused. Checked ${scannedCount} trips, found ${foundBuddiesCount} buddies.`
-                        : `Scan complete! Checked ${scannedCount} new trips, found ${foundBuddiesCount} buddies.`;
+                        : `Scan complete! Checked ${scannedCount} ${forceFullRescan ? '' : 'new '}trips, found ${foundBuddiesCount} buddies.`;
                 }
                 setTimeout(() => {
                     if (progressBar) progressBar.style.display = 'none';
@@ -679,6 +683,30 @@ function setupCoPassengerScanner() {
                 }, 5000);
             }
         });
+    };
+
+    // Hidden trigger: clicking 3 times in succession forces a full re-scan
+    let clickCount = 0;
+    let clickTimer = null;
+
+    btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        clickCount++;
+        clearTimeout(clickTimer);
+
+        if (clickCount >= 3) {
+            clickCount = 0;
+            executeScan({ forceFullRescan: true });
+            return;
+        }
+
+        clickTimer = setTimeout(() => {
+            const count = clickCount;
+            clickCount = 0;
+            if (count > 0 && count < 3) {
+                executeScan({ forceFullRescan: false });
+            }
+        }, 350);
     });
 }
 

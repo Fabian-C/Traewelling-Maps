@@ -78,6 +78,14 @@ describe('Incremental Co-Passenger Batch Scanner', () => {
             expect(result.watermark).toBe(105);
             expect(result.unscannedTrips.length).toBe(0);
         });
+
+        it('returns all eligible trips when forceFullRescan is true despite watermark', () => {
+            setScanWatermark('alice', 105);
+            const result = getUnscannedTrips(trips, 'alice', { forceFullRescan: true });
+
+            expect(result.unscannedTrips.length).toBe(5);
+            expect(result.isFullRescan).toBe(true);
+        });
     });
 
     describe('startIncrementalScan execution', () => {
@@ -164,6 +172,37 @@ describe('Incremental Co-Passenger Batch Scanner', () => {
 
             expect(completeResult.alreadyUpToDate).toBe(true);
             expect(globalThis.fetch).not.toHaveBeenCalled();
+        });
+
+        it('re-scans all trips when forceFullRescan is true even if already up to date', async () => {
+            const trips = [
+                { id: 50, checkin: { trip: 500, lineName: 'ICE 1' } },
+                { id: 49, checkin: { trip: 490, lineName: 'RE 2' } }
+            ];
+            setScanWatermark('alice', 50);
+
+            globalThis.fetch = vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => ({ data: [] })
+            });
+            vi.spyOn(SessionDB, 'saveTripCoPassengers').mockResolvedValue();
+
+            let completeResult = null;
+            await new Promise((resolve) => {
+                startIncrementalScan({
+                    trips,
+                    username: 'alice',
+                    forceFullRescan: true,
+                    onComplete: (res) => {
+                        completeResult = res;
+                        resolve();
+                    }
+                });
+            });
+
+            expect(completeResult.alreadyUpToDate).toBeFalsy();
+            expect(completeResult.scannedCount).toBe(2);
+            expect(globalThis.fetch).toHaveBeenCalledTimes(2);
         });
     });
 });

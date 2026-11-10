@@ -63,7 +63,7 @@ export function getTripBackendId(trip) {
  * @param {string} username Active username
  * @returns {{ unscannedTrips: Array<Object>, watermark: number|null, totalEligible: number }}
  */
-export function getUnscannedTrips(trips = [], username = '') {
+export function getUnscannedTrips(trips = [], username = '', options = {}) {
     if (!Array.isArray(trips) || !trips.length) {
         return { unscannedTrips: [], watermark: null, totalEligible: 0 };
     }
@@ -77,14 +77,16 @@ export function getUnscannedTrips(trips = [], username = '') {
     });
 
     const eligible = sorted.filter(t => Boolean(getTripBackendId(t)));
-    const watermark = getScanWatermark(username);
+    const forceFull = Boolean(options.forceFullRescan);
+    const watermark = forceFull ? null : getScanWatermark(username);
 
-    if (!watermark) {
-        // No previous scan: all eligible trips are candidates
+    if (!watermark || forceFull) {
+        // Full scan (or forced re-scan): all eligible trips are candidates
         return {
             unscannedTrips: eligible,
             watermark: null,
-            totalEligible: eligible.length
+            totalEligible: eligible.length,
+            isFullRescan: forceFull
         };
     }
 
@@ -102,7 +104,8 @@ export function getUnscannedTrips(trips = [], username = '') {
     return {
         unscannedTrips: unscanned,
         watermark,
-        totalEligible: eligible.length
+        totalEligible: eligible.length,
+        isFullRescan: false
     };
 }
 
@@ -115,12 +118,13 @@ export function startIncrementalScan({
     trips = [],
     username = '',
     token = null,
+    forceFullRescan = false,
     onProgress = () => {},
     onComplete = () => {},
     onError = () => {}
 }) {
     let isCancelled = false;
-    const { unscannedTrips } = getUnscannedTrips(trips, username);
+    const { unscannedTrips } = getUnscannedTrips(trips, username, { forceFullRescan });
 
     if (!unscannedTrips.length) {
         onComplete({
@@ -174,7 +178,7 @@ export function startIncrementalScan({
                         cached = await SessionDB.getTripCoPassengers(tripBackendId);
                     } catch {}
 
-                    if (cached && Array.isArray(cached) && cached.length > 0) {
+                    if (cached && Array.isArray(cached) && cached.length > 0 && !forceFullRescan) {
                         const others = cached.filter(p => (p.username || '').toLowerCase() !== currentClean);
                         foundBuddiesCount += others.length;
                         trip.co_passengers = others;
@@ -241,3 +245,4 @@ export function startIncrementalScan({
         }
     };
 }
+
