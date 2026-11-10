@@ -358,7 +358,30 @@ export const SessionDB = {
             const statusIds = statuses.map((s) => s.id);
             const polyMap = await this.getPolylinesBatch(statusIds);
 
-            return statuses.map((s) => this.denormalizeTrip(s, stationsMap, tripRunsMap, polyMap));
+            let allCo = [];
+            try {
+                allCo = await this.getAllCoPassengers();
+            } catch (err) {
+                console.warn('Could not read co-passengers in rehydrateUserTrips:', err);
+            }
+
+            const coByTrip = new Map();
+            if (Array.isArray(allCo)) {
+                allCo.forEach((cp) => {
+                    const tid = Number(cp.trip_id);
+                    if (!coByTrip.has(tid)) coByTrip.set(tid, []);
+                    coByTrip.get(tid).push(cp);
+                });
+            }
+
+            return statuses.map((s) => {
+                const tripObj = this.denormalizeTrip(s, stationsMap, tripRunsMap, polyMap);
+                const backendId = Number(tripObj?.train?.trip || tripObj?.backend_trip_id || s.backend_trip_id);
+                if (backendId && coByTrip.has(backendId)) {
+                    tripObj.co_passengers = coByTrip.get(backendId);
+                }
+                return tripObj;
+            });
         } catch (e) {
             console.warn('Failed to rehydrate trips from normalized relational stores:', e);
             return [];

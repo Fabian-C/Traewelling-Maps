@@ -861,6 +861,26 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
 
     state.fetchedTrips = Array.isArray(trips) ? trips.slice() : [];
     state.fetchedTrips.forEach(s => dataProcessing.normalizeTripStatus(s));
+
+    // Hydrate cached co-passengers if available in IndexedDB
+    try {
+        const allCo = await SessionDB.getAllCoPassengers();
+        if (allCo && allCo.length > 0) {
+            const coByTrip = new Map();
+            for (const cp of allCo) {
+                const tid = Number(cp.trip_id);
+                if (!coByTrip.has(tid)) coByTrip.set(tid, []);
+                coByTrip.get(tid).push(cp);
+            }
+            for (const t of state.fetchedTrips) {
+                const bId = Number(t.train?.trip || t.checkin?.trip || t.trip || t.backend_trip_id || t.properties?.backend_trip_id);
+                if (bId && coByTrip.has(bId)) {
+                    t.co_passengers = coByTrip.get(bId);
+                }
+            }
+        }
+    } catch (_) {}
+
     dataProcessing.indexTrips(state.fetchedTrips, state.username);
     // Reset buddy and time filters for fresh dataset, and prefill dates from travel data
     state.filters.buddies = [];

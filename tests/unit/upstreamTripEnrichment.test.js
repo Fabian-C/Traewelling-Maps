@@ -328,6 +328,25 @@ describe('Upstream Trip Data & Co-Passenger Enrichment', () => {
             expect(flattenedIce.buddies).toContain('@ichbinreis');
             expect(flattenedIce.buddies).toContain('@viehmann');
         });
+
+        it('retains co_passengers even when trip.buddies or trip.fellowPassengers is an empty array', () => {
+            const trip = {
+                id: 999901,
+                buddies: [], // empty array from normalizer/session store
+                fellowPassengers: [],
+                co_passengers: [
+                    { username: 'Marci44', display_name: 'Marcel' }
+                ]
+            };
+
+            const buddies = getTripBuddies(trip, 'floxy');
+            expect(buddies.length).toBe(1);
+            expect(buddies[0].username).toBe('Marci44');
+
+            const flattened = flattenTripRecord(trip);
+            expect(flattened.buddy_count).toBe(1);
+            expect(flattened.buddies).toBe('@Marci44');
+        });
     });
 
 });

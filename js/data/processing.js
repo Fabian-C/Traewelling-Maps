@@ -120,18 +120,33 @@ export function indexTrip(trip, currentUsername = '') {
     }
 
     // 3. fellowPassengers, co_passengers & companions
-    let fps = trip.fellowPassengers || trip.properties?.fellowPassengers || trip.co_passengers || trip.properties?.co_passengers || trip.companions || trip.properties?.companions || trip.buddies || trip.properties?.buddies;
-    if (typeof fps === 'string') {
-        try { fps = JSON.parse(fps); } catch { fps = []; }
-    }
-    if (Array.isArray(fps)) {
-        fps.forEach(fp => {
-            const u = fp.user?.username || fp.username || fp.name || (typeof fp === 'string' ? fp : '');
-            if (u) {
-                addBuddy(u);
-            }
-        });
-    }
+    const companionLists = [
+        trip.fellowPassengers,
+        trip.properties?.fellowPassengers,
+        trip.co_passengers,
+        trip.properties?.co_passengers,
+        trip.companions,
+        trip.properties?.companions,
+        trip.buddies,
+        trip.properties?.buddies,
+        trip.users,
+        trip.properties?.users
+    ];
+    companionLists.forEach(list => {
+        if (!list) return;
+        let arr = list;
+        if (typeof arr === 'string') {
+            try { arr = JSON.parse(arr); } catch { return; }
+        }
+        if (Array.isArray(arr)) {
+            arr.forEach(fp => {
+                const u = fp.user?.username || fp.username || fp.name || (typeof fp === 'string' ? fp : '');
+                if (u) {
+                    addBuddy(u);
+                }
+            });
+        }
+    });
 
     // 4. Notes mentions (@username)
     if (bodyText.includes('@')) {

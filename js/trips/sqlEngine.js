@@ -186,13 +186,28 @@ export function flattenTripRecord(trip) {
     if (Array.isArray(mentions)) {
         mentions.forEach(m => addBuddy(m.username || m.name || m));
     }
-    let companions = trip.buddies || trip.properties?.buddies || trip.companions || trip.properties?.companions || trip.fellowPassengers || trip.co_passengers || trip.properties?.co_passengers;
-    if (typeof companions === 'string') {
-        try { companions = JSON.parse(companions); } catch (e) { companions = []; }
-    }
-    if (Array.isArray(companions)) {
-        companions.forEach(c => addBuddy(c.username || c.user?.username || c.name || c));
-    }
+    const companionLists = [
+        trip.buddies,
+        trip.properties?.buddies,
+        trip.companions,
+        trip.properties?.companions,
+        trip.fellowPassengers,
+        trip.properties?.fellowPassengers,
+        trip.co_passengers,
+        trip.properties?.co_passengers,
+        trip.users,
+        trip.properties?.users
+    ];
+    companionLists.forEach(list => {
+        if (!list) return;
+        let arr = list;
+        if (typeof arr === 'string') {
+            try { arr = JSON.parse(arr); } catch (e) { return; }
+        }
+        if (Array.isArray(arr)) {
+            arr.forEach(c => addBuddy(c.username || c.user?.username || c.name || c));
+        }
+    });
     const bodyText = trip.body || trip.properties?.body || '';
     if (bodyText.includes('@')) {
         const matches = bodyText.match(/@([a-zA-Z0-9_\-\.]+)/g);

@@ -2526,13 +2526,15 @@ export function openTripDetailModal(trip) {
                 // Check IndexedDB cache if not loaded yet on trip
                 if (!trip.co_passengers) {
                     SessionDB.getTripCoPassengers(backendTripId).then(cached => {
-                        const currentU = (activeSession?.username || '').toLowerCase();
-                        const filtered = cached ? cached.filter(p => (p.username || '').toLowerCase() !== currentU) : [];
-                        if (filtered.length > 0) {
+                        if (cached !== null && Array.isArray(cached)) {
+                            const currentU = (activeSession?.username || '').toLowerCase();
+                            const filtered = cached.filter(p => (p.username || '').toLowerCase() !== currentU);
                             trip.co_passengers = filtered;
-                            const updated = getTripBuddies(trip, activeSession?.username);
-                            renderBuddies(updated);
-                            enrichBtn.innerHTML = `<span>Enriched (${filtered.length})</span>`;
+                            if (filtered.length > 0) {
+                                const updated = getTripBuddies(trip, activeSession?.username);
+                                renderBuddies(updated);
+                                enrichBtn.innerHTML = `<span>Enriched (${filtered.length})</span>`;
+                            }
                         }
                     }).catch(() => {});
                 }
@@ -2567,6 +2569,10 @@ export function openTripDetailModal(trip) {
                         renderBuddies(updated);
                         enrichBtn.innerHTML = `<span>Updated (${companions.length})</span>`;
                         enrichBtn.disabled = false;
+
+                        populateBuddyDropdown(allTrips);
+                        applyFiltersAndRender();
+                        updateScanButtonState();
                     } catch (err) {
                         console.warn('Enrichment failed:', err);
                         enrichBtn.innerHTML = `<span>⚠️ Failed</span>`;

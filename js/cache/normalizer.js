@@ -165,6 +165,7 @@ export function normalizeTrip(trip, username = '') {
         business_type: businessType,
         body: typeof trip.body === 'string' ? trip.body : '',
         buddies: buddies,
+        co_passengers: Array.isArray(trip.co_passengers) ? trip.co_passengers : [],
         visibility: typeof trip.visibility === 'number' ? trip.visibility : (typeof trip.properties?.visibility === 'number' ? trip.properties.visibility : 0),
         created_at: trip.createdAt || depTime || new Date().toISOString()
     };
@@ -197,9 +198,11 @@ export function denormalizeTrip(status, stationsMap = new Map(), tripRunsMap = n
     else if (status.business_type === 'commute' || status.business_type === 2) businessNum = 2;
 
     const buddies = Array.isArray(status.buddies) ? status.buddies : [];
+    const coPassengers = Array.isArray(status.co_passengers) ? status.co_passengers : [];
 
     return {
         id: status.id,
+        backend_trip_id: run.backend_trip_id || status.backend_trip_id || null,
         body: status.body || '',
         createdAt: status.created_at || status.departure_time,
         business: businessNum,
@@ -237,6 +240,7 @@ export function denormalizeTrip(status, stationsMap = new Map(), tripRunsMap = n
             polyline: polyline
         },
         users: buddies,
-        buddies: buddies
+        buddies: buddies,
+        co_passengers: coPassengers
     };
 }

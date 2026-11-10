@@ -365,6 +365,9 @@ export function calculateWrappedInsights(trips = [], username = '') {
         if (Array.isArray(trip.fellowPassengers)) {
             trip.fellowPassengers.forEach(fp => recordBuddy(fp.user?.username || fp.username, fp.user?.displayName, fp.user?.profilePicture));
         }
+        if (Array.isArray(trip.co_passengers)) {
+            trip.co_passengers.forEach(cp => recordBuddy(cp.user?.username || cp.username, cp.user?.displayName || cp.display_name, cp.user?.profilePicture));
+        }
         if (trip.createdBy?.username) {
             recordBuddy(trip.createdBy.username, trip.createdBy.displayName, trip.createdBy.profilePicture);
         }

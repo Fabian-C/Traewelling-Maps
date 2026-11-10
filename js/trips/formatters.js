@@ -57,25 +57,41 @@ export function getTripBuddies(trip, currentUser = '') {
         });
     }
 
-    // 2. Companions / buddies / fellowPassengers / co_passengers array
-    let companions = trip.companions || trip.properties?.companions || trip.buddies || trip.properties?.buddies || trip.fellowPassengers || trip.co_passengers || trip.properties?.co_passengers;
-    if (typeof companions === 'string') {
-        try { companions = JSON.parse(companions); } catch { companions = []; }
-    }
-    if (Array.isArray(companions)) {
-        companions.forEach(c => {
-            if (typeof c === 'string') {
-                addBuddy(c);
-            } else if (c && typeof c === 'object') {
-                const u = c.user?.username || c.username || c.name;
-                const d = c.user?.displayName || c.displayName || c.name || u;
-                const orig = c.origin?.name || c.checkin?.origin?.name || c.origin || '';
-                const dest = c.destination?.name || c.checkin?.destination?.name || c.destination || '';
-                const body = c.body || '';
-                addBuddy(u, d, orig, dest, body);
-            }
-        });
-    }
+    // 2. Companions / buddies / fellowPassengers / co_passengers / users arrays
+    const companionLists = [
+        trip.companions,
+        trip.properties?.companions,
+        trip.buddies,
+        trip.properties?.buddies,
+        trip.fellowPassengers,
+        trip.properties?.fellowPassengers,
+        trip.co_passengers,
+        trip.properties?.co_passengers,
+        trip.users,
+        trip.properties?.users
+    ];
+
+    companionLists.forEach(list => {
+        if (!list) return;
+        let arr = list;
+        if (typeof arr === 'string') {
+            try { arr = JSON.parse(arr); } catch { return; }
+        }
+        if (Array.isArray(arr)) {
+            arr.forEach(c => {
+                if (typeof c === 'string') {
+                    addBuddy(c);
+                } else if (c && typeof c === 'object') {
+                    const u = c.user?.username || c.username || c.name;
+                    const d = c.user?.displayName || c.user?.name || c.displayName || c.name || u;
+                    const orig = c.origin?.name || c.checkin?.origin?.name || c.origin || '';
+                    const dest = c.destination?.name || c.checkin?.destination?.name || c.destination || '';
+                    const body = c.body || '';
+                    addBuddy(u, d, orig, dest, body);
+                }
+            });
+        }
+    });
 
     // 3. createdBy
     let createdBy = trip.createdBy || trip.properties?.createdBy;
