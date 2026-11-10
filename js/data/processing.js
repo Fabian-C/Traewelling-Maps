@@ -119,14 +119,14 @@ export function indexTrip(trip, currentUsername = '') {
         addBuddy(createdBy.username);
     }
 
-    // 3. fellowPassengers
-    let fps = trip.fellowPassengers || trip.properties?.fellowPassengers;
+    // 3. fellowPassengers, co_passengers & companions
+    let fps = trip.fellowPassengers || trip.properties?.fellowPassengers || trip.co_passengers || trip.properties?.co_passengers || trip.companions || trip.properties?.companions || trip.buddies || trip.properties?.buddies;
     if (typeof fps === 'string') {
         try { fps = JSON.parse(fps); } catch { fps = []; }
     }
     if (Array.isArray(fps)) {
         fps.forEach(fp => {
-            const u = fp.user?.username || fp.username;
+            const u = fp.user?.username || fp.username || fp.name || (typeof fp === 'string' ? fp : '');
             if (u) {
                 addBuddy(u);
             }

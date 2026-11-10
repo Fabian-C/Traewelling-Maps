@@ -225,6 +225,7 @@ export async function initTripExplorer() {
     }
 
     allTrips = activeSession.trips.slice();
+    await hydrateTripsWithCoPassengers(allTrips);
     flattenedTrips = [];
 
     // Populate Year pills and Companion dropdown
@@ -278,6 +279,32 @@ function renderProfileDropdown() {
 }
 
 /**
+ * Hydrate trips array with cached co-passengers from IndexedDB
+ */
+async function hydrateTripsWithCoPassengers(tripsList) {
+    if (!tripsList || !tripsList.length) return;
+    try {
+        const allCo = await SessionDB.getAllCoPassengers();
+        if (allCo && allCo.length > 0) {
+            const coByTrip = new Map();
+            for (const cp of allCo) {
+                const tid = Number(cp.trip_id);
+                if (!coByTrip.has(tid)) coByTrip.set(tid, []);
+                coByTrip.get(tid).push(cp);
+            }
+            for (const t of tripsList) {
+                const bId = Number(t.train?.trip || t.checkin?.trip || t.trip || t.backend_trip_id || t.properties?.backend_trip_id);
+                if (bId && coByTrip.has(bId)) {
+                    t.co_passengers = coByTrip.get(bId);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to hydrate co-passengers:', e);
+    }
+}
+
+/**
  * Setup UI event listeners
  */
 function setupEventListeners() {
@@ -302,6 +329,7 @@ function setupEventListeners() {
             if (session) {
                 activeSession = session;
                 allTrips = activeSession.trips || [];
+                await hydrateTripsWithCoPassengers(allTrips);
                 flattenedTrips = [];
                 populateYearPills(allTrips);
                 populateBuddyDropdown(allTrips);

@@ -103,6 +103,27 @@ export async function loadSessionByUsername(username, preloadedSession = null) {
         if (tripSearchClear) tripSearchClear.style.display = 'none';
 
         if (session.trips && session.trips.length > 0) {
+            try {
+                const allCo = await SessionDB.getAllCoPassengers();
+                if (allCo && allCo.length > 0) {
+                    const coByTrip = new Map();
+                    for (const cp of allCo) {
+                        const tid = Number(cp.trip_id);
+                        if (!coByTrip.has(tid)) coByTrip.set(tid, []);
+                        coByTrip.get(tid).push(cp);
+                    }
+                    for (const t of session.trips) {
+                        const bId = Number(t.train?.trip || t.checkin?.trip || t.trip || t.backend_trip_id || t.properties?.backend_trip_id);
+                        if (bId && coByTrip.has(bId)) {
+                            t.co_passengers = coByTrip.get(bId);
+                            delete t._index;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Co-passengers hydration notice:', e);
+            }
+
             state.fetchedTrips = session.trips;
             
             UI.updateDatasetSummary(
