@@ -2667,7 +2667,8 @@ export function openTripDetailModal(trip) {
 
     const hasBuddies = buddies && buddies.length > 0;
     if (buddiesSec) {
-        if (hasBuddies || backendTripId) {
+        const canEnrich = backendTripId || statusId;
+        if (hasBuddies || canEnrich) {
             buddiesSec.style.display = 'block';
             renderBuddies(buddies);
         } else {
@@ -2675,7 +2676,7 @@ export function openTripDetailModal(trip) {
         }
 
         if (enrichBtn) {
-            if (backendTripId) {
+            if (canEnrich) {
                 enrichBtn.style.display = 'inline-flex';
                 enrichBtn.disabled = false;
                 if (trip.co_passengers && trip.co_passengers.length > 0) {
@@ -2691,7 +2692,7 @@ export function openTripDetailModal(trip) {
                 }
 
                 // Check IndexedDB cache if not loaded yet on trip
-                if (!trip.co_passengers) {
+                if (!trip.co_passengers && backendTripId) {
                     SessionDB.getTripCoPassengers(backendTripId).then(cached => {
                         if (cached !== null && Array.isArray(cached)) {
                             const currentU = (activeSession?.username || '').toLowerCase();
@@ -2713,13 +2714,31 @@ export function openTripDetailModal(trip) {
                     enrichBtn.textContent = 'Fetching...';
                     try {
                         const api = new TraewellingAPI(Storage.get(STORAGE_KEYS.TOKEN));
-                        const resp = await api.getTripStatuses(backendTripId);
+                        let effectiveBackendId = backendTripId;
+                        if (!effectiveBackendId && statusId) {
+                            const statusResp = await api.getStatus(statusId);
+                            const resolved = statusResp?.data?.train?.trip || statusResp?.data?.checkin?.trip || statusResp?.data?.trip;
+                            if (resolved) {
+                                effectiveBackendId = Number(resolved);
+                                trip.backend_trip_id = effectiveBackendId;
+                                if (trip.train) trip.train.trip = effectiveBackendId;
+                                if (trip.checkin) trip.checkin.trip = effectiveBackendId;
+                            }
+                        }
+
+                        if (!effectiveBackendId) {
+                            enrichBtn.innerHTML = `<span>⚠️ No upstream trip</span>`;
+                            enrichBtn.disabled = false;
+                            return;
+                        }
+
+                        const resp = await api.getTripStatuses(effectiveBackendId);
                         const rawStatuses = resp?.data || [];
                         const currentU = (activeSession?.username || '').toLowerCase();
                         const companions = rawStatuses
                             .filter(s => (s.user?.username || '').toLowerCase() !== currentU)
                             .map(s => ({
-                                trip_id: Number(backendTripId),
+                                trip_id: Number(effectiveBackendId),
                                 status_id: s.id,
                                 co_status_id: s.id,
                                 username: s.user?.username || 'unknown',
@@ -2732,7 +2751,7 @@ export function openTripDetailModal(trip) {
                                 created_at: s.createdAt || null
                             }));
 
-                        await SessionDB.saveTripCoPassengers(backendTripId, companions);
+                        await SessionDB.saveTripCoPassengers(effectiveBackendId, companions);
                         trip.co_passengers = companions;
                         const updated = getTripBuddies(trip, activeSession?.username);
                         renderBuddies(updated);

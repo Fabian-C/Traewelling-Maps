@@ -164,8 +164,23 @@ export function startIncrementalScan({
 
                 await Promise.all(chunk.map(async (trip, chunkIdx) => {
                     if (isCancelled) return;
-                    const tripBackendId = getTripBackendId(trip);
+                    let tripBackendId = getTripBackendId(trip);
                     const lineName = trip.train?.lineName || trip.checkin?.lineName || 'Transit';
+
+                    // Fallback for legacy exports without stored backend_trip_id: resolve via status check-in ID
+                    if (!tripBackendId && (trip.id || trip.properties?.statusId)) {
+                        const statusId = trip.id || trip.properties?.statusId;
+                        try {
+                            const statusResp = await api.getStatus(statusId);
+                            const resolvedId = statusResp?.data?.train?.trip || statusResp?.data?.checkin?.trip || statusResp?.data?.trip;
+                            if (resolvedId) {
+                                tripBackendId = Number(resolvedId);
+                                trip.backend_trip_id = tripBackendId;
+                                if (trip.train) trip.train.trip = tripBackendId;
+                                if (trip.checkin) trip.checkin.trip = tripBackendId;
+                            }
+                        } catch {}
+                    }
 
                     onProgress({
                         current: Math.min(i + chunkIdx + 1, total),
