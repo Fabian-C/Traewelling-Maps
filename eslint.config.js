@@ -11,7 +11,14 @@ export default [
         },
         rules: {
             'no-undef': 'error',
-            'no-unused-vars': ['warn', { args: 'none' }],
+            'no-unused-vars': [
+                'warn',
+                {
+                    args: 'none',
+                    caughtErrors: 'none',
+                    varsIgnorePattern: '^(?:_|e|err|event)$'
+                }
+            ],
             'no-var': 'error',
             'prefer-const': 'warn',
             eqeqeq: ['warn', 'smart']

@@ -1,7 +1,7 @@
 // Trip focus and route highlighting module
 import { store } from '../state/store.js';
 import { showPopup, highlightRoute, measureFeatureDistance } from './interactions.js';
-import { snapLngLatToLine, getTapTolerancePx } from '../utils/geometry.js';
+import { snapLngLatToLine } from '../utils/geometry.js';
 import { normalizeCategory } from '../data/processing.js';
 
 /**

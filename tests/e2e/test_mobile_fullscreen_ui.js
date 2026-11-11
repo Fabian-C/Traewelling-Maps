@@ -3,7 +3,6 @@
  */
 
 import { spawn } from 'child_process';
-import fs from 'fs';
 
 async function runTest() {
     console.log('====================================================');

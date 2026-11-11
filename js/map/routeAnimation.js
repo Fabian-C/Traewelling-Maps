@@ -226,7 +226,7 @@ export const RouteAnimation = {
             });
         });
         
-        let routes = Array.from(routeMap.values())
+        const routes = Array.from(routeMap.values())
             .filter(route => route.usageCount > 0);
         
         if (!routes.length) {

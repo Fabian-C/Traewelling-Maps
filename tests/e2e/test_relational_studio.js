@@ -1,6 +1,5 @@
 import fs from 'fs';
 import { spawn, execSync } from 'child_process';
-import path from 'path';
 
 const ARTIFACT_DIR = process.env.TEST_ARTIFACT_DIR || '/home/ubuntu/.gemini/antigravity/brain/5ebee223-a91a-4d93-9303-bad75ea1010d';
 if (!fs.existsSync(ARTIFACT_DIR)) {

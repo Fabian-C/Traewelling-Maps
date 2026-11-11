@@ -1,5 +1,4 @@
 import { spawn, execSync } from 'child_process';
-import { extractCoordinatesFromGeoJSON, extractRouteCoordinates } from '../../js/animation/geometry.js';
 
 async function runSharedGeodataTest() {
     console.log('====================================================');

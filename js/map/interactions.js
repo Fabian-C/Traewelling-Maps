@@ -387,8 +387,8 @@ export function setupMapInteractions() {
         const combined = [...pointFeatures, ...areaFeatures];
         if (!combined.length) return;
 
-        let lineFeatures = combined.filter(f => f.layer?.type === 'line');
-        let features = lineFeatures.length ? lineFeatures : combined;
+        const lineFeatures = combined.filter(f => f.layer?.type === 'line');
+        const features = lineFeatures.length ? lineFeatures : combined;
 
         // Deduplicate distinct check-ins intersecting the tap area
         const seenStatusIds = new Set();

@@ -77,8 +77,6 @@ export const CheckinRandomizer = {
     onTripBatch(trips = []) {
         if (!Array.isArray(trips) || trips.length === 0) return;
 
-        let addedNotesCount = 0;
-
         for (const trip of trips) {
             if (!trip) continue;
             const id = trip.id ? String(trip.id) : null;
@@ -99,7 +97,6 @@ export const CheckinRandomizer = {
             this.allCheckins.push(item);
             if (bodyText.length > 0) {
                 this.checkinsWithText.push(item);
-                addedNotesCount++;
             }
         }
 

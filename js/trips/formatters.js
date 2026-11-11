@@ -6,8 +6,17 @@ import { escapeHtml } from '../utils/format.js';
 
 /**
  * Check if a co-passenger traveled on an overlapping segment with the user's trip.
+ * Validates stop sequences along the shared train run when stopovers are present;
+ * falls back to scheduled/actual ISO timestamp interval intersection.
+ *
  * @param {Object} userTrip - User's trip or feature record
+ * @param {Object} [userTrip.train] - Train metadata
+ * @param {Array<Object>} [userTrip.stopovers] - Intermediate station stopovers
  * @param {Object} co - Co-passenger record from upstream train run
+ * @param {string} [co.origin] - Co-passenger origin station name
+ * @param {string} [co.destination] - Co-passenger destination station name
+ * @param {string} [co.departure_time] - Co-passenger departure timestamp (ISO)
+ * @param {string} [co.arrival_time] - Co-passenger arrival timestamp (ISO)
  * @returns {boolean} True if they traveled together on at least one shared segment
  */
 export function hasJourneyOverlap(userTrip, co) {

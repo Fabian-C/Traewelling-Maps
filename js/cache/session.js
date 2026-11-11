@@ -112,6 +112,15 @@ export const SessionDB = {
 
             req.onsuccess = () => {
                 this._db = req.result;
+                this._db.onversionchange = () => {
+                    if (this._db) {
+                        try { this._db.close(); } catch (_) {}
+                        this._db = null;
+                    }
+                };
+                this._db.onclose = () => {
+                    this._db = null;
+                };
                 this.migrateExistingSessions().catch(() => {});
                 resolve(this._db);
             };

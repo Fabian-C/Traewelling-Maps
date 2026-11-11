@@ -690,7 +690,6 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
     let runningKm = 0;
     const usableW = viewportWidth * 0.62;
     const usableH = (viewportHeight - 184) * 0.60;
-    const usableMin = Math.min(usableW, usableH);
 
     // In multi-trip mode, balanced city zoom (up to Web Mercator z=14.2)
     // reveals city streets, rail corridors, and station districts without over-zooming.
