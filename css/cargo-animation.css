@@ -284,7 +284,7 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 .cargo-stage:empty {
-    display: none !important;
+    display: none;
 }
 .cargo-stage.visible {
     opacity: 1;
@@ -926,7 +926,7 @@
 }
 .rolling .flatcar.offscreen .train-wheel,
 .rolling .locomotive.offscreen .train-wheel {
-    animation: none !important;
+    animation: none;
 }
 .flatcar.settling {
     animation: flatcar-spring 0.32s cubic-bezier(0.25, 1.4, 0.5, 1);
@@ -1040,9 +1040,9 @@
     background: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.14) 0px, rgba(0, 0, 0, 0.14) 1px, transparent 1px, transparent 4px);
 }
 
-.cargo-scene.has-error .gantry { left: var(--gantry-depot-left) !important; transition: left 0.5s ease; }
-.cargo-scene.has-error .gantry-hoist { height: 12px !important; transition: height 0.35s ease; }
-.cargo-scene.has-error .gantry-payload { opacity: 0 !important; }
+.cargo-scene.has-error .gantry { left: var(--gantry-depot-left); transition: left 0.5s ease; }
+.cargo-scene.has-error .gantry-hoist { height: 12px; transition: height 0.35s ease; }
+.cargo-scene.has-error .gantry-payload { opacity: 0; }
 .fetch-title { font-size: 24px; margin: 0 0 10px; }
 .fetch-status { color: var(--text-secondary); margin: 0 0 30px; font-size: 14px; }
 .fetch-progress-bar { height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden; margin-bottom: 15px; }

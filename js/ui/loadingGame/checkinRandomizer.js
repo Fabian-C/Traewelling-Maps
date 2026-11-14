@@ -56,7 +56,11 @@ export const CheckinRandomizer = {
         this.seenIds.clear();
         this.currentTrip = null;
         this.isPaused = false;
-        this.isMinimized = false;
+        const isSmallScreen = typeof window !== 'undefined' && (
+            window.matchMedia?.('(max-width: 768px)')?.matches ||
+            (typeof window.innerWidth === 'number' && window.innerWidth <= 768)
+        );
+        this.isMinimized = options.minimized !== undefined ? Boolean(options.minimized) : Boolean(isSmallScreen);
         this.stopTimers();
 
         this.init();
@@ -65,6 +69,7 @@ export const CheckinRandomizer = {
         if (this.container) {
             this.container.classList.remove('hidden');
             this.container.classList.add('visible');
+            this.container.classList.toggle('minimized', this.isMinimized);
         }
 
         this.startTimer();
@@ -312,7 +317,7 @@ export const CheckinRandomizer = {
                     <div class="bingo-header-actions">
                         <button type="button" class="bingo-btn-icon" id="randomizerNextBtn" title="Nächster Zufalls-Check-in" aria-label="Nächster Zufalls-Check-in">🎲</button>
                         <button type="button" class="bingo-btn-icon" id="randomizerPauseBtn" title="${this.isPaused ? 'Fortsetzen' : 'Pausieren'}" aria-label="Pause / Weiter">${this.isPaused ? '▶' : '⏸'}</button>
-                        <button type="button" class="bingo-btn-icon" id="randomizerMinimizeBtn" title="Minimieren" aria-label="Minimieren">− </button>
+                        <button type="button" class="bingo-btn-icon" id="randomizerMinimizeBtn" title="${this.isMinimized ? 'Maximieren' : 'Minimieren'}" aria-label="${this.isMinimized ? 'Maximieren' : 'Minimieren'}">${this.isMinimized ? '□' : '−'}</button>
                         <button type="button" class="bingo-btn-icon" id="randomizerCloseBtn" title="Schließen" aria-label="Schließen">✕</button>
                     </div>
                 </div>

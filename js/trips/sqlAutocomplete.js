@@ -13,6 +13,8 @@ export const SQL_KEYWORDS = [
     { label: 'LIKE', insertText: "LIKE '%...%' ", type: 'keyword', detail: 'Pattern matching (% wildcard)' },
     { label: 'ILIKE', insertText: "ILIKE '%...%' ", type: 'keyword', detail: 'Case-insensitive pattern matching' },
     { label: 'IN', insertText: "IN (...) ", type: 'keyword', detail: 'Set inclusion check' },
+    { label: 'NOT IN', insertText: "NOT IN (...) ", type: 'keyword', detail: 'Set exclusion check' },
+    { label: 'AS', insertText: 'AS ', type: 'keyword', detail: 'Alias column or aggregate' },
     { label: 'BETWEEN', insertText: 'BETWEEN ... AND ... ', type: 'keyword', detail: 'Range check (inclusive)' },
     { label: 'IS NULL', insertText: 'IS NULL ', type: 'keyword', detail: 'Check for missing/null values' },
     { label: 'IS NOT NULL', insertText: 'IS NOT NULL ', type: 'keyword', detail: 'Check for non-null values' },
@@ -30,7 +32,8 @@ export const SQL_TABLES = [
     { label: 'trips', insertText: 'trips ', type: 'table', detail: 'Denormalized journeys table (default)' },
     { label: 'statuses', insertText: 'statuses ', type: 'table', detail: 'Normalized check-in events referencing trips & stations' },
     { label: 'stations', insertText: 'stations ', type: 'table', detail: 'Normalized transit stops & station coordinates' },
-    { label: 'routes', insertText: 'routes ', type: 'table', detail: 'Normalized transit line runs, categories & operators' }
+    { label: 'routes', insertText: 'routes ', type: 'table', detail: 'Normalized transit line runs, categories & operators' },
+    { label: 'co_passengers', insertText: 'co_passengers ', type: 'table', detail: 'Cached fellow passengers from scanned trips' }
 ];
 
 export const SQL_VALUES = [

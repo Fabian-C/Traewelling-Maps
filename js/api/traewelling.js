@@ -1,3 +1,4 @@
+// @ts-check
 // Rate-limited API client for Träwelling
 import { CONFIG } from '../config/config.js';
 

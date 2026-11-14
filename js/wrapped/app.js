@@ -457,8 +457,9 @@ function renderWrapped() {
     setVal('kpiPunctuality', `${currentInsights.punctuality.rate}%`);
     setVal('kpiPunctualitySub', `${currentInsights.punctuality.delayedCount} delayed trips (${currentInsights.punctuality.totalDelayMinutes.toLocaleString()} min total)`);
 
-    setVal('kpiCo2', `${currentInsights.co2SavedKg.toLocaleString()} kg`);
-    setVal('kpiCo2Sub', `Saved vs driving equivalent distance`);
+    const topStation = currentInsights.records?.topStations?.[0];
+    setVal('kpiStations', (currentInsights.records?.uniqueStationsCount || 0).toLocaleString());
+    setVal('kpiStationsSub', topStation ? `Top hub: ${topStation.name} (${topStation.visits}x)` : 'Unique arrival stations reached');
 
     // 3. Habits Heatmap
     renderHeatmap(currentInsights.habits);

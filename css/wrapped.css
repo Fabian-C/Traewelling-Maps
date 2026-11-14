@@ -35,8 +35,8 @@
     box-sizing: border-box;
 }
 
-.hidden {
-    display: none !important;
+.hidden[class] {
+    display: none;
 }
 
 html {
@@ -493,8 +493,8 @@ body {
    ========================================================================== */
 
 .transit-habits-panel {
-    overflow: hidden !important;
-    min-width: 0 !important;
+    overflow: hidden;
+    min-width: 0;
 }
 
 .heatmap-container {
@@ -502,7 +502,7 @@ body {
     flex-direction: column;
     gap: clamp(2px, 0.6vh, 4px);
     width: 100%;
-    overflow: hidden !important;
+    overflow: hidden;
     box-sizing: border-box;
     margin: 8px 0;
 }
@@ -1191,11 +1191,13 @@ body {
 
 /* Respect user motion preferences */
 @media (prefers-reduced-motion: reduce) {
-    *, ::before, ::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-        scroll-behavior: auto !important;
+    :root *,
+    :root *::before,
+    :root *::after {
+        animation-duration: 0.01ms;
+        animation-iteration-count: 1;
+        transition-duration: 0.01ms;
+        scroll-behavior: auto;
     }
 }
 

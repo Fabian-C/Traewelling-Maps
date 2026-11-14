@@ -224,7 +224,7 @@ export async function preloadSceneTiles(scene, mapStyle = 'traewelling-dark', on
         }
     });
 
-    // When recording, VideoClipRecorder awaits detail tiles; for live playback, mount immediately
+    // Warm detail tiles asynchronously in the background for live playback and export
     Promise.all(workers).catch(() => {});
 
     return { total, loaded };

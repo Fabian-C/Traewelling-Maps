@@ -1,3 +1,4 @@
+// @ts-check
 // Lightweight in-memory SQL parser & evaluator for Träwelling Trips dataset
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
 import { normalizeCategory, getTripBusinessType } from '../data/processing.js';
@@ -60,6 +61,17 @@ export const ROUTE_COLUMNS = [
     { name: 'destination_station_id', label: 'Destination ID', type: 'string', description: 'Destination terminal station ID' }
 ];
 
+export const CO_PASSENGER_COLUMNS = [
+    { name: 'trip_id', label: 'Trip ID', type: 'number', description: 'Upstream Träwelling trip run ID' },
+    { name: 'username', label: 'Username', type: 'string', description: 'Co-passenger username' },
+    { name: 'displayName', label: 'Display Name', type: 'string', description: 'Co-passenger display name' },
+    { name: 'status_id', label: 'Status ID', type: 'number', description: 'Co-passenger check-in status ID' },
+    { name: 'origin', label: 'Origin', type: 'string', description: 'Co-passenger boarding station' },
+    { name: 'destination', label: 'Destination', type: 'string', description: 'Co-passenger alighting station' },
+    { name: 'departure_time', label: 'Departure', type: 'datetime', description: 'Co-passenger departure timestamp' },
+    { name: 'arrival_time', label: 'Arrival', type: 'datetime', description: 'Co-passenger arrival timestamp' }
+];
+
 export const TABLE_SCHEMAS = {
     trips: {
         name: 'trips',
@@ -88,6 +100,13 @@ export const TABLE_SCHEMAS = {
         description: 'Normalized transit line runs, categories, and operators.',
         columns: ROUTE_COLUMNS,
         defaultQuery: 'SELECT id, line_name, category, operator_name FROM routes ORDER BY line_name ASC LIMIT 50'
+    },
+    co_passengers: {
+        name: 'co_passengers',
+        label: 'Co-Passengers',
+        description: 'Upstream fellow passengers discovered via incremental trip scans.',
+        columns: CO_PASSENGER_COLUMNS,
+        defaultQuery: 'SELECT username, origin, destination, trip_id FROM co_passengers LIMIT 50'
     }
 };
 
@@ -403,23 +422,37 @@ export function executeTripQuery(sql, records = [], options = {}) {
         throw new Error("Query must begin with 'SELECT'");
     }
 
+    const isDistinct = matchWord('DISTINCT');
     const selectedFields = [];
     while (cursor < tokens.length) {
         const tok = consume();
         if (!tok) break;
 
         if (tok.type === 'OPERATOR' && tok.value === '*') {
-            selectedFields.push('*');
+            selectedFields.push({ expr: '*', fn: null, arg: null, alias: '*' });
         } else if (tok.type === 'WORD' || tok.type === 'STRING') {
-            // Check for aggregate like COUNT(*)
             const next = peek();
             if (next && next.type === 'PUNCT' && next.value === '(') {
                 consume(); // '('
                 const inner = consume(); // '*' or field
                 consume(); // ')'
-                selectedFields.push(`${tok.value.toUpperCase()}(${inner ? inner.value : '*'})`);
+                const fn = tok.value.toUpperCase();
+                const arg = inner ? (inner.value === '*' ? '*' : String(inner.value).toLowerCase()) : '*';
+                const expr = `${fn}(${arg})`;
+                let alias = expr;
+                if (matchWord('AS')) {
+                    const aliasTok = consume();
+                    if (aliasTok) alias = String(aliasTok.value);
+                }
+                selectedFields.push({ expr, fn, arg, alias });
             } else {
-                selectedFields.push(String(tok.value).toLowerCase());
+                const col = String(tok.value).toLowerCase();
+                let alias = col;
+                if (matchWord('AS')) {
+                    const aliasTok = consume();
+                    if (aliasTok) alias = String(aliasTok.value);
+                }
+                selectedFields.push({ expr: col, fn: null, arg: col, alias });
             }
         }
 
@@ -434,15 +467,17 @@ export function executeTripQuery(sql, records = [], options = {}) {
     let targetTable = 'trips';
     if (matchWord('FROM')) {
         const tableTok = consume();
-        const validTables = ['trips', 'trip', 'checkins', 'checkin', 'statuses', 'status', 'stations', 'station', 'routes', 'route', 'trips_runs', 'companions', 'buddies'];
+        const validTables = ['trips', 'trip', 'checkins', 'checkin', 'statuses', 'status', 'stations', 'station', 'routes', 'route', 'trips_runs', 'co_passengers', 'copassengers', 'companions', 'buddies'];
         if (!tableTok || !validTables.includes(String(tableTok.value).toLowerCase())) {
-            throw new Error("Target table must be 'trips', 'statuses', 'stations', or 'routes'");
+            throw new Error("Target table must be 'trips', 'statuses', 'stations', 'routes', or 'co_passengers'");
         }
         const rawTable = String(tableTok.value).toLowerCase();
         if (['statuses', 'status'].includes(rawTable)) targetTable = 'statuses';
         else if (['stations', 'station'].includes(rawTable)) targetTable = 'stations';
         else if (['routes', 'route', 'trips_runs'].includes(rawTable)) targetTable = 'routes';
-        else targetTable = 'trips';
+        else if (['co_passengers', 'copassengers', 'companions', 'buddies'].includes(rawTable)) {
+            targetTable = options?.tables?.co_passengers ? 'co_passengers' : 'trips';
+        } else targetTable = 'trips';
     }
 
     // 3. WHERE clause
@@ -533,68 +568,114 @@ export function executeTripQuery(sql, records = [], options = {}) {
         });
     }
 
-    const totalMatching = filtered.length;
-
-    // C. Paginate (Limit/Offset)
-    let paged = filtered;
-    if (offset > 0 || limit !== null) {
-        const start = offset;
-        const end = limit !== null ? start + limit : filtered.length;
-        paged = filtered.slice(start, end);
-    }
-
-    // D. Column Projection
+    const SUPPORTED_AGGS = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX'];
     const schemaDef = TABLE_SCHEMAS[targetTable] || TABLE_SCHEMAS.trips;
     const availableCols = schemaDef.columns.map(c => c.name);
-    const isSelectAll = selectedFields.length === 0 || selectedFields.includes('*');
+    const isSelectAll = selectedFields.length === 0 || selectedFields.some(f => f.expr === '*');
 
     if (!isSelectAll) {
         for (const field of selectedFields) {
-            const lowerF = field.toLowerCase();
-            const isAgg = field.toUpperCase().startsWith('COUNT(');
-            if (!isAgg && !availableCols.includes(lowerF)) {
-                throw new Error(`Unknown column '${field}' in table '${targetTable}'`);
+            if (field.fn) {
+                if (!SUPPORTED_AGGS.includes(field.fn)) {
+                    throw new Error(`Unsupported aggregate function '${field.fn}'`);
+                }
+                if (field.arg !== '*' && !availableCols.includes(field.arg)) {
+                    throw new Error(`Unknown column '${field.arg}' in table '${targetTable}'`);
+                }
+            } else if (!availableCols.includes(field.arg)) {
+                throw new Error(`Unknown column '${field.arg}' in table '${targetTable}'`);
             }
         }
     }
 
-    const activeColumns = isSelectAll
-        ? availableCols
-        : selectedFields.map(f => f.toUpperCase().startsWith('COUNT(') ? f.toUpperCase() : f.toLowerCase());
+    const hasAnyAgg = !isSelectAll && selectedFields.some(f => Boolean(f.fn));
+    const allAggs = !isSelectAll && selectedFields.length > 0 && selectedFields.every(f => Boolean(f.fn));
 
-    const hasCount = activeColumns.some(c => c.startsWith('COUNT('));
-    if (hasCount && activeColumns.length === 1) {
+    if (allAggs) {
+        const aggRow = { id: 0 };
+        const activeColumns = [];
+        for (const field of selectedFields) {
+            activeColumns.push(field.alias);
+            let value = null;
+            if (field.fn === 'COUNT') {
+                value = field.arg === '*'
+                    ? filtered.length
+                    : filtered.filter(r => r[field.arg] !== null && r[field.arg] !== undefined && r[field.arg] !== '').length;
+            } else {
+                const nums = filtered
+                    .map(r => r[field.arg])
+                    .filter(v => v !== null && v !== undefined && v !== '' && !isNaN(Number(v)))
+                    .map(Number);
+                if (nums.length > 0) {
+                    if (field.fn === 'SUM') value = Math.round(nums.reduce((a, b) => a + b, 0) * 100) / 100;
+                    else if (field.fn === 'AVG') value = Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 100) / 100;
+                    else if (field.fn === 'MIN') value = Math.min(...nums);
+                    else if (field.fn === 'MAX') value = Math.max(...nums);
+                }
+            }
+            aggRow[field.alias] = value;
+        }
         return {
             table: targetTable,
-            columns: ['COUNT(*)'],
-            rows: [{ id: 0, 'COUNT(*)': totalMatching }],
+            columns: activeColumns,
+            rows: [aggRow],
             totalRows: 1,
             rawTrips: [],
             executionTimeMs: Math.round((performance.now() - startTime) * 100) / 100,
-            isSelectAll: false
+            isSelectAll: false,
+            isAggregate: true
         };
     }
 
-    const projectedRows = paged.map(row => {
+    if (hasAnyAgg) {
+        throw new Error('Cannot mix aggregate functions and raw columns without GROUP BY');
+    }
+
+    const activeColumns = isSelectAll ? availableCols : selectedFields.map(f => f.alias);
+
+    const projectRow = (row) => {
         if (isSelectAll) return { ...row };
         const res = { id: row.id };
         if (row._rawTrip) res._rawTrip = row._rawTrip;
-        for (const col of activeColumns) {
-            res[col] = row[col];
+        for (const field of selectedFields) {
+            res[field.alias] = row[field.arg];
         }
         return res;
-    });
+    };
+
+    let projectedAll = filtered.map(projectRow);
+
+    if (isDistinct) {
+        const seenKeys = new Set();
+        projectedAll = projectedAll.filter(row => {
+            const key = JSON.stringify(activeColumns.map(col => row[col] ?? null));
+            if (seenKeys.has(key)) return false;
+            seenKeys.add(key);
+            return true;
+        });
+    }
+
+    const totalMatching = projectedAll.length;
+
+    // C. Paginate (Limit/Offset)
+    let paged = projectedAll;
+    if (offset > 0 || limit !== null) {
+        const start = offset;
+        const end = limit !== null ? start + limit : projectedAll.length;
+        paged = projectedAll.slice(start, end);
+    }
 
     const executionTimeMs = Math.round((performance.now() - startTime) * 100) / 100;
 
     return {
         table: targetTable,
         columns: activeColumns,
-        rows: projectedRows,
+        rows: paged,
         totalRows: totalMatching,
         rawTrips: targetTable === 'trips' ? paged.map(r => r._rawTrip).filter(Boolean) : [],
         executionTimeMs,
-        isSelectAll
+        isSelectAll,
+        isAggregate: false
     };
 }
 
@@ -655,9 +736,15 @@ function compileWherePredicate(tokens) {
         const colName = String(colTok.value || '').toLowerCase();
 
         if (c >= len) return () => true;
-        const opTok = tokens[c++];
+        let opTok = tokens[c++];
         if (!opTok) return () => true;
-        const op = opTok.value.toUpperCase();
+        let op = opTok.value.toUpperCase();
+        let negateOp = false;
+        if (op === 'NOT' && c < len) {
+            negateOp = true;
+            opTok = tokens[c++];
+            op = opTok.value.toUpperCase();
+        }
 
         // IS NULL / IS NOT NULL
         if (op === 'IS') {
@@ -693,7 +780,8 @@ function compileWherePredicate(tokens) {
             }
             return row => {
                 const rowVal = String(row[colName] || '').toLowerCase();
-                return inValues.has(rowVal);
+                const matched = inValues.has(rowVal);
+                return negateOp ? !matched : matched;
             };
         }
 
@@ -737,7 +825,8 @@ function compileWherePredicate(tokens) {
                     .replace(/%/g, '.*')
                     .replace(/_/g, '.');
                 const regex = new RegExp(`^${pattern}$`, op === 'ILIKE' ? 'i' : '');
-                return regex.test(String(rowVal));
+                const matched = regex.test(String(rowVal));
+                return negateOp ? !matched : matched;
             }
 
             if (op === '=') {

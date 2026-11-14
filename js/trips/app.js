@@ -5,7 +5,7 @@ import { tripsToGeoJSON, tripsToCSV, tripsToJSON, parseGeoJSONToTrips, parseCSVT
 import { syncNavigationLinks } from '../ui/navigation.js';
 import { getTripBuddies, renderLinkedComment } from './formatters.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
-import { formatTotalTime, calculateCO2Saved, formatSpeed, escapeHtml } from '../utils/format.js';
+import { formatTotalTime, formatSpeed, escapeHtml } from '../utils/format.js';
 import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
 import { extractTripDetails, formatTimeShort } from '../ui/tripDetails.js';
 import { spatialPreviewEngine } from './mapPreview.js';
@@ -1643,7 +1643,8 @@ export async function getStudioDatasets() {
         trips: flattenedTrips,
         statuses,
         stations,
-        routes
+        routes,
+        co_passengers: allCoPassengers
     };
 }
 
@@ -1656,7 +1657,7 @@ export async function runSqlQuery(sql) {
     await loadStudioModules();
 
     const datasets = await getStudioDatasets();
-    if (!datasets.trips.length && !datasets.statuses.length && !datasets.stations.length && !datasets.routes.length) return;
+    if (!datasets.trips.length && !datasets.statuses.length && !datasets.stations.length && !datasets.routes.length && !datasets.co_passengers.length) return;
 
     try {
         const result = sqlEngine.executeTripQuery(sql, datasets.trips, { tables: datasets });
@@ -1955,8 +1956,6 @@ function updateTelemetry(trips) {
     const punctEl = document.getElementById('telemetryPunctuality');
     const durEl = document.getElementById('telemetryDuration');
     const durSubEl = document.getElementById('telemetryDurationSub');
-    const ecoEl = document.getElementById('telemetryEco');
-    const ecoSubEl = document.getElementById('telemetryEcoSub');
 
     let totalDistMeters = 0;
     let onTimeCount = 0;
@@ -1977,7 +1976,6 @@ function updateTelemetry(trips) {
     const punctRate = trips.length > 0 ? Math.round((onTimeCount / trips.length) * 100) : 100;
     const totalHours = Math.round(totalMinutes / 60);
     const timeInfo = formatTotalTime(totalHours);
-    const eco = calculateCO2Saved(distKm);
 
     if (countEl) countEl.textContent = trips.length.toLocaleString();
     if (countSubEl) countSubEl.textContent = `of ${allTrips.length.toLocaleString()} total journeys`;
@@ -2004,9 +2002,6 @@ function updateTelemetry(trips) {
             durSubEl.textContent = `~${timeInfo.days} days on tracks • click to toggle`;
         }
     }
-
-    if (ecoEl) ecoEl.textContent = `${eco.tonnes} tonnes`;
-    if (ecoSubEl) ecoSubEl.textContent = `~${eco.kg.toLocaleString()} kg CO₂ avoided vs car`;
 }
 
 /**
@@ -2019,8 +2014,8 @@ function renderResults() {
     const nextBtn = document.getElementById('nextPageBtn');
 
     const isStudio = (appMode === 'studio' && Boolean(sqlQueryResult));
-    const isScalarCount = isStudio && Boolean(sqlQueryResult) && sqlQueryResult.columns?.length === 1 && sqlQueryResult.columns[0]?.startsWith('COUNT(');
-    const isRawSqlMode = isStudio && (studioTableMode === 'raw' || (sqlQueryResult?.table && sqlQueryResult.table !== 'trips')) && !isScalarCount && !sqlQueryResult?.error;
+    const isScalarCount = isStudio && Boolean(sqlQueryResult) && sqlQueryResult.columns?.length === 1 && (sqlQueryResult.isAggregate || sqlQueryResult.columns[0]?.startsWith('COUNT('));
+    const isRawSqlMode = isStudio && (studioTableMode === 'raw' || sqlQueryResult?.isAggregate || (sqlQueryResult?.table && sqlQueryResult.table !== 'trips')) && !isScalarCount && !sqlQueryResult?.error;
 
     let total = 0;
     let items = [];
@@ -2263,10 +2258,11 @@ function renderResults() {
                 });
             }
         } else if (isScalarCount) {
+            const colName = sqlQueryResult.columns?.[0] || 'COUNT(*)';
             tbody.innerHTML = pageItems.map(row => `
                 <tr>
                     <td style="text-align: center; font-size: 28px; font-weight: 700; color: var(--accent-cyan); padding: 36px;">
-                        ${(row['COUNT(*)'] ?? 0).toLocaleString()}
+                        ${(row[colName] ?? 0).toLocaleString()}
                     </td>
                 </tr>
             `).join('');

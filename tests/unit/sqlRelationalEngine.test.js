@@ -156,5 +156,46 @@ describe('Relational SQL Engine & Autocomplete', () => {
             expect(labels).toContain("'CH'");
         });
     });
+
+    describe('Aggregates, DISTINCT, AS, NOT IN & co_passengers', () => {
+        it('supports SUM, AVG, MIN, MAX with AS aliases', () => {
+            const sql = 'SELECT SUM(distance_km) AS total_km, AVG(distance_km) AS avg_km, MIN(delay_dep) AS min_d, MAX(delay_dep) AS max_d FROM trips';
+            const res = executeTripQuery(sql, mockDatasets.trips);
+            expect(res.isAggregate).toBe(true);
+            expect(res.columns).toEqual(['total_km', 'avg_km', 'min_d', 'max_d']);
+            expect(res.rows[0].total_km).toBe(200);
+            expect(res.rows[0].avg_km).toBe(100);
+            expect(res.rows[0].min_d).toBe(0);
+            expect(res.rows[0].max_d).toBe(12);
+        });
+
+        it('supports SELECT DISTINCT and NOT IN', () => {
+            const resDistinct = executeTripQuery("SELECT DISTINCT country_code FROM stations WHERE country_code NOT IN ('CH')", [], {
+                tables: {
+                    ...mockDatasets,
+                    stations: [
+                        ...mockDatasets.stations,
+                        { id: 8000001, name: 'Berlin Hbf', country_code: 'DE' }
+                    ]
+                }
+            });
+            expect(resDistinct.rows).toHaveLength(1);
+            expect(resDistinct.rows[0].country_code).toBe('DE');
+        });
+
+        it('queries co_passengers table when supplied in tables option', () => {
+            const res = executeTripQuery('SELECT username, origin FROM co_passengers ORDER BY username ASC', [], {
+                tables: {
+                    ...mockDatasets,
+                    co_passengers: [
+                        { trip_id: 1, username: 'bob', origin: 'Berlin Hbf' },
+                        { trip_id: 1, username: 'alice', origin: 'Hamburg Hbf' }
+                    ]
+                }
+            });
+            expect(res.table).toBe('co_passengers');
+            expect(res.rows.map(r => r.username)).toEqual(['alice', 'bob']);
+        });
+    });
 });
 

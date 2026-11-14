@@ -19,6 +19,10 @@ A modular, production-ready web application for visualizing Träwelling travel d
 - **Route Heatmap & Route Animation**: Dynamic heatmap density overlay with customizable color gradients and real-time trip playback animation.
 - **Delay Tracker & Railway Tracks Overlay**: Pinpoint worst delays and overlay detailed OpenRailwayMap infrastructure over base vector tiles.
 - **Trip Notes & Comment Search**: User notes and status text displayed safely in route popups, with instant client-side full-text search across lines, stations, buddies, and notes.
+- **Trip Database & SQL Studio (`trips.html`)**: Full-text searchable trip table, co-passenger scanning, and an in-browser SQL engine supporting `SELECT DISTINCT`, `AVG`/`SUM`/`MIN`/`MAX`/`COUNT`, `AS` aliases, `NOT IN`, and the `co_passengers` table.
+- **Route Animation Studio (`animation.html`)**: High-resolution canvas route animation with camera follow, 3D tilt, vector/tile map styles, and client-side WebM/MP4 export (`js/anim-v2/`).
+- **Rail Wrapped (`wrapped.html`)**: Annual travel analytics, transit habits heatmap, records, and downloadable social summary cards.
+- **Self-Hosting Tile Support**: Configurable basemap provider (`mapbox`, tokenless `carto-dark`, `osm`, or `custom` tile URL) via `CONFIG.MAP_TILES`, `localStorage`, or `?tiles=` query parameter.
 
 ## Architecture
 
@@ -26,14 +30,17 @@ A modular, production-ready web application for visualizing Träwelling travel d
 
 ```
 js/
+├── anim-v2/              # Unified animation studio engine (camera, renderer, WebM/MP4 export)
+├── animation/            # Shared animation geometry, tile preloader, vector map renderer
 ├── analytics/
 │   └── statistics.js     # Travel metrics, operator stats, buddy rankings
 ├── api/
 │   └── traewelling.js    # Rate-limited API client (statuses, polylines, stopovers)
 ├── cache/
-│   └── session.js        # IndexedDB v2 storage (sessions, stopovers, fast meta cache)
+│   ├── normalizer.js     # Canonical trip normalization
+│   └── session.js        # IndexedDB v2/v3 storage (sessions, polylines, stopovers, co-passengers)
 ├── config/
-│   └── config.js         # API base URLs, layer colors, rate limits, OAuth config
+│   └── config.js         # API base URLs, layer colors, rate limits, OAuth & map tile config
 ├── data/
 │   └── processing.js     # GeoJSON feature normalization, coordinate validation
 ├── events/
@@ -50,23 +57,21 @@ js/
 │   ├── interactions.js   # Map click/hover handlers, popups, media viewer
 │   ├── layers.js         # Category layer sources, ordering, and toggles
 │   └── routeAnimation.js # Animated trip playback along route polylines
+├── privacy/              # StatusVisibility filtering & privacy manager
 ├── session/
 │   ├── manager.js        # Session persistence, auto-validation, account switcher
 │   └── oauth.js          # PKCE code challenge and token exchange
 ├── state/
 │   ├── state.js          # Central state shape initialization
 │   └── store.js          # Reactive store with subscription callbacks
+├── trips/                # Trip database UI, SQL engine & autocomplete, co-passenger scanner
 ├── ui/
 │   ├── funFacts.js       # Dynamic travel milestones and fun facts
+│   ├── loadingGame/      # Modular loading widget (Check-in Ticker)
 │   ├── rateLimit.js      # Live rate-limit gauge and quota meter
 │   └── ui.js             # Setup modal, cargo depot animation, status banners
-└── utils/
-    ├── color.js          # Hex/RGB conversions and color blending
-    ├── data.js           # Empty statistics factories and normalization
-    ├── format.js         # Date, duration, and delay formatting
-    ├── geometry.js       # Distance, bearing, and bounding box math
-    ├── math.js           # Numeric helpers
-    └── time.js           # Timestamp parsing and scheduled vs real delay math
+├── utils/                # Color, data, format, geometry, logger, math, storage, time helpers
+└── wrapped/              # Rail Wrapped analytics & social card generator
 ```
 
 ### Key Modules

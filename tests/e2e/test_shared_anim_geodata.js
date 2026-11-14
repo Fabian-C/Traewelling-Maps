@@ -90,51 +90,15 @@ async function runSharedGeodataTest() {
         `);
         console.log('animation.html loaded state:', animInfo);
 
-        console.log('2. Navigating to animation-v2.html?user=hash&trip=9501851 ...');
-        await send('Page.navigate', { url: 'http://127.0.0.1:8000/animation-v2.html?user=hash&trip=9501851' });
-        await new Promise(r => setTimeout(r, 4000));
-
-        const animV2Info = await evalJs(`
-            (async () => {
-                const select = document.getElementById('tripSelect');
-                const selectedOpt = select ? select.options[select.selectedIndex]?.text : null;
-                const sidebarRoute = document.getElementById('sidebarRoute')?.textContent;
-                const sidebarLine = document.getElementById('sidebarLine')?.textContent;
-
-                const { SessionDB } = await import('./js/cache/session.js');
-                const { extractRouteCoordinates } = await import('./js/animation/geometry.js');
-                const cachedPolys = await SessionDB.getPolylinesBatch([9501851]);
-                const tripPoly = cachedPolys[9501851];
-                const dummyTrip = { checkin: { polyline: tripPoly } };
-                const coords = extractRouteCoordinates(dummyTrip);
-
-                return {
-                    tripSelectValue: select?.value,
-                    selectedOptionText: selectedOpt,
-                    sidebarLine,
-                    sidebarRoute,
-                    hasCachedPoly: !!tripPoly,
-                    extractedCoordsCount: coords.length
-                };
-            })()
-        `);
-        console.log('animation-v2.html loaded state:', animV2Info);
-
         if (animInfo.tripSelectValue !== '9501851') {
             throw new Error(`animation.html tripSelectValue expected '9501851', got '${animInfo.tripSelectValue}'`);
-        }
-        if (animV2Info.tripSelectValue !== '9501851') {
-            throw new Error(`animation-v2.html tripSelectValue expected '9501851', got '${animV2Info.tripSelectValue}'`);
         }
         if (animInfo.extractedCoordsCount !== 219) {
             throw new Error(`Expected 219 high-resolution polyline coordinates in animation.html, got ${animInfo.extractedCoordsCount}`);
         }
-        if (animV2Info.extractedCoordsCount !== 219) {
-            throw new Error(`Expected 219 high-resolution polyline coordinates in animation-v2.html, got ${animV2Info.extractedCoordsCount}`);
-        }
 
         console.log('====================================================');
-        console.log('✅ PASS: Shared animation geodata fetch verified for both animation players!');
+        console.log('✅ PASS: Shared animation geodata fetch verified for animation.html!');
         console.log('====================================================');
     } finally {
         ws.close();

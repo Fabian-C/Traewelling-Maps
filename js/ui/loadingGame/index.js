@@ -5,10 +5,9 @@
  */
 
 import { CheckinRandomizer } from './checkinRandomizer.js';
-import { DelayBingo } from './delayBingo.js';
 
 export const LoadingGame = {
-    // Current active game implementation (defaults to Check-in Text Randomizer)
+    // Current active game implementation (Check-in Text Randomizer)
     activeGame: CheckinRandomizer,
 
     /**
@@ -81,4 +80,4 @@ export const LoadingGame = {
     }
 };
 
-export { CheckinRandomizer, DelayBingo };
+export { CheckinRandomizer };

@@ -1,3 +1,4 @@
+// @ts-check
 // Analytics calculation engine for Träwelling Rail Wrapped
 import { normalizeCategory, normalizeTripStatus } from '../data/processing.js';
 import { hasJourneyOverlap } from '../trips/formatters.js';
@@ -442,16 +443,12 @@ export function calculateWrappedInsights(trips = [], username = '') {
         ? Math.round((onTimeCount / validTrips.length) * 100)
         : 100;
 
-    // CO2 savings vs car (approx 120g net saving per passenger-km)
-    const co2SavedKg = Math.round(totalKm * 0.12);
-
     return {
         totalTrips: validTrips.length,
         totalKm: Math.round(totalKm),
         earthCircumferences: Number((totalKm / EARTH_CIRCUMFERENCE_KM).toFixed(2)),
         moonDistancePercent: Number(((totalKm / MOON_DISTANCE_KM) * 100).toFixed(1)),
         totalDurationHours,
-        co2SavedKg,
         punctuality: {
             rate: punctualityRate,
             onTimeCount,

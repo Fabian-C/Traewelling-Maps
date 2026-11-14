@@ -132,17 +132,18 @@ export async function generateWrappedCardCanvas(insights, user = {}, year = 'All
     ctx.fillStyle = '#a1a4ba';
     ctx.fillText(`⚠️ ${insights.punctuality.delayedCount} delays recorded`, 110, startY + cardH + 24 + 160);
 
-    // Card 4: CO2 Saved
+    // Card 4: Stations Visited
     roundRect(80 + cardW + 30, startY + cardH + 24, cardW, cardH, 20, 'rgba(16, 20, 36, 0.75)', 'rgba(255, 107, 156, 0.25)');
     ctx.font = '600 22px sans-serif';
     ctx.fillStyle = '#ff6b9c';
-    ctx.fillText('CO₂ EMISSIONS SAVED', 80 + cardW + 30 + 30, startY + cardH + 24 + 45);
+    ctx.fillText('STATIONS VISITED', 80 + cardW + 30 + 30, startY + cardH + 24 + 45);
     ctx.font = '800 54px -apple-system, BlinkMacSystemFont, sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(`${insights.co2SavedKg.toLocaleString()} kg`, 80 + cardW + 30 + 30, startY + cardH + 24 + 115);
+    ctx.fillText(`${(insights.records?.uniqueStationsCount || 0).toLocaleString()}`, 80 + cardW + 30 + 30, startY + cardH + 24 + 115);
     ctx.font = '500 20px sans-serif';
     ctx.fillStyle = '#a1a4ba';
-    ctx.fillText(`🌱 vs equivalent car travel`, 80 + cardW + 30 + 30, startY + cardH + 24 + 160);
+    const topHub = insights.records?.topStations?.[0]?.name || 'Unique hubs reached';
+    ctx.fillText(`🚉 ${topHub.slice(0, 26)}`, 80 + cardW + 30 + 30, startY + cardH + 24 + 160);
 
     // 7. Highlights Section (Clean full-width cards with smart collision avoidance)
     const listY = 740;

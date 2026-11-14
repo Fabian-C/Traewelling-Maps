@@ -1,3 +1,4 @@
+// @ts-check
 // Formatting and ID generation utilities
 
 /**
@@ -96,20 +97,6 @@ export function formatTotalTime(totalHours) {
         days,
         months
     };
-}
-
-/**
- * Calculate CO2 emission savings of rail journey compared to average passenger car (142g CO2/km)
- * @param {number} distanceKm
- * @returns {{ kg: number, tonnes: string, label: string }}
- */
-export function calculateCO2Saved(distanceKm) {
-    const km = Math.max(0, Number(distanceKm) || 0);
-    // Average savings: ~142 grams CO2 per passenger-kilometer (EEA / DB Umweltbilanz)
-    const kg = Math.round(km * 0.142);
-    const tonnes = (kg / 1000).toFixed(1);
-    const label = kg >= 1000 ? `${tonnes} tonnes CO₂ saved` : `${kg.toLocaleString()} kg CO₂ saved`;
-    return { kg, tonnes, label };
 }
 
 /**

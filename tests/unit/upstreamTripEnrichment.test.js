@@ -191,8 +191,8 @@ describe('Upstream Trip Data & Co-Passenger Enrichment', () => {
     });
 
     describe('SQL Engine Unified Buddies on trips', () => {
-        it('includes buddies and buddy_count in trips schema without separate co_passengers table', () => {
-            expect(TABLE_SCHEMAS.co_passengers).toBeUndefined();
+        it('includes buddies and buddy_count in trips schema and defines co_passengers table', () => {
+            expect(TABLE_SCHEMAS.co_passengers).toBeDefined();
             expect(TABLE_SCHEMAS.trips).toBeDefined();
             const colNames = TABLE_SCHEMAS.trips.columns.map(c => c.name);
             expect(colNames).toContain('buddies');

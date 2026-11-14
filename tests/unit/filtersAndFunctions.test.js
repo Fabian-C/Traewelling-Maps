@@ -18,7 +18,6 @@ import {
 import {
     formatHumanDuration,
     formatTotalTime,
-    calculateCO2Saved,
     formatSpeed,
     formatDelayMinutes,
     buildEndpointKey,
@@ -342,12 +341,6 @@ describe('Comprehensive Filters & Functions Test Suite', () => {
             it('formatTotalTime formats cumulative hours into days and hours', () => {
                 expect(formatTotalTime(5).primary).toBe('5 hrs');
                 expect(formatTotalTime(26).primary).toBe('1d 2h');
-            });
-
-            it('calculateCO2Saved estimates carbon savings relative to driving', () => {
-                const res = calculateCO2Saved(100);
-                expect(res.kg).toBeGreaterThan(10);
-                expect(res.kg).toBeLessThan(20);
             });
 
             it('formatSpeed computes average km/h accurately', () => {

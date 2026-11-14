@@ -439,7 +439,7 @@
 }
 
 .layer-item:hover .layer-drag-handle {
-    opacity: 0.8 !important;
+    opacity: 0.8;
 }
 
 .layer-item.drag-over {
@@ -790,7 +790,7 @@ input:checked+.toggle-slider:before {
 }
 
 .stats-close-btn:hover {
-    color: var(--text-primary) !important;
+    color: var(--text-primary);
 }
 
 .stat-item {
@@ -2009,9 +2009,9 @@ body.stats-open .active-filter-badges {
     }
 
     .stats-panel .btn-outline {
-        margin-top: 6px !important;
-        padding: 4px 6px !important;
-        font-size: 9.5px !important;
+        margin-top: 6px;
+        padding: 4px 6px;
+        font-size: 9.5px;
         border-radius: 5px;
     }
 
@@ -2216,8 +2216,8 @@ body.stats-open .active-filter-badges {
     }
 }
 
-.hidden {
-    display: none !important;
+.hidden[class] {
+    display: none;
 }
 
 /* GeoJSON Export Toast */
@@ -2502,8 +2502,8 @@ body.drag-over::after {
     to { opacity: 1; transform: translate(-50%, 0); }
 }
 
-.floating-trip-cycler.hidden {
-    display: none !important;
+.floating-trip-cycler.hidden[class] {
+    display: none;
 }
 
 .cycler-btn {

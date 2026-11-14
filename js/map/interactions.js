@@ -1,5 +1,5 @@
 // Map interactions module
-import { CONFIG } from '../config/config.js';
+import { CONFIG, resolveMapStyle } from '../config/config.js';
 import { store } from '../state/store.js';
 import { RouteAnimation } from './routeAnimation.js';
 import { getTapTolerancePx, snapLngLatToLine } from '../utils/geometry.js';
@@ -22,10 +22,13 @@ import { renderLinkedComment } from '../trips/formatters.js';
 
 export function initMap() {
     const state = store.get();
-    mapboxgl.accessToken = CONFIG.MAPBOX_TOKEN;
+    const mapStyle = resolveMapStyle();
+    if (typeof mapStyle === 'string' && CONFIG.MAPBOX_TOKEN) {
+        mapboxgl.accessToken = CONFIG.MAPBOX_TOKEN;
+    }
     const isMobile = window.innerWidth <= 768;
     state.map = new mapboxgl.Map({
-        container: 'map', style: 'mapbox://styles/mapbox/dark-v10',
+        container: 'map', style: mapStyle,
         center: [10.4515, 51.1657], zoom: isMobile ? 5 : 6, pitch: isMobile ? 0 : 15,
         attributionControl: false, fadeDuration: 0, antialias: true, renderWorldCopies: false,
         // Mobile-specific optimizations
@@ -45,7 +48,11 @@ export function initMap() {
         state.useDeckGL = true;
     } catch (e) { state.useDeckGL = false; }
 
-    state.map.on('style.load', () => { state.map.setFog({ 'high-color': 'rgb(36, 92, 223)', 'horizon-blend': 0.4 }); });
+    state.map.on('style.load', () => {
+        try {
+            state.map.setFog({ 'high-color': 'rgb(36, 92, 223)', 'horizon-blend': 0.4 });
+        } catch (_) { /* Fog may be unavailable on custom raster styles */ }
+    });
     state.map.on('load', () => {
         // Add a small delay for mobile to ensure proper loading
         const addLayersDelay = RouteAnimation.isMobile() ? 100 : 0;

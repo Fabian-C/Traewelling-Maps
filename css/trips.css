@@ -738,20 +738,20 @@ tr.trip-row {
 }
 
 tr.trip-row.expanded {
-    background: rgba(56, 189, 248, 0.05) !important;
+    background: rgba(56, 189, 248, 0.05);
 }
 
 /* Expanded Accordion Row */
-.trip-expand-row {
-    background: rgba(15, 23, 42, 0.75) !important;
+.trips-table tbody tr.trip-expand-row {
+    background: rgba(15, 23, 42, 0.75);
 }
 
-.trip-expand-row:hover {
-    background: rgba(15, 23, 42, 0.75) !important;
+.trips-table tbody tr.trip-expand-row:hover {
+    background: rgba(15, 23, 42, 0.75);
 }
 
-.trip-expand-cell {
-    padding: 14px 18px 18px !important;
+.trips-table tbody td.trip-expand-cell {
+    padding: 14px 18px 18px;
     border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -1918,7 +1918,7 @@ select, .profile-select, .studio-select, .rule-select {
     background-repeat: no-repeat;
     background-position: right 10px center;
     background-size: 12px;
-    padding-right: 30px !important;
+    padding-right: 30px;
     border: 1px solid var(--border-subtle);
     color: var(--text-primary);
     color-scheme: dark;
@@ -2682,7 +2682,7 @@ body:has(dialog[open]) {
 }
 
 #scanCoPassengersBadge.up-to-date:hover {
-    background: rgba(16, 185, 129, 0.45) !important;
+    background: rgba(16, 185, 129, 0.45);
     transform: scale(1.18);
     box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
 }

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Träwelling StatusVisibility Enum & Bulk Privacy Filtering Helpers
  * Matches upstream App\Enum\StatusVisibility (0=public, 1=unlisted, 2=followers, 3=private, 4=authenticated, 5=trusted).

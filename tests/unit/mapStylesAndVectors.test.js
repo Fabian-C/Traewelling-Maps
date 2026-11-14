@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { resolveMapStyle } from '../../js/config/config.js';
 import { MAP_STYLES, preloadSceneTiles } from '../../js/animation/tiles.js';
 import { drawVectorBaseMap } from '../../js/animation/vectorRenderer.js';
 import {
@@ -96,5 +97,19 @@ describe('Map Styles & Vector Map Engine', () => {
         expect(mockCtx.fill).toHaveBeenCalled();
         expect(mockCtx.stroke).toHaveBeenCalled();
         expect(mockCtx.fillText).toHaveBeenCalled();
+    });
+
+    it('resolves self-hosted/tokenless raster map styles when Mapbox token is omitted or overridden', () => {
+        expect(resolveMapStyle({ provider: 'mapbox', mapboxToken: 'pk.test' })).toBe('mapbox://styles/mapbox/dark-v10');
+
+        const fallback = resolveMapStyle({ provider: 'mapbox', mapboxToken: '' });
+        expect(fallback.version).toBe(8);
+        expect(fallback.sources['selfhosted-raster-tiles'].tiles[0]).toContain('basemaps.cartocdn.com/dark_all');
+
+        const osm = resolveMapStyle({ provider: 'osm' });
+        expect(osm.sources['selfhosted-raster-tiles'].tiles[0]).toContain('tile.openstreetmap.org');
+
+        const custom = resolveMapStyle({ provider: 'custom', customTileUrl: 'https://tiles.local/{z}/{x}/{y}.png' });
+        expect(custom.sources['selfhosted-raster-tiles'].tiles).toEqual(['https://tiles.local/{z}/{x}/{y}.png']);
     });
 });
