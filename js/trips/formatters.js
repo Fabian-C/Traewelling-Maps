@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Formatting and buddy extraction helpers for the Trips database and explorer
  */
@@ -9,14 +10,8 @@ import { escapeHtml } from '../utils/format.js';
  * Validates stop sequences along the shared train run when stopovers are present;
  * falls back to scheduled/actual ISO timestamp interval intersection.
  *
- * @param {Object} userTrip - User's trip or feature record
- * @param {Object} [userTrip.train] - Train metadata
- * @param {Array<Object>} [userTrip.stopovers] - Intermediate station stopovers
- * @param {Object} co - Co-passenger record from upstream train run
- * @param {string} [co.origin] - Co-passenger origin station name
- * @param {string} [co.destination] - Co-passenger destination station name
- * @param {string} [co.departure_time] - Co-passenger departure timestamp (ISO)
- * @param {string} [co.arrival_time] - Co-passenger arrival timestamp (ISO)
+ * @param {import('../types.js').TraewellingStatus|any} userTrip - User's trip or feature record
+ * @param {import('../types.js').CoPassenger|any} co - Co-passenger record from upstream train run
  * @returns {boolean} True if they traveled together on at least one shared segment
  */
 export function hasJourneyOverlap(userTrip, co) {

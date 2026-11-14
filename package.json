@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "npx --yes http-server . -p 8000 -c-1",
     "lint": "eslint js tests",
+    "typecheck": "tsc --noEmit -p jsconfig.json",
     "lint:css": "stylelint \"css/**/*.css\"",
     "format": "prettier --check \"{js,css,tests}/**/*.{js,css}\" \"*.html\"",
     "format:fix": "prettier --write \"{js,css,tests}/**/*.{js,css}\" \"*.html\"",
@@ -18,6 +19,7 @@
     "prettier": "^3.3.0",
     "stylelint": "^16.8.0",
     "stylelint-config-standard": "^36.0.0",
+    "typescript": "^7.0.2",
     "vitest": "^2.0.0"
   }
 }

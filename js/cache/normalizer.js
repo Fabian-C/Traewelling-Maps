@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Normalizer and entity extractor for relational storage in Traewelling Maps.
  * Converts upstream hierarchical trip check-ins into normalized relational entities:
@@ -64,9 +65,9 @@ export function extractStation(stationObj) {
 
 /**
  * Normalize a single raw check-in / trip object into relational components.
- * @param {Object} trip Check-in object from Träwelling API or cache
+ * @param {import('../types.js').TraewellingStatus|Object} trip Check-in object from Träwelling API or cache
  * @param {string} username Active username owning this record
- * @returns {{ stations: Object[], tripRun: Object|null, status: Object|null }|null}
+ * @returns {{ stations: import('../types.js').NormalizedStation[], tripRun: import('../types.js').NormalizedTripRun|null, status: import('../types.js').NormalizedStatus|null, polyline: any }|null}
  */
 export function normalizeTrip(trip, username = '') {
     if (!trip || typeof trip !== 'object') return null;
@@ -136,7 +137,8 @@ export function normalizeTrip(trip, username = '') {
     const distanceKm = Math.round((distanceMeters / 1000) * 10) / 10;
 
     const durationMin = computeTripDurationMinutes(trip) || 0;
-    const businessType = getTripBusinessType(trip) || 'private';
+    const rawBusiness = getTripBusinessType(trip);
+    const businessType = rawBusiness === 1 ? 'business' : rawBusiness === 2 ? 'commute' : 'private';
 
     const buddies = Array.isArray(trip.users)
         ? trip.users.map((u) => ({ username: u.username, displayName: u.name || u.displayName || u.username }))
