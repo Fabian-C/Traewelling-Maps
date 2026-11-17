@@ -282,8 +282,8 @@ export function drawVectorBaseMap({
 
     for (const city of cities) {
         const isTier1 = (city.tier || 1) === 1;
-        // Level of Detail: Tier 2 regional cities fade in at camZoom >= 1.7
-        if (!isTier1 && camZoom < 1.7) continue;
+        // Level of Detail: Tier 2 regional cities fade in at camZoom >= 1.15 for earlier visibility
+        if (!isTier1 && camZoom < 1.15) continue;
 
         const cx = typeof city.cx === 'number'
             ? city.cx
@@ -297,7 +297,7 @@ export function drawVectorBaseMap({
             continue;
         }
 
-        const dotRadius = (isTier1 ? 5.8 : 4.0) / camZoom;
+        const dotRadius = (isTier1 ? 8.5 : 5.8) / camZoom;
         ctx.fillStyle = isDark
             ? (isTier1 ? '#60a5fa' : '#38bdf8')
             : (isTier1 ? '#2563eb' : '#0284c7');
@@ -305,19 +305,19 @@ export function drawVectorBaseMap({
         ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
         ctx.fill();
 
-        // High-contrast, phone-optimized typography for Instagram & Twitter
-        const fontSizePx = (isTier1 ? 28 : 20) / camZoom;
-        const fontWeight = isTier1 ? '800' : '700';
+        // Enlarge city typography for prominent readability across phones, high-DPI displays & video exports
+        const fontSizePx = (isTier1 ? 38 : 27) / camZoom;
+        const fontWeight = isTier1 ? '850' : '750';
         ctx.font = `${fontWeight} ${fontSizePx}px Inter, -apple-system, BlinkMacSystemFont, sans-serif`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
 
-        const labelX = cx + (isTier1 ? 10 : 8) / camZoom;
+        const labelX = cx + (isTier1 ? 14 : 10) / camZoom;
         const labelY = cy;
 
         // Protective text halo so letters are legible over borders & lines
         ctx.strokeStyle = haloColor;
-        ctx.lineWidth = 4.5 / camZoom;
+        ctx.lineWidth = (isTier1 ? 6.5 : 5.0) / camZoom;
         ctx.lineJoin = 'round';
         if (typeof ctx.strokeText === 'function') {
             ctx.strokeText(city.name, labelX, labelY);

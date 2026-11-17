@@ -18,7 +18,9 @@ export interface TraewellingUser {
 
 export interface TraewellingStation {
     id?: number | string;
+    uuid?: string | null;
     name: string;
+    identifiers?: Array<{ type: string; value: string | number }>;
     evaIdentifier?: number | string;
     ibnr?: number | string;
     eva?: number | string;
@@ -53,7 +55,8 @@ export interface TraewellingOperator {
 
 export interface TraewellingStopover {
     id?: number | string;
-    name: string;
+    uuid?: string | null;
+    name?: string;
     station: TraewellingStation;
     arrival?: string | null;
     arrivalPlanned?: string | null;
@@ -93,6 +96,7 @@ export interface TraewellingTrain {
     polyline?: any;
     departureDelay?: number | null;
     arrivalDelay?: number | null;
+    continuationTrip?: any;
 }
 
 /**
@@ -100,6 +104,7 @@ export interface TraewellingTrain {
  */
 export interface TraewellingStatus {
     id: number;
+    uuid?: string | null;
     body: string;
     createdAt: string;
     business?: number;
@@ -175,6 +180,7 @@ export interface NormalizedTripRun {
 
 export interface NormalizedStatus {
     id: number;
+    uuid?: string | null;
     username: string;
     trip_id: string;
     backend_trip_id: number | null;

@@ -63,6 +63,13 @@ export class TraewellingAPI {
                 });
                 clearTimeout(timeoutId);
 
+                // Upstream Träwelling API Sunset Header (RFC 8594) deprecation warning
+                const sunset = response.headers?.get?.('sunset');
+                if (sunset) {
+                    const sunsetLink = response.headers?.get?.('link') || 'https://github.com/Traewelling/traewelling/blob/develop/API_CHANGELOG.md';
+                    console.warn(`[Träwelling API Sunset] Endpoint ${endpoint} is deprecated and will be shut down after ${sunset}. Details: ${sunsetLink}`);
+                }
+
                 if (!response.ok) {
                     if ((response.status >= 500 || response.status === 429) && attempt < maxRetries) {
                         attempt++;
@@ -77,7 +84,9 @@ export class TraewellingAPI {
                         await new Promise(r => setTimeout(r, waitMs));
                         continue;
                     }
-                    let errorDetail = `${response.status} ${response.statusText}`;
+                    let errorDetail = response.status === 410
+                        ? `410 Gone: Endpoint ${endpoint} has been retired by upstream Träwelling.`
+                        : `${response.status} ${response.statusText}`;
                     try {
                         const errJson = await response.json();
                         if (errJson?.message) {

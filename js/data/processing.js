@@ -701,20 +701,32 @@ export function filterStopoversBetweenTraveledStations(stopovers = [], origin = 
             .trim();
     };
 
+    const extractStationEva = (stn) => {
+        if (!stn) return null;
+        const s = stn.station || stn;
+        if (Array.isArray(s.identifiers)) {
+            const ident = s.identifiers.find(i => i.type === 'de_db_ibnr' || i.type === 'ibnr' || i.type === 'eva' || i.type === 'eva_number');
+            if (ident?.value) return String(ident.value);
+        }
+        return s.id || s.evaId || s.eva || s.ibnr || stn.id || null;
+    };
+
     const originName = origin?.name || origin?.station?.name || '';
     const destName = destination?.name || destination?.station?.name || '';
-    const originEva = origin?.id || origin?.evaId || origin?.station?.id || origin?.station?.evaId || null;
-    const destEva = destination?.id || destination?.evaId || destination?.station?.id || destination?.station?.evaId || null;
+    const originEva = extractStationEva(origin);
+    const destEva = extractStationEva(destination);
 
     const normOrigin = normalizeStationName(originName);
     const normDest = normalizeStationName(destName);
 
     const matchesStation = (stop, targetNormName, targetEva) => {
         if (!stop) return false;
-        const stopEva = stop.id || stop.evaId || stop.station?.id || stop.station?.evaId || null;
+        // Prioritize stop.station over deprecated stop.id (which becomes unique stopover ID after 2026-11-30)
+        const stopEva = extractStationEva(stop);
         if (targetEva && stopEva && String(targetEva) === String(stopEva)) return true;
         
-        const stopName = normalizeStationName(stop.name || stop.station?.name || '');
+        // Prioritize stop.station?.name over deprecated stop.name
+        const stopName = normalizeStationName(stop.station?.name || stop.name || '');
         if (!stopName || !targetNormName) return false;
         if (stopName === targetNormName) return true;
         // Prefix/substring match if names are reasonably long

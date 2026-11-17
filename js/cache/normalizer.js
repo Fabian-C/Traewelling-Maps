@@ -19,6 +19,12 @@ export function getStationId(stationObj) {
     if (!stationObj || typeof stationObj !== 'object') return null;
     const stn = stationObj.station || stationObj;
     if (stn.id !== undefined && stn.id !== null && stn.id !== '') return stn.id;
+    if (Array.isArray(stn.identifiers)) {
+        const ibnr = stn.identifiers.find(i => i.type === 'de_db_ibnr' || i.type === 'ibnr');
+        if (ibnr?.value) return ibnr.value;
+        const eva = stn.identifiers.find(i => i.type === 'eva' || i.type === 'eva_number');
+        if (eva?.value) return eva.value;
+    }
     if (stn.ibnr !== undefined && stn.ibnr !== null && stn.ibnr !== '') return stn.ibnr;
     if (stn.eva !== undefined && stn.eva !== null && stn.eva !== '') return stn.eva;
     if (stn.eva_number !== undefined && stn.eva_number !== null && stn.eva_number !== '') return stn.eva_number;
@@ -52,7 +58,11 @@ export function extractStation(stationObj) {
             : typeof stationObj.longitude === 'number'
               ? stationObj.longitude
               : null;
-    const eva = stn.eva_number || stn.eva || stn.ibnr || stationObj.eva_number || stationObj.ibnr || null;
+    let eva = stn.eva_number || stn.eva || stn.ibnr || stationObj.eva_number || stationObj.ibnr || null;
+    if (!eva && Array.isArray(stn.identifiers)) {
+        const ident = stn.identifiers.find(i => i.type === 'de_db_ibnr' || i.type === 'ibnr' || i.type === 'eva' || i.type === 'eva_number' || i.type === 'de_db_ril100');
+        if (ident?.value) eva = ident.value;
+    }
     return {
         id,
         name: name || 'Unknown',
@@ -147,8 +157,10 @@ export function normalizeTrip(trip, username = '') {
           : [];
 
     const statusId = trip.id ? Number(trip.id) : Date.now();
+    const statusUuid = trip.uuid || trip.properties?.uuid || null;
     const status = {
         id: statusId,
+        uuid: statusUuid,
         username: String(username).toLowerCase(),
         trip_id: String(tripRunId),
         backend_trip_id: backendTripId,
@@ -202,45 +214,49 @@ export function denormalizeTrip(status, stationsMap = new Map(), tripRunsMap = n
     const buddies = Array.isArray(status.buddies) ? status.buddies : [];
     const coPassengers = Array.isArray(status.co_passengers) ? status.co_passengers : [];
 
+    const trainObj = {
+        trip: run.backend_trip_id || status.backend_trip_id || null,
+        tripId: run.backend_trip_id || status.backend_trip_id || null,
+        lineName: lineName,
+        number: run.train_number || null,
+        category: category,
+        operator: operator,
+        distance: rawDistMeters,
+        totalDistance: rawDistMeters,
+        duration: status.duration_min || 0,
+        origin: {
+            id: originStn.id || status.origin_id,
+            name: originStn.name || 'Unknown',
+            latitude: originStn.latitude ?? null,
+            longitude: originStn.longitude ?? null,
+            departureReal: status.departure_time || null,
+            departurePlanned: status.departure_planned || status.departure_time || null,
+            departure: status.departure_time || null,
+            platform: status.departure_platform || null
+        },
+        destination: {
+            id: destStn.id || status.destination_id,
+            name: destStn.name || 'Unknown',
+            latitude: destStn.latitude ?? null,
+            longitude: destStn.longitude ?? null,
+            arrivalReal: status.arrival_time || null,
+            arrivalPlanned: status.arrival_planned || status.arrival_time || null,
+            arrival: status.arrival_time || null,
+            platform: status.arrival_platform || null
+        },
+        polyline: polyline
+    };
+
     return {
         id: status.id,
+        uuid: status.uuid || null,
         backend_trip_id: run.backend_trip_id || status.backend_trip_id || null,
         body: status.body || '',
         createdAt: status.created_at || status.departure_time,
         business: businessNum,
         visibility: status.visibility !== undefined ? status.visibility : 0,
-        train: {
-            trip: run.backend_trip_id || status.backend_trip_id || null,
-            tripId: run.backend_trip_id || status.backend_trip_id || null,
-            lineName: lineName,
-            number: run.train_number || null,
-            category: category,
-            operator: operator,
-            distance: rawDistMeters,
-            totalDistance: rawDistMeters,
-            duration: status.duration_min || 0,
-            origin: {
-                id: originStn.id || status.origin_id,
-                name: originStn.name || 'Unknown',
-                latitude: originStn.latitude ?? null,
-                longitude: originStn.longitude ?? null,
-                departureReal: status.departure_time || null,
-                departurePlanned: status.departure_planned || status.departure_time || null,
-                departure: status.departure_time || null,
-                platform: status.departure_platform || null
-            },
-            destination: {
-                id: destStn.id || status.destination_id,
-                name: destStn.name || 'Unknown',
-                latitude: destStn.latitude ?? null,
-                longitude: destStn.longitude ?? null,
-                arrivalReal: status.arrival_time || null,
-                arrivalPlanned: status.arrival_planned || status.arrival_time || null,
-                arrival: status.arrival_time || null,
-                platform: status.arrival_platform || null
-            },
-            polyline: polyline
-        },
+        train: trainObj,
+        checkin: trainObj,
         users: buddies,
         buddies: buddies,
         co_passengers: coPassengers

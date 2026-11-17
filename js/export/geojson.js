@@ -145,8 +145,9 @@ export function tripsToGeoJSON(trips = [], metadata = {}, options = {}) {
                 co_passengers: coPassengers,
                 bodyMentions: bodyMentions,
                 isApproximated: !!polyline.properties?.isApproximated,
+                uuid: trip.uuid || trip.properties?.uuid || null,
                 createdAt: trip.createdAt || null,
-                traewellingUrl: trip.id ? `https://traewelling.de/status/${trip.id}` : null,
+                traewellingUrl: (trip.uuid || trip.id) ? `https://traewelling.de/status/${trip.uuid || trip.id}` : null,
                 ...(includeStopovers ? { stopovers: stopoversList } : {})
             }
         });
@@ -362,8 +363,9 @@ export function tripsToKML(trips = [], metadata = {}) {
         kml += `<b>Departure:</b> ${escapeXml(departure)}<br>`;
         kml += `<b>Arrival:</b> ${escapeXml(arrival)}<br>`;
         kml += `<b>Distance:</b> ${distanceKm} km<br>`;
-        if (trip.id) {
-            kml += `<a href="https://traewelling.de/status/${trip.id}">View on Träwelling</a>`;
+        const statusRef = trip.uuid || trip.id;
+        if (statusRef) {
+            kml += `<a href="https://traewelling.de/status/${statusRef}">View on Träwelling</a>`;
         }
         kml += `]]></description>\n`;
         kml += `      <LineString>\n`;
@@ -440,7 +442,7 @@ export function tripsToCSV(trips = []) {
             buddiesStr,
             bId,
             trip.body || trip.message || trip.properties?.message || trip.properties?.body || '',
-            trip.id ? `https://traewelling.de/status/${trip.id}` : ''
+            (trip.uuid || trip.id) ? `https://traewelling.de/status/${trip.uuid || trip.id}` : ''
         ];
         return rowValues.map(escapeCsv).join(',');
     });

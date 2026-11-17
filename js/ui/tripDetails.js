@@ -26,6 +26,7 @@ export function extractTripDetails(tripOrFeature, currentUsername = '') {
 
     const rawId = props.statusId || tripOrFeature.id || props.id;
     const statusId = rawId !== undefined && rawId !== null && rawId !== 'unknown' ? String(rawId) : null;
+    const uuid = props.uuid || tripOrFeature.uuid || null;
     const rawTripBackendId = props.backend_trip_id || props.backendTripId || train.trip || props.trip || tripOrFeature.trip || tripOrFeature.checkin?.trip || tripOrFeature.train?.trip || props.checkin?.trip || null;
     const backendTripId = rawTripBackendId !== null && rawTripBackendId !== undefined && rawTripBackendId !== '' ? Number(rawTripBackendId) : null;
 
@@ -116,6 +117,7 @@ export function extractTripDetails(tripOrFeature, currentUsername = '') {
 
     return {
         statusId,
+        uuid,
         backendTripId,
         lineName,
         category: rawCategory,
@@ -195,7 +197,8 @@ export function renderBuddiesBadgesHTML(buddies) {
     if (!buddies || !buddies.length) return '';
     return buddies.map(b => {
         const seg = (b.origin && b.destination) ? ` (${escapeHtml(b.origin)} → ${escapeHtml(b.destination)})` : '';
-        const statusLink = b.status_id ? ` <a href="https://traewelling.de/status/${encodeURIComponent(b.status_id)}" target="_blank" rel="noopener noreferrer" class="mention-link" style="opacity: 0.8; font-size: 0.9em;" title="View check-in #${escapeHtml(String(b.status_id))} on Träwelling">#${escapeHtml(String(b.status_id))}</a>` : '';
+        const statusRef = b.status_uuid || b.status_id;
+        const statusLink = statusRef ? ` <a href="https://traewelling.de/status/${encodeURIComponent(statusRef)}" target="_blank" rel="noopener noreferrer" class="mention-link" style="opacity: 0.8; font-size: 0.9em;" title="View check-in on Träwelling">#${escapeHtml(String(b.status_id || statusRef))}</a>` : '';
         return `<a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="mention-link" title="Open @${escapeHtml(b.username)} on Träwelling">@${escapeHtml(b.username)}${seg}</a>${statusLink}`;
     }).join(' ');
 }

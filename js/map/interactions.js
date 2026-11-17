@@ -52,11 +52,38 @@ export function initMap() {
         try {
             state.map.setFog({ 'high-color': 'rgb(36, 92, 223)', 'horizon-blend': 0.4 });
         } catch (_) { /* Fog may be unavailable on custom raster styles */ }
+
+        // Boost settlement, city, and region labels on vector maps for crisp readability
+        try {
+            const layers = state.map.getStyle()?.layers || [];
+            for (const layer of layers) {
+                if (layer.type === 'symbol' && layer.id && (
+                    layer.id.includes('settlement') ||
+                    layer.id.includes('place') ||
+                    layer.id.includes('city') ||
+                    layer.id.includes('town') ||
+                    layer.id.includes('village') ||
+                    layer.id.includes('country-label') ||
+                    layer.id.includes('state-label')
+                )) {
+                    const currentSize = state.map.getLayoutProperty(layer.id, 'text-size');
+                    if (currentSize !== undefined && currentSize !== null) {
+                        if (typeof currentSize === 'number') {
+                            state.map.setLayoutProperty(layer.id, 'text-size', Math.round(currentSize * 1.32));
+                        } else if (Array.isArray(currentSize)) {
+                            state.map.setLayoutProperty(layer.id, 'text-size', ['*', 1.32, currentSize]);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.debug('Custom label scaling bypassed for current style:', e);
+        }
     });
     state.map.on('load', () => {
         // Add a small delay for mobile to ensure proper loading
         const addLayersDelay = RouteAnimation.isMobile() ? 100 : 0;
-        
+
         setTimeout(() => {
             try {
                 state.map.addLayer({
@@ -68,18 +95,18 @@ export function initMap() {
                 console.warn('Failed to add open railway map layer:', e);
             }
         }, addLayersDelay);
-        
+
         // Update heatmap on map move - longer debounce on mobile
         let heatmapUpdateTimeout = null;
         const debounceTime = RouteAnimation.isMobile() ? 400 : 200;
-        
+
         state.map.on('moveend', () => {
             if (state.heatmap.enabled) {
                 if (heatmapUpdateTimeout) {
                     clearTimeout(heatmapUpdateTimeout);
                     heatmapUpdateTimeout = null;
                 }
-                
+
                 heatmapUpdateTimeout = setTimeout(() => {
                     try {
                         updateRouteDensity();
@@ -137,7 +164,7 @@ export function waitForMapReady(timeoutMs = 4000) {
     const state = store.get();
     if (!state.map || typeof state.map.isStyleLoaded !== 'function') return Promise.resolve();
     if (state.map.isStyleLoaded()) return Promise.resolve();
-    
+
     return new Promise((resolve) => {
         let resolved = false;
         const cleanup = () => {
@@ -155,7 +182,7 @@ export function waitForMapReady(timeoutMs = 4000) {
                 resolve();
             }
         }, timeoutMs);
-        
+
         if (state.map?.on) {
             state.map.on('load', handler);
         } else {
@@ -233,7 +260,7 @@ function pickClosestFeature(features, lngLat, clickPoint = null) {
     if (!resolvedClickPoint && state.map?.project && lngLat) {
         try {
             resolvedClickPoint = state.map.project([lngLat.lng, lngLat.lat]);
-        } catch (_) {}
+        } catch (_) { }
     }
 
     const layerOrder = Array.isArray(state?.layers?.order) ? state.layers.order : [];
@@ -359,7 +386,7 @@ export function setupMapInteractions() {
         });
         return layers;
     };
-    
+
     let lastTapTimestamp = 0;
     const handleMapTap = (e) => {
         const now = Date.now();
@@ -384,7 +411,7 @@ export function setupMapInteractions() {
 
         const layers = getActiveLayers();
         if (!layers.length) return;
-        
+
         const currentZoom = state.map?.getZoom?.() ?? null;
         const tolerance = getTapTolerancePx(currentZoom);
 
@@ -457,8 +484,8 @@ export function setupMapInteractions() {
 
     state.map.on('click', handleMapTap);
     state.map.on('movestart', () => { state.isMapMoving = true; });
-    state.map.on('moveend', () => { 
-        state.isMapMoving = false; 
+    state.map.on('moveend', () => {
+        state.isMapMoving = false;
         state.lastMoveEndTime = Date.now();
     });
 }
@@ -495,7 +522,8 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
             bodyText
         } = details;
 
-        const shareUrl = statusId ? `https://traewelling.de/status/${statusId}` : null;
+        const shareRef = details.uuid || statusId;
+        const shareUrl = shareRef ? `https://traewelling.de/status/${encodeURIComponent(shareRef)}` : null;
         const animUrl = statusId
             ? `animation.html?trip=${encodeURIComponent(statusId)}${state.username ? `&user=${encodeURIComponent(state.username)}` : ''}`
             : null;
@@ -680,7 +708,7 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
 
     state.currentPopup = new mapboxgl.Popup(popupOptions)
         .setLngLat(lngLat).setHTML(html).addTo(state.map);
-    
+
     const popupEl = state.currentPopup.getElement();
     if (popupEl) {
         popupEl.style.zIndex = '9999';
@@ -804,7 +832,7 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
             });
         }
     }
-    
+
     state.currentPopup.on('close', () => {
         const preserveHighlight = state.preserveHighlightOnPopupClose;
         state.preserveHighlightOnPopupClose = false;
@@ -818,7 +846,7 @@ export function highlightRoute(feature, statusId) {
     const state = store.get();
     if (!state.map) return;
     let coordinates = null;
-    
+
     if (statusId && statusId !== 'unknown') {
         const trip = state.fetchedTrips?.find(t => t.id === parseInt(statusId) || t.id === statusId);
         const train = trip?.train || trip?.checkin;
@@ -826,18 +854,18 @@ export function highlightRoute(feature, statusId) {
             coordinates = train.polyline.geometry.coordinates;
         }
     }
-    
+
     if (!coordinates && feature.geometry?.coordinates) {
         coordinates = feature.geometry.coordinates;
     }
-    
+
     if (!coordinates || coordinates.length < 2) return;
-    
+
     const highlightData = {
         type: 'Feature',
         geometry: { type: 'LineString', coordinates }
     };
-    
+
     if (state.map.getLayer('route-highlight')) {
         state.map.removeLayer('route-highlight');
     }
@@ -847,9 +875,9 @@ export function highlightRoute(feature, statusId) {
     if (state.map.getSource('route-highlight')) {
         state.map.removeSource('route-highlight');
     }
-    
+
     state.map.addSource('route-highlight', { type: 'geojson', data: highlightData });
-    
+
     const layers = state.map.getStyle?.()?.layers || [];
     let topLayer = null;
     for (let i = layers.length - 1; i >= 0; i--) {
@@ -858,11 +886,11 @@ export function highlightRoute(feature, statusId) {
             break;
         }
     }
-    
+
     if (!topLayer) {
         topLayer = layers.length > 0 ? layers[layers.length - 1].id : null;
     }
-    
+
     const isApproximated = Boolean(feature?.properties?.isApproximated || feature?.layer?.id?.endsWith('-approximated'));
 
     state.map.addLayer({
@@ -878,7 +906,7 @@ export function highlightRoute(feature, statusId) {
             ...(isApproximated ? { 'line-dasharray': [2, 2] } : {})
         }
     }, topLayer);
-    
+
     state.map.addLayer({
         id: 'route-highlight',
         type: 'line',
@@ -921,7 +949,7 @@ export function clearRouteHighlight() {
         state.currentPopup = null;
         try {
             popup.remove();
-        } catch (_) {}
+        } catch (_) { }
     }
     if (state.map) {
         try {
@@ -934,14 +962,14 @@ export function clearRouteHighlight() {
             if (state.map.getSource('route-highlight')) {
                 state.map.removeSource('route-highlight');
             }
-        } catch (_) {}
+        } catch (_) { }
     }
     if (state.useDeckGL && state.deck) {
         state.deckLayers = (state.deckLayers || []).filter(l => l.id !== 'deck-route-highlight');
         if (state.deck.setProps) {
             try {
                 state.deck.setProps({ layers: state.deckLayers });
-            } catch (_) {}
+            } catch (_) { }
         }
     }
 }

@@ -53,7 +53,7 @@ export function updateStatisticsWithTrip(trip, statisticsObj) {
         }
     }
 
-    const statusId = trip.id || trip.properties?.statusId;
+    const statusId = trip.uuid || trip.properties?.uuid || trip.id || trip.properties?.statusId;
 
     statisticsObj.trips++;
     statisticsObj.distance += distance;
@@ -437,7 +437,7 @@ export function updateAllStatistics() {
 
             const timestamp = idx?.timestamp;
             if (timestamp !== null && timestamp !== undefined) {
-                const statusId = trip.id || trip.properties?.statusId;
+                const statusId = trip.uuid || trip.properties?.uuid || trip.id || trip.properties?.statusId;
                 if (stats.oldestTimestamp == null || timestamp < stats.oldestTimestamp) {
                     stats.oldestTimestamp = timestamp;
                     stats.oldestDate = new Date(timestamp);

@@ -252,14 +252,14 @@ export function drawStationPin(
     }
 
     // Station Circle
-    const radius = isDest ? 12.5 : 11.5;
+    const radius = isDest ? 14.5 : 13.0;
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = 14;
     ctx.shadowOffsetY = 3;
     ctx.fillStyle = dotColor;
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = 4.0;
     ctx.beginPath();
     ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.fill();
@@ -268,36 +268,36 @@ export function drawStationPin(
 
     // Callout Pill placed away from the route track and clamped within the canvas viewport
     const shortName = shortenStationName(label);
-    ctx.font = '800 24px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '800 29px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
     const textW = ctx.measureText(shortName).width;
-    const pillW = textW + 54;
-    const pillH = 46;
+    const pillW = textW + 68;
+    const pillH = 54;
     const pillX = -pillW / 2 + horizontalShiftPx;
-    const pillY = placeAbove ? -34 - pillH : 34;
+    const pillY = placeAbove ? -38 - pillH : 38;
 
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-    ctx.shadowBlur = 14;
+    ctx.shadowBlur = 16;
     ctx.shadowOffsetY = 4;
     ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
-    drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 23);
+    drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 27);
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
     ctx.strokeStyle = dotColor;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 3.0;
     ctx.stroke();
 
     // Status dot inside pill
     ctx.fillStyle = dotColor;
     ctx.beginPath();
-    ctx.arc(pillX + 20, pillY + pillH / 2, 6.0, 0, Math.PI * 2);
+    ctx.arc(pillX + 22, pillY + pillH / 2, 7.0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(shortName, pillX + 36, pillY + pillH / 2 + 1);
+    ctx.fillText(shortName, pillX + 40, pillY + pillH / 2 + 1);
     ctx.restore();
 
     ctx.restore();
@@ -590,16 +590,30 @@ export function renderTripFrame({
             ctx.save();
             ctx.translate(sx, sy);
             ctx.scale(1 / camZoom, 1 / camZoom);
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
-            ctx.shadowBlur = 6;
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.40)';
+            ctx.shadowBlur = 8;
             ctx.shadowOffsetY = 2;
             ctx.fillStyle = '#ffffff';
             ctx.strokeStyle = lineColor;
-            ctx.lineWidth = 3.5;
+            ctx.lineWidth = 4;
             ctx.beginPath();
-            ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
+            ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
+
+            // Render intermediate station/city name when zoomed in enough for rich context
+            const stopName = shortenStationName(st?.name || stop?.name || '');
+            if (stopName && camZoom >= 1.05) {
+                ctx.font = '700 20px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.strokeStyle = 'rgba(10, 14, 26, 0.92)';
+                ctx.lineWidth = 5;
+                ctx.lineJoin = 'round';
+                ctx.strokeText(stopName, 14, 0);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(stopName, 14, 0);
+            }
             ctx.restore();
         });
     } else {
@@ -737,7 +751,7 @@ export function renderTripFrame({
     const routeTitle = `${shortOrig} → ${shortDest}`;
 
     ctx.fillStyle = '#f8fafc';
-    ctx.font = '800 24px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '800 26px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(routeTitle, textStartX, pad + 14, leftCardW - (textStartX - pad) - 16);
@@ -1263,7 +1277,7 @@ export function renderAllTripsFrame({
         : `${shortOrig} → ${shortDest}`;
 
     ctx.fillStyle = '#f8fafc';
-    ctx.font = '800 23px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '800 25px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(routeTitle, textStartX, pad + 14, leftCardW - (textStartX - pad) - 16);
