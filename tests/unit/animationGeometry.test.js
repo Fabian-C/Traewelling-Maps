@@ -18,7 +18,9 @@ import {
     computeAllModeTiming,
     buildAllTripsScene,
     computeHaversineKm,
-    getVisibleTilesForViewport
+    getVisibleTilesForViewport,
+    DEFAULT_TILE_LABEL_SCALE,
+    getAnimationTileLabelScale
 } from '../../js/animation/geometry.js';
 
 describe('Animation Geometry & Camera Smoothing', () => {
@@ -517,6 +519,22 @@ describe('Animation Geometry & Camera Smoothing', () => {
             expect(Number.isFinite(tile.top)).toBe(true);
             expect(tile.size).toBeCloseTo(256 / Math.pow(2, 12 - 6), 5);
         });
+
+        // 4. Mobile-first labelScale magnification (2.0x larger labels -> 1 zoom level lower, 2x larger tile size)
+        expect(DEFAULT_TILE_LABEL_SCALE).toBe(2.0);
+        expect(getAnimationTileLabelScale()).toBe(2.0);
+        expect(getAnimationTileLabelScale(3.5)).toBe(3.5);
+        const scaledCityZoom = getVisibleTilesForViewport({
+            baseScene,
+            camTargetX: 500,
+            camTargetY: 400,
+            camZoom: 64.0,
+            width: 960,
+            height: 960,
+            labelScale: DEFAULT_TILE_LABEL_SCALE
+        });
+        expect(scaledCityZoom.tileZ).toBe(11); // 12 - round(log2(2.0)) = 11
+        expect(scaledCityZoom.tiles[0].size).toBeCloseTo(cityZoom.tiles[0].size * 2, 5);
     });
 
     describe('GeoJSON Coordinate Extraction & Shared Link Geodata (extractCoordinatesFromGeoJSON & extractRouteCoordinates)', () => {

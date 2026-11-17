@@ -18,7 +18,8 @@ import {
     computeCameraZoomMultiplier,
     shortenStationName,
     getContrastingTextColor,
-    getVisibleTilesForViewport
+    getVisibleTilesForViewport,
+    getAnimationTileLabelScale
 } from './geometry.js';
 
 export function drawRoundedRect(ctx, x, y, w, h, r) {
@@ -342,7 +343,7 @@ function drawTileWithParentFallback(ctx, styleConfig, tile, baseZ) {
         return;
     }
 
-    const minZ = Math.max(2, baseZ - 2);
+    const minZ = 2;
     for (let pz = tileZ - 1; pz >= minZ; pz--) {
         const factor = Math.pow(2, tileZ - pz);
         const px = Math.floor(tileX / factor);
@@ -399,7 +400,8 @@ export function drawDynamicMapTiles({
         width,
         height,
         minZ: 2,
-        maxZ: 16
+        maxZ: 16,
+        labelScale: getAnimationTileLabelScale()
     });
 
     for (const tile of tiles) {

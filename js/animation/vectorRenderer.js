@@ -13,7 +13,7 @@ import {
     VECTOR_CITIES,
     VECTOR_RAIL_CORRIDORS
 } from './vectorData.js';
-import { lonToWorldX, latToWorldY } from './geometry.js';
+import { lonToWorldX, latToWorldY, getAnimationTileLabelScale, DEFAULT_TILE_LABEL_SCALE } from './geometry.js';
 
 // Global Path2D Cache keyed by baseScene signature
 const SCENE_PATH_CACHE = new Map();
@@ -280,6 +280,9 @@ export function drawVectorBaseMap({
     const minSceneY = hasCam ? camTargetY - halfH : -Infinity;
     const maxSceneY = hasCam ? camTargetY + halfH : Infinity;
 
+    const labelFactor = getAnimationTileLabelScale() / DEFAULT_TILE_LABEL_SCALE;
+    const placedBoxes = [];
+
     for (const city of cities) {
         const isTier1 = (city.tier || 1) === 1;
         // Level of Detail: Tier 2 regional cities fade in at camZoom >= 1.15 for earlier visibility
@@ -297,7 +300,27 @@ export function drawVectorBaseMap({
             continue;
         }
 
-        const dotRadius = (isTier1 ? 8.5 : 5.8) / camZoom;
+        const screenFontPx = (isTier1 ? 32 : 23) * labelFactor;
+        const estW = (city.name.length * screenFontPx * 0.58 + 24) / camZoom;
+        const estH = (screenFontPx * 1.15) / camZoom;
+        const boxX1 = cx - (8 / camZoom);
+        const boxX2 = cx + estW;
+        const boxY1 = cy - estH / 2;
+        const boxY2 = cy + estH / 2;
+
+        // Collision avoidance: skip labels that would collide with already placed higher-priority labels
+        let collides = false;
+        for (let b = 0; b < placedBoxes.length; b++) {
+            const p = placedBoxes[b];
+            if (boxX1 < p.x2 && boxX2 > p.x1 && boxY1 < p.y2 && boxY2 > p.y1) {
+                collides = true;
+                break;
+            }
+        }
+        if (collides) continue;
+        placedBoxes.push({ x1: boxX1, x2: boxX2, y1: boxY1, y2: boxY2 });
+
+        const dotRadius = ((isTier1 ? 7.0 : 4.8) * labelFactor) / camZoom;
         ctx.fillStyle = isDark
             ? (isTier1 ? '#60a5fa' : '#38bdf8')
             : (isTier1 ? '#2563eb' : '#0284c7');
@@ -306,18 +329,18 @@ export function drawVectorBaseMap({
         ctx.fill();
 
         // Enlarge city typography for prominent readability across phones, high-DPI displays & video exports
-        const fontSizePx = (isTier1 ? 38 : 27) / camZoom;
-        const fontWeight = isTier1 ? '850' : '750';
+        const fontSizePx = screenFontPx / camZoom;
+        const fontWeight = isTier1 ? '800' : '700';
         ctx.font = `${fontWeight} ${fontSizePx}px Inter, -apple-system, BlinkMacSystemFont, sans-serif`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
 
-        const labelX = cx + (isTier1 ? 14 : 10) / camZoom;
+        const labelX = cx + ((isTier1 ? 12 : 9) * labelFactor) / camZoom;
         const labelY = cy;
 
         // Protective text halo so letters are legible over borders & lines
         ctx.strokeStyle = haloColor;
-        ctx.lineWidth = (isTier1 ? 6.5 : 5.0) / camZoom;
+        ctx.lineWidth = ((isTier1 ? 5.5 : 4.5) * labelFactor) / camZoom;
         ctx.lineJoin = 'round';
         if (typeof ctx.strokeText === 'function') {
             ctx.strokeText(city.name, labelX, labelY);

@@ -12,6 +12,16 @@ export const CONFIG = {
     RATE_LIMIT: 55,
     RATE_WINDOW: 60000,
     SESSION_MAX_AGE_MS: 1000 * 60 * 60 * 24 * 90, // 90 days
+    ANIMATION: {
+        /**
+         * Mobile-first magnification factor for map tile labels in Trip Clip animations.
+         * - 1.0 = Standard 256px Web Mercator tile zoom (default desktop web map size)
+         * - 2.0 = 2x larger map tile labels (-1 tile zoom level, native 512px @2x match)
+         * - 3.5 = 3.5x larger map tile labels (-2 tile zoom levels)
+         * Can also be overridden at runtime via URL (?labelScale=2.0) or localStorage ('tw_anim_label_scale').
+         */
+        TILE_LABEL_SCALE: 2.0
+    },
     OAUTH: {
         CLIENT_ID: '419',
         AUTHORIZE_URL: 'https://traewelling.de/oauth/authorize',

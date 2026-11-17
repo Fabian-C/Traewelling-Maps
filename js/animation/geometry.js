@@ -3,6 +3,37 @@
  * Zero external runtime dependencies so all functions can be unit-tested in Node/Vitest.
  */
 
+/**
+ * Mobile-first magnification factor for map tile labels in Trip Clip animations (default: 2.0x larger / -1 zoom level).
+ * - 1.0 = Standard 256px Web Mercator tile zoom
+ * - 2.0 = 2x larger map tile labels (-1 tile zoom level, 1:1 native 512px @2x retina resolution)
+ * - 3.5 = 3.5x larger map tile labels (-2 tile zoom levels)
+ * Can be adjusted here or overridden at runtime via URL (?labelScale=2.0) or localStorage ('tw_anim_label_scale').
+ */
+export const DEFAULT_TILE_LABEL_SCALE = 2.0;
+
+export function getAnimationTileLabelScale(explicitScale = null) {
+    if (typeof explicitScale === 'number' && Number.isFinite(explicitScale) && explicitScale > 0) {
+        return explicitScale;
+    }
+    if (typeof window !== 'undefined') {
+        try {
+            const params = new URLSearchParams(window.location?.search || '');
+            const urlScale = parseFloat(params.get('labelScale') || params.get('tileScale') || '');
+            if (Number.isFinite(urlScale) && urlScale >= 0.5 && urlScale <= 8.0) {
+                return urlScale;
+            }
+        } catch {}
+        try {
+            const stored = parseFloat(window.localStorage?.getItem('tw_anim_label_scale') || '');
+            if (Number.isFinite(stored) && stored >= 0.5 && stored <= 8.0) {
+                return stored;
+            }
+        } catch {}
+    }
+    return DEFAULT_TILE_LABEL_SCALE;
+}
+
 export function lonToWorldX(lon, z) {
     const scale = 256 * Math.pow(2, z);
     return ((lon + 180) / 360) * scale;
@@ -353,6 +384,8 @@ export function buildMapScene(coords, viewportWidth = 960, viewportHeight = 960)
         }
     }
 
+    const activeLabelScale = getAnimationTileLabelScale();
+
     // Sample along the single trip: overview + vehicle chase zoom to collect trajectory detail tiles
     const trajectoryTileMap = new Map();
     const overTiles = getVisibleTilesForViewport({
@@ -361,7 +394,8 @@ export function buildMapScene(coords, viewportWidth = 960, viewportHeight = 960)
         camTargetY: centerWY - originWY,
         camZoom: fitScale,
         width: viewportWidth,
-        height: viewportHeight
+        height: viewportHeight,
+        labelScale: activeLabelScale
     }).tiles;
     overTiles.forEach(t => trajectoryTileMap.set(t.key, t));
 
@@ -390,17 +424,28 @@ export function buildMapScene(coords, viewportWidth = 960, viewportHeight = 960)
             camTargetY: pt.y,
             camZoom: chaseZoom,
             width: viewportWidth,
-            height: viewportHeight
+            height: viewportHeight,
+            labelScale: activeLabelScale
         }).tiles;
         vTiles.forEach(t => trajectoryTileMap.set(t.key, t));
     }
+
+    // Ensure lower-zoom overview tiles (t.z <= chosenZ) are preloaded first in base tiles
+    const baseTileMap = new Map();
+    Array.from(trajectoryTileMap.values())
+        .filter(t => t.z <= chosenZ)
+        .forEach(t => baseTileMap.set(t.key, t));
+    tiles.forEach(t => {
+        if (!baseTileMap.has(t.key)) baseTileMap.set(t.key, t);
+    });
+    const mergedBaseTiles = Array.from(baseTileMap.values());
     const detailTiles = Array.from(trajectoryTileMap.values()).filter(t => t.z > chosenZ);
 
     return {
         z: chosenZ,
         originWX,
         originWY,
-        tiles,
+        tiles: mergedBaseTiles,
         detailTiles,
         points,
         path2D,
@@ -473,14 +518,19 @@ export function getVisibleTilesForViewport({
     width = 960,
     height = 960,
     minZ = 2,
-    maxZ = 16
+    maxZ = 16,
+    labelScale = 1.0
 }) {
     if (!baseScene || typeof baseScene.z !== 'number') return { tileZ: 6, effectiveZ: 6, tiles: [] };
 
+    const scale = typeof labelScale === 'number' && Number.isFinite(labelScale) && labelScale > 0 ? labelScale : 1.0;
+    const zoomBias = Math.log2(scale);
+
     // Continuous Web Mercator zoom level of the viewport:
-    // When baseScene is at baseScene.z and camera scales by camZoom:
+    // Subtracting zoomBias (= log2(labelScale)) selects lower-zoom tiles that render
+    // `labelScale` times larger on the canvas (e.g. 3.5x larger labels for mobile-first legibility).
     const effectiveZ = baseScene.z + Math.log2(Math.max(0.001, camZoom));
-    const tileZ = Math.max(minZ, Math.min(maxZ, Math.round(effectiveZ)));
+    const tileZ = Math.max(minZ, Math.min(maxZ, Math.round(effectiveZ - zoomBias)));
 
     const scaleToBase = Math.pow(2, tileZ - baseScene.z);
     const maxTileIdx = Math.pow(2, tileZ);
@@ -881,6 +931,7 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
     }));
 
     // Step 4: Register trajectory tiles along the camera path across all rides for preloading
+    const activeLabelScale = getAnimationTileLabelScale();
     const trajectoryTileMap = new Map();
     // 1. Overview tiles
     const overTiles = getVisibleTilesForViewport({
@@ -889,7 +940,8 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
         camTargetY: baseScene.centerSceneY,
         camZoom: baseScene.fitScale * 0.95,
         width: viewportWidth,
-        height: viewportHeight
+        height: viewportHeight,
+        labelScale: activeLabelScale
     }).tiles;
     overTiles.forEach(t => trajectoryTileMap.set(t.key, t));
 
@@ -906,7 +958,8 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
                 camTargetY: pt.y,
                 camZoom: z,
                 width: viewportWidth,
-                height: viewportHeight
+                height: viewportHeight,
+                labelScale: activeLabelScale
             }).tiles;
             vTiles.forEach(t => {
                 if (!trajectoryTileMap.has(t.key) && trajectoryTileMap.size < 600) {
@@ -915,6 +968,15 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
             });
         }
     });
+
+    const baseTileMap = new Map();
+    Array.from(trajectoryTileMap.values())
+        .filter(t => t.z <= baseScene.z)
+        .forEach(t => baseTileMap.set(t.key, t));
+    (baseScene.tiles || []).forEach(t => {
+        if (!baseTileMap.has(t.key)) baseTileMap.set(t.key, t);
+    });
+    const mergedBaseTiles = Array.from(baseTileMap.values());
 
     const detailTiles = Array.from(trajectoryTileMap.values())
         .filter(t => t.z > baseScene.z)
@@ -927,6 +989,7 @@ export function buildAllTripsScene(trips = [], viewportWidth = 960, viewportHeig
 
     return {
         ...baseScene,
+        tiles: mergedBaseTiles,
         detailTiles,
         rides,
         totalDistanceKm: runningKm,
