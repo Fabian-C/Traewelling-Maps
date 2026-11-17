@@ -211,7 +211,7 @@ export async function initTripExplorer() {
             allSessions.unshift(activeSession);
             try {
                 await SessionDB.save(activeSession.username, activeSession.trips, { displayName: activeSession.displayName });
-            } catch { }
+            } catch {}
         }
     }
 
@@ -334,12 +334,12 @@ function setupEventListeners() {
             let session = null;
             try {
                 session = await SessionDB.get(user);
-            } catch { }
+            } catch {}
             if (!session || !session.trips?.length) {
                 try {
                     const fullList = await SessionDB.getAll();
                     session = fullList.find(s => s.username?.toLowerCase() === user) || null;
-                } catch { }
+                } catch {}
             }
             if (!session) {
                 session = allSessions.find(s => s.username?.toLowerCase() === user);
@@ -683,7 +683,7 @@ function setupEventListeners() {
                 for (const t of trips) {
                     const bId = t.backend_trip_id || t.train?.trip;
                     if (bId && Array.isArray(t.co_passengers) && t.co_passengers.length > 0) {
-                        await SessionDB.saveTripCoPassengers(bId, t.co_passengers).catch(() => { });
+                        await SessionDB.saveTripCoPassengers(bId, t.co_passengers).catch(() => {});
                     }
                 }
 
@@ -1559,7 +1559,7 @@ export function renderSpatialSqlPreview() {
                     activeUser: user
                 });
             }
-        }).catch(() => { });
+        }).catch(() => {});
     }
 }
 
@@ -1728,7 +1728,7 @@ function downloadFile(content, filename, mimeType) {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => {
-        try { URL.revokeObjectURL(url); } catch { }
+        try { URL.revokeObjectURL(url); } catch {}
     }, 1000);
 }
 
@@ -1805,12 +1805,12 @@ export function applyFiltersAndRender() {
             const buddiesText = buddies.map(b => `${b.username} ${b.displayName}`).join(' ').toLowerCase();
 
             const matched = line.includes(query) ||
-                origin.includes(query) ||
-                dest.includes(query) ||
-                body.includes(query) ||
-                operator.includes(query) ||
-                tagsText.includes(query) ||
-                buddiesText.includes(query);
+                            origin.includes(query) ||
+                            dest.includes(query) ||
+                            body.includes(query) ||
+                            operator.includes(query) ||
+                            tagsText.includes(query) ||
+                            buddiesText.includes(query);
             if (!matched) return false;
         }
 
@@ -2104,14 +2104,14 @@ function renderResults() {
                 <tr class="sql-raw-header-row">
                     <th class="sql-th-index" title="Row index in current result set">#</th>
                     ${rawCols.map(col => {
-                const typeStr = colTypeMap.get(col) || (col.endsWith('_km') || col.endsWith('_min') || col.endsWith('_count') || col === 'id' || col === 'year' ? 'number' : 'string');
-                const isNum = (typeStr === 'number');
-                const badgeText = isNum ? 'NUM' : (typeStr === 'datetime' ? 'DATE' : 'TEXT');
-                const isSorted = rawSqlSort.column === col;
-                const sortDir = isSorted ? rawSqlSort.direction : 'idle';
-                const sortIcon = isSorted ? (rawSqlSort.direction === 'desc' ? '▼' : '▲') : '↕';
-                const ariaSort = isSorted ? (rawSqlSort.direction === 'desc' ? 'descending' : 'ascending') : 'none';
-                return `
+                        const typeStr = colTypeMap.get(col) || (col.endsWith('_km') || col.endsWith('_min') || col.endsWith('_count') || col === 'id' || col === 'year' ? 'number' : 'string');
+                        const isNum = (typeStr === 'number');
+                        const badgeText = isNum ? 'NUM' : (typeStr === 'datetime' ? 'DATE' : 'TEXT');
+                        const isSorted = rawSqlSort.column === col;
+                        const sortDir = isSorted ? rawSqlSort.direction : 'idle';
+                        const sortIcon = isSorted ? (rawSqlSort.direction === 'desc' ? '▼' : '▲') : '↕';
+                        const ariaSort = isSorted ? (rawSqlSort.direction === 'desc' ? 'descending' : 'ascending') : 'none';
+                        return `
                             <th class="sql-raw-th sortable ${isNum ? 'numeric' : ''}" data-col="${escapeHtml(col)}" tabindex="0" role="columnheader" aria-sort="${ariaSort}" title="Click to sort by ${escapeHtml(col)}">
                                 <div class="sql-th-content">
                                     <span class="sql-th-name">${escapeHtml(col)}</span>
@@ -2120,7 +2120,7 @@ function renderResults() {
                                 </div>
                             </th>
                         `;
-            }).join('')}
+                    }).join('')}
                 </tr>
             `;
 
@@ -2628,10 +2628,10 @@ export function openTripDetailModal(trip) {
                                         <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
                                         <span>@${escapeHtml(b.username)}</span>
                                     </a>
-                                    ${(b.status_uuid || b.status_id) ? `
-                                        <a href="https://traewelling.de/status/${encodeURIComponent(b.status_uuid || b.status_id)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 2px 6px; font-size: 11px; opacity: 0.85;" title="Open check-in on Träwelling">
+                                    ${b.status_id ? `
+                                        <a href="https://traewelling.de/status/${encodeURIComponent(b.status_id)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 2px 6px; font-size: 11px; opacity: 0.85;" title="Open check-in #${escapeHtml(String(b.status_id))} on Träwelling">
                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                                            <span>#${escapeHtml(String(b.status_id || b.status_uuid))}</span>
+                                            <span>#${escapeHtml(String(b.status_id))}</span>
                                         </a>
                                     ` : ''}
                                 </div>
@@ -2647,9 +2647,9 @@ export function openTripDetailModal(trip) {
                             <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
                             <span>@${escapeHtml(b.username)}</span>
                         </a>
-                        ${(b.status_uuid || b.status_id) ? `
-                            <a href="https://traewelling.de/status/${encodeURIComponent(b.status_uuid || b.status_id)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 4px 6px; font-size: 11px; opacity: 0.85;" title="Open check-in on Träwelling">
-                                #${escapeHtml(String(b.status_id || b.status_uuid))}
+                        ${b.status_id ? `
+                            <a href="https://traewelling.de/status/${encodeURIComponent(b.status_id)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 4px 6px; font-size: 11px; opacity: 0.85;" title="Open check-in #${escapeHtml(String(b.status_id))} on Träwelling">
+                                #${escapeHtml(String(b.status_id))}
                             </a>
                         ` : ''}
                     </span>
@@ -2701,7 +2701,7 @@ export function openTripDetailModal(trip) {
                                     : `<span>Enriched (0 on your segment)</span>`;
                             }
                         }
-                    }).catch(() => { });
+                    }).catch(() => {});
                 }
 
                 enrichBtn.onclick = async () => {
