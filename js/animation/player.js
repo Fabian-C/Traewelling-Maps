@@ -1,10 +1,11 @@
 /**
  * Native Trip Clip Micro-Player (Zero Dependencies)
- * High-performance, frame-accurate animation player with silky smooth scrubbing,
- * keyboard shortcuts, speed control, and responsive High-DPI canvas scaling.
+ * Frame-accurate animation player with smooth scrubbing, keyboard shortcuts,
+ * live settings updates, aspect-ratio switching, and instant PNG frame snapshots.
  */
 
 import { renderV2Frame } from './renderer.js';
+import { createDefaultClipSettings, normalizeClipSettings, resolveAspectDimensions } from './schema.js';
 
 export class NativeTripPlayer {
     constructor(containerEl, options = {}) {
@@ -13,8 +14,10 @@ export class NativeTripPlayer {
         }
 
         this.container = containerEl;
-        this.width = options.width || 960;
-        this.height = options.height || 960;
+        this.settings = normalizeClipSettings(options.settings || createDefaultClipSettings());
+        const dims = resolveAspectDimensions(this.settings.aspectRatio);
+        this.width = options.width || dims.width;
+        this.height = options.height || dims.height;
         this.fps = options.fps || 30;
         this.totalFrames = options.totalFrames || 240;
         this.currentFrame = 0;
@@ -22,7 +25,6 @@ export class NativeTripPlayer {
         this.isLooping = true;
         this.speed = 1.0;
 
-        // Current scene props
         this.trip = null;
         this.trips = [];
         this.mode = 'single';
@@ -30,13 +32,11 @@ export class NativeTripPlayer {
         this.mapStyle = 'traewelling-dark';
         this.precompute = null;
 
-        // Animation timing
         this.rafId = null;
         this.lastTimestamp = null;
         this.accumulatedMs = 0;
         this.isDraggingScrubber = false;
 
-        // UI decoupling & performance caching
         this._pendingSeekFrame = null;
         this._seekRafId = null;
         this._lastCurSecs = -1;
@@ -51,6 +51,7 @@ export class NativeTripPlayer {
     }
 
     _buildDOM() {
+        const dims = resolveAspectDimensions(this.settings.aspectRatio);
         this.container.innerHTML = `
             <div class="v2-player-container" tabindex="0" role="region" aria-label="Animated Journey Video Player">
                 <button type="button" class="v2-fullscreen-close-btn" id="v2FullscreenCloseBtn" title="Exit Fullscreen (Esc)" aria-label="Exit Fullscreen">
@@ -60,7 +61,7 @@ export class NativeTripPlayer {
                     </svg>
                 </button>
 
-                <div class="v2-player-stage" id="v2Stage">
+                <div class="v2-player-stage" id="v2Stage" data-aspect="${this.settings.aspectRatio}" style="aspect-ratio: ${dims.cssAspect};">
                     <canvas class="v2-player-canvas" width="${this.width}" height="${this.height}"></canvas>
                     <div class="v2-center-play-overlay paused" id="v2CenterOverlay" aria-hidden="true">
                         <div class="v2-play-icon-bubble">
@@ -72,7 +73,6 @@ export class NativeTripPlayer {
                 </div>
 
                 <div class="v2-player-controls" role="toolbar" aria-label="Playback Controls">
-                    <!-- Scrubber Timeline -->
                     <div class="v2-scrubber-wrap" id="v2ScrubberWrap" role="slider" aria-label="Timeline Scrubber" aria-valuemin="0" aria-valuemax="${this.totalFrames - 1}" aria-valuenow="0">
                         <div class="v2-scrubber-track">
                             <div class="v2-scrubber-fill" id="v2ScrubberFill"></div>
@@ -81,7 +81,6 @@ export class NativeTripPlayer {
                         <div class="v2-scrubber-tooltip" id="v2ScrubberTooltip">00:00</div>
                     </div>
 
-                    <!-- Button Bar -->
                     <div class="v2-controls-row">
                         <div class="v2-controls-left">
                             <button type="button" class="v2-ctrl-btn" id="v2PlayBtn" title="Play / Pause (Space)" aria-label="Play">
@@ -160,10 +159,8 @@ export class NativeTripPlayer {
     }
 
     _bindEvents() {
-        // Stage click = play/pause toggle
         this.dom.stage.addEventListener('click', () => this.togglePlay());
 
-        // Buttons
         this.dom.playBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.togglePlay();
@@ -205,18 +202,15 @@ export class NativeTripPlayer {
             });
         }
 
-        // Fullscreen sync listeners
         if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
             document.addEventListener('fullscreenchange', this._onFullscreenChange);
             document.addEventListener('webkitfullscreenchange', this._onFullscreenChange);
         }
 
-        // Global keyboard listener
         if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
             window.addEventListener('keydown', this._onKeyDown);
         }
 
-        // Decoupled, coalesced scrubber drag handling
         const updateFromPointer = (e) => {
             const rect = this.dom.scrubberWrap.getBoundingClientRect();
             if (rect.width <= 0) return;
@@ -224,7 +218,6 @@ export class NativeTripPlayer {
             const progress = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
             const targetFrame = Math.round(progress * (this.totalFrames - 1));
 
-            // Instant low-overhead visual feedback on thumb position without waiting for canvas
             const pctStr = `${(progress * 100).toFixed(2)}%`;
             this.dom.scrubberFill.style.inlineSize = pctStr;
             this.dom.scrubberThumb.style.insetInlineStart = pctStr;
@@ -232,7 +225,6 @@ export class NativeTripPlayer {
                 this.dom.wrapper.style.setProperty('--v2-progress', `${progress}`);
             }
 
-            // Coalesce frame seek to the next animation frame to prevent blocking high-frequency pointer streams
             this._pendingSeekFrame = targetFrame;
             if (this._seekRafId === null && typeof requestAnimationFrame === 'function') {
                 this._seekRafId = requestAnimationFrame(() => {
@@ -291,7 +283,6 @@ export class NativeTripPlayer {
                 }
             } catch {}
 
-            // Flush any remaining pending seek immediately
             if (this._pendingSeekFrame !== null) {
                 const f = this._pendingSeekFrame;
                 this._pendingSeekFrame = null;
@@ -354,6 +345,7 @@ export class NativeTripPlayer {
         totalFrames = 240,
         fps = 30,
         precompute = null,
+        settings = null,
         autoPlay = true
     }) {
         this.trip = trip;
@@ -364,10 +356,13 @@ export class NativeTripPlayer {
         this.totalFrames = Math.max(1, totalFrames);
         this.fps = fps || 30;
         this.precompute = precompute;
+        if (settings) {
+            this.settings = normalizeClipSettings(settings, this.settings);
+            this._applyAspectRatioDimensions();
+        }
         this.currentFrame = 0;
         this.accumulatedMs = 0;
 
-        // Update UI max labels
         const totalSecs = this.totalFrames / this.fps;
         const mm = String(Math.floor(totalSecs / 60)).padStart(2, '0');
         const ss = String(Math.floor(totalSecs % 60)).padStart(2, '0');
@@ -382,6 +377,69 @@ export class NativeTripPlayer {
         } else {
             this.pause();
         }
+    }
+
+    _applyAspectRatioDimensions() {
+        const dims = resolveAspectDimensions(this.settings.aspectRatio);
+        this.width = dims.width;
+        this.height = dims.height;
+        if (this.dom.canvas) {
+            this.dom.canvas.width = dims.width;
+            this.dom.canvas.height = dims.height;
+        }
+        if (this.dom.stage) {
+            if (typeof this.dom.stage.setAttribute === 'function') {
+                this.dom.stage.setAttribute('data-aspect', dims.id);
+            }
+            if (this.dom.stage.style) {
+                this.dom.stage.style.aspectRatio = dims.cssAspect;
+            }
+        }
+    }
+
+    updateSettings(partialSettings = {}, nextPrecompute = null, nextTotalFrames = null) {
+        const prevAspect = this.settings.aspectRatio;
+        this.settings = normalizeClipSettings(partialSettings, this.settings);
+        if (nextPrecompute) {
+            this.precompute = nextPrecompute;
+        }
+        if (typeof nextTotalFrames === 'number' && nextTotalFrames > 0 && nextTotalFrames !== this.totalFrames) {
+            const denom = Math.max(1, this.totalFrames - 1);
+            const progress = Math.max(0, Math.min(1, this.currentFrame / denom));
+            this.totalFrames = Math.max(1, Math.round(nextTotalFrames));
+            this.currentFrame = Math.min(this.totalFrames - 1, Math.round(progress * (this.totalFrames - 1)));
+            const totalSecs = this.totalFrames / this.fps;
+            const mm = String(Math.floor(totalSecs / 60)).padStart(2, '0');
+            const ss = String(Math.floor(totalSecs % 60)).padStart(2, '0');
+            if (this.dom.timeTot) this.dom.timeTot.textContent = `${mm}:${ss}`;
+            if (this.dom.scrubberWrap) this.dom.scrubberWrap.setAttribute('aria-valuemax', String(this.totalFrames - 1));
+            this._lastCurSecs = -1;
+            this._lastFrameNum = -1;
+            this._lastProgressPct = '';
+        }
+        if (this.settings.aspectRatio !== prevAspect || nextPrecompute) {
+            this._applyAspectRatioDimensions();
+        }
+        this._renderCurrentFrame();
+        this._updateUI();
+    }
+
+    captureSnapshotPng(filename = 'traewelling-snapshot.png') {
+        this._renderCurrentFrame();
+        const canvas = this.dom.canvas;
+        if (!canvas || typeof canvas.toDataURL !== 'function') {
+            return { dataUrl: '', filename };
+        }
+        const dataUrl = canvas.toDataURL('image/png');
+        if (typeof document !== 'undefined' && typeof document.createElement === 'function' && document.body?.appendChild) {
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            if (typeof a.click === 'function') a.click();
+            if (typeof document.body.removeChild === 'function') document.body.removeChild(a);
+        }
+        return { dataUrl, filename };
     }
 
     play() {
@@ -562,14 +620,15 @@ export class NativeTripPlayer {
             ctx: this.ctx,
             frame: this.currentFrame,
             fps: this.fps,
+            totalFrames: this.totalFrames,
             width: this.width,
             height: this.height,
             trip: this.trip,
-            trips: this.trips,
             mode: this.mode,
             username: this.username,
             mapStyle: this.mapStyle,
-            precompute: this.precompute
+            precompute: this.precompute,
+            settings: this.settings
         });
     }
 
@@ -586,17 +645,15 @@ export class NativeTripPlayer {
             }
         }
 
-        // Only update aria attribute when dragging stops or throttled (every 10 frames)
         if (!this.isDraggingScrubber || this.currentFrame % 10 === 0) {
             this.dom.scrubberWrap.setAttribute('aria-valuenow', String(this.currentFrame));
         }
 
-        // Throttle DOM text nodes: only update when the displayed seconds actually change
         const curSecs = Math.floor(this.currentFrame / this.fps);
         if (curSecs !== this._lastCurSecs) {
             this._lastCurSecs = curSecs;
             const mm = String(Math.floor(curSecs / 60)).padStart(2, '0');
-            const ss = String(curSecs % 60).padStart(2, '0');
+            const ss = String(Math.floor(curSecs % 60)).padStart(2, '0');
             this.dom.timeCur.textContent = `${mm}:${ss}`;
         }
 

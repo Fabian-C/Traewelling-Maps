@@ -1,5 +1,5 @@
 /**
- * High-Performance Spatial Precomputations & Physics Kernels (V2 Engine)
+ * High-Performance Spatial Precomputations & Physics Kernels
  * Pre-calculates uniform trajectory tables, cumulative distances, and camera targets
  * to enable O(1) coordinate lookups and eliminate per-frame math during playback.
  */
@@ -13,7 +13,7 @@ import {
     samplePointAlongRoute,
     sampleSmoothedCameraTarget,
     computeCameraZoomMultiplier
-} from '../animation/geometry.js';
+} from './geometry.js';
 
 export {
     extractRouteCoordinates,
@@ -25,7 +25,7 @@ export {
 };
 
 /**
- * Analytical damped harmonic oscillator (exact math equivalent of Remotion spring)
+ * Analytical damped harmonic oscillator
  */
 export function computeSpring({ frame, fps = 30, config = { damping: 18, stiffness: 90, mass: 1 } }) {
     if (frame <= 0) return 0;
@@ -52,10 +52,9 @@ export function buildFastTripPrecompute(trip, width = 960, height = 960) {
     const coords = extractRouteCoordinates(trip);
     const scene = buildMapScene(coords, width, height);
 
-    // Pre-calculate 1000 uniform trajectory samples
-    const posLUT = new Float32Array(LUT_SAMPLES * 2);      // [x0, y0, x1, y1, ...]
-    const angleLUT = new Float32Array(LUT_SAMPLES);        // [angle0, angle1, ...]
-    const camTargetLUT = new Float32Array(LUT_SAMPLES * 2); // [camX0, camY0, ...]
+    const posLUT = new Float32Array(LUT_SAMPLES * 2);
+    const angleLUT = new Float32Array(LUT_SAMPLES);
+    const camTargetLUT = new Float32Array(LUT_SAMPLES * 2);
 
     for (let i = 0; i < LUT_SAMPLES; i++) {
         const progress = i / (LUT_SAMPLES - 1);
@@ -77,9 +76,6 @@ export function buildFastTripPrecompute(trip, width = 960, height = 960) {
         camTargetLUT,
         sampleCount: LUT_SAMPLES,
 
-        /**
-         * O(1) evaluation of vehicle position & angle at normalized progress [0..1]
-         */
         sampleVehicle(progress) {
             const p = Math.max(0, Math.min(1, progress));
             const idxFloat = p * (LUT_SAMPLES - 1);
@@ -97,16 +93,13 @@ export function buildFastTripPrecompute(trip, width = 960, height = 960) {
 
             const i0 = idx * 2;
             const i1 = (idx + 1) * 2;
-            const x = posLUT[i0] + (posLUT[i1] - posLUT[i0]) * frac;
-            const y = posLUT[i0 + 1] + (posLUT[i1 + 1] - posLUT[i0 + 1]) * frac;
-
-            const angleRad = angleLUT[idx];
-            return { x, y, angleRad };
+            return {
+                x: posLUT[i0] + (posLUT[i1] - posLUT[i0]) * frac,
+                y: posLUT[i0 + 1] + (posLUT[i1 + 1] - posLUT[i0 + 1]) * frac,
+                angleRad: angleLUT[idx]
+            };
         },
 
-        /**
-         * O(1) evaluation of smoothed camera target at normalized progress [0..1]
-         */
         sampleCamera(progress) {
             const p = Math.max(0, Math.min(1, progress));
             const idxFloat = p * (LUT_SAMPLES - 1);
@@ -120,9 +113,10 @@ export function buildFastTripPrecompute(trip, width = 960, height = 960) {
 
             const i0 = idx * 2;
             const i1 = (idx + 1) * 2;
-            const x = camTargetLUT[i0] + (camTargetLUT[i1] - camTargetLUT[i0]) * frac;
-            const y = camTargetLUT[i0 + 1] + (camTargetLUT[i1 + 1] - camTargetLUT[i0 + 1]) * frac;
-            return { x, y };
+            return {
+                x: camTargetLUT[i0] + (camTargetLUT[i1] - camTargetLUT[i0]) * frac,
+                y: camTargetLUT[i0 + 1] + (camTargetLUT[i1 + 1] - camTargetLUT[i0 + 1]) * frac
+            };
         }
     };
 }

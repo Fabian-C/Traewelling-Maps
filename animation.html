@@ -12,10 +12,9 @@
     <!-- Stylesheets (Zero External CDN Dependencies) -->
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/animation.css">
-    <link rel="stylesheet" href="css/animation-v2.css">
 
     <!-- Main Module Entry Point (Native Zero-Dependency ES Module) -->
-    <script type="module" src="js/anim-v2/app.js"></script>
+    <script type="module" src="js/animation/app.js"></script>
 </head>
 
 <body>
@@ -133,43 +132,179 @@
             </div>
         </div>
 
-        <!-- Right Sidebar -->
-        <aside class="anim-sidebar" aria-label="Trip details">
+        <!-- Right Inspector Sidebar (Tabbed: Details / Customize / Export) -->
+        <aside class="anim-sidebar" aria-label="Trip inspector and customization">
             <div class="anim-card">
-                <h2 class="anim-card-title">Trip Details</h2>
+                <div class="inspector-tabs" role="tablist" aria-label="Inspector sections">
+                    <button type="button" class="inspector-tab-btn active" role="tab" aria-selected="true" aria-controls="panelDetails" data-tab="details">Details</button>
+                    <button type="button" class="inspector-tab-btn" role="tab" aria-selected="false" aria-controls="panelCustomize" data-tab="customize">Customize</button>
+                    <button type="button" class="inspector-tab-btn" role="tab" aria-selected="false" aria-controls="panelExport" data-tab="export">Export</button>
+                </div>
 
-                <dl class="trip-preview-grid">
-                    <div class="trip-preview-item">
-                        <dt>Line</dt>
-                        <dd id="sidebarLine">—</dd>
-                    </div>
-                    <div class="trip-preview-item">
-                        <dt>Distance</dt>
-                        <dd id="sidebarDistance">—</dd>
-                    </div>
-                    <div class="trip-preview-item trip-preview-span-full">
-                        <dt>Route</dt>
-                        <dd id="sidebarRoute">—</dd>
-                    </div>
-                    <div class="trip-preview-item">
-                        <dt>Delay</dt>
-                        <dd id="sidebarDelay">—</dd>
-                    </div>
-                    <div class="trip-preview-item">
-                        <dt>Duration</dt>
-                        <dd id="sidebarDuration">—</dd>
-                    </div>
-                    <div class="trip-preview-item trip-preview-span-full">
-                        <dt>Note</dt>
-                        <dd id="sidebarNote" class="trip-preview-note">—</dd>
-                    </div>
-                </dl>
+                <!-- Tab 1: Trip Details -->
+                <section id="panelDetails" class="inspector-panel" role="tabpanel" aria-label="Trip Details">
+                    <h2 class="anim-card-title">Trip Details</h2>
+                    <dl class="trip-preview-grid">
+                        <div class="trip-preview-item">
+                            <dt>Line</dt>
+                            <dd id="sidebarLine">—</dd>
+                        </div>
+                        <div class="trip-preview-item">
+                            <dt>Distance</dt>
+                            <dd id="sidebarDistance">—</dd>
+                        </div>
+                        <div class="trip-preview-item trip-preview-span-full">
+                            <dt>Route</dt>
+                            <dd id="sidebarRoute">—</dd>
+                        </div>
+                        <div class="trip-preview-item">
+                            <dt>Started</dt>
+                            <dd id="sidebarStarted">—</dd>
+                        </div>
+                        <div class="trip-preview-item">
+                            <dt>Ended</dt>
+                            <dd id="sidebarEnded">—</dd>
+                        </div>
+                        <div class="trip-preview-item">
+                            <dt>Delay</dt>
+                            <dd id="sidebarDelay">—</dd>
+                        </div>
+                        <div class="trip-preview-item">
+                            <dt>Duration</dt>
+                            <dd id="sidebarDuration">—</dd>
+                        </div>
+                        <div class="trip-preview-item trip-preview-span-full">
+                            <dt>Stopovers</dt>
+                            <dd id="sidebarStopovers">—</dd>
+                        </div>
+                        <div class="trip-preview-item trip-preview-span-full">
+                            <dt>Note</dt>
+                            <dd id="sidebarNote" class="trip-preview-note">—</dd>
+                        </div>
+                    </dl>
+                </section>
 
+                <!-- Tab 2: Customize Clip -->
+                <section id="panelCustomize" class="inspector-panel hidden" role="tabpanel" aria-label="Customize Clip">
+                    <div class="customizer-stack">
+                        <div class="customizer-group">
+                            <span class="customizer-label" id="aspectRatioLabel">Aspect Ratio</span>
+                            <div class="customizer-pill-group" role="group" aria-labelledby="aspectRatioLabel">
+                                <button type="button" class="aspect-pill aspect-ratio-pill active" data-aspect="1:1" aria-pressed="true">1:1 Square</button>
+                                <button type="button" class="aspect-pill aspect-ratio-pill" data-aspect="9:16" aria-pressed="false">9:16 Story</button>
+                                <button type="button" class="aspect-pill aspect-ratio-pill" data-aspect="16:9" aria-pressed="false">16:9 Wide</button>
+                            </div>
+                        </div>
+
+                        <div class="customizer-group">
+                            <span class="customizer-label" id="cameraModeLabel">Camera Mode</span>
+                            <div class="customizer-pill-group" role="group" aria-labelledby="cameraModeLabel">
+                                <button type="button" class="aspect-pill camera-mode-pill active" data-camera="cinematic" aria-pressed="true">Chase</button>
+                                <button type="button" class="aspect-pill camera-mode-pill" data-camera="overview" aria-pressed="false">Overview</button>
+                                <button type="button" class="aspect-pill camera-mode-pill" data-camera="follow" aria-pressed="false">Follow</button>
+                            </div>
+                        </div>
+
+                        <div class="customizer-group">
+                            <span class="customizer-label" id="clipDurationLabel">Clip Duration</span>
+                            <div class="customizer-pill-group customizer-pill-group-4" role="group" aria-labelledby="clipDurationLabel">
+                                <button type="button" class="aspect-pill clip-duration-pill" data-duration="5" aria-pressed="false">5s Fast</button>
+                                <button type="button" class="aspect-pill clip-duration-pill active" data-duration="8" aria-pressed="true">8s Std</button>
+                                <button type="button" class="aspect-pill clip-duration-pill" data-duration="12" aria-pressed="false">12s Long</button>
+                                <button type="button" class="aspect-pill clip-duration-pill" data-duration="16" aria-pressed="false">16s Epic</button>
+                            </div>
+                        </div>
+
+                        <div class="customizer-group">
+                            <span class="customizer-label" id="tileScaleLabel">Map Tile Labels</span>
+                            <div class="customizer-pill-group" role="group" aria-labelledby="tileScaleLabel">
+                                <button type="button" class="aspect-pill tile-scale-pill" data-tile-scale="1" aria-pressed="false">1× Native</button>
+                                <button type="button" class="aspect-pill tile-scale-pill active" data-tile-scale="2" aria-pressed="true">2× Mobile</button>
+                                <button type="button" class="aspect-pill tile-scale-pill" data-tile-scale="3" aria-pressed="false">3× Large</button>
+                            </div>
+                        </div>
+
+                        <div class="customizer-group">
+                            <span class="customizer-label" id="routeWidthLabel">Route Width</span>
+                            <div class="customizer-pill-group" role="group" aria-labelledby="routeWidthLabel">
+                                <button type="button" class="aspect-pill route-width-pill" data-route-width="0.75" aria-pressed="false">Thin</button>
+                                <button type="button" class="aspect-pill route-width-pill active" data-route-width="1" aria-pressed="true">Normal</button>
+                                <button type="button" class="aspect-pill route-width-pill" data-route-width="1.4" aria-pressed="false">Bold</button>
+                            </div>
+                        </div>
+
+                        <div class="customizer-group">
+                            <span class="customizer-label" id="vehicleScaleLabel">Vehicle Size</span>
+                            <div class="customizer-pill-group customizer-pill-group-4" role="group" aria-labelledby="vehicleScaleLabel">
+                                <button type="button" class="aspect-pill vehicle-scale-pill" data-vehicle-scale="0.8" aria-pressed="false">Compact</button>
+                                <button type="button" class="aspect-pill vehicle-scale-pill active" data-vehicle-scale="1" aria-pressed="true">Normal</button>
+                                <button type="button" class="aspect-pill vehicle-scale-pill" data-vehicle-scale="1.35" aria-pressed="false">Large</button>
+                                <button type="button" class="aspect-pill vehicle-scale-pill" data-vehicle-scale="0" aria-pressed="false">Hidden</button>
+                            </div>
+                        </div>
+
+                        <div class="customizer-group">
+                            <span class="customizer-label">Overlays</span>
+                            <div class="customizer-toggle-list">
+                                <label class="customizer-toggle-row" for="toggleHudInput">
+                                    <span>Top HUD Header</span>
+                                    <input type="checkbox" id="toggleHudInput" class="customizer-toggle-input" checked>
+                                </label>
+                                <label class="customizer-toggle-row" for="toggleScheduleTimesInput">
+                                    <span>Start &amp; End Times</span>
+                                    <input type="checkbox" id="toggleScheduleTimesInput" class="customizer-toggle-input" checked>
+                                </label>
+                                <label class="customizer-toggle-row" for="toggleStationPillsInput">
+                                    <span>Origin &amp; Dest Pills</span>
+                                    <input type="checkbox" id="toggleStationPillsInput" class="customizer-toggle-input" checked>
+                                </label>
+                                <label class="customizer-toggle-row" for="toggleStopDotsInput">
+                                    <span>Stopover Dots</span>
+                                    <input type="checkbox" id="toggleStopDotsInput" class="customizer-toggle-input" checked>
+                                </label>
+                                <label class="customizer-toggle-row" for="toggleStopNamesInput">
+                                    <span>Stopover Names</span>
+                                    <input type="checkbox" id="toggleStopNamesInput" class="customizer-toggle-input">
+                                </label>
+                                <label class="customizer-toggle-row" for="toggleVignetteInput">
+                                    <span>Edge Vignette</span>
+                                    <input type="checkbox" id="toggleVignetteInput" class="customizer-toggle-input" checked>
+                                </label>
+                                <label class="customizer-toggle-row" for="toggleWatermarkInput">
+                                    <span>Corner Watermark</span>
+                                    <input type="checkbox" id="toggleWatermarkInput" class="customizer-toggle-input" checked>
+                                </label>
+                            </div>
+                        </div>
+
+                        <button type="button" id="resetCustomizeBtn" class="anim-reset-btn">Reset Studio Defaults</button>
+                    </div>
+                </section>
+
+                <!-- Tab 3: Export Specs & Shortcuts -->
+                <section id="panelExport" class="inspector-panel hidden" role="tabpanel" aria-label="Export Settings">
+                    <div class="customizer-stack">
+                        <div class="export-summary-box">
+                            <span>Output Format</span>
+                            <span id="exportResolutionSummary" class="export-summary-value">960 × 960 px • 30 FPS • 1:1</span>
+                            <span>MP4 (H.264) prioritized with WebM fallback.</span>
+                        </div>
+                        <div class="export-summary-box">
+                            <span>Player Shortcuts</span>
+                            <span><strong>Space</strong> Play/Pause · <strong>← / →</strong> Step Frame · <strong>F</strong> Fullscreen</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Persistent Export & Share Footer -->
                 <div class="anim-download-actions">
                     <button type="button" id="downloadVideoBtn" class="anim-download-btn">
                         Download .mp4
                     </button>
-                    <button type="button" id="shareAnimationBtn" class="anim-download-btn anim-share-btn" title="Copy shareable link to this animation clip">
+                    <button type="button" id="downloadSnapshotBtn" class="anim-snapshot-btn" title="Save current frame as a PNG image">
+                        Save .png Snapshot
+                    </button>
+                    <button type="button" id="shareAnimationBtn" class="anim-share-btn" title="Copy shareable link to this animation clip">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle; margin-right: 6px;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
                         <span>Share Clip Link</span>
                     </button>

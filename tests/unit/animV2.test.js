@@ -3,9 +3,21 @@ import {
     computeSpring,
     buildFastTripPrecompute,
     buildFastAllTripsPrecompute
-} from '../../js/anim-v2/precompute.js';
-import { NativeTripPlayer } from '../../js/anim-v2/player.js';
-import { VideoClipExporterV2 } from '../../js/anim-v2/export.js';
+} from '../../js/animation/precompute.js';
+import { NativeTripPlayer } from '../../js/animation/player.js';
+import { VideoClipExporterV2 } from '../../js/animation/exporter.js';
+import {
+    createDefaultClipSettings,
+    resolveAspectDimensions,
+    normalizeClipSettings
+} from '../../js/animation/schema.js';
+import {
+    computeCameraZoomMultiplier,
+    setAnimationTileLabelScale,
+    getAnimationTileLabelScale
+} from '../../js/animation/geometry.js';
+import { renderV2Frame } from '../../js/animation/renderer.js';
+import { extractIntermediateStopovers, formatClockTime } from '../../js/animation/sprites.js';
 
 class MockDOMElement {
     constructor(tagName = 'div') {
@@ -294,6 +306,302 @@ describe('Trip Clip V2 Native Engine', () => {
             expect(player.dom.scrubberFill.style.inlineSize).toContain('%');
 
             player.destroy();
+        });
+
+        it('updates aspect ratio dimensions and captures PNG snapshots via ClipSettings', () => {
+            const player = new NativeTripPlayer(container);
+            player.dom.canvas.toDataURL = vi.fn(() => 'data:image/png;base64,MOCKPNG');
+
+            player.updateSettings({ aspectRatio: '9:16', cameraMode: 'overview' });
+            expect(player.width).toBe(720);
+            expect(player.height).toBe(1280);
+            expect(player.dom.canvas.width).toBe(720);
+            expect(player.dom.canvas.height).toBe(1280);
+            expect(player.dom.stage.getAttribute('data-aspect')).toBe('9:16');
+
+            const snap = player.captureSnapshotPng('test-snap.png');
+            expect(snap.filename).toBe('test-snap.png');
+            expect(snap.dataUrl).toBe('data:image/png;base64,MOCKPNG');
+
+            player.destroy();
+        });
+    });
+
+    describe('Dynamic Studio Features & ClipSettings Schema', () => {
+        afterEach(() => {
+            setAnimationTileLabelScale(null);
+        });
+
+        it('resolves 1:1, 9:16, and 16:9 aspect dimensions with safe fallbacks', () => {
+            expect(resolveAspectDimensions('1:1')).toMatchObject({ width: 960, height: 960, cssAspect: '1 / 1' });
+            expect(resolveAspectDimensions('9:16')).toMatchObject({ width: 720, height: 1280, cssAspect: '9 / 16' });
+            expect(resolveAspectDimensions('16:9')).toMatchObject({ width: 1280, height: 720, cssAspect: '16 / 9' });
+            expect(resolveAspectDimensions('invalid')).toMatchObject({ width: 960, height: 960 });
+
+            const normalized = normalizeClipSettings({
+                aspectRatio: '16:9',
+                cameraMode: 'follow',
+                tileScale: 3.0,
+                clipDurationSec: 12,
+                routeWidthScale: 1.4,
+                vehicleScale: 1.35,
+                showHud: false,
+                showScheduleTimes: false,
+                showStationPills: false,
+                showStopDots: false,
+                showStopNames: true,
+                showVignette: false,
+                showWatermark: false
+            });
+            expect(normalized).toEqual({
+                aspectRatio: '16:9',
+                cameraMode: 'follow',
+                tileScale: 3.0,
+                clipDurationSec: 12,
+                routeWidthScale: 1.4,
+                vehicleScale: 1.35,
+                showHud: false,
+                showScheduleTimes: false,
+                showStationPills: false,
+                showStopDots: false,
+                showStopNames: true,
+                showVignette: false,
+                showWatermark: false
+            });
+
+            // Invalid/out-of-range overrides fall back safely to defaults
+            expect(normalizeClipSettings({ clipDurationSec: 999, routeWidthScale: -1, vehicleScale: 10 })).toMatchObject({
+                clipDurationSec: 8,
+                routeWidthScale: 1.0,
+                vehicleScale: 1.0
+            });
+        });
+
+        it('evaluates camera zoom multipliers for cinematic, overview, and follow modes', () => {
+            expect(computeCameraZoomMultiplier(100, 2.5, 'overview')).toBeCloseTo(0.96, 3);
+            expect(computeCameraZoomMultiplier(0, 2.5, 'overview')).toBeCloseTo(0.96, 3);
+            expect(computeCameraZoomMultiplier(100, 2.5, 'follow')).toBeCloseTo(2.5, 3);
+            expect(computeCameraZoomMultiplier(200, 2.5, 'follow')).toBeCloseTo(2.5, 3);
+            expect(computeCameraZoomMultiplier(100, 2.5, 'cinematic')).toBeGreaterThan(2.0);
+        });
+
+        it('supports live runtime switching of map tile scale (1x, 2x, 3x)', () => {
+            expect(getAnimationTileLabelScale()).toBe(2.0);
+            setAnimationTileLabelScale(3.0);
+            expect(getAnimationTileLabelScale()).toBe(3.0);
+            setAnimationTileLabelScale(1.0);
+            expect(getAnimationTileLabelScale()).toBe(1.0);
+        });
+
+        it('renders frame overlays conditionally based on ClipSettings (HUD, stopover names, watermark)', () => {
+            const trip = {
+                id: 777,
+                user: { username: 'tester' },
+                checkin: {
+                    lineName: 'ICE 720',
+                    category: 'nationalExpress',
+                    origin: { name: 'Berlin Hbf' },
+                    destination: { name: 'München Hbf' },
+                    stopovers: [
+                        { station: { name: 'Berlin Hbf', longitude: 13.3695, latitude: 52.5255 } },
+                        { station: { name: 'Erfurt Hbf', longitude: 11.038, latitude: 50.972 } },
+                        { station: { name: 'München Hbf', longitude: 11.558, latitude: 48.140 } }
+                    ],
+                    polyline: [
+                        [13.3695, 52.5255],
+                        [11.038, 50.972],
+                        [11.558, 48.140]
+                    ]
+                }
+            };
+            const precompute = buildFastTripPrecompute(trip, 960, 960);
+
+            const drawnTexts = [];
+            const mockCtx = {
+                fillRect: vi.fn(),
+                clearRect: vi.fn(),
+                drawImage: vi.fn(),
+                beginPath: vi.fn(),
+                moveTo: vi.fn(),
+                lineTo: vi.fn(),
+                arcTo: vi.fn(),
+                closePath: vi.fn(),
+                arc: vi.fn(),
+                ellipse: vi.fn(),
+                stroke: vi.fn(),
+                fill: vi.fn(),
+                save: vi.fn(),
+                restore: vi.fn(),
+                translate: vi.fn(),
+                scale: vi.fn(),
+                rotate: vi.fn(),
+                setLineDash: vi.fn(),
+                measureText: vi.fn(() => ({ width: 80 })),
+                strokeText: vi.fn(),
+                fillText: vi.fn((text) => drawnTexts.push(text)),
+                createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+                createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() }))
+            };
+
+            renderV2Frame({
+                ctx: mockCtx,
+                frame: 90,
+                width: 960,
+                height: 960,
+                trip,
+                mapStyle: 'vector-dark',
+                precompute,
+                settings: {
+                    ...createDefaultClipSettings(),
+                    showHud: false,
+                    showStopNames: true,
+                    showWatermark: false
+                }
+            });
+
+            expect(drawnTexts).toContain('Erfurt Hbf');
+            expect(drawnTexts).not.toContain('DISTANCE');
+            expect(drawnTexts).not.toContain('Generated on fabian-c.github.io/Traewelling-Maps');
+        });
+
+        it('extracts intermediate stopovers robustly across endpoint-inclusive, intermediate-only, string, and coordinate-less shapes', () => {
+            const intermediateOnlyTrip = {
+                checkin: {
+                    origin: { name: 'Berlin Hbf', departurePlanned: '2026-10-05T15:32:00Z' },
+                    destination: { name: 'München Hbf', arrivalPlanned: '2026-10-05T19:22:00Z' },
+                    stopovers: [
+                        { station: { name: 'Halle (Saale) Hbf' }, arrivalPlanned: '2026-10-05T16:33:00Z' },
+                        { station: 'Erfurt Hbf' },
+                        { station: { name: 'Cancelled Stop' }, cancelled: true }
+                    ]
+                }
+            };
+            const extracted = extractIntermediateStopovers(intermediateOnlyTrip);
+            expect(extracted.map(s => s.shortName)).toEqual(['Halle (Saale) Hbf', 'Erfurt Hbf']);
+            expect(extracted[0].hasCoords).toBe(false);
+            expect(extracted[0].timeShort).toBe(formatClockTime('2026-10-05T16:33:00Z'));
+
+            const endpointInclusiveTrip = {
+                checkin: {
+                    origin: { id: 1, name: 'Berlin Hbf' },
+                    destination: { id: 3, name: 'München Hbf' },
+                    stopovers: [
+                        { station: { id: 1, name: 'Berlin Hbf', longitude: 13.3695, latitude: 52.5255 } },
+                        { station: { id: 2, name: 'Nürnberg Hbf', longitude: 11.0829, latitude: 49.4456 } },
+                        { station: { id: 3, name: 'München Hbf', longitude: 11.5583, latitude: 48.1402 } }
+                    ]
+                }
+            };
+            const extracted2 = extractIntermediateStopovers(endpointInclusiveTrip);
+            expect(extracted2).toHaveLength(1);
+            expect(extracted2[0].shortName).toBe('Nürnberg Hbf');
+            expect(extracted2[0].hasCoords).toBe(true);
+        });
+
+        it('renders schedule times, projects coordinate-less stopovers, and respects studio toggles (pills, vignette, vehicleScale)', () => {
+            const depIso = '2026-10-05T15:34:00+00:00';
+            const arrIso = '2026-10-05T19:26:00+00:00';
+            const expectedDep = formatClockTime(depIso);
+            const expectedArr = formatClockTime(arrIso);
+
+            const trip = {
+                id: 888,
+                user: { username: 'tester' },
+                checkin: {
+                    lineName: 'ICE 720',
+                    category: 'nationalExpress',
+                    origin: { name: 'Berlin Hbf', departureReal: depIso },
+                    destination: { name: 'München Hbf', arrivalReal: arrIso },
+                    stopovers: [
+                        { station: { name: 'Erfurt Hbf' }, arrivalReal: '2026-10-05T17:08:00+00:00' }
+                    ],
+                    polyline: [
+                        [13.3695, 52.5255],
+                        [11.038, 50.972],
+                        [11.558, 48.140]
+                    ]
+                }
+            };
+            const precompute = buildFastTripPrecompute(trip, 960, 960);
+
+            const createMockCtx = (textsOut) => ({
+                fillRect: vi.fn(),
+                clearRect: vi.fn(),
+                drawImage: vi.fn(),
+                beginPath: vi.fn(),
+                moveTo: vi.fn(),
+                lineTo: vi.fn(),
+                arcTo: vi.fn(),
+                closePath: vi.fn(),
+                arc: vi.fn(),
+                ellipse: vi.fn(),
+                stroke: vi.fn(),
+                fill: vi.fn(),
+                save: vi.fn(),
+                restore: vi.fn(),
+                translate: vi.fn(),
+                scale: vi.fn(),
+                rotate: vi.fn(),
+                setLineDash: vi.fn(),
+                measureText: vi.fn(() => ({ width: 80 })),
+                strokeText: vi.fn(),
+                fillText: vi.fn((text) => textsOut.push(text)),
+                createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+                createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() }))
+            });
+
+            // 1. Schedule times + coordinate-less stopover enabled
+            const textsWithTimes = [];
+            const ctx1 = createMockCtx(textsWithTimes);
+            renderV2Frame({
+                ctx: ctx1,
+                frame: 180,
+                totalFrames: 360,
+                width: 960,
+                height: 960,
+                trip,
+                mapStyle: 'vector-dark',
+                precompute,
+                settings: {
+                    ...createDefaultClipSettings(),
+                    clipDurationSec: 12,
+                    routeWidthScale: 1.4,
+                    vehicleScale: 0,
+                    showScheduleTimes: true,
+                    showStopNames: true,
+                    showVignette: false
+                }
+            });
+            expect(textsWithTimes).toContain('Erfurt Hbf');
+            expect(textsWithTimes).toContain(expectedDep);
+            expect(textsWithTimes).toContain(expectedArr);
+            expect(textsWithTimes.some(t => typeof t === 'string' && t.includes(`${expectedDep} → ${expectedArr}`))).toBe(true);
+            expect(ctx1.createRadialGradient).not.toHaveBeenCalled();
+
+            // 2. Station pills hidden & schedule times hidden
+            const textsHiddenPills = [];
+            const ctx2 = createMockCtx(textsHiddenPills);
+            renderV2Frame({
+                ctx: ctx2,
+                frame: 90,
+                totalFrames: 240,
+                width: 960,
+                height: 960,
+                trip,
+                mapStyle: 'vector-dark',
+                precompute,
+                settings: {
+                    ...createDefaultClipSettings(),
+                    showStationPills: false,
+                    showScheduleTimes: false,
+                    showStopDots: false,
+                    showStopNames: false
+                }
+            });
+            expect(textsHiddenPills).not.toContain('Berlin Hbf');
+            expect(textsHiddenPills).not.toContain('München Hbf');
+            expect(textsHiddenPills).not.toContain('Erfurt Hbf');
+            expect(ctx2.createRadialGradient).toHaveBeenCalled();
         });
     });
 

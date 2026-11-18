@@ -1,39 +1,39 @@
 /**
- * Trip Clip V2 Application Controller (Zero-Dependency Architecture)
+ * Trip Clip Animation Studio Controller (KISS & Unified Architecture)
  * Orchestrates session loading, timeframe filtering, spatial precomputation,
- * the native micro-player, and deterministic MP4 video export.
+ * live ClipSettings customization, native micro-player, and video/PNG export.
  */
 
 import { SessionDB } from '../cache/session.js';
 import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { TraewellingAPI } from '../api/traewelling.js';
-import { normalizeTripStatus } from '../data/processing.js';
+import { normalizeTripStatus, filterStopoversBetweenTraveledStations } from '../data/processing.js';
 import { syncNavigationLinks } from '../ui/navigation.js';
 import { computeTripDurationMinutes, deriveDelaySeconds } from '../utils/time.js';
 import { escapeHtml, formatHumanDuration } from '../utils/format.js';
+import { extractIntermediateStopovers } from './sprites.js';
 import {
     MAP_STYLES,
     preloadTripTiles,
     preloadSceneTiles
-} from '../animation/tiles.js';
+} from './tiles.js';
 import {
     filterTripsByTimeframe,
     getTripTimestamp,
     getTimeframeLabel,
     TIMEFRAME_PRESETS
-} from '../animation/timeframe.js';
+} from './timeframe.js';
 import {
     buildFastTripPrecompute,
     buildFastAllTripsPrecompute,
     computeAllModeTiming
 } from './precompute.js';
 import { NativeTripPlayer } from './player.js';
-import { VideoClipExporterV2 } from './export.js';
+import { VideoClipExporterV2 } from './exporter.js';
+import { setAnimationTileLabelScale } from './geometry.js';
+import { createDefaultClipSettings, resolveAspectDimensions } from './schema.js';
 
-const VIDEO_WIDTH = 960;
-const VIDEO_HEIGHT = 960;
 const FPS = 30;
-const DURATION_IN_FRAMES = 240;
 
 const DEMO_FIXTURE_TRIPS = [
     {
@@ -47,22 +47,72 @@ const DEMO_FIXTURE_TRIPS = [
             lineName: 'ICE 720',
             routeColor: 'ff2e55',
             distance: 284500,
-            duration: 110,
+            duration: 230,
             origin: {
+                id: 8011160,
                 name: 'Berlin Hbf',
+                latitude: 52.5255,
+                longitude: 13.3695,
+                platform: '1',
                 departurePlanned: '2026-10-05T15:32:00+00:00',
                 departureReal: '2026-10-05T15:34:00+00:00'
             },
             destination: {
+                id: 8000261,
                 name: 'München Hbf',
+                latitude: 48.1402,
+                longitude: 11.5583,
+                platform: '19',
                 arrivalPlanned: '2026-10-05T19:22:00+00:00',
                 arrivalReal: '2026-10-05T19:26:00+00:00'
             },
+            stopovers: [
+                {
+                    station: { id: 8011160, name: 'Berlin Hbf', latitude: 52.5255, longitude: 13.3695 },
+                    departurePlanned: '2026-10-05T15:32:00+00:00',
+                    departureReal: '2026-10-05T15:34:00+00:00'
+                },
+                {
+                    station: { id: 8011113, name: 'Berlin Südkreuz', latitude: 52.4754, longitude: 13.3653 },
+                    arrivalPlanned: '2026-10-05T15:37:00+00:00',
+                    arrivalReal: '2026-10-05T15:39:00+00:00',
+                    departurePlanned: '2026-10-05T15:39:00+00:00',
+                    departureReal: '2026-10-05T15:41:00+00:00'
+                },
+                {
+                    station: { id: 8010159, name: 'Halle (Saale) Hbf', latitude: 51.4775, longitude: 11.9875 },
+                    arrivalPlanned: '2026-10-05T16:33:00+00:00',
+                    arrivalReal: '2026-10-05T16:35:00+00:00',
+                    departurePlanned: '2026-10-05T16:35:00+00:00',
+                    departureReal: '2026-10-05T16:37:00+00:00'
+                },
+                {
+                    station: { id: 8010101, name: 'Erfurt Hbf', latitude: 50.9722, longitude: 11.0385 },
+                    arrivalPlanned: '2026-10-05T17:05:00+00:00',
+                    arrivalReal: '2026-10-05T17:08:00+00:00',
+                    departurePlanned: '2026-10-05T17:08:00+00:00',
+                    departureReal: '2026-10-05T17:10:00+00:00'
+                },
+                {
+                    station: { id: 8000284, name: 'Nürnberg Hbf', latitude: 49.4456, longitude: 11.0829 },
+                    arrivalPlanned: '2026-10-05T18:18:00+00:00',
+                    arrivalReal: '2026-10-05T18:21:00+00:00',
+                    departurePlanned: '2026-10-05T18:20:00+00:00',
+                    departureReal: '2026-10-05T18:23:00+00:00'
+                },
+                {
+                    station: { id: 8000261, name: 'München Hbf', latitude: 48.1402, longitude: 11.5583 },
+                    arrivalPlanned: '2026-10-05T19:22:00+00:00',
+                    arrivalReal: '2026-10-05T19:26:00+00:00'
+                }
+            ],
             polyline: [
                 [13.3695, 52.5255],
-                [13.3421, 52.4832],
-                [12.3731, 51.3397],
-                [11.5819, 48.1402]
+                [13.3653, 52.4754],
+                [11.9875, 51.4775],
+                [11.0385, 50.9722],
+                [11.0829, 49.4456],
+                [11.5583, 48.1402]
             ]
         }
     }
@@ -78,6 +128,7 @@ let customTimeframeFrom = '';
 let customTimeframeTo = '';
 let customTimeframeFromTime = '';
 let customTimeframeToTime = '';
+const clipSettings = createDefaultClipSettings();
 let userTrips = [];
 let externalTrip = null;
 let allSessions = [];
@@ -86,8 +137,6 @@ let activeExporter = null;
 
 function getActiveTrips() {
     let refDate = new Date();
-    // If all user trips are historical (e.g. from an archived year), anchor the 7-day window to the latest trip
-    // so historical datasets display their latest 7 days rather than returning an empty set.
     if (currentTimeframe === 'last-7-days' && userTrips.length > 0) {
         const timestamps = userTrips.map(t => getTripTimestamp(t)).filter(ts => ts > 0);
         if (timestamps.length > 0) {
@@ -110,10 +159,33 @@ function getActiveTrips() {
 
 function getActiveDurationInFrames() {
     const activeTrips = getActiveTrips();
+    const scale = (clipSettings.clipDurationSec || 8) / 8;
     if (currentMode === 'all' && activeTrips.length > 0) {
-        return computeAllModeTiming(activeTrips, FPS).totalFrames;
+        return Math.max(FPS * 3, Math.round(computeAllModeTiming(activeTrips, FPS).totalFrames * scale));
     }
-    return DURATION_IN_FRAMES;
+    return Math.max(FPS * 3, Math.round((clipSettings.clipDurationSec || 8) * FPS));
+}
+
+function buildActivePrecompute(activeTrips) {
+    const dims = resolveAspectDimensions(clipSettings.aspectRatio);
+    if (currentMode === 'all') {
+        return buildFastAllTripsPrecompute(activeTrips, dims.width, dims.height, FPS);
+    }
+    if (currentTrip) {
+        return buildFastTripPrecompute(currentTrip, dims.width, dims.height);
+    }
+    return null;
+}
+
+function preloadTilesForCurrentState(precompute) {
+    const dims = resolveAspectDimensions(clipSettings.aspectRatio);
+    const styleConfig = MAP_STYLES[currentMapStyle] || MAP_STYLES['traewelling-dark'];
+    if (styleConfig.isVector) return;
+    if (currentMode === 'all' && precompute?.allScene) {
+        preloadSceneTiles(precompute.allScene, currentMapStyle);
+    } else if (currentTrip) {
+        preloadTripTiles(currentTrip, currentMapStyle, dims.width, dims.height);
+    }
 }
 
 async function init() {
@@ -130,7 +202,6 @@ async function init() {
     if (TIMEFRAME_PRESETS.some(p => p.id === tfParam)) {
         currentTimeframe = tfParam;
     } else if (currentMode === 'all') {
-        // Default to last-7-days when entering All Trips mode to prevent browser unresponsiveness
         currentTimeframe = 'last-7-days';
     }
     customTimeframeFrom = urlParams.get('from') || '';
@@ -147,6 +218,7 @@ async function init() {
         currentMapStyle = mapParam;
     }
 
+    setAnimationTileLabelScale(clipSettings.tileScale);
     syncNavigationLinks(currentUser);
 
     try {
@@ -156,7 +228,6 @@ async function init() {
         allSessions = [];
     }
 
-    // Only default to first saved local session if no target trip and no user was specified
     if (!currentUser && !currentTripId && allSessions.length > 0) {
         currentUser = allSessions[0].username || '';
     }
@@ -164,6 +235,7 @@ async function init() {
     renderUserSelect();
     setupControls();
     syncToolbarPills();
+    syncCustomizerControls();
 
     if (currentUser || currentTripId) {
         await loadUserTrips(currentUser, currentTripId);
@@ -179,7 +251,7 @@ async function init() {
 function renderUserSelect() {
     const userSelect = document.getElementById('userSelect');
     if (!userSelect) return;
-    userSelect.innerHTML = '';
+    userSelect.replaceChildren();
 
     const isViewingExternal = Boolean(externalTrip && currentTrip && String(externalTrip.id) === String(currentTrip.id));
     const extOwner = (externalTrip?.user?.username || '').toLowerCase();
@@ -187,7 +259,6 @@ function renderUserSelect() {
 
     const usersMap = new Map();
 
-    // 1. Add all local accounts from IndexedDB sessions
     allSessions.forEach(sess => {
         const u = sess.username.toLowerCase();
         usersMap.set(u, {
@@ -196,7 +267,6 @@ function renderUserSelect() {
         });
     });
 
-    // 2. If an external trip from another user is loaded, include that user
     if (extOwner && !usersMap.has(extOwner)) {
         usersMap.set(extOwner, {
             value: extOwner,
@@ -204,7 +274,6 @@ function renderUserSelect() {
         });
     }
 
-    // 3. If currentUser is set (e.g. from URL) and not in usersMap
     if (currentUser && !usersMap.has(currentUser.toLowerCase())) {
         usersMap.set(currentUser.toLowerCase(), {
             value: currentUser.toLowerCase(),
@@ -221,12 +290,9 @@ function renderUserSelect() {
         return;
     }
 
-    // Target selected user:
-    // If viewing an external journey from another user, ALWAYS show that creator in the account field!
-    // Never show the viewer or local account as the owner of an external journey.
     const activeSelectedUser = isViewingExternal ? extOwner : (currentUser || '').toLowerCase();
-
     let matchedSelected = false;
+
     usersMap.forEach((u) => {
         const opt = document.createElement('option');
         opt.value = u.value;
@@ -238,7 +304,6 @@ function renderUserSelect() {
         userSelect.appendChild(opt);
     });
 
-    // Fallback selection guard
     if (!matchedSelected && userSelect.options.length > 0) {
         userSelect.options[0].selected = true;
     }
@@ -247,7 +312,6 @@ function renderUserSelect() {
 async function attachPolylinesToTrips(api, trips, maxFetchCount = 20) {
     if (!trips || !trips.length) return;
 
-    // Check cached polylines from SessionDB first
     try {
         const polylineStore = (typeof SessionDB.getAllPolylines === 'function') ? await SessionDB.getAllPolylines() : {};
         trips.forEach(t => {
@@ -290,6 +354,84 @@ async function attachPolylinesToTrips(api, trips, maxFetchCount = 20) {
     }
 }
 
+async function attachStopoversToTrips(api, trips, maxFetchCount = 15) {
+    if (!Array.isArray(trips) || !trips.length) return;
+
+    const candidates = trips.filter(t => {
+        const c = t?.checkin || t?.train || {};
+        return !Array.isArray(c.stopovers) || c.stopovers.length === 0;
+    });
+    if (!candidates.length) return;
+
+    const cachedIds = new Set();
+    try {
+        if (typeof SessionDB.getStopoversBatch === 'function') {
+            const ids = candidates.map(t => t.id).filter(Boolean);
+            const cachedMap = await SessionDB.getStopoversBatch(ids);
+            candidates.forEach(t => {
+                const cachedStops = cachedMap?.[t.id];
+                if (Array.isArray(cachedStops)) {
+                    cachedIds.add(String(t.id));
+                    const c = t.checkin || t.train;
+                    const filtered = filterStopoversBetweenTraveledStations(cachedStops, c?.origin, c?.destination);
+                    if (c) c.stopovers = filtered;
+                    if (t.train && t.train !== c) t.train.stopovers = filtered;
+                    t.stopovers = filtered;
+                }
+            });
+        }
+    } catch {}
+
+    const missing = candidates
+        .filter(t => !cachedIds.has(String(t.id)))
+        .slice(0, maxFetchCount);
+    if (!missing.length || !api || typeof api.getStopovers !== 'function') return;
+
+    const batchSize = 15;
+    const newlyFetched = {};
+    for (let i = 0; i < missing.length; i += batchSize) {
+        const batch = missing.slice(i, i + batchSize);
+        const queryIds = batch.map(t => {
+            const c = t.checkin || t.train || {};
+            return c.trip || c.tripId || t.backend_trip_id || t.id;
+        }).filter(Boolean);
+        if (!queryIds.length) continue;
+
+        try {
+            const stopRes = await api.getStopovers(queryIds);
+            const data = stopRes?.data;
+            if (!data) continue;
+
+            batch.forEach(t => {
+                const c = t.checkin || t.train || {};
+                const tripRunId = c.trip || c.tripId || t.backend_trip_id;
+                let rawStops = null;
+                if (tripRunId && Array.isArray(data[tripRunId])) {
+                    rawStops = data[tripRunId];
+                } else if (Array.isArray(data[t.id])) {
+                    rawStops = data[t.id];
+                } else if (batch.length === 1 && Array.isArray(data)) {
+                    rawStops = data;
+                }
+                if (Array.isArray(rawStops)) {
+                    const filtered = filterStopoversBetweenTraveledStations(rawStops, c.origin, c.destination);
+                    c.stopovers = filtered;
+                    if (t.train && t.train !== c) t.train.stopovers = filtered;
+                    t.stopovers = filtered;
+                    if (t.id) newlyFetched[t.id] = filtered;
+                }
+            });
+        } catch (e) {
+            console.warn('Stopovers batch fetch error:', e);
+            break;
+        }
+    }
+
+    if (Object.keys(newlyFetched).length > 0 && typeof SessionDB.saveStopoversBatch === 'function') {
+        SessionDB.saveStopoversBatch(newlyFetched).catch(() => {});
+    }
+}
+
 function showTripMissingNotice(targetTripId, username) {
     let notice = document.getElementById('tripNoticeBanner');
     if (!notice) {
@@ -309,7 +451,6 @@ async function loadUserTrips(username, targetTripId = '') {
     const token = Storage.get(STORAGE_KEYS.TOKEN);
     const api = new TraewellingAPI(token);
 
-    // 1. Check if user is cached in local SessionDB
     if (username) {
         try {
             const session = await SessionDB.get(username);
@@ -321,13 +462,11 @@ async function loadUserTrips(username, targetTripId = '') {
         }
     }
 
-    // 2. Direct status fetch if targetTripId was requested but missing in local userTrips
     if (targetTripId && !userTrips.some(t => String(t.id) === String(targetTripId))) {
         try {
             const singleRes = await api.getStatus(targetTripId);
             if (singleRes?.data) {
                 const fetchedTrip = normalizeTripStatus(singleRes.data);
-                // Fetch the high-resolution route polyline geodata
                 try {
                     const polyRes = await api.getPolyline(targetTripId);
                     const polyData = polyRes?.data;
@@ -338,20 +477,13 @@ async function loadUserTrips(username, targetTripId = '') {
                         if (fetchedTrip.train) fetchedTrip.train.polyline = feature;
                         fetchedTrip.polyline = feature;
                         SessionDB.savePolylinesBatch({ [targetTripId]: feature }).catch(() => {});
-                    } else {
-                        const stopRes = await api.getStopovers([targetTripId]);
-                        const stops = stopRes?.data?.[targetTripId] || stopRes?.data;
-                        if (Array.isArray(stops) && stops.length > 0) {
-                            const checkin = fetchedTrip.checkin || fetchedTrip.train || {};
-                            checkin.stopovers = stops;
-                            if (fetchedTrip.train) fetchedTrip.train.stopovers = stops;
-                        }
                     }
                 } catch (pe) {
                     console.warn('Polyline fetch warning for status', targetTripId, pe);
                 }
 
-                // Ownership verification: check if fetchedTrip belongs to active username
+                await attachStopoversToTrips(api, [fetchedTrip], 1);
+
                 const tripOwner = (fetchedTrip.user?.username || '').toLowerCase().trim();
                 const activeLower = (username || '').toLowerCase().trim();
                 const isOwnTrip = tripOwner && activeLower && tripOwner === activeLower;
@@ -364,7 +496,6 @@ async function loadUserTrips(username, targetTripId = '') {
                         renderUserSelect();
                     }
                 } else {
-                    // Isolated guest trip: do NOT append into active user's catalog or database
                     externalTrip = fetchedTrip;
                 }
             }
@@ -373,7 +504,6 @@ async function loadUserTrips(username, targetTripId = '') {
         }
     }
 
-    // 3. Live API fallback if username was requested and we have fewer than 2 trips (uncached user or only single trip fetched)
     if (userTrips.length <= 1 && username && username !== 'demo') {
         try {
             const apiRes = await api.getUserStatuses(username);
@@ -386,8 +516,6 @@ async function loadUserTrips(username, targetTripId = '') {
                     }
                 });
                 await attachPolylinesToTrips(api, userTrips, currentMode === 'all' ? 50 : 15);
-
-                // Cache to SessionDB so subsequent loads are immediate & offline
                 SessionDB.save(username, userTrips).catch(() => {});
             }
         } catch (ue) {
@@ -395,7 +523,6 @@ async function loadUserTrips(username, targetTripId = '') {
         }
     }
 
-    // 4. Attach polylines to active trips if missing
     const activeMissing = userTrips.filter(t => {
         const c = t.checkin || t.train || {};
         return !c.polyline;
@@ -404,7 +531,6 @@ async function loadUserTrips(username, targetTripId = '') {
         await attachPolylinesToTrips(api, activeMissing, 10);
     }
 
-    // 4b. Ensure the requested target trip definitely has its polyline geodata
     if (targetTripId) {
         const targetTrip = (externalTrip && String(externalTrip.id) === String(targetTripId))
             ? externalTrip
@@ -421,22 +547,19 @@ async function loadUserTrips(username, targetTripId = '') {
                         if (targetTrip.train) targetTrip.train.polyline = feature;
                         targetTrip.polyline = feature;
                         SessionDB.savePolylinesBatch({ [targetTripId]: feature }).catch(() => {});
-                    } else {
-                        const stopRes = await api.getStopovers([targetTripId]);
-                        const stops = stopRes?.data?.[targetTripId] || stopRes?.data;
-                        if (Array.isArray(stops) && stops.length > 0) {
-                            checkin.stopovers = stops;
-                            if (targetTrip.train) targetTrip.train.stopovers = stops;
-                        }
                     }
                 } catch (pe) {
                     console.warn('Direct polyline fetch warning for target trip', targetTripId, pe);
                 }
             }
+            await attachStopoversToTrips(api, [targetTrip], 1);
         }
     }
 
-    // Persist newly fetched live trips into SessionDB cache (only own trips)
+    if (userTrips.length > 0 && username && username !== 'demo') {
+        await attachStopoversToTrips(api, userTrips, currentMode === 'all' ? 20 : 12);
+    }
+
     const activeUser = currentUser;
     if (activeUser && activeUser !== 'demo' && userTrips.length > 0) {
         SessionDB.save(activeUser, userTrips).catch(() => {});
@@ -446,7 +569,6 @@ async function loadUserTrips(username, targetTripId = '') {
         userTrips = DEMO_FIXTURE_TRIPS;
     }
 
-    // 5. If targetTripId was requested but neither direct fetch nor user history contained it:
     const targetFound = (externalTrip && String(externalTrip.id) === String(targetTripId)) ||
         userTrips.some(t => String(t.id) === String(targetTripId));
     if (targetTripId && !targetFound) {
@@ -457,7 +579,7 @@ async function loadUserTrips(username, targetTripId = '') {
 function renderTripSelect() {
     const tripSelect = document.getElementById('tripSelect');
     if (!tripSelect) return;
-    tripSelect.innerHTML = '';
+    tripSelect.replaceChildren();
 
     const allOpt = document.createElement('option');
     allOpt.value = 'all';
@@ -467,7 +589,6 @@ function renderTripSelect() {
 
     let matchedSelected = false;
 
-    // If an external journey from another user is loaded, surface it cleanly at the top of the selector
     if (externalTrip) {
         const checkin = externalTrip.checkin || externalTrip.train || {};
         const line = checkin.lineName || checkin.number || 'Trip';
@@ -516,7 +637,6 @@ function renderTripSelect() {
                 currentTripId = String(currentTrip?.id || '');
             }
         }
-        // Guard against HTML select falling back to allOpt: explicitly select option index 1 if target was unmatched
         if (!matchedSelected && tripSelect.options.length > 1) {
             tripSelect.options[1].selected = true;
             if (externalTrip) {
@@ -535,6 +655,29 @@ function renderTripSelect() {
     renderSidebarDetails();
 }
 
+function formatEndpointTimestamp(realVal, plannedVal, platform = '') {
+    const primaryRaw = realVal || plannedVal;
+    if (!primaryRaw) return '—';
+    const primaryDate = new Date(primaryRaw);
+    if (Number.isNaN(primaryDate.getTime())) return '—';
+
+    const dateStr = primaryDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const timeStr = primaryDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    let out = `${dateStr}, ${timeStr}`;
+
+    if (plannedVal && realVal) {
+        const plannedDate = new Date(plannedVal);
+        if (!Number.isNaN(plannedDate.getTime()) && Math.abs(primaryDate.getTime() - plannedDate.getTime()) >= 60000) {
+            const planStr = plannedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+            out += ` (plan ${planStr})`;
+        }
+    }
+    if (platform) {
+        out += ` • Pl. ${platform}`;
+    }
+    return out;
+}
+
 function renderSidebarDetails() {
     const activeTrips = getActiveTrips();
     const isAllMode = currentMode === 'all';
@@ -542,8 +685,11 @@ function renderSidebarDetails() {
     const lineEl = document.getElementById('sidebarLine');
     const distEl = document.getElementById('sidebarDistance');
     const routeEl = document.getElementById('sidebarRoute');
+    const startedEl = document.getElementById('sidebarStarted');
+    const endedEl = document.getElementById('sidebarEnded');
     const delayEl = document.getElementById('sidebarDelay');
     const durationEl = document.getElementById('sidebarDuration');
+    const stopoversEl = document.getElementById('sidebarStopovers');
     const noteEl = document.getElementById('sidebarNote');
 
     if (isAllMode) {
@@ -554,11 +700,26 @@ function renderSidebarDetails() {
 
         const tfLabel = getTimeframeLabel(currentTimeframe, customTimeframeFrom, customTimeframeTo, customTimeframeFromTime, customTimeframeToTime);
 
+        const depTimes = activeTrips.map(t => {
+            const c = t.checkin || t.train || {};
+            const raw = c.origin?.departureReal || c.origin?.departurePlanned || c.origin?.departure || t.createdAt;
+            return raw ? Date.parse(raw) : NaN;
+        }).filter(Number.isFinite);
+        const arrTimes = activeTrips.map(t => {
+            const c = t.checkin || t.train || {};
+            const raw = c.destination?.arrivalReal || c.destination?.arrivalPlanned || c.destination?.arrival || c.origin?.departureReal || t.createdAt;
+            return raw ? Date.parse(raw) : NaN;
+        }).filter(Number.isFinite);
+        const totalIntermediateStops = activeTrips.reduce((sum, t) => sum + extractIntermediateStopovers(t).length, 0);
+
         if (lineEl) lineEl.textContent = `${activeTrips.length} rides`;
         if (distEl) distEl.textContent = `${Math.round(totalKm).toLocaleString()} km total`;
         if (routeEl) routeEl.textContent = `Network replay (${tfLabel})`;
+        if (startedEl) startedEl.textContent = depTimes.length ? formatEndpointTimestamp(new Date(Math.min(...depTimes)).toISOString()) : '—';
+        if (endedEl) endedEl.textContent = arrTimes.length ? formatEndpointTimestamp(new Date(Math.max(...arrTimes)).toISOString()) : '—';
         if (delayEl) delayEl.textContent = 'All modes & lines';
         if (durationEl) durationEl.textContent = `${Math.round(getActiveDurationInFrames() / FPS)}s video`;
+        if (stopoversEl) stopoversEl.textContent = totalIntermediateStops > 0 ? `${totalIntermediateStops} intermediate stops across rides` : '—';
         if (noteEl) noteEl.textContent = `Chronological animated journey map of @${currentUser || 'user'}'s recorded rides.`;
         return;
     }
@@ -567,8 +728,11 @@ function renderSidebarDetails() {
         if (lineEl) lineEl.textContent = '—';
         if (distEl) distEl.textContent = '—';
         if (routeEl) routeEl.textContent = '—';
+        if (startedEl) startedEl.textContent = '—';
+        if (endedEl) endedEl.textContent = '—';
         if (delayEl) delayEl.textContent = '—';
         if (durationEl) durationEl.textContent = '—';
+        if (stopoversEl) stopoversEl.textContent = '—';
         if (noteEl) noteEl.textContent = '—';
         return;
     }
@@ -582,15 +746,35 @@ function renderSidebarDetails() {
     const durationMins = computeTripDurationMinutes(checkin) || checkin.duration;
     const delays = deriveDelaySeconds(checkin);
 
+    const depReal = checkin.origin?.departureReal || checkin.origin?.departure || checkin.departure || currentTrip.createdAt;
+    const depPlan = checkin.origin?.departurePlanned || checkin.plannedDeparture;
+    const depPlatform = checkin.origin?.departurePlatformReal || checkin.origin?.platform || '';
+    const arrReal = checkin.destination?.arrivalReal || checkin.destination?.arrival || checkin.arrival;
+    const arrPlan = checkin.destination?.arrivalPlanned || checkin.plannedArrival;
+    const arrPlatform = checkin.destination?.arrivalPlatformReal || checkin.destination?.platform || '';
+    const intermediateStops = extractIntermediateStopovers(currentTrip);
+
     if (lineEl) lineEl.textContent = line;
     if (distEl) distEl.textContent = distKm !== '—' ? `${distKm} km` : '—';
     if (routeEl) routeEl.textContent = `${origin} → ${dest}`;
+    if (startedEl) startedEl.textContent = formatEndpointTimestamp(depReal, depPlan, depPlatform);
+    if (endedEl) endedEl.textContent = formatEndpointTimestamp(arrReal, arrPlan, arrPlatform);
     if (delayEl) {
-        const depD = delays.departureDelaySeconds ? Math.round(delays.departureDelaySeconds / 60) : 0;
-        const arrD = delays.arrivalDelaySeconds ? Math.round(delays.arrivalDelaySeconds / 60) : 0;
+        const depD = typeof delays.departure === 'number' ? Math.round(delays.departure / 60) : 0;
+        const arrD = typeof delays.arrival === 'number' ? Math.round(delays.arrival / 60) : 0;
         delayEl.textContent = (depD || arrD) ? `+${depD}m / +${arrD}m` : 'On time';
     }
     if (durationEl) durationEl.textContent = durationMins ? formatHumanDuration(durationMins) : '—';
+    if (stopoversEl) {
+        if (intermediateStops.length > 0) {
+            const summary = intermediateStops
+                .map(s => (s.timeShort ? `${s.shortName} (${s.timeShort})` : s.shortName))
+                .join(' → ');
+            stopoversEl.textContent = `${intermediateStops.length} stop${intermediateStops.length === 1 ? '' : 's'}: ${summary}`;
+        } else {
+            stopoversEl.textContent = 'Nonstop / no intermediate stops';
+        }
+    }
     if (noteEl) {
         const isExternal = externalTrip && currentTrip && String(externalTrip.id) === String(currentTrip.id);
         const tripOwner = currentTrip.user?.username;
@@ -603,9 +787,24 @@ function renderSidebarDetails() {
     }
 }
 
+function syncPlayerHostAspectClass() {
+    const container = document.getElementById('playerContainer');
+    if (!container) return;
+    container.classList.remove('ratio-square', 'ratio-vertical', 'ratio-landscape');
+    if (clipSettings.aspectRatio === '9:16') {
+        container.classList.add('ratio-vertical');
+    } else if (clipSettings.aspectRatio === '16:9') {
+        container.classList.add('ratio-landscape');
+    } else {
+        container.classList.add('ratio-square');
+    }
+}
+
 function renderPlayer() {
     const container = document.getElementById('playerContainer');
     if (!container) return;
+
+    syncPlayerHostAspectClass();
 
     const activeTrips = getActiveTrips();
     const isAllMode = currentMode === 'all';
@@ -623,31 +822,17 @@ function renderPlayer() {
     }
 
     const totalFrames = getActiveDurationInFrames();
-
-    // Precalculate high-speed spatial LUTs
-    let precompute = null;
-    if (isAllMode) {
-        precompute = buildFastAllTripsPrecompute(activeTrips, VIDEO_WIDTH, VIDEO_HEIGHT, FPS);
-    } else if (currentTrip) {
-        precompute = buildFastTripPrecompute(currentTrip, VIDEO_WIDTH, VIDEO_HEIGHT);
-    }
-
-    // Preload tiles silently in background
-    const styleConfig = MAP_STYLES[currentMapStyle] || MAP_STYLES['traewelling-dark'];
-    if (!styleConfig.isVector) {
-        if (isAllMode && precompute?.allScene) {
-            preloadSceneTiles(precompute.allScene, currentMapStyle);
-        } else if (currentTrip) {
-            preloadTripTiles(currentTrip, currentMapStyle, VIDEO_WIDTH, VIDEO_HEIGHT);
-        }
-    }
+    const dims = resolveAspectDimensions(clipSettings.aspectRatio);
+    const precompute = buildActivePrecompute(activeTrips);
+    preloadTilesForCurrentState(precompute);
 
     if (!player) {
         player = new NativeTripPlayer(container, {
-            width: VIDEO_WIDTH,
-            height: VIDEO_HEIGHT,
+            width: dims.width,
+            height: dims.height,
             fps: FPS,
-            totalFrames
+            totalFrames,
+            settings: clipSettings
         });
         window.playerRef = player;
         window.__nativePlayer = player;
@@ -666,6 +851,7 @@ function renderPlayer() {
         totalFrames,
         fps: FPS,
         precompute,
+        settings: clipSettings,
         autoPlay: true
     });
 }
@@ -701,6 +887,67 @@ function syncToolbarPills() {
     }
 }
 
+function syncNumericPillGroup(selector, datasetKey, currentVal, fallbackStr) {
+    document.querySelectorAll(selector).forEach(btn => {
+        const val = parseFloat(btn.dataset[datasetKey] || fallbackStr);
+        const isActive = Math.abs(val - currentVal) < 0.05;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', String(isActive));
+    });
+}
+
+function syncCustomizerControls() {
+    document.querySelectorAll('.aspect-ratio-pill').forEach(btn => {
+        const isActive = btn.dataset.aspect === clipSettings.aspectRatio;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', String(isActive));
+    });
+
+    document.querySelectorAll('.camera-mode-pill').forEach(btn => {
+        const isActive = btn.dataset.camera === clipSettings.cameraMode;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', String(isActive));
+    });
+
+    syncNumericPillGroup('.clip-duration-pill', 'duration', clipSettings.clipDurationSec, '8');
+    syncNumericPillGroup('.tile-scale-pill', 'tileScale', clipSettings.tileScale, '2');
+    syncNumericPillGroup('.route-width-pill', 'routeWidth', clipSettings.routeWidthScale, '1');
+    syncNumericPillGroup('.vehicle-scale-pill', 'vehicleScale', clipSettings.vehicleScale, '1');
+
+    const checkboxBindings = [
+        ['toggleHudInput', 'showHud'],
+        ['toggleScheduleTimesInput', 'showScheduleTimes'],
+        ['toggleStationPillsInput', 'showStationPills'],
+        ['toggleStopDotsInput', 'showStopDots'],
+        ['toggleStopNamesInput', 'showStopNames'],
+        ['toggleVignetteInput', 'showVignette'],
+        ['toggleWatermarkInput', 'showWatermark']
+    ];
+    checkboxBindings.forEach(([id, key]) => {
+        const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+        if (el) el.checked = Boolean(clipSettings[key]);
+    });
+
+    const exportSpecEl = document.getElementById('exportResolutionSummary');
+    if (exportSpecEl) {
+        const dims = resolveAspectDimensions(clipSettings.aspectRatio);
+        exportSpecEl.textContent = `${dims.width} × ${dims.height} px • ${FPS} FPS • ${clipSettings.clipDurationSec}s • ${clipSettings.aspectRatio}`;
+    }
+}
+
+function buildClipFilename(ext = 'mp4') {
+    const activeTrips = getActiveTrips();
+    const checkin = currentTrip?.checkin || currentTrip?.train || {};
+    const cleanLine = (checkin.lineName || checkin.number || 'trip').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+    const tfPart = currentTimeframe === 'all' ? 'all' : currentTimeframe.replace(/[^a-zA-Z0-9_-]/g, '-');
+    const exportUser = (currentMode === 'single' && currentTrip?.user?.username)
+        ? currentTrip.user.username
+        : (currentUser || 'clip');
+    return currentMode === 'all'
+        ? `traewelling-${currentUser || 'clip'}-${tfPart}-${activeTrips.length}-rides.${ext}`
+        : `traewelling-${exportUser}-${cleanLine}-${currentTrip?.id || 'video'}.${ext}`;
+}
+
 async function triggerVideoDownload() {
     const activeTrips = getActiveTrips();
     if ((!currentTrip && currentMode !== 'all') || (currentMode === 'all' && activeTrips.length === 0)) return null;
@@ -711,15 +958,8 @@ async function triggerVideoDownload() {
     const progressBar = document.getElementById('recordProgressBar');
     const statusText = document.getElementById('recordStatusText');
 
-    const checkin = currentTrip?.checkin || currentTrip?.train || {};
-    const cleanLine = (checkin.lineName || checkin.number || 'trip').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
-    const tfPart = currentTimeframe === 'all' ? 'all' : currentTimeframe.replace(/[^a-zA-Z0-9_-]/g, '-');
-    const exportUser = (currentMode === 'single' && currentTrip?.user?.username)
-        ? currentTrip.user.username
-        : (currentUser || 'clip');
-    const filename = currentMode === 'all'
-        ? `traewelling-${currentUser || 'clip'}-${tfPart}-${activeTrips.length}-rides.mp4`
-        : `traewelling-${exportUser}-${cleanLine}-${currentTrip?.id || 'video'}.mp4`;
+    const filename = buildClipFilename('mp4');
+    const dims = resolveAspectDimensions(clipSettings.aspectRatio);
 
     try {
         if (downloadBtn) {
@@ -731,27 +971,22 @@ async function triggerVideoDownload() {
         if (progressBar) progressBar.style.width = '2%';
 
         const totalFrames = getActiveDurationInFrames();
-        let precompute = null;
-        if (currentMode === 'all') {
-            precompute = buildFastAllTripsPrecompute(activeTrips, VIDEO_WIDTH, VIDEO_HEIGHT, FPS);
-        } else if (currentTrip) {
-            precompute = buildFastTripPrecompute(currentTrip, VIDEO_WIDTH, VIDEO_HEIGHT);
-        }
+        const precompute = buildActivePrecompute(activeTrips);
 
         const exporter = new VideoClipExporterV2();
         activeExporter = exporter;
 
         const result = await exporter.exportAndDownload({
             trip: currentTrip,
-            trips: activeTrips,
             mode: currentMode,
             username: (currentMode === 'single' && currentTrip?.user?.username) ? currentTrip.user.username : (currentUser || 'Traveler'),
             mapStyle: currentMapStyle,
-            width: VIDEO_WIDTH,
-            height: VIDEO_HEIGHT,
+            width: dims.width,
+            height: dims.height,
             fps: FPS,
             totalFrames,
             precompute,
+            settings: clipSettings,
             filename,
             onProgress: (pct, msg) => {
                 if (progressBar) progressBar.style.width = `${pct}%`;
@@ -780,7 +1015,32 @@ async function triggerVideoDownload() {
     }
 }
 
+function setupInspectorTabs() {
+    const tabBtns = document.querySelectorAll('.inspector-tab-btn');
+    const panels = {
+        details: document.getElementById('panelDetails'),
+        customize: document.getElementById('panelCustomize'),
+        export: document.getElementById('panelExport')
+    };
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = btn.dataset.tab || 'details';
+            tabBtns.forEach(b => {
+                const active = b.dataset.tab === target;
+                b.classList.toggle('active', active);
+                b.setAttribute('aria-selected', String(active));
+            });
+            Object.entries(panels).forEach(([key, panel]) => {
+                if (panel) panel.classList.toggle('hidden', key !== target);
+            });
+        });
+    });
+}
+
 function setupControls() {
+    setupInspectorTabs();
+
     const userSelect = document.getElementById('userSelect');
     if (userSelect) {
         userSelect.addEventListener('change', async (e) => {
@@ -818,7 +1078,6 @@ function setupControls() {
                 currentMode = 'all';
                 currentTrip = null;
                 currentTripId = '';
-                // Default timeframe to last-7-days when entering All Trips mode to prevent unresponsiveness
                 if (currentTimeframe === 'all' || !currentTimeframe) {
                     currentTimeframe = 'last-7-days';
                 }
@@ -836,6 +1095,21 @@ function setupControls() {
             renderSidebarDetails();
             updateUrlParams();
             renderPlayer();
+
+            if (currentMode === 'single' && currentTrip) {
+                const selectedTrip = currentTrip;
+                const c = selectedTrip.checkin || selectedTrip.train || {};
+                if (!Array.isArray(c.stopovers) || c.stopovers.length === 0) {
+                    const token = Storage.get(STORAGE_KEYS.TOKEN);
+                    const api = new TraewellingAPI(token);
+                    attachStopoversToTrips(api, [selectedTrip], 1).then(() => {
+                        if (currentMode === 'single' && currentTrip && String(currentTrip.id) === String(selectedTrip.id)) {
+                            renderSidebarDetails();
+                            if (player) player.updateSettings({});
+                        }
+                    }).catch(() => {});
+                }
+            }
         });
     }
 
@@ -878,6 +1152,119 @@ function setupControls() {
         });
     });
 
+    // Feature 1: Aspect Ratio Switcher
+    document.querySelectorAll('.aspect-ratio-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const nextAspect = btn.dataset.aspect || '1:1';
+            if (nextAspect === clipSettings.aspectRatio) return;
+            clipSettings.aspectRatio = nextAspect;
+            syncPlayerHostAspectClass();
+            syncCustomizerControls();
+            const precompute = buildActivePrecompute(getActiveTrips());
+            preloadTilesForCurrentState(precompute);
+            if (player) {
+                player.updateSettings({ aspectRatio: nextAspect }, precompute);
+            }
+        });
+    });
+
+    // Feature 2: Camera Mode Switcher
+    document.querySelectorAll('.camera-mode-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const nextMode = btn.dataset.camera || 'cinematic';
+            clipSettings.cameraMode = nextMode;
+            syncCustomizerControls();
+            if (player) {
+                player.updateSettings({ cameraMode: nextMode });
+            }
+        });
+    });
+
+    const bindNumericPillGroup = (selector, datasetKey, settingsKey, fallbackStr, extraHandler = null) => {
+        document.querySelectorAll(selector).forEach(btn => {
+            btn.addEventListener('click', () => {
+                const val = parseFloat(btn.dataset[datasetKey] || fallbackStr);
+                clipSettings[settingsKey] = val;
+                syncCustomizerControls();
+                if (extraHandler) {
+                    extraHandler(val);
+                } else if (player) {
+                    player.updateSettings({ [settingsKey]: val });
+                }
+            });
+        });
+    };
+
+    // Clip Duration Switcher
+    bindNumericPillGroup('.clip-duration-pill', 'duration', 'clipDurationSec', '8', (sec) => {
+        renderSidebarDetails();
+        if (player) {
+            player.updateSettings({ clipDurationSec: sec }, null, getActiveDurationInFrames());
+        }
+    });
+
+    // Feature 3: Live Map Tile Scale Control
+    bindNumericPillGroup('.tile-scale-pill', 'tileScale', 'tileScale', '2', (scaleVal) => {
+        setAnimationTileLabelScale(scaleVal);
+        const precompute = buildActivePrecompute(getActiveTrips());
+        preloadTilesForCurrentState(precompute);
+        if (player) {
+            player.updateSettings({ tileScale: scaleVal }, precompute);
+        }
+    });
+
+    // Route Width & Vehicle Size Switchers
+    bindNumericPillGroup('.route-width-pill', 'routeWidth', 'routeWidthScale', '1');
+    bindNumericPillGroup('.vehicle-scale-pill', 'vehicleScale', 'vehicleScale', '1');
+
+    // Feature 4: Live Overlay & Stopover Toggles
+    const bindOverlayToggle = (id, key) => {
+        const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+        if (el) {
+            el.addEventListener('change', () => {
+                clipSettings[key] = el.checked;
+                syncCustomizerControls();
+                if (player) {
+                    player.updateSettings({ [key]: el.checked });
+                }
+            });
+        }
+    };
+    bindOverlayToggle('toggleHudInput', 'showHud');
+    bindOverlayToggle('toggleScheduleTimesInput', 'showScheduleTimes');
+    bindOverlayToggle('toggleStationPillsInput', 'showStationPills');
+    bindOverlayToggle('toggleStopDotsInput', 'showStopDots');
+    bindOverlayToggle('toggleStopNamesInput', 'showStopNames');
+    bindOverlayToggle('toggleVignetteInput', 'showVignette');
+    bindOverlayToggle('toggleWatermarkInput', 'showWatermark');
+
+    // Reset Studio Defaults
+    const resetBtn = document.getElementById('resetCustomizeBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            Object.assign(clipSettings, createDefaultClipSettings());
+            setAnimationTileLabelScale(clipSettings.tileScale);
+            syncPlayerHostAspectClass();
+            syncCustomizerControls();
+            renderSidebarDetails();
+            const precompute = buildActivePrecompute(getActiveTrips());
+            preloadTilesForCurrentState(precompute);
+            if (player) {
+                player.updateSettings(clipSettings, precompute, getActiveDurationInFrames());
+            }
+        });
+    }
+
+    // Feature 5: Instant PNG Frame Snapshot
+    const snapshotBtn = document.getElementById('downloadSnapshotBtn');
+    if (snapshotBtn) {
+        snapshotBtn.addEventListener('click', () => {
+            if (!player) return;
+            const snapName = buildClipFilename('png');
+            player.captureSnapshotPng(snapName);
+        });
+    }
+
     const downloadBtn = document.getElementById('downloadVideoBtn');
     if (downloadBtn) {
         downloadBtn.addEventListener('click', () => {
@@ -916,7 +1303,6 @@ function setupControls() {
             const shareUrl = url.toString();
             const originalHtml = shareBtn.innerHTML;
 
-            // Try Web Share API on mobile devices first
             if (navigator.share && window.innerWidth <= 768) {
                 try {
                     await navigator.share({
@@ -925,9 +1311,7 @@ function setupControls() {
                         url: shareUrl
                     });
                     return;
-                } catch {
-                    // Fall back to clipboard if user dismissed or cancelled native share sheet
-                }
+                } catch {}
             }
 
             try {
@@ -949,7 +1333,6 @@ function setupControls() {
                     shareBtn.classList.remove('copied');
                 }, 2500);
             } catch {
-                // Non-blocking fallback for restricted/headless environments
                 const tmp = document.createElement('textarea');
                 tmp.value = shareUrl;
                 tmp.style.position = 'fixed';

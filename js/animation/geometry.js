@@ -12,9 +12,22 @@
  */
 export const DEFAULT_TILE_LABEL_SCALE = 2.0;
 
+let runtimeTileLabelScale = null;
+
+export function setAnimationTileLabelScale(scale) {
+    if (typeof scale === 'number' && Number.isFinite(scale) && scale >= 0.5 && scale <= 8.0) {
+        runtimeTileLabelScale = scale;
+    } else {
+        runtimeTileLabelScale = null;
+    }
+}
+
 export function getAnimationTileLabelScale(explicitScale = null) {
     if (typeof explicitScale === 'number' && Number.isFinite(explicitScale) && explicitScale > 0) {
         return explicitScale;
+    }
+    if (runtimeTileLabelScale !== null) {
+        return runtimeTileLabelScale;
     }
     if (typeof window !== 'undefined') {
         try {
@@ -652,8 +665,18 @@ export function sampleSmoothedCameraTarget(scene, progress) {
  * - Frame 48..152: Hold close chase zoom along the track (gentle 2.15x -> 2.00x)
  * - Frame 152..212: Zoom OUT to full-route finale overview (0.94x)
  */
-export function computeCameraZoomMultiplier(frame, peakMultiplier = 2.15) {
+export function computeCameraZoomMultiplier(frame, peakMultiplier = 2.15, cameraMode = 'cinematic') {
+    if (cameraMode === 'overview') {
+        return 0.96;
+    }
     const p = typeof peakMultiplier === 'number' && Number.isFinite(peakMultiplier) ? peakMultiplier : 2.15;
+    if (cameraMode === 'follow') {
+        if (frame <= 20) {
+            const t = smootherstep(0, 20, frame);
+            return 1.2 + (p - 1.2) * t;
+        }
+        return p;
+    }
     const holdEnd = p * (2.00 / 2.15);
     if (frame <= 48) {
         const t = smootherstep(0, 48, frame);

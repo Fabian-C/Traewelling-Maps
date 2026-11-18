@@ -1,12 +1,13 @@
 /**
- * Deterministic MP4 Video Exporter (V2 Engine)
+ * Deterministic MP4/WebM Video Exporter
  * Renders offline frame-by-frame on an isolated offscreen canvas
- * with exact timeline duration, seekable index, and instant abort control.
+ * with exact timeline duration, active ClipSettings, and instant abort control.
  */
 
 import { renderV2Frame } from './renderer.js';
-import { preloadTripTiles, preloadSceneTiles, MAP_STYLES } from '../animation/tiles.js';
-import { fixWebMBlob } from '../animation/webmFixer.js';
+import { preloadTripTiles, preloadSceneTiles, MAP_STYLES } from './tiles.js';
+import { fixWebMBlob } from './webmFixer.js';
+import { createDefaultClipSettings } from './schema.js';
 
 export class VideoClipExporterV2 {
     constructor() {
@@ -62,7 +63,6 @@ export class VideoClipExporterV2 {
 
     async exportAndDownload({
         trip = null,
-        trips = [],
         mode = 'single',
         username = 'Traveler',
         mapStyle = 'traewelling-dark',
@@ -71,6 +71,7 @@ export class VideoClipExporterV2 {
         fps = 30,
         totalFrames = 240,
         precompute = null,
+        settings = createDefaultClipSettings(),
         filename = 'traewelling-journey.mp4',
         onProgress = () => {},
         signal = null
@@ -87,7 +88,6 @@ export class VideoClipExporterV2 {
             const isAllMode = mode === 'all';
             const styleConfig = MAP_STYLES[mapStyle] || MAP_STYLES['traewelling-dark'];
 
-            // 1. Preload tiles
             if (!styleConfig.isVector) {
                 onProgress(2, 'Preloading map tiles…');
                 if (isAllMode && precompute?.allScene) {
@@ -101,7 +101,6 @@ export class VideoClipExporterV2 {
                 throw new Error('Export cancelled by user');
             }
 
-            // 2. Offscreen render canvas
             const canvas = document.createElement('canvas');
             canvas.width = width;
             canvas.height = height;
@@ -120,7 +119,6 @@ export class VideoClipExporterV2 {
             const baseName = filename.replace(/\.(webm|mp4)$/i, '');
             const finalFilename = `${baseName}${targetExt}`;
 
-            // captureStream(0) allows manual frame clocking via requestFrame()
             const stream = canvas.captureStream(0);
             this.activeStream = stream;
             const track = stream.getVideoTracks()[0];
@@ -138,7 +136,6 @@ export class VideoClipExporterV2 {
 
             this.mediaRecorder.start();
 
-            // 3. Deterministic Frame Loop
             const frameDelay = 1000 / fps;
             const targetDurationMs = Math.round((totalFrames / fps) * 1000);
 
@@ -151,14 +148,15 @@ export class VideoClipExporterV2 {
                     ctx,
                     frame: f,
                     fps,
+                    totalFrames,
                     width,
                     height,
                     trip,
-                    trips,
                     mode,
                     username,
                     mapStyle,
-                    precompute
+                    precompute,
+                    settings
                 });
 
                 if (track && typeof track.requestFrame === 'function') {
@@ -171,7 +169,6 @@ export class VideoClipExporterV2 {
                 await new Promise(r => setTimeout(r, frameDelay));
             }
 
-            // 4. Finalize
             onProgress(95, isMp4 ? 'Finalizing MP4 video container…' : 'Finalizing WebM container…');
             await new Promise(r => setTimeout(r, 120));
 
@@ -217,4 +214,3 @@ export class VideoClipExporterV2 {
         }
     }
 }
-

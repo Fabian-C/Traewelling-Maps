@@ -1,16 +1,13 @@
 /**
- * Canvas 2D Rendering Pipeline for the 960x960 Square Trip Clip
- * Handles map tiles, 4-layer track, stopovers, viewport-clamped station pills,
- * high-contrast top-down vehicles, HUD cards, and corner watermark.
+ * Canvas 2D Frame Compositor for Trip Clip Studio
+ * Orchestrates base map tiles/vectors, track curves, stopovers, sprites, and unified HUD.
  */
 
 import { computeTripDurationMinutes, deriveDelaySeconds } from '../utils/time.js';
 import { formatHumanDuration } from '../utils/format.js';
-import { CATEGORY_META, TILE_IMAGE_CACHE, loadSingleTileImage } from './tiles.js';
+import { MAP_STYLES, CATEGORY_META, TILE_IMAGE_CACHE, loadSingleTileImage, preloadTripTiles, preloadSceneTiles } from './tiles.js';
 import { drawVectorBaseMap } from './vectorRenderer.js';
 import {
-    lonToWorldX,
-    latToWorldY,
     computePolylineHaversineKm,
     smootherstep,
     samplePointAlongRoute,
@@ -21,313 +18,46 @@ import {
     getVisibleTilesForViewport,
     getAnimationTileLabelScale
 } from './geometry.js';
+import {
+    drawRoundedRect,
+    drawVehicleOnCanvas,
+    drawStationPin,
+    computeSafeStationPillPlacement,
+    drawStopoverDotsAndLabels,
+    extractIntermediateStopovers,
+    formatClockTime
+} from './sprites.js';
+import { drawVignetteAndScrim, drawTopHudBar, drawWatermarkPill } from './hud.js';
+import { createDefaultClipSettings } from './schema.js';
 
-export function drawRoundedRect(ctx, x, y, w, h, r) {
-    const radius = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.arcTo(x + w, y, x + w, y + h, radius);
-    ctx.arcTo(x + w, y + h, x, y + h, radius);
-    ctx.arcTo(x, y + h, x, y, radius);
-    ctx.arcTo(x, y, x + w, y, radius);
-    ctx.closePath();
-}
+export {
+    MAP_STYLES,
+    CATEGORY_META,
+    preloadTripTiles,
+    preloadSceneTiles,
+    drawRoundedRect,
+    drawVehicleOnCanvas,
+    drawStationPin
+};
 
-// Pre-compiled singleton Path2D models to eliminate SVG parsing & memory allocations in hot render loop
-const PLANE_PATH = typeof Path2D !== 'undefined'
-    ? new Path2D('M -22,-12 L -14,0 L -22,12 L -16,12 L -8,3 L 6,3 L 2,26 L 9,26 L 16,3 L 26,3 C 31,3 34,0 34,0 C 34,0 31,-3 26,-3 L 16,-3 L 9,-26 L 2,-26 L 6,-3 L -8,-3 L -16,-12 Z')
-    : null;
-
-const ICE_NOSE_PATH = typeof Path2D !== 'undefined'
-    ? new Path2D('M -8,-9.5 L 16,-9.5 C 26,-9.5 33,-4.5 33,0 C 33,4.5 26,9.5 16,9.5 L -8,9.5 Z')
-    : null;
-
-const ICE_WIND_PATH = typeof Path2D !== 'undefined'
-    ? new Path2D('M 15,-5.2 C 21,-5.2 25,-2.2 25,0 C 25,2.2 21,5.2 15,5.2 L 11.5,4.2 L 11.5,-4.2 Z')
-    : null;
-
-/**
- * High-contrast top-down transit vehicles (drawn above all map dots and tracks,
- * without artificial yellow headlight cones).
- */
-export function drawVehicleOnCanvas(ctx, vehicleType, color, frame) {
-    const pulse = Math.sin(frame * 0.35) * 0.5 + 0.5;
-    ctx.save();
-    ctx.scale(1.22, 1.22);
-
-    if (vehicleType === 'ferry') {
-        // Water Wake Ripples
-        ctx.save();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = 'round';
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(-18, -8);
-        ctx.lineTo(-38, -20);
-        ctx.moveTo(-18, 8);
-        ctx.lineTo(-38, 20);
-        ctx.stroke();
-        ctx.restore();
-
-        ctx.fillStyle = 'rgba(224, 242, 254, 0.35)';
-        ctx.beginPath();
-        ctx.ellipse(-24, 0, 10 + pulse * 4, 6 + pulse * 2, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Hull with elevation shadow
-        ctx.save();
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-        ctx.shadowBlur = 12;
-        ctx.shadowOffsetY = 4;
-        ctx.fillStyle = '#ffffff';
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(-22, -11);
-        ctx.lineTo(14, -11);
-        ctx.lineTo(28, 0);
-        ctx.lineTo(14, 11);
-        ctx.lineTo(-22, 11);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-
-        // Deck & Cabin
-        ctx.fillStyle = color;
-        drawRoundedRect(ctx, -16, -7, 24, 14, 3);
-        ctx.fill();
-        ctx.fillStyle = '#e0f2fe';
-        drawRoundedRect(ctx, -6, -5, 10, 10, 2);
-        ctx.fill();
-
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(18, 0, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-    } else if (vehicleType === 'plane') {
-        // Jet Contrails
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(-22, -5);
-        ctx.lineTo(-42, -5);
-        ctx.moveTo(-22, 5);
-        ctx.lineTo(-42, 5);
-        ctx.stroke();
-
-        const planePath = PLANE_PATH;
-        if (planePath) {
-            ctx.save();
-            ctx.translate(8, 14);
-            ctx.scale(0.85, 0.85);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-            ctx.fill(planePath);
-            ctx.restore();
-
-            ctx.fillStyle = '#ffffff';
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2.5;
-            ctx.lineJoin = 'round';
-            ctx.fill(planePath);
-            ctx.stroke(planePath);
-        }
-    } else if (vehicleType === 'ice') {
-        // Rear Carriage with elevation shadow
-        ctx.save();
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-        ctx.shadowBlur = 12;
-        ctx.shadowOffsetY = 4;
-        ctx.fillStyle = '#f8fafc';
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.lineWidth = 1.5;
-        drawRoundedRect(ctx, -32, -9.5, 22, 19, 3.5);
-        ctx.fill();
-        ctx.stroke();
-
-        // Aerodynamic ICE Nose Cone
-        const nosePath = ICE_NOSE_PATH;
-        ctx.fillStyle = '#ffffff';
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.lineWidth = 1.5;
-        if (nosePath) {
-            ctx.fill(nosePath);
-            ctx.stroke(nosePath);
-        }
-        ctx.restore();
-
-        // Iconic Dual Speed Stripes along sides
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2.8;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(-30, -6.2);
-        ctx.lineTo(24, -6.2);
-        ctx.moveTo(-30, 6.2);
-        ctx.lineTo(24, 6.2);
-        ctx.stroke();
-
-        // Cockpit Windshield
-        const windPath = ICE_WIND_PATH;
-        if (windPath) {
-            ctx.fillStyle = '#0f172a';
-            ctx.fill(windPath);
-        }
-
-        // Roof Louvers
-        ctx.fillStyle = '#94a3b8';
-        drawRoundedRect(ctx, -24, -3, 12, 6, 1.5);
-        ctx.fill();
-        drawRoundedRect(ctx, -3, -3, 11, 6, 1.5);
-        ctx.fill();
-    } else {
-        // High-contrast Regional / S-Bahn / U-Bahn / Tram / Bus Livery
-        // Metallic white outer hull + bold line-colored livery stripes so it pops above the colored track
-        ctx.save();
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.58)';
-        ctx.shadowBlur = 12;
-        ctx.shadowOffsetY = 4;
-        ctx.fillStyle = '#f8fafc';
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 1.8;
-        drawRoundedRect(ctx, -25, -10.5, 50, 21, 7.5);
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-
-        // Line-colored center livery band
-        ctx.fillStyle = color;
-        drawRoundedRect(ctx, -22, -7.5, 43, 15, 5);
-        ctx.fill();
-
-        // Brushed metallic roof panel
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
-        drawRoundedRect(ctx, -16, -4.2, 26, 8.4, 3);
-        ctx.fill();
-
-        // Car articulation seam
-        ctx.strokeStyle = 'rgba(15, 23, 42, 0.35)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(-3, -4);
-        ctx.lineTo(-3, 4);
-        ctx.stroke();
-
-        // Panoramic Front Cab Windshield
-        ctx.fillStyle = '#0f172a';
-        drawRoundedRect(ctx, 13, -6.2, 7.5, 12.4, 3);
-        ctx.fill();
+function computeSpring({ frame, fps = 30, config = { damping: 18, stiffness: 90, mass: 1 } }) {
+    if (frame <= 0) return 0;
+    const m = config.mass || 1;
+    const k = config.stiffness || 90;
+    const c = config.damping || 18;
+    const t = frame / fps;
+    const omega0 = Math.sqrt(k / m);
+    const zeta = c / (2 * Math.sqrt(m * k));
+    if (zeta < 1) {
+        const omegaD = omega0 * Math.sqrt(1 - zeta * zeta);
+        const decay = Math.exp(-zeta * omega0 * t);
+        return 1 - decay * (Math.cos(omegaD * t) + ((zeta * omega0) / omegaD) * Math.sin(omegaD * t));
     }
-
-    ctx.restore();
+    return 1 - Math.exp(-omega0 * t) * (1 + omega0 * t);
 }
 
 /**
- * Station Pin & Viewport-Clamped Callout Pill
- */
-export function drawStationPin(
-    ctx,
-    label,
-    dotColor,
-    isDest = false,
-    placeAbove = true,
-    horizontalShiftPx = 0,
-    frame = 0
-) {
-    ctx.save();
-
-    // Destination arrival celebration ring
-    if (isDest && frame >= 168) {
-        const ringProgress = Math.min(1, (frame - 168) / 35);
-        ctx.save();
-        ctx.strokeStyle = dotColor;
-        ctx.globalAlpha = Math.max(0, 1 - ringProgress);
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.arc(0, 0, 14 + ringProgress * 32, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-    }
-
-    // Station Circle
-    const radius = isDest ? 12.5 : 11.5;
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = 12;
-    ctx.shadowOffsetY = 3;
-    ctx.fillStyle = dotColor;
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-
-    // Callout Pill placed away from the route track and clamped within the canvas viewport
-    const shortName = shortenStationName(label);
-    ctx.font = '800 24px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    const textW = ctx.measureText(shortName).width;
-    const pillW = textW + 54;
-    const pillH = 46;
-    const pillX = -pillW / 2 + horizontalShiftPx;
-    const pillY = placeAbove ? -34 - pillH : 34;
-
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-    ctx.shadowBlur = 14;
-    ctx.shadowOffsetY = 4;
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
-    drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 23);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
-    ctx.strokeStyle = dotColor;
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-
-    // Status dot inside pill
-    ctx.fillStyle = dotColor;
-    ctx.beginPath();
-    ctx.arc(pillX + 20, pillY + pillH / 2, 6.0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(shortName, pillX + 36, pillY + pillH / 2 + 1);
-    ctx.restore();
-
-    ctx.restore();
-}
-
-/**
- * Compute safe screen-space placement for a station callout pill so it never
- * gets clipped by the edges of the canvas, while keeping its vertical above/below
- * placement stable and fixed so it never flips or swaps around during the animation.
- */
-function computeSafeStationPillPlacement(pt, camTargetX, camTargetY, camZoom, width, height, viewCenterY, placeAboveLocked) {
-    const screenX = (pt.x - camTargetX) * camZoom + width / 2;
-
-    let horizontalShiftPx = 0;
-    const margin = 140;
-    if (screenX < margin) {
-        horizontalShiftPx = Math.min(50, (margin - screenX) * 0.5);
-    } else if (screenX > width - margin) {
-        horizontalShiftPx = Math.max(-50, ((width - margin) - screenX) * 0.5);
-    }
-
-    return { placeAbove: placeAboveLocked, horizontalShiftPx };
-}
-
-/**
- * Draws a tile with hierarchical parent-tile fallback.
- * If the exact tile is not yet loaded in cache, it searches upwards for parent tiles (z-1, z-2)
- * and draws the corresponding sub-quadrant seamlessly so blank holes never appear.
- * Correctly accounts for Retina (@2x) natural pixel dimensions so sub-quadrants are sliced with 100% precision.
+ * Draws a tile with hierarchical parent-tile fallback down to z=2.
  */
 function drawTileWithParentFallback(ctx, styleConfig, tile, baseZ) {
     const tileZ = tile.z ?? baseZ;
@@ -357,9 +87,7 @@ function drawTileWithParentFallback(ctx, styleConfig, tile, baseZ) {
             const pHeight = pImg.naturalHeight || pImg.height || 256;
             const subW = pWidth / factor;
             const subH = pHeight / factor;
-            const sx = remX * subW;
-            const sy = remY * subH;
-            ctx.drawImage(pImg, sx, sy, subW, subH, tile.left, tile.top, tileSize * 1.002, tileSize * 1.002);
+            ctx.drawImage(pImg, remX * subW, remY * subH, subW, subH, tile.left, tile.top, tileSize * 1.002, tileSize * 1.002);
             return;
         }
     }
@@ -369,9 +97,7 @@ function drawTileWithParentFallback(ctx, styleConfig, tile, baseZ) {
 }
 
 /**
- * Dynamically computes and renders the visible Web Mercator tiles for the current camera viewport.
- * Automatically chooses the optimal integer zoom level matching camera zoom so map detail,
- * streets, and rail corridors are drawn at crisp, native resolution without low-res stretching.
+ * Dynamically computes and renders visible Web Mercator tiles for the current camera viewport.
  */
 export function drawDynamicMapTiles({
     ctx,
@@ -381,16 +107,13 @@ export function drawDynamicMapTiles({
     camTargetY,
     camZoom,
     width,
-    height
+    height,
+    labelScale = null
 }) {
     if (typeof styleConfig?.getTileUrl !== 'function') return;
 
-    if (!ctx.imageSmoothingEnabled) {
-        ctx.imageSmoothingEnabled = true;
-    }
-    if (ctx.imageSmoothingQuality !== 'high') {
-        ctx.imageSmoothingQuality = 'high';
-    }
+    if (!ctx.imageSmoothingEnabled) ctx.imageSmoothingEnabled = true;
+    if (ctx.imageSmoothingQuality !== 'high') ctx.imageSmoothingQuality = 'high';
 
     const { tiles } = getVisibleTilesForViewport({
         baseScene,
@@ -401,7 +124,7 @@ export function drawDynamicMapTiles({
         height,
         minZ: 2,
         maxZ: 16,
-        labelScale: getAnimationTileLabelScale()
+        labelScale: getAnimationTileLabelScale(labelScale)
     });
 
     for (const tile of tiles) {
@@ -417,7 +140,6 @@ export function drawDynamicMapTiles({
 export function renderTripFrame({
     ctx,
     frame,
-    fps,
     width,
     height,
     trip,
@@ -425,8 +147,12 @@ export function renderTripFrame({
     coords,
     scene,
     styleConfig,
-    introSpring
+    introSpring,
+    totalFrames = 240,
+    settings = createDefaultClipSettings()
 }) {
+    const activeSettings = { ...createDefaultClipSettings(), ...(settings || {}) };
+    const normFrame = totalFrames > 0 ? (frame / totalFrames) * 240 : frame;
     const checkin = trip.checkin || trip.train || {};
     const categoryKey = checkin.category || 'regional';
     const catMeta = CATEGORY_META[categoryKey] || CATEGORY_META.unknown;
@@ -451,16 +177,26 @@ export function renderTripFrame({
     const durationMin = computeTripDurationMinutes(checkin);
     const durationFormatted = durationMin !== null ? formatHumanDuration(durationMin) : '—';
     const resolvedUsername = trip.user?.username || username || 'Traveler';
-    const dateRaw = checkin.origin?.departureReal || checkin.origin?.departurePlanned || trip.createdAt;
+    const depTimeRaw = checkin.origin?.departureReal || checkin.origin?.departurePlanned || checkin.origin?.departure || checkin.departure;
+    const arrTimeRaw = checkin.destination?.arrivalReal || checkin.destination?.arrivalPlanned || checkin.destination?.arrival || checkin.arrival;
+    const dateRaw = depTimeRaw || trip.createdAt;
     const dateStr = dateRaw
         ? new Date(dateRaw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
         : '';
+    const depTimeShort = formatClockTime(depTimeRaw);
+    const arrTimeShort = formatClockTime(arrTimeRaw);
 
-    // C2-continuous quintic smootherstep curves with multi-phase zoom in/out
-    const travelProgress = smootherstep(22, 176, frame);
-    const introOverviewBlend = 1 - smootherstep(0, 44, frame);
-    const finaleBlend = smootherstep(148, 212, frame);
-    const overviewBlend = Math.max(introOverviewBlend, finaleBlend);
+    const travelProgress = smootherstep(22, 176, normFrame);
+    const cameraMode = activeSettings.cameraMode || 'cinematic';
+
+    let overviewBlend = 0;
+    if (cameraMode === 'overview') {
+        overviewBlend = 1;
+    } else if (cameraMode === 'cinematic') {
+        const introOverviewBlend = 1 - smootherstep(0, 44, normFrame);
+        const finaleBlend = smootherstep(148, 212, normFrame);
+        overviewBlend = Math.max(introOverviewBlend, finaleBlend);
+    }
 
     const isUrbanTransit = ['tram', 'subway', 'bus', 'cablecar', 'ferry', 'suburban'].includes(categoryKey)
         || totalDistanceKm < 20;
@@ -472,28 +208,25 @@ export function renderTripFrame({
         peakMultiplier = Math.max(2.15, Math.min(8.0, neededZoom / Math.max(0.1, scene.fitScale)));
     }
 
-    const camZoom = scene.fitScale * computeCameraZoomMultiplier(frame, peakMultiplier);
-
+    const camZoom = scene.fitScale * computeCameraZoomMultiplier(normFrame, peakMultiplier, cameraMode);
     const vehiclePose = samplePointAlongRoute(scene, travelProgress);
     const smoothChaseTarget = sampleSmoothedCameraTarget({ ...scene, camZoom }, travelProgress);
     const camTargetX = smoothChaseTarget.x + (scene.centerSceneX - smoothChaseTarget.x) * overviewBlend;
     const camTargetY = smoothChaseTarget.y + (scene.centerSceneY - smoothChaseTarget.y) * overviewBlend;
 
     const currentDistKm = (totalDistanceKm * travelProgress).toFixed(1);
-    const viewCenterY = height / 2 + 42;
+    const viewCenterY = activeSettings.showHud ? (height / 2 + 42) : (height / 2);
+    const routeWidthScale = activeSettings.routeWidthScale || 1.0;
 
-    // 1. Clear background
     ctx.save();
     ctx.fillStyle = styleConfig.bg;
     ctx.fillRect(0, 0, width, height);
 
-    // 2. Camera transform
     ctx.save();
     ctx.translate(width / 2, viewCenterY);
     ctx.scale(camZoom, camZoom);
     ctx.translate(-camTargetX, -camTargetY);
 
-    // 3. Draw Base Map (Vector or Tiles)
     if (styleConfig.isVector) {
         drawVectorBaseMap({
             ctx,
@@ -514,18 +247,18 @@ export function renderTripFrame({
             camTargetY,
             camZoom,
             width,
-            height
+            height,
+            labelScale: activeSettings.tileScale
         });
     }
 
-    // 4. 4-Layer Track Design
     if (scene.points.length >= 2) {
         ctx.save();
         ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.20)' : 'rgba(15, 23, 42, 0.24)';
-        ctx.lineWidth = 10 / camZoom;
+        ctx.lineWidth = (10 * routeWidthScale) / camZoom;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.setLineDash([10 / camZoom, 10 / camZoom]);
+        ctx.setLineDash([(10 * routeWidthScale) / camZoom, (10 * routeWidthScale) / camZoom]);
         if (scene.path2D) {
             ctx.stroke(scene.path2D);
         } else {
@@ -556,271 +289,115 @@ export function renderTripFrame({
         ctx.shadowBlur = 10;
         ctx.shadowOffsetY = 4;
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 15 / camZoom;
+        ctx.lineWidth = (15 * routeWidthScale) / camZoom;
         ctx.stroke();
         ctx.restore();
 
         ctx.strokeStyle = lineColor;
-        ctx.lineWidth = 9.5 / camZoom;
+        ctx.lineWidth = (9.5 * routeWidthScale) / camZoom;
         ctx.stroke();
 
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
-        ctx.lineWidth = 3 / camZoom;
-        ctx.setLineDash([8 / camZoom, 14 / camZoom]);
-        ctx.lineDashOffset = -(frame * 0.8) / camZoom;
+        ctx.lineWidth = (3 * routeWidthScale) / camZoom;
+        ctx.setLineDash([(8 * routeWidthScale) / camZoom, (14 * routeWidthScale) / camZoom]);
+        ctx.lineDashOffset = -(normFrame * 0.8) / camZoom;
         ctx.stroke();
         ctx.restore();
     }
 
-    // 5. Intermediate Stopover Dots (real stopovers if present, otherwise 25%, 50%, 75% waypoints)
-    const rawStops = checkin.stopovers || trip.stopovers || [];
-    const validStops = Array.isArray(rawStops)
-        ? rawStops.slice(1, -1).filter((stop) => {
-            const st = stop?.station || stop;
-            return Number.isFinite(Number(st?.longitude ?? st?.lon ?? st?.lng))
-                && Number.isFinite(Number(st?.latitude ?? st?.lat));
-        })
-        : [];
+    const validStops = extractIntermediateStopovers(trip);
+    drawStopoverDotsAndLabels(ctx, {
+        validStops,
+        travelProgress,
+        scene,
+        camZoom,
+        lineColor,
+        showStopDots: activeSettings.showStopDots,
+        showStopNames: activeSettings.showStopNames,
+        showScheduleTimes: activeSettings.showScheduleTimes
+    });
 
-    if (validStops.length > 0) {
-        validStops.forEach((stop) => {
-            const st = stop?.station || stop;
-            const sLon = Number(st?.longitude ?? st?.lon ?? st?.lng);
-            const sLat = Number(st?.latitude ?? st?.lat);
-            const sx = lonToWorldX(sLon, scene.z) - scene.originWX;
-            const sy = latToWorldY(sLat, scene.z) - scene.originWY;
-            ctx.save();
-            ctx.translate(sx, sy);
-            ctx.scale(1 / camZoom, 1 / camZoom);
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
-            ctx.shadowBlur = 6;
-            ctx.shadowOffsetY = 2;
-            ctx.fillStyle = '#ffffff';
-            ctx.strokeStyle = lineColor;
-            ctx.lineWidth = 3.5;
-            ctx.beginPath();
-            ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-        });
-    } else {
-        const milestoneFractions = [0.25, 0.50, 0.75];
-        milestoneFractions.forEach((mPct) => {
-            if (travelProgress >= mPct) {
-                const mPt = samplePointAlongRoute(scene, mPct);
-                ctx.save();
-                ctx.translate(mPt.x, mPt.y);
-                ctx.scale(1 / camZoom, 1 / camZoom);
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
-                ctx.shadowBlur = 6;
-                ctx.shadowOffsetY = 2;
-                ctx.fillStyle = '#ffffff';
-                ctx.strokeStyle = lineColor;
-                ctx.lineWidth = 3.5;
-                ctx.beginPath();
-                ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-                ctx.restore();
-            }
-        });
-    }
-
-    // 6. Origin & Destination Station Pins & Viewport-Clamped Callout Pills (drawn below the train)
     const originPt = scene.points[0];
     const destPt = scene.points[scene.points.length - 1];
     const originIsNorthOfDest = originPt && destPt ? originPt.y <= destPt.y : true;
 
-    // Stable placement locked to overall route geometry so pills NEVER swap or flip mid-flight
     const originOverviewY = originPt ? (originPt.y - scene.centerSceneY) * scene.fitScale + viewCenterY : 0;
     const originLockedAbove = originOverviewY - 80 < 120 ? false : originIsNorthOfDest;
-
     const destOverviewY = destPt ? (destPt.y - scene.centerSceneY) * scene.fitScale + viewCenterY : 0;
     const destLockedAbove = destOverviewY - 80 < 120 ? false : !originIsNorthOfDest;
 
-    if (originPt) {
-        const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
-            originPt,
-            camTargetX,
-            camTargetY,
-            camZoom,
-            width,
-            height,
-            viewCenterY,
-            originLockedAbove
-        );
-        ctx.save();
-        ctx.translate(originPt.x, originPt.y);
-        const pinScale = Math.max(0.01, introSpring) / camZoom;
-        ctx.scale(pinScale, pinScale);
-        drawStationPin(ctx, originName, '#10b981', false, placeAbove, horizontalShiftPx, frame);
-        ctx.restore();
-    }
-    if (destPt) {
-        const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
-            destPt,
-            camTargetX,
-            camTargetY,
-            camZoom,
-            width,
-            height,
-            viewCenterY,
-            destLockedAbove
-        );
-        ctx.save();
-        ctx.translate(destPt.x, destPt.y);
-        const destPulse = smootherstep(0.84, 1.0, travelProgress);
-        const destScale = (0.94 + destPulse * 0.08) / camZoom;
-        ctx.scale(destScale, destScale);
-        drawStationPin(ctx, destName, lineColor, true, placeAbove, horizontalShiftPx, frame);
-        ctx.restore();
+    if (activeSettings.showStationPills !== false) {
+        if (originPt) {
+            const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
+                originPt, camTargetX, camTargetY, camZoom, width, height, viewCenterY, originLockedAbove
+            );
+            ctx.save();
+            ctx.translate(originPt.x, originPt.y);
+            const pinScale = Math.max(0.01, introSpring) / camZoom;
+            ctx.scale(pinScale, pinScale);
+            drawStationPin(ctx, originName, '#10b981', false, placeAbove, horizontalShiftPx, normFrame, activeSettings.showScheduleTimes ? depTimeShort : '');
+            ctx.restore();
+        }
+        if (destPt) {
+            const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
+                destPt, camTargetX, camTargetY, camZoom, width, height, viewCenterY, destLockedAbove
+            );
+            ctx.save();
+            ctx.translate(destPt.x, destPt.y);
+            const destPulse = smootherstep(0.84, 1.0, travelProgress);
+            const destScale = (0.94 + destPulse * 0.08) / camZoom;
+            ctx.scale(destScale, destScale);
+            drawStationPin(ctx, destName, lineColor, true, placeAbove, horizontalShiftPx, normFrame, activeSettings.showScheduleTimes ? arrTimeShort : '');
+            ctx.restore();
+        }
     }
 
-    // 7. Moving Directional Vehicle Model (drawn ABOVE all dots and station pins on the map)
-    ctx.save();
-    ctx.translate(vehiclePose.x, vehiclePose.y);
-    ctx.scale(1.08 / camZoom, 1.08 / camZoom);
-    ctx.rotate(vehiclePose.angleRad || 0);
-    drawVehicleOnCanvas(ctx, catMeta.vehicle, lineColor, frame);
-    ctx.restore();
+    const vehicleScale = activeSettings.vehicleScale ?? 1.0;
+    if (vehicleScale > 0) {
+        ctx.save();
+        ctx.translate(vehiclePose.x, vehiclePose.y);
+        ctx.scale((1.08 * vehicleScale) / camZoom, (1.08 * vehicleScale) / camZoom);
+        ctx.rotate(vehiclePose.angleRad || 0);
+        drawVehicleOnCanvas(ctx, catMeta.vehicle, lineColor, normFrame);
+        ctx.restore();
+    }
 
     ctx.restore(); // End camera transform
 
-    // 8. Vignette & Top Header Scrim
-    const vig = ctx.createRadialGradient(width / 2, height / 2, width * 0.34, width / 2, height / 2, width * 0.70);
-    vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    vig.addColorStop(1, 'rgba(4, 7, 15, 0.38)');
-    ctx.fillStyle = vig;
-    ctx.fillRect(0, 0, width, height);
+    drawVignetteAndScrim(ctx, width, height, activeSettings.showHud, activeSettings.showVignette);
 
-    const topScrim = ctx.createLinearGradient(0, 0, 0, 126);
-    topScrim.addColorStop(0, 'rgba(7, 10, 18, 0.55)');
-    topScrim.addColorStop(1, 'rgba(7, 10, 18, 0)');
-    ctx.fillStyle = topScrim;
-    ctx.fillRect(0, 0, width, 126);
+    if (activeSettings.showHud) {
+        const shortOrig = shortenStationName(originName);
+        const shortDest = shortenStationName(destName);
+        const scheduleSpan = (activeSettings.showScheduleTimes && (depTimeShort || arrTimeShort))
+            ? `${depTimeShort || '—'} → ${arrTimeShort || '—'}`
+            : '';
+        const delayPart = delayMinutes > 0 ? `+${delayMinutes}m` : '';
+        const subParts = [dateStr, scheduleSpan, delayPart].filter(Boolean);
+        drawTopHudBar(ctx, {
+            width,
+            lineName,
+            lineColor,
+            badgeTextColor,
+            routeTitle: `${shortOrig} → ${shortDest}`,
+            subTitle: `@${resolvedUsername}${subParts.length ? ` • ${subParts.join(' • ')}` : ''}`,
+            leftMetricLabel: 'DISTANCE',
+            leftMetricValue: `${currentDistKm} km`,
+            rightMetricLabel: 'DURATION',
+            rightMetricValue: durationFormatted,
+            isAllMode: false
+        });
+    }
 
-    // 9. TOP HUD HEADER BAR
-    const pad = 22;
-    const headerH = 84;
-    const rightCardW = 294;
-    const leftCardW = width - pad * 2 - rightCardW - 14;
-
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = 'rgba(10, 14, 24, 0.90)';
-    drawRoundedRect(ctx, pad, pad, leftCardW, headerH, 20);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.font = '800 24px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    const badgeTextW = ctx.measureText(lineName).width;
-    const badgeW = Math.max(76, Math.min(164, badgeTextW + 30));
-    const badgeH = 50;
-    const badgeX = pad + 16;
-    const badgeY = pad + (headerH - badgeH) / 2;
-
-    ctx.fillStyle = lineColor;
-    drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 12);
-    ctx.fill();
-
-    ctx.fillStyle = badgeTextColor;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(lineName, badgeX + badgeW / 2, badgeY + badgeH / 2 + 1, badgeW - 14);
-
-    const textStartX = badgeX + badgeW + 16;
-    const shortOrig = shortenStationName(originName);
-    const shortDest = shortenStationName(destName);
-    const routeTitle = `${shortOrig} → ${shortDest}`;
-
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = '800 24px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(routeTitle, textStartX, pad + 14, leftCardW - (textStartX - pad) - 16);
-
-    const delayLabel = delayMinutes > 0 ? ` • +${delayMinutes}m` : '';
-    const subTitle = `@${resolvedUsername} • ${dateStr}${delayLabel}`;
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '600 17px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText(subTitle, textStartX, pad + 48, leftCardW - (textStartX - pad) - 16);
-    ctx.restore();
-
-    // 10. TOP-RIGHT LIVE METRICS CARD (Distance + Duration)
-    const rightCardX = width - pad - rightCardW;
-
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = 'rgba(10, 14, 24, 0.90)';
-    drawRoundedRect(ctx, rightCardX, pad, rightCardW, headerH, 20);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '700 13px Inter, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText('DISTANCE', rightCardX + 18, pad + 14);
-
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = '800 25px "JetBrains Mono", monospace';
-    ctx.fillText(`${currentDistKm} km`, rightCardX + 18, pad + 35, 134);
-
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-    ctx.fillRect(rightCardX + 160, pad + 16, 1.5, headerH - 32);
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '700 13px Inter, sans-serif';
-    ctx.fillText('DURATION', rightCardX + 176, pad + 14);
-
-    ctx.fillStyle = '#4ade80';
-    ctx.font = '800 25px "JetBrains Mono", monospace';
-    ctx.fillText(durationFormatted, rightCardX + 176, pad + 35, 104);
-    ctx.restore();
-
-    // 11. CORNER WATERMARK: "Generated on fabian-c.github.io/Traewelling-Maps"
-    ctx.save();
-    const wmText = 'Generated on fabian-c.github.io/Traewelling-Maps';
-    ctx.font = '600 14px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    const wmTextW = ctx.measureText(wmText).width;
-    const wmW = wmTextW + 22;
-    const wmH = 26;
-    const wmX = width - pad - 44 - wmW;
-    const wmY = height - 48 - wmH;
-
-    ctx.fillStyle = 'rgba(10, 14, 24, 0.82)';
-    drawRoundedRect(ctx, wmX, wmY, wmW, wmH, 13);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = 'rgba(226, 232, 240, 0.90)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(wmText, wmX + wmW / 2, wmY + wmH / 2 + 0.5);
-    ctx.restore();
+    if (activeSettings.showWatermark) {
+        drawWatermarkPill(ctx, width, height);
+    }
 
     ctx.restore();
 }
 
 /**
- * Render a single frame of the Historical All-Rides Replay (mode=all).
- * Sequentially animates every ride from oldest to newest while accumulating
- * the completed rail network and live cumulative distance on the map.
- */
-/**
  * Incrementally accumulates completed ride vectors into composite Path2D layers batched by transit color.
- * Reduces historical network track draw calls from O(N_rides) to O(N_colors) (~7 draw calls total).
  */
 export function syncNetworkCompositePaths(allScene, completedCount) {
     if (!allScene || completedCount <= 0) return null;
@@ -831,7 +408,7 @@ export function syncNetworkCompositePaths(allScene, completedCount) {
     if (!allScene._pathCache) {
         allScene._pathCache = {
             committedCount: 0,
-            colorPaths: new Map(), // color -> Path2D
+            colorPaths: new Map(),
             seenRouteSignatures: new Set()
         };
     }
@@ -839,14 +416,12 @@ export function syncNetworkCompositePaths(allScene, completedCount) {
     const cache = allScene._pathCache;
     const rides = allScene.rides || [];
 
-    // Scrubbed backwards: reset cache to restart progressive accumulation
     if (cache.committedCount > completedCount) {
         cache.committedCount = 0;
         cache.colorPaths = new Map();
         cache.seenRouteSignatures = new Set();
     }
 
-    // Progressively accumulate newly completed rides while preserving 100% authentic curve resolution
     while (cache.committedCount < completedCount && cache.committedCount < rides.length) {
         const ride = rides[cache.committedCount];
         let p2d = ride.path2D;
@@ -866,7 +441,6 @@ export function syncNetworkCompositePaths(allScene, completedCount) {
                 ? `#${String(pastCheckin.routeColor).replace(/^#/, '')}`
                 : pastCat.color;
 
-            // Route signature deduplication for identical repeated commuter journeys
             let isDuplicate = false;
             const pts = ride.points;
             if (pts && pts.length >= 2 && pts[0].lon !== undefined) {
@@ -899,22 +473,30 @@ export function renderAllTripsFrame({
     ctx,
     frame,
     fps = 30,
+    totalFrames = null,
     width,
     height,
     username,
     allScene,
     timing,
-    styleConfig
+    styleConfig,
+    settings = createDefaultClipSettings()
 }) {
+    const activeSettings = { ...createDefaultClipSettings(), ...(settings || {}) };
     const rides = allScene?.rides || [];
     if (!rides.length) return;
 
     const travelTotalFrames = allScene?.travelTotalFrames ?? (timing?.travelTotalFrames || (rides.length * 20));
     const finaleTransitionFrames = timing?.finaleTransitionFrames || Math.round(fps * 1.5);
-    const isFinale = frame >= travelTotalFrames;
+    const timingTotal = timing?.totalFrames || allScene?.totalFrames || (travelTotalFrames + finaleTransitionFrames);
+    const effFrame = (typeof totalFrames === 'number' && totalFrames > 0 && timingTotal > 0 && totalFrames !== timingTotal)
+        ? (frame / totalFrames) * timingTotal
+        : frame;
+
+    const isFinale = effFrame >= travelTotalFrames;
 
     let activeIdx = 0;
-    while (activeIdx < rides.length - 1 && frame >= (rides[activeIdx].endFrame ?? ((activeIdx + 1) * 20))) {
+    while (activeIdx < rides.length - 1 && effFrame >= (rides[activeIdx].endFrame ?? ((activeIdx + 1) * 20))) {
         activeIdx++;
     }
 
@@ -922,7 +504,7 @@ export function renderAllTripsFrame({
     const rideStartFrame = activeRide.startFrame ?? (activeIdx * 20);
     const rideEndFrame = activeRide.endFrame ?? ((activeIdx + 1) * 20);
     const rideDuration = Math.max(1, rideEndFrame - rideStartFrame);
-    const localFrame = isFinale ? rideDuration : Math.max(0, frame - rideStartFrame);
+    const localFrame = isFinale ? rideDuration : Math.max(0, effFrame - rideStartFrame);
     const rideProgress = isFinale
         ? 1
         : smootherstep(0.04, 0.94, localFrame / rideDuration);
@@ -940,21 +522,15 @@ export function renderAllTripsFrame({
     const originName = checkin.origin?.name || checkin.origin?.station?.name || activeTrip.origin || 'Origin';
     const destName = checkin.destination?.name || checkin.destination?.station?.name || activeTrip.destination || 'Destination';
 
-    // Continuous creeping zoom: smoothly ease from activeRide.startZoom toward activeRide.endZoom across this ride
     const rideProgressT = Math.max(0, Math.min(1, localFrame / rideDuration));
     const zStart = typeof activeRide.startZoom === 'number' ? activeRide.startZoom : (activeRide.rideZoom || allScene.fitScale);
     const zEnd = typeof activeRide.endZoom === 'number' ? activeRide.endZoom : (activeRide.rideZoom || allScene.fitScale);
     const logZStart = Math.log(Math.max(0.1, zStart));
     const logZEnd = Math.log(Math.max(0.1, zEnd));
 
-    let zoomT;
-    if (zEnd > zStart * 1.35) {
-        // Front-load zoom-in when arriving from a long-distance / regional train into a city ride:
-        // By 50% of the city ride, reach full deep zoom so the rider can experience the city streets
-        zoomT = smootherstep(0, 1, Math.min(1, rideProgressT / 0.50));
-    } else {
-        zoomT = smootherstep(0, 1, rideProgressT);
-    }
+    const zoomT = zEnd > zStart * 1.35
+        ? smootherstep(0, 1, Math.min(1, rideProgressT / 0.50))
+        : smootherstep(0, 1, rideProgressT);
     let camZoom = Math.exp(logZStart + (logZEnd - logZStart) * zoomT);
 
     const activeRideScene = {
@@ -973,7 +549,6 @@ export function renderAllTripsFrame({
     let camTargetX = currChaseTarget.x;
     let camTargetY = currChaseTarget.y;
 
-    // Smooth camera handoff from previous ride so there is never an abrupt jump between rides
     if (activeIdx > 0 && !isFinale) {
         const prevRide = rides[activeIdx - 1];
         const prevRideScene = {
@@ -991,8 +566,6 @@ export function renderAllTripsFrame({
         camTargetX = prevEndTarget.x + (currChaseTarget.x - prevEndTarget.x) * handoffT;
         camTargetY = prevEndTarget.y + (currChaseTarget.y - prevEndTarget.y) * handoffT;
 
-        // If hopping between two distant cities while zoomed in, dip zoom slightly mid-hop;
-        // if staying within the same city, hopDist is small so camera stays zoomed in on the city!
         const hopDistScenePx = Math.hypot(currChaseTarget.x - prevEndTarget.x, currChaseTarget.y - prevEndTarget.y);
         const hopScreenPx = hopDistScenePx * Math.min(zStart, zEnd);
         if (hopScreenPx > 520) {
@@ -1006,18 +579,20 @@ export function renderAllTripsFrame({
         }
     }
 
-    // Smooth intro zoom-in from full network overview
-    const introDuration = Math.min(60, (rides[0]?.durationFrames || 40) * 0.85);
-    const introBlend = 1 - smootherstep(0, introDuration, frame);
+    const cameraMode = activeSettings.cameraMode || 'cinematic';
+    let overviewBlend = 0;
+    if (cameraMode === 'overview') {
+        overviewBlend = 1;
+    } else if (cameraMode === 'cinematic') {
+        const introDuration = Math.min(60, (rides[0]?.durationFrames || 40) * 0.85);
+        const introBlend = 1 - smootherstep(0, introDuration, effFrame);
+        const finaleBlend = isFinale
+            ? smootherstep(travelTotalFrames, travelTotalFrames + finaleTransitionFrames, effFrame)
+            : 0;
+        overviewBlend = Math.max(introBlend, finaleBlend);
+    }
 
-    // Finale zoom-out: 1.5s (45 frames) smooth glide to overview, followed by 3.0s (90 frames) completely static hold
-    const finaleBlend = isFinale
-        ? smootherstep(travelTotalFrames, travelTotalFrames + finaleTransitionFrames, frame)
-        : 0;
-
-    const overviewBlend = Math.max(introBlend, finaleBlend);
     const overviewZoom = allScene.fitScale * 0.95;
-
     camTargetX = camTargetX + (allScene.centerSceneX - camTargetX) * overviewBlend;
     camTargetY = camTargetY + (allScene.centerSceneY - camTargetY) * overviewBlend;
     if (overviewBlend > 0.0001) {
@@ -1026,20 +601,17 @@ export function renderAllTripsFrame({
         camZoom = Math.exp(logRide + (logOver - logRide) * overviewBlend);
     }
 
-    const viewCenterY = height / 2 + 42;
+    const viewCenterY = activeSettings.showHud ? (height / 2 + 42) : (height / 2);
 
-    // 1. Clear background
     ctx.save();
     ctx.fillStyle = styleConfig.bg;
     ctx.fillRect(0, 0, width, height);
 
-    // 2. Camera transform
     ctx.save();
     ctx.translate(width / 2, viewCenterY);
     ctx.scale(camZoom, camZoom);
     ctx.translate(-camTargetX, -camTargetY);
 
-    // 3. Draw Base Map (Vector or Tiles)
     if (styleConfig.isVector) {
         drawVectorBaseMap({
             ctx,
@@ -1060,39 +632,34 @@ export function renderAllTripsFrame({
             camTargetY,
             camZoom,
             width,
-            height
+            height,
+            labelScale: activeSettings.tileScale
         });
     }
 
-    // 4. Draw completed historical network tracks (accelerated with batched composite Path2D)
-    // When isFinale is reached, ALL rides (including the very last one) are drawn uniformly as completed network tracks!
+    const routeWidthScale = activeSettings.routeWidthScale || 1.0;
     const completedCount = isFinale ? rides.length : activeIdx;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
     const batchedCache = syncNetworkCompositePaths(allScene, completedCount);
-
     if (batchedCache && batchedCache.committedCount > 0 && batchedCache.colorPaths.size > 0) {
-        // Colored route tracks (only ~5-8 draw calls total, batched by route color, zero extra outline layer)
-        ctx.lineWidth = 4.2 / camZoom;
+        ctx.lineWidth = (4.2 * routeWidthScale) / camZoom;
         for (const [color, colorPath] of batchedCache.colorPaths) {
             ctx.strokeStyle = color;
             ctx.stroke(colorPath);
         }
     } else if (completedCount > 0) {
-        // Fallback for environments without Path2D.prototype.addPath
-        ctx.lineWidth = 4.2 / camZoom;
+        ctx.lineWidth = (4.2 * routeWidthScale) / camZoom;
         for (let i = 0; i < completedCount; i++) {
             const pastRide = rides[i];
             if (!pastRide.points || pastRide.points.length < 2) continue;
             const pastCheckin = pastRide.trip?.checkin || pastRide.trip?.train || {};
             const pastCat = CATEGORY_META[pastCheckin.category || 'regional'] || CATEGORY_META.unknown;
-            const pastColor = pastCheckin.routeColor
+            ctx.strokeStyle = pastCheckin.routeColor
                 ? `#${String(pastCheckin.routeColor).replace(/^#/, '')}`
                 : pastCat.color;
-
-            ctx.strokeStyle = pastColor;
             if (pastRide.path2D) {
                 ctx.stroke(pastRide.path2D);
             } else {
@@ -1107,7 +674,6 @@ export function renderAllTripsFrame({
     }
     ctx.restore();
 
-    // 5. Draw active ride track (only while ride is in progress, never in the finale overview!)
     if (!isFinale && activeRide.points.length >= 2) {
         ctx.save();
         ctx.beginPath();
@@ -1116,10 +682,10 @@ export function renderAllTripsFrame({
             ctx.lineTo(activeRide.points[i].x, activeRide.points[i].y);
         }
         ctx.strokeStyle = styleConfig.isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(15, 23, 42, 0.24)';
-        ctx.lineWidth = 9 / camZoom;
+        ctx.lineWidth = (9 * routeWidthScale) / camZoom;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.setLineDash([9 / camZoom, 9 / camZoom]);
+        ctx.setLineDash([(9 * routeWidthScale) / camZoom, (9 * routeWidthScale) / camZoom]);
         ctx.stroke();
         ctx.restore();
 
@@ -1141,68 +707,81 @@ export function renderAllTripsFrame({
         ctx.shadowBlur = 10;
         ctx.shadowOffsetY = 3;
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 14 / camZoom;
+        ctx.lineWidth = (14 * routeWidthScale) / camZoom;
         ctx.stroke();
         ctx.restore();
 
         ctx.strokeStyle = lineColor;
-        ctx.lineWidth = 9 / camZoom;
+        ctx.lineWidth = (9 * routeWidthScale) / camZoom;
         ctx.stroke();
         ctx.restore();
     }
 
-    // 6. Active Ride Origin & Destination Station Pins (hidden during finale)
+    if (!isFinale) {
+        const activeStops = extractIntermediateStopovers(activeTrip);
+        if (activeStops.length > 0) {
+            drawStopoverDotsAndLabels(ctx, {
+                validStops: activeStops,
+                travelProgress: rideProgress,
+                scene: {
+                    z: allScene.z,
+                    originWX: allScene.originWX,
+                    originWY: allScene.originWY,
+                    points: activeRide.points,
+                    cumDist: activeRide.cumDist,
+                    totalPathPx: activeRide.totalPathPx
+                },
+                camZoom,
+                lineColor,
+                showStopDots: activeSettings.showStopDots,
+                showStopNames: activeSettings.showStopNames,
+                showScheduleTimes: activeSettings.showScheduleTimes
+            });
+        }
+    }
+
+    const depTimeRaw = checkin.origin?.departureReal || checkin.origin?.departurePlanned || checkin.origin?.departure || checkin.departure;
+    const arrTimeRaw = checkin.destination?.arrivalReal || checkin.destination?.arrivalPlanned || checkin.destination?.arrival || checkin.arrival;
+    const depTimeShort = formatClockTime(depTimeRaw);
+    const arrTimeShort = formatClockTime(arrTimeRaw);
+
     const originPt = activeRide.points[0];
     const destPt = activeRide.points[activeRide.points.length - 1];
     const originIsNorthOfDest = originPt && destPt ? originPt.y <= destPt.y : true;
 
-    // Stable locked placement so station pills never flip or swap around mid-ride
     const originOverviewY = originPt ? (originPt.y - allScene.centerSceneY) * allScene.fitScale + viewCenterY : 0;
     const originLockedAbove = originOverviewY - 80 < 120 ? false : originIsNorthOfDest;
-
     const destOverviewY = destPt ? (destPt.y - allScene.centerSceneY) * allScene.fitScale + viewCenterY : 0;
     const destLockedAbove = destOverviewY - 80 < 120 ? false : !originIsNorthOfDest;
 
-    if (originPt && !isFinale) {
-        const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
-            originPt,
-            camTargetX,
-            camTargetY,
-            camZoom,
-            width,
-            height,
-            viewCenterY,
-            originLockedAbove
-        );
-        ctx.save();
-        ctx.translate(originPt.x, originPt.y);
-        ctx.scale(1 / camZoom, 1 / camZoom);
-        drawStationPin(ctx, originName, '#10b981', false, placeAbove, horizontalShiftPx, frame);
-        ctx.restore();
-    }
-    if (destPt && !isFinale) {
-        const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
-            destPt,
-            camTargetX,
-            camTargetY,
-            camZoom,
-            width,
-            height,
-            viewCenterY,
-            destLockedAbove
-        );
-        ctx.save();
-        ctx.translate(destPt.x, destPt.y);
-        ctx.scale(1 / camZoom, 1 / camZoom);
-        drawStationPin(ctx, destName, lineColor, true, placeAbove, horizontalShiftPx, frame);
-        ctx.restore();
+    if (activeSettings.showStationPills !== false) {
+        if (originPt && !isFinale) {
+            const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
+                originPt, camTargetX, camTargetY, camZoom, width, height, viewCenterY, originLockedAbove
+            );
+            ctx.save();
+            ctx.translate(originPt.x, originPt.y);
+            ctx.scale(1 / camZoom, 1 / camZoom);
+            drawStationPin(ctx, originName, '#10b981', false, placeAbove, horizontalShiftPx, frame, activeSettings.showScheduleTimes ? depTimeShort : '');
+            ctx.restore();
+        }
+        if (destPt && !isFinale) {
+            const { placeAbove, horizontalShiftPx } = computeSafeStationPillPlacement(
+                destPt, camTargetX, camTargetY, camZoom, width, height, viewCenterY, destLockedAbove
+            );
+            ctx.save();
+            ctx.translate(destPt.x, destPt.y);
+            ctx.scale(1 / camZoom, 1 / camZoom);
+            drawStationPin(ctx, destName, lineColor, true, placeAbove, horizontalShiftPx, frame, activeSettings.showScheduleTimes ? arrTimeShort : '');
+            ctx.restore();
+        }
     }
 
-    // 7. Moving Vehicle on Active Ride (hidden during finale)
-    if (!isFinale) {
+    const vehicleScale = activeSettings.vehicleScale ?? 1.0;
+    if (!isFinale && vehicleScale > 0) {
         ctx.save();
         ctx.translate(vehiclePose.x, vehiclePose.y);
-        ctx.scale(1.08 / camZoom, 1.08 / camZoom);
+        ctx.scale((1.08 * vehicleScale) / camZoom, (1.08 * vehicleScale) / camZoom);
         ctx.rotate(vehiclePose.angleRad || 0);
         drawVehicleOnCanvas(ctx, catMeta.vehicle, lineColor, frame);
         ctx.restore();
@@ -1210,143 +789,105 @@ export function renderAllTripsFrame({
 
     ctx.restore(); // End camera transform
 
-    // 8. Vignette & Top Header Scrim
-    const vig = ctx.createRadialGradient(width / 2, height / 2, width * 0.34, width / 2, height / 2, width * 0.70);
-    vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    vig.addColorStop(1, 'rgba(4, 7, 15, 0.38)');
-    ctx.fillStyle = vig;
-    ctx.fillRect(0, 0, width, height);
+    drawVignetteAndScrim(ctx, width, height, activeSettings.showHud, activeSettings.showVignette);
 
-    const topScrim = ctx.createLinearGradient(0, 0, 0, 126);
-    topScrim.addColorStop(0, 'rgba(7, 10, 18, 0.55)');
-    topScrim.addColorStop(1, 'rgba(7, 10, 18, 0)');
-    ctx.fillStyle = topScrim;
-    ctx.fillRect(0, 0, width, 126);
+    if (activeSettings.showHud) {
+        const shortOrig = shortenStationName(originName);
+        const shortDest = shortenStationName(destName);
+        const resolvedUsername = activeTrip.user?.username || username || 'Traveler';
+        const dateRaw = depTimeRaw || activeTrip.createdAt;
+        const dateStr = dateRaw
+            ? new Date(dateRaw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+            : '';
+        const scheduleSpan = (activeSettings.showScheduleTimes && (depTimeShort || arrTimeShort))
+            ? `${depTimeShort || '—'} → ${arrTimeShort || '—'}`
+            : '';
+        const cumulativeKm = isFinale
+            ? (allScene.totalDistanceKm || (activeRide.startKm + activeRide.distanceKm)).toFixed(1)
+            : (activeRide.startKm + activeRide.distanceKm * rideProgress).toFixed(1);
+        const displayRidesCount = isFinale ? rides.length : activeIdx + 1;
+        const activeSubParts = [`Ride #${activeIdx + 1}/${rides.length}`, dateStr, scheduleSpan].filter(Boolean);
 
-    // 9. TOP HUD HEADER BAR (Active Ride + Historical Counter)
-    const pad = 22;
-    const headerH = 84;
-    const rightCardW = 304;
-    const leftCardW = width - pad * 2 - rightCardW - 14;
+        drawTopHudBar(ctx, {
+            width,
+            lineName: isFinale ? 'ALL' : lineName,
+            lineColor,
+            badgeBgColor: isFinale ? '#38bdf8' : lineColor,
+            badgeTextColor: isFinale ? '#0f172a' : badgeTextColor,
+            routeTitle: isFinale ? `All ${rides.length} Saved Rides Completed` : `${shortOrig} → ${shortDest}`,
+            subTitle: isFinale
+                ? `@${resolvedUsername} • Historical Replay`
+                : `@${resolvedUsername} • ${activeSubParts.join(' • ')}`,
+            leftMetricLabel: 'TOTAL DISTANCE',
+            leftMetricValue: `${cumulativeKm} km`,
+            rightMetricLabel: 'RIDE',
+            rightMetricValue: `${displayRidesCount}/${rides.length}`,
+            isAllMode: true
+        });
+    }
 
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = 'rgba(10, 14, 24, 0.90)';
-    drawRoundedRect(ctx, pad, pad, leftCardW, headerH, 20);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    const badgeLabel = isFinale ? 'ALL' : lineName;
-    ctx.font = '800 24px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    const badgeTextW = ctx.measureText(badgeLabel).width;
-    const badgeW = Math.max(76, Math.min(160, badgeTextW + 28));
-    const badgeH = 50;
-    const badgeX = pad + 16;
-    const badgeY = pad + (headerH - badgeH) / 2;
-
-    ctx.fillStyle = isFinale ? '#38bdf8' : lineColor;
-    drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 12);
-    ctx.fill();
-
-    ctx.fillStyle = isFinale ? '#0f172a' : badgeTextColor;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(badgeLabel, badgeX + badgeW / 2, badgeY + badgeH / 2 + 1, badgeW - 14);
-
-    const textStartX = badgeX + badgeW + 16;
-    const shortOrig = shortenStationName(originName);
-    const shortDest = shortenStationName(destName);
-    const routeTitle = isFinale
-        ? `All ${rides.length} Saved Rides Completed`
-        : `${shortOrig} → ${shortDest}`;
-
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = '800 23px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(routeTitle, textStartX, pad + 14, leftCardW - (textStartX - pad) - 16);
-
-    const resolvedUsername = activeTrip.user?.username || username || 'Traveler';
-    const dateRaw = checkin.origin?.departureReal || checkin.origin?.departurePlanned || activeTrip.createdAt;
-    const dateStr = dateRaw
-        ? new Date(dateRaw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-        : '';
-    const subTitle = isFinale
-        ? `@${resolvedUsername} • Historical Replay`
-        : `@${resolvedUsername} • Ride #${activeIdx + 1}/${rides.length}${dateStr ? ` • ${dateStr}` : ''}`;
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '600 16px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText(subTitle, textStartX, pad + 48, leftCardW - (textStartX - pad) - 16);
-    ctx.restore();
-
-    // 10. TOP-RIGHT LIVE CUMULATIVE METRICS CARD
-    const rightCardX = width - pad - rightCardW;
-    const cumulativeKm = isFinale
-        ? (allScene.totalDistanceKm || (activeRide.startKm + activeRide.distanceKm)).toFixed(1)
-        : (activeRide.startKm + activeRide.distanceKm * rideProgress).toFixed(1);
-    const displayRidesCount = isFinale ? rides.length : activeIdx + 1;
-
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = 'rgba(10, 14, 24, 0.90)';
-    drawRoundedRect(ctx, rightCardX, pad, rightCardW, headerH, 20);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '700 13px Inter, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText('TOTAL DISTANCE', rightCardX + 18, pad + 14);
-
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = '800 24px "JetBrains Mono", monospace';
-    ctx.fillText(`${cumulativeKm} km`, rightCardX + 18, pad + 35, 152);
-
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-    ctx.fillRect(rightCardX + 180, pad + 16, 1.5, headerH - 32);
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '700 13px Inter, sans-serif';
-    ctx.fillText('RIDE', rightCardX + 194, pad + 14);
-
-    ctx.fillStyle = '#4ade80';
-    ctx.font = '800 24px "JetBrains Mono", monospace';
-    ctx.fillText(`${displayRidesCount}/${rides.length}`, rightCardX + 194, pad + 35, 96);
-    ctx.restore();
-
-    // 11. CORNER WATERMARK
-    ctx.save();
-    const wmText = 'Generated on fabian-c.github.io/Traewelling-Maps';
-    ctx.font = '600 14px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
-    const wmTextW = ctx.measureText(wmText).width;
-    const wmW = wmTextW + 22;
-    const wmH = 26;
-    const wmX = width - pad - 44 - wmW;
-    const wmY = height - 48 - wmH;
-
-    ctx.fillStyle = 'rgba(10, 14, 24, 0.82)';
-    drawRoundedRect(ctx, wmX, wmY, wmW, wmH, 13);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = 'rgba(226, 232, 240, 0.90)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(wmText, wmX + wmW / 2, wmY + wmH / 2 + 0.5);
-    ctx.restore();
+    if (activeSettings.showWatermark) {
+        drawWatermarkPill(ctx, width, height);
+    }
 
     ctx.restore();
 }
 
+/**
+ * Renders a single animation frame to any HTML5 Canvas 2D context.
+ */
+export function renderV2Frame({
+    ctx,
+    frame,
+    fps = 30,
+    totalFrames = 240,
+    width = 960,
+    height = 960,
+    trip = null,
+    mode = 'single',
+    username = 'Traveler',
+    mapStyle = 'traewelling-dark',
+    precompute = null,
+    settings = createDefaultClipSettings()
+}) {
+    if (!ctx) return;
+    const styleConfig = MAP_STYLES[mapStyle] || MAP_STYLES['traewelling-dark'];
+
+    if (mode === 'all') {
+        if (!precompute?.allScene) return;
+        renderAllTripsFrame({
+            ctx,
+            frame,
+            fps,
+            totalFrames,
+            width,
+            height,
+            username,
+            allScene: precompute.allScene,
+            timing: precompute.timing,
+            styleConfig,
+            settings
+        });
+        return;
+    }
+
+    if (!trip || !precompute) return;
+
+    const introSpring = computeSpring({ frame, fps, config: { damping: 18, stiffness: 90 } });
+    renderTripFrame({
+        ctx,
+        frame,
+        width,
+        height,
+        trip,
+        username,
+        coords: precompute.coords,
+        scene: precompute.scene,
+        styleConfig,
+        introSpring,
+        totalFrames,
+        settings
+    });
+}
+
+export const renderFrame = renderV2Frame;

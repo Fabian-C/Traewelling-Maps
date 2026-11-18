@@ -366,6 +366,7 @@ export const SessionDB = {
 
             const statusIds = statuses.map((s) => s.id);
             const polyMap = await this.getPolylinesBatch(statusIds);
+            const stopoversMap = await this.getStopoversBatch(statusIds);
 
             let allCo = [];
             try {
@@ -385,6 +386,11 @@ export const SessionDB = {
 
             return statuses.map((s) => {
                 const tripObj = this.denormalizeTrip(s, stationsMap, tripRunsMap, polyMap);
+                if (Array.isArray(stopoversMap[s.id]) && stopoversMap[s.id].length > 0) {
+                    if (tripObj?.train) tripObj.train.stopovers = stopoversMap[s.id];
+                    if (tripObj?.checkin) tripObj.checkin.stopovers = stopoversMap[s.id];
+                    if (tripObj) tripObj.stopovers = stopoversMap[s.id];
+                }
                 const backendId = Number(tripObj?.train?.trip || tripObj?.backend_trip_id || s.backend_trip_id);
                 if (backendId && coByTrip.has(backendId)) {
                     tripObj.co_passengers = coByTrip.get(backendId);
