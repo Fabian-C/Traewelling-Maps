@@ -242,32 +242,68 @@ function draw3DCar(ctx, P, {
     const sideLit = '#cbd5e1';
     const endDark = '#475569';
 
-    // 1. Soft ground shadow on z = 0
+    const isBulletEnd = noseStyle === 'bullet' && (role === 'lead' || role === 'tail');
+    const bulletDir = role === 'tail' ? -1 : 1;
+
+    // 1. Subtle feathered contact shadow tucked cleanly under the car footprint
     ctx.save();
-    traceProjectedPoly(ctx, [
-        P.proj(-halfL + 1, -halfW - 0.5, 0),
-        P.proj(halfL + 1, -halfW - 0.5, 0),
-        P.proj(halfL + 1, halfW + 1.5, 0),
-        P.proj(-halfL + 1, halfW + 1.5, 0)
-    ]);
-    ctx.fillStyle = 'rgba(2, 6, 23, 0.44)';
+    ctx.shadowColor = 'rgba(2, 6, 23, 0.45)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 2;
+    if (isBulletEnd) {
+        const rearX = bulletDir > 0 ? -halfL + 1 : halfL - 1;
+        const midX = bulletDir > 0 ? 1.5 : -1.5;
+        const tipX = bulletDir > 0 ? halfL + 1.5 : -halfL - 1.5;
+        traceProjectedPoly(ctx, [
+            P.proj(rearX, -halfW * 0.86, 0),
+            P.proj(midX, -halfW * 0.86, 0),
+            P.proj(tipX, -1.2, 0),
+            P.proj(tipX, 1.2, 0),
+            P.proj(midX, halfW * 0.86, 0),
+            P.proj(rearX, halfW * 0.86, 0)
+        ]);
+    } else {
+        traceProjectedPoly(ctx, [
+            P.proj(-halfL + 1, -halfW * 0.86, 0),
+            P.proj(halfL - 1, -halfW * 0.86, 0),
+            P.proj(halfL - 1, halfW * 0.86, 0),
+            P.proj(-halfL + 1, halfW * 0.86, 0)
+        ]);
+    }
+    ctx.fillStyle = 'rgba(2, 6, 23, 0.28)';
     ctx.fill();
     ctx.restore();
 
-    // 2. Dark 3D Bogies / Wheels (z = 0.2 .. 2.2)
-    draw3DBox(ctx, P, -halfL * 0.72, -halfL * 0.24, -halfW * 0.82, halfW * 0.82, 0.2, zBase + 0.3, {
-        topFill: '#0f172a',
-        sideFill: '#020617',
-        endFill: '#0f172a'
-    });
-    draw3DBox(ctx, P, halfL * 0.24, halfL * 0.72, -halfW * 0.82, halfW * 0.82, 0.2, zBase + 0.3, {
-        topFill: '#0f172a',
-        sideFill: '#020617',
-        endFill: '#0f172a'
-    });
-
-    const isBulletEnd = noseStyle === 'bullet' && (role === 'lead' || role === 'tail');
-    const bulletDir = role === 'tail' ? -1 : 1;
+    // 2. Compact recessed bogie trucks (tucked inside body footprint so they never protrude past tapered noses)
+    const bogieW = halfW * 0.58;
+    if (isBulletEnd) {
+        const bRear0 = bulletDir > 0 ? -halfL + 2.0 : -1.0;
+        const bRear1 = bulletDir > 0 ? -halfL + 6.5 : 3.5;
+        const bFront0 = bulletDir > 0 ? -3.5 : halfL - 6.5;
+        const bFront1 = bulletDir > 0 ? 1.0 : halfL - 2.0;
+        draw3DBox(ctx, P, bRear0, bRear1, -bogieW, bogieW, 0.3, zBase + 0.2, {
+            topFill: '#1e293b',
+            sideFill: '#0f172a',
+            endFill: '#1e293b'
+        });
+        draw3DBox(ctx, P, bFront0, bFront1, -bogieW, bogieW, 0.3, zBase + 0.2, {
+            topFill: '#1e293b',
+            sideFill: '#0f172a',
+            endFill: '#1e293b'
+        });
+    } else {
+        draw3DBox(ctx, P, -halfL * 0.72, -halfL * 0.24, -bogieW, bogieW, 0.3, zBase + 0.2, {
+            topFill: '#1e293b',
+            sideFill: '#0f172a',
+            endFill: '#1e293b'
+        });
+        draw3DBox(ctx, P, halfL * 0.24, halfL * 0.72, -bogieW, bogieW, 0.3, zBase + 0.2, {
+            topFill: '#1e293b',
+            sideFill: '#0f172a',
+            endFill: '#1e293b'
+        });
+    }
 
     if (isBulletEnd) {
         // Tapered 3D Bullet Car (front or rear ICE nose)
@@ -808,14 +844,48 @@ export function drawArticulatedVehicleOnRoute(ctx, {
     const totalPathPx = Math.max(1, scene.totalPathPx || 1);
     const jointGapLocal = 3.4;
 
-    // Anchor lead front at `progress` and step hinge-by-hinge backward along the track
-    let curFrontDist = progress * totalPathPx;
-    const posedCars = new Array(cars.length);
+    // Progressive Station Emergence:
+    // At progress=0 the lead cab sits at the origin pin; trailing cars stay hidden behind the
+    // origin station until they roll onto the route, clipped cleanly at the origin station plane.
+    const leadCar = cars[cars.length - 1];
+    const leadNosePeek = Math.min(totalPathPx * 0.25, (leadCar.halfL * 1.55) * worldScale);
+    let curFrontDist = leadNosePeek + progress * Math.max(0, totalPathPx - leadNosePeek);
+    const anchorPose = samplePointAlongRoute(scene, Math.min(1, curFrontDist / totalPathPx));
 
+    ctx.restore();
+    ctx.save();
+    ctx.translate(anchorPose.x, anchorPose.y);
+    ctx.scale(worldScale, worldScale);
+
+    // Compute total consist length in world pixels to know if any car is still behind origin (dist < 0)
+    const totalConsistLocal = cars.reduce((sum, c, idx) => sum + c.halfL * 2 + (idx < cars.length - 1 ? jointGapLocal : 0), 0);
+    if (curFrontDist < totalConsistLocal * worldScale + 6 * worldScale && typeof ctx.clip === 'function') {
+        const originPt = scene.points[0];
+        const originPose = samplePointAlongRoute(scene, 0);
+        const origAngle = originPose.angleRad || 0;
+        const ox = (originPt.x - anchorPose.x) / worldScale;
+        const oy = (originPt.y - anchorPose.y) / worldScale;
+        ctx.save();
+        ctx.translate(ox, oy);
+        ctx.rotate(origAngle);
+        ctx.beginPath();
+        ctx.rect(-3, -1500, 3000, 3000);
+        ctx.clip();
+        ctx.rotate(-origAngle);
+        ctx.translate(-ox, -oy);
+    }
+
+    const posedCars = [];
     for (let i = cars.length - 1; i >= 0; i--) {
         const car = cars[i];
         const carLenWorld = (car.halfL * 2) * worldScale;
         const rearDist = curFrontDist - carLenWorld;
+
+        // Skip trailing cars that have not yet entered the route past the origin station
+        if (i < cars.length - 1 && curFrontDist <= 0) {
+            curFrontDist = rearDist - jointGapLocal * worldScale;
+            continue;
+        }
 
         let cx;
         let cy;
@@ -829,31 +899,30 @@ export function drawArticulatedVehicleOnRoute(ctx, {
             const chord = Math.hypot(dx, dy);
             if (chord > 0.5) {
                 angleRad = Math.atan2(dy, dx);
-                cx = ((frontPt.x + rearPt.x) * 0.5 - headPose.x) / worldScale;
-                cy = ((frontPt.y + rearPt.y) * 0.5 - headPose.y) / worldScale;
+                cx = ((frontPt.x + rearPt.x) * 0.5 - anchorPose.x) / worldScale;
+                cy = ((frontPt.y + rearPt.y) * 0.5 - anchorPose.y) / worldScale;
             } else {
                 angleRad = frontPt.angleRad || 0;
                 const fx = Math.cos(angleRad);
                 const fy = Math.sin(angleRad);
-                cx = (frontPt.x - headPose.x) / worldScale - car.halfL * fx;
-                cy = (frontPt.y - headPose.y) / worldScale - car.halfL * fy;
+                cx = (frontPt.x - anchorPose.x) / worldScale - car.halfL * fx;
+                cy = (frontPt.y - anchorPose.y) / worldScale - car.halfL * fy;
             }
         } else {
-            // Near route start: project remaining rear cars cleanly behind the first valid hinge
-            const anchorPt = samplePointAlongRoute(scene, Math.max(0, Math.min(1, curFrontDist / totalPathPx)));
-            angleRad = anchorPt.angleRad || headPose.angleRad || 0;
+            const clampedPt = samplePointAlongRoute(scene, Math.max(0, Math.min(1, curFrontDist / totalPathPx)));
+            angleRad = clampedPt.angleRad || anchorPose.angleRad || 0;
             const fx = Math.cos(angleRad);
             const fy = Math.sin(angleRad);
             const overshootLocal = curFrontDist < 0 ? curFrontDist / worldScale : 0;
-            cx = (anchorPt.x - headPose.x) / worldScale + (overshootLocal - car.halfL) * fx;
-            cy = (anchorPt.y - headPose.y) / worldScale + (overshootLocal - car.halfL) * fy;
+            cx = (clampedPt.x - anchorPose.x) / worldScale + (overshootLocal - car.halfL) * fx;
+            cy = (clampedPt.y - anchorPose.y) / worldScale + (overshootLocal - car.halfL) * fy;
         }
 
-        posedCars[i] = {
+        posedCars.unshift({
             car: { ...car },
             idx: i,
             P: createCarProjector(cx, cy, angleRad)
-        };
+        });
         curFrontDist = rearDist - jointGapLocal * worldScale;
     }
 
@@ -884,6 +953,9 @@ export function drawArticulatedVehicleOnRoute(ctx, {
         draw3DCar(ctx, P, { ...car, color });
     });
 
+    if (leadNosePeek + progress * Math.max(0, totalPathPx - leadNosePeek) < totalConsistLocal * worldScale + 6 * worldScale && typeof ctx.clip === 'function') {
+        ctx.restore();
+    }
     ctx.restore();
 }
 
