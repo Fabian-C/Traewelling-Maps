@@ -1138,6 +1138,10 @@
         padding: 3px;
     }
 
+    .customizer-pill-group-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .customizer-pill-group-4 {
         grid-template-columns: repeat(4, minmax(0, 1fr));
     }

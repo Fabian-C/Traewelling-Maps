@@ -21,6 +21,7 @@ import {
 import {
     drawRoundedRect,
     drawVehicleOnCanvas,
+    drawArticulatedVehicleOnRoute,
     drawStationPin,
     computeSafeStationPillPlacement,
     drawStopoverDotsAndLabels,
@@ -354,12 +355,16 @@ export function renderTripFrame({
 
     const vehicleScale = activeSettings.vehicleScale ?? 1.0;
     if (vehicleScale > 0) {
-        ctx.save();
-        ctx.translate(vehiclePose.x, vehiclePose.y);
-        ctx.scale((1.08 * vehicleScale) / camZoom, (1.08 * vehicleScale) / camZoom);
-        ctx.rotate(vehiclePose.angleRad || 0);
-        drawVehicleOnCanvas(ctx, catMeta.vehicle, lineColor, normFrame);
-        ctx.restore();
+        drawArticulatedVehicleOnRoute(ctx, {
+            scene,
+            progress: travelProgress,
+            camZoom,
+            vehicleScale,
+            vehicleType: catMeta.vehicle,
+            vehicleStyle: activeSettings.vehicleStyle || '3d',
+            color: lineColor,
+            frame: normFrame
+        });
     }
 
     ctx.restore(); // End camera transform
@@ -779,12 +784,16 @@ export function renderAllTripsFrame({
 
     const vehicleScale = activeSettings.vehicleScale ?? 1.0;
     if (!isFinale && vehicleScale > 0) {
-        ctx.save();
-        ctx.translate(vehiclePose.x, vehiclePose.y);
-        ctx.scale((1.08 * vehicleScale) / camZoom, (1.08 * vehicleScale) / camZoom);
-        ctx.rotate(vehiclePose.angleRad || 0);
-        drawVehicleOnCanvas(ctx, catMeta.vehicle, lineColor, frame);
-        ctx.restore();
+        drawArticulatedVehicleOnRoute(ctx, {
+            scene: activeRideScene,
+            progress: rideProgress,
+            camZoom,
+            vehicleScale,
+            vehicleType: catMeta.vehicle,
+            vehicleStyle: activeSettings.vehicleStyle || '3d',
+            color: lineColor,
+            frame
+        });
     }
 
     ctx.restore(); // End camera transform

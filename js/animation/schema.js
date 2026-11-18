@@ -7,6 +7,7 @@
 /**
  * @typedef {'1:1' | '9:16' | '16:9'} AspectRatioId
  * @typedef {'cinematic' | 'overview' | 'follow'} CameraModeId
+ * @typedef {'3d' | '2d'} VehicleStyleId
  *
  * @typedef {Object} ClipSettings
  * @property {AspectRatioId} aspectRatio
@@ -15,6 +16,7 @@
  * @property {number} clipDurationSec
  * @property {number} routeWidthScale
  * @property {number} vehicleScale
+ * @property {VehicleStyleId} vehicleStyle
  * @property {boolean} showHud
  * @property {boolean} showScheduleTimes
  * @property {boolean} showStationPills
@@ -42,6 +44,10 @@ export const TILE_SCALE_OPTIONS = [1.0, 2.0, 3.0];
 export const CLIP_DURATION_OPTIONS = [5, 8, 12, 16];
 export const ROUTE_WIDTH_OPTIONS = [0.75, 1.0, 1.4];
 export const VEHICLE_SCALE_OPTIONS = [0.8, 1.0, 1.35, 0];
+export const VEHICLE_STYLES = {
+    '3d': { id: '3d', label: '3D Isometric' },
+    '2d': { id: '2d', label: 'Classic 2D' }
+};
 
 /**
  * Creates a fresh default ClipSettings object.
@@ -55,6 +61,7 @@ export function createDefaultClipSettings() {
         clipDurationSec: 8,
         routeWidthScale: 1.0,
         vehicleScale: 1.0,
+        vehicleStyle: '3d',
         showHud: true,
         showScheduleTimes: true,
         showStationPills: true,
@@ -103,6 +110,10 @@ export function normalizeClipSettings(partial = {}, base = createDefaultClipSett
 
     const numVehicleScale = Number(next.vehicleScale);
     next.vehicleScale = Number.isFinite(numVehicleScale) && numVehicleScale >= 0 && numVehicleScale <= 3.0 ? numVehicleScale : 1.0;
+
+    if (!Object.hasOwn(VEHICLE_STYLES, next.vehicleStyle)) {
+        next.vehicleStyle = '3d';
+    }
 
     next.showHud = Boolean(next.showHud);
     next.showScheduleTimes = Boolean(next.showScheduleTimes);

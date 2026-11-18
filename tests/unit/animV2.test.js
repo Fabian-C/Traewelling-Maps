@@ -17,7 +17,7 @@ import {
     getAnimationTileLabelScale
 } from '../../js/animation/geometry.js';
 import { renderV2Frame } from '../../js/animation/renderer.js';
-import { extractIntermediateStopovers, formatClockTime } from '../../js/animation/sprites.js';
+import { extractIntermediateStopovers, formatClockTime, drawVehicleOnCanvas } from '../../js/animation/sprites.js';
 
 class MockDOMElement {
     constructor(tagName = 'div') {
@@ -345,6 +345,7 @@ describe('Trip Clip V2 Native Engine', () => {
                 clipDurationSec: 12,
                 routeWidthScale: 1.4,
                 vehicleScale: 1.35,
+                vehicleStyle: '2d',
                 showHud: false,
                 showScheduleTimes: false,
                 showStationPills: false,
@@ -360,6 +361,7 @@ describe('Trip Clip V2 Native Engine', () => {
                 clipDurationSec: 12,
                 routeWidthScale: 1.4,
                 vehicleScale: 1.35,
+                vehicleStyle: '2d',
                 showHud: false,
                 showScheduleTimes: false,
                 showStationPills: false,
@@ -425,6 +427,8 @@ describe('Trip Clip V2 Native Engine', () => {
                 moveTo: vi.fn(),
                 lineTo: vi.fn(),
                 arcTo: vi.fn(),
+                bezierCurveTo: vi.fn(),
+                quadraticCurveTo: vi.fn(),
                 closePath: vi.fn(),
                 arc: vi.fn(),
                 ellipse: vi.fn(),
@@ -434,6 +438,7 @@ describe('Trip Clip V2 Native Engine', () => {
                 restore: vi.fn(),
                 translate: vi.fn(),
                 scale: vi.fn(),
+                rotate: vi.fn(),
                 rotate: vi.fn(),
                 setLineDash: vi.fn(),
                 measureText: vi.fn(() => ({ width: 80 })),
@@ -532,6 +537,8 @@ describe('Trip Clip V2 Native Engine', () => {
                 moveTo: vi.fn(),
                 lineTo: vi.fn(),
                 arcTo: vi.fn(),
+                bezierCurveTo: vi.fn(),
+                quadraticCurveTo: vi.fn(),
                 closePath: vi.fn(),
                 arc: vi.fn(),
                 ellipse: vi.fn(),
@@ -541,6 +548,7 @@ describe('Trip Clip V2 Native Engine', () => {
                 restore: vi.fn(),
                 translate: vi.fn(),
                 scale: vi.fn(),
+                rotate: vi.fn(),
                 rotate: vi.fn(),
                 setLineDash: vi.fn(),
                 measureText: vi.fn(() => ({ width: 80 })),
@@ -602,6 +610,39 @@ describe('Trip Clip V2 Native Engine', () => {
             expect(textsHiddenPills).not.toContain('München Hbf');
             expect(textsHiddenPills).not.toContain('Erfurt Hbf');
             expect(ctx2.createRadialGradient).toHaveBeenCalled();
+        });
+
+        it('renders all 2.5D category-specific articulated vehicle silhouettes cleanly', () => {
+            const vehicleTypes = ['ice', 'train', 'sbahn', 'ubahn', 'tram', 'bus', 'ferry', 'plane'];
+            const mockCtx = {
+                fillRect: vi.fn(),
+                beginPath: vi.fn(),
+                moveTo: vi.fn(),
+                lineTo: vi.fn(),
+                arcTo: vi.fn(),
+                bezierCurveTo: vi.fn(),
+                quadraticCurveTo: vi.fn(),
+                closePath: vi.fn(),
+                arc: vi.fn(),
+                ellipse: vi.fn(),
+                stroke: vi.fn(),
+                fill: vi.fn(),
+                save: vi.fn(),
+                restore: vi.fn(),
+                translate: vi.fn(),
+                scale: vi.fn(),
+                rotate: vi.fn(),
+                setLineDash: vi.fn(),
+                createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+                createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() }))
+            };
+
+            vehicleTypes.forEach((vType, idx) => {
+                drawVehicleOnCanvas(mockCtx, vType, '#ff2e55', idx * 15, -0.2, '3d');
+                drawVehicleOnCanvas(mockCtx, vType, '#ff2e55', idx * 15, 0, '2d');
+            });
+            expect(mockCtx.fill).toHaveBeenCalled();
+            expect(mockCtx.stroke).toHaveBeenCalled();
         });
     });
 

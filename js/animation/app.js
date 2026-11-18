@@ -909,6 +909,12 @@ function syncCustomizerControls() {
         btn.setAttribute('aria-pressed', String(isActive));
     });
 
+    document.querySelectorAll('.vehicle-style-pill').forEach(btn => {
+        const isActive = btn.dataset.vehicleStyle === clipSettings.vehicleStyle;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', String(isActive));
+    });
+
     syncNumericPillGroup('.clip-duration-pill', 'duration', clipSettings.clipDurationSec, '8');
     syncNumericPillGroup('.tile-scale-pill', 'tileScale', clipSettings.tileScale, '2');
     syncNumericPillGroup('.route-width-pill', 'routeWidth', clipSettings.routeWidthScale, '1');
@@ -1211,6 +1217,18 @@ function setupControls() {
         if (player) {
             player.updateSettings({ tileScale: scaleVal }, precompute);
         }
+    });
+
+    // Vehicle Style Switcher (3D Isometric vs Classic 2D)
+    document.querySelectorAll('.vehicle-style-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const nextStyle = btn.dataset.vehicleStyle || '3d';
+            clipSettings.vehicleStyle = nextStyle;
+            syncCustomizerControls();
+            if (player) {
+                player.updateSettings({ vehicleStyle: nextStyle });
+            }
+        });
     });
 
     // Route Width & Vehicle Size Switchers
