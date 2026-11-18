@@ -62,15 +62,15 @@ export function updateStatisticsWithTrip(trip, statisticsObj) {
     statisticsObj.typeCounts[category] = (statisticsObj.typeCounts[category] || 0) + 1;
 
     if (timestamp !== null) {
-        if (statisticsObj.oldestTimestamp == null || timestamp < statisticsObj.oldestTimestamp) { 
-            statisticsObj.oldestTimestamp = timestamp; 
-            statisticsObj.oldestDate = new Date(timestamp); 
-            statisticsObj.oldestStatusId = statusId; 
+        if (statisticsObj.oldestTimestamp == null || timestamp < statisticsObj.oldestTimestamp) {
+            statisticsObj.oldestTimestamp = timestamp;
+            statisticsObj.oldestDate = new Date(timestamp);
+            statisticsObj.oldestStatusId = statusId;
         }
-        if (statisticsObj.newestTimestamp == null || timestamp > statisticsObj.newestTimestamp) { 
-            statisticsObj.newestTimestamp = timestamp; 
-            statisticsObj.newestDate = new Date(timestamp); 
-            statisticsObj.newestStatusId = statusId; 
+        if (statisticsObj.newestTimestamp == null || timestamp > statisticsObj.newestTimestamp) {
+            statisticsObj.newestTimestamp = timestamp;
+            statisticsObj.newestDate = new Date(timestamp);
+            statisticsObj.newestStatusId = statusId;
         }
     }
 
@@ -108,10 +108,10 @@ export function refreshStatsDisplay(statisticsObj) {
     setTxt('statTrips', statisticsObj.trips ?? 0);
     setTxt('statDistance', (Math.round((statisticsObj.distance || 0) / 1000 * 100) / 100) + ' km');
 
-    const mostLine = Object.entries(statisticsObj.lineCounts || {}).sort((a,b) => b[1]-a[1])[0];
+    const mostLine = Object.entries(statisticsObj.lineCounts || {}).sort((a, b) => b[1] - a[1])[0];
     setTxt('statLine', mostLine ? mostLine[0] : '-');
 
-    const mostType = Object.entries(statisticsObj.typeCounts || {}).sort((a,b) => b[1]-a[1])[0];
+    const mostType = Object.entries(statisticsObj.typeCounts || {}).sort((a, b) => b[1] - a[1])[0];
     setTxt('statType', mostType ? mostType[0] : '-');
 
     const oldest = statisticsObj.oldestDate;
@@ -147,7 +147,7 @@ export function refreshStatsDisplay(statisticsObj) {
             }
         } else {
             const sortedBuddies = Object.entries(statisticsObj.travelBuddies || {})
-                .sort((a,b) => b[1] - a[1]);
+                .sort((a, b) => b[1] - a[1]);
             if (sortedBuddies.length > 0) {
                 [displayBuddy, displayCount] = sortedBuddies[0];
             }

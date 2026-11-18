@@ -566,10 +566,10 @@ export function processTripsToGeoJSON(trips) {
         categories[targetCat].features.push({
             type: 'Feature',
             geometry: geometry,
-            properties: { 
-                statusId: trip.id, 
-                createdAt: trip.createdAt, 
-                train: trainSummary, 
+            properties: {
+                statusId: trip.id,
+                createdAt: trip.createdAt,
+                train: trainSummary,
                 isApproximated: isApproximated,
                 body: typeof trip.body === 'string' ? trip.body : '',
                 bodyMentions: Array.isArray(trip.bodyMentions) ? trip.bodyMentions : [],
@@ -611,10 +611,10 @@ export function isAccuratePolyline(coords, category, filterLevel = 0) {
     let totalDist = 0;
     let maxSegmentDist = 0;
     const segments = [];
-    
+
     for (let i = 0; i < coords.length - 1; i++) {
-        const [x1,y1] = coords[i], [x2,y2] = coords[i+1];
-        const dist = Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+        const [x1, y1] = coords[i], [x2, y2] = coords[i + 1];
+        const dist = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
         totalDist += dist;
         if (dist > maxSegmentDist) maxSegmentDist = dist;
         segments.push(dist);
@@ -625,7 +625,7 @@ export function isAccuratePolyline(coords, category, filterLevel = 0) {
         // Loosened from 0.5 to 0.7 (max segment can be 70% of trip)
         if (totalDist > 0.1 && maxSegmentDist / totalDist > 0.7) return false;
         if (segments.length >= 8) {
-            const sorted = [...segments].sort((a,b) => b-a);
+            const sorted = [...segments].sort((a, b) => b - a);
             const avgTop3 = (sorted[0] + sorted[1] + sorted[2]) / 3;
             const median = sorted[Math.floor(sorted.length / 2)];
             // Loosened from 25x to 40x median
@@ -636,9 +636,9 @@ export function isAccuratePolyline(coords, category, filterLevel = 0) {
     // Level 1 (Normal)
     if (coords.length <= 10) {
         let threshold = 0.1;
-        if (['bus','tram','subway','taxi'].includes(category)) threshold = 0.05;
-        else if (['regional','regionalExp'].includes(category)) threshold = 0.2;
-        else if (['national','nationalExpress'].includes(category)) threshold = 0.3;
+        if (['bus', 'tram', 'subway', 'taxi'].includes(category)) threshold = 0.05;
+        else if (['regional', 'regionalExp'].includes(category)) threshold = 0.2;
+        else if (['national', 'nationalExpress'].includes(category)) threshold = 0.3;
         if (totalDist > threshold) return false;
     }
     if (totalDist > 0.3 && totalDist / coords.length > 0.027) return false;
@@ -724,7 +724,7 @@ export function filterStopoversBetweenTraveledStations(stopovers = [], origin = 
         // Prioritize stop.station over deprecated stop.id (which becomes unique stopover ID after 2026-11-30)
         const stopEva = extractStationEva(stop);
         if (targetEva && stopEva && String(targetEva) === String(stopEva)) return true;
-        
+
         // Prioritize stop.station?.name over deprecated stop.name
         const stopName = normalizeStationName(stop.station?.name || stop.name || '');
         if (!stopName || !targetNormName) return false;

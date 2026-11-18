@@ -768,7 +768,7 @@ export async function fetchStopoversForTrips(trips = [], onProgress = null) {
                 const rawStops = Array.isArray(data[tripId])
                     ? data[tripId]
                     : (Array.isArray(data[t.id]) ? data[t.id] : []);
-                
+
                 // Keep ONLY stations between origin and destination
                 const filtered = filterStopoversBetweenTraveledStations(rawStops, t.train?.origin, t.train?.destination);
                 t.train.stopovers = filtered;
@@ -814,7 +814,7 @@ export async function fetchStopoversForTrips(trips = [], onProgress = null) {
             displayName: state.queriedUserProfile?.displayName || state.username,
             avatar: state.queriedUserProfile?.avatar,
             token: state.token
-        }).catch(() => {});
+        }).catch(() => { });
     }
 }
 
@@ -830,8 +830,8 @@ export async function handleStopoverToggleChange(e) {
     }
 
     const state = store.get();
-    const trips = (state.activeTrips && state.activeTrips.length) 
-        ? state.activeTrips 
+    const trips = (state.activeTrips && state.activeTrips.length)
+        ? state.activeTrips
         : (state.fetchedTrips || []);
 
     if (!trips.length) {
@@ -885,8 +885,8 @@ export async function handleStopoverToggleChange(e) {
  */
 export async function exportTrips(format = 'geojson', scope = 'active', action = 'download') {
     const state = store.get();
-    let trips = scope === 'all' 
-        ? (state.fetchedTrips || []) 
+    let trips = scope === 'all'
+        ? (state.fetchedTrips || [])
         : (state.activeTrips !== undefined && state.activeTrips !== null ? state.activeTrips : (state.fetchedTrips || []));
 
     if (scope === 'active') {
@@ -1269,7 +1269,7 @@ export async function handleGeoJSONUpload(file) {
             for (const trip of trips) {
                 const bId = trip.backend_trip_id || trip.train?.trip;
                 if (bId && Array.isArray(trip.co_passengers) && trip.co_passengers.length > 0) {
-                    await SessionDB.saveTripCoPassengers(bId, trip.co_passengers).catch(() => {});
+                    await SessionDB.saveTripCoPassengers(bId, trip.co_passengers).catch(() => { });
                 }
             }
 

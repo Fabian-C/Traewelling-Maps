@@ -50,14 +50,14 @@ export function extractStation(stationObj) {
         typeof stn.latitude === 'number'
             ? stn.latitude
             : typeof stationObj.latitude === 'number'
-              ? stationObj.latitude
-              : null;
+                ? stationObj.latitude
+                : null;
     const lon =
         typeof stn.longitude === 'number'
             ? stn.longitude
             : typeof stationObj.longitude === 'number'
-              ? stationObj.longitude
-              : null;
+                ? stationObj.longitude
+                : null;
     let eva = stn.eva_number || stn.eva || stn.ibnr || stationObj.eva_number || stationObj.ibnr || null;
     if (!eva && Array.isArray(stn.identifiers)) {
         const ident = stn.identifiers.find(i => i.type === 'de_db_ibnr' || i.type === 'ibnr' || i.type === 'eva' || i.type === 'eva_number' || i.type === 'de_db_ril100');
@@ -153,8 +153,8 @@ export function normalizeTrip(trip, username = '') {
     const buddies = Array.isArray(trip.users)
         ? trip.users.map((u) => ({ username: u.username, displayName: u.name || u.displayName || u.username }))
         : Array.isArray(trip.buddies)
-          ? trip.buddies
-          : [];
+            ? trip.buddies
+            : [];
 
     const statusId = trip.id ? Number(trip.id) : Date.now();
     const statusUuid = trip.uuid || trip.properties?.uuid || null;
