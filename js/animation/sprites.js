@@ -463,9 +463,11 @@ function getConsistSpec(vehicleType) {
     switch (vehicleType) {
         case 'ice':
             return [
-                { role: 'tail', halfL: 13.5, halfW: 6.8, noseStyle: 'bullet', hasPantograph: false, hasAc: true, windowCount: 2, spacingPrev: 26 },
-                { role: 'mid', halfL: 11.5, halfW: 6.8, noseStyle: 'flat', hasPantograph: true, hasAc: false, windowCount: 4, spacingPrev: 24.5 },
-                { role: 'lead', halfL: 13.5, halfW: 6.8, noseStyle: 'bullet', hasPantograph: false, hasAc: true, windowCount: 2, spacingPrev: 0 }
+                { role: 'tail', halfL: 12.5, halfW: 6.6, noseStyle: 'bullet', hasPantograph: false, hasAc: true, windowCount: 2, spacingPrev: 24 },
+                { role: 'mid', halfL: 10.5, halfW: 6.6, noseStyle: 'flat', hasPantograph: true, hasAc: false, windowCount: 4, spacingPrev: 24 },
+                { role: 'mid', halfL: 10.5, halfW: 6.6, noseStyle: 'flat', hasPantograph: false, hasAc: true, windowCount: 4, spacingPrev: 24 },
+                { role: 'mid', halfL: 10.5, halfW: 6.6, noseStyle: 'flat', hasPantograph: true, hasAc: false, windowCount: 4, spacingPrev: 24 },
+                { role: 'lead', halfL: 12.5, halfW: 6.6, noseStyle: 'bullet', hasPantograph: false, hasAc: true, windowCount: 2, spacingPrev: 0 }
             ];
         case 'tram':
             return [
@@ -804,23 +806,68 @@ export function drawArticulatedVehicleOnRoute(ctx, {
 
     const cars = getConsistSpec(vehicleType);
     const totalPathPx = Math.max(1, scene.totalPathPx || 1);
-    let backDistLocal = 0;
+    const jointGapLocal = 3.4;
 
-    // Cars are ordered [rear ... lead]; lead is at index cars.length - 1
+    // Anchor lead front at `progress` and step hinge-by-hinge backward along the track
+    let curFrontDist = progress * totalPathPx;
     const posedCars = new Array(cars.length);
+
     for (let i = cars.length - 1; i >= 0; i--) {
         const car = cars[i];
-        const carProgress = Math.max(0, progress - (backDistLocal * worldScale) / totalPathPx);
-        const pose = (i === cars.length - 1) ? headPose : samplePointAlongRoute(scene, carProgress);
-        const lx = (pose.x - headPose.x) / worldScale;
-        const ly = (pose.y - headPose.y) / worldScale;
+        const carLenWorld = (car.halfL * 2) * worldScale;
+        const rearDist = curFrontDist - carLenWorld;
+
+        let cx;
+        let cy;
+        let angleRad;
+
+        if (rearDist >= 0 && curFrontDist <= totalPathPx) {
+            const frontPt = samplePointAlongRoute(scene, curFrontDist / totalPathPx);
+            const rearPt = samplePointAlongRoute(scene, rearDist / totalPathPx);
+            const dx = (frontPt.x - rearPt.x) / worldScale;
+            const dy = (frontPt.y - rearPt.y) / worldScale;
+            const chord = Math.hypot(dx, dy);
+            if (chord > 0.5) {
+                angleRad = Math.atan2(dy, dx);
+                cx = ((frontPt.x + rearPt.x) * 0.5 - headPose.x) / worldScale;
+                cy = ((frontPt.y + rearPt.y) * 0.5 - headPose.y) / worldScale;
+            } else {
+                angleRad = frontPt.angleRad || 0;
+                const fx = Math.cos(angleRad);
+                const fy = Math.sin(angleRad);
+                cx = (frontPt.x - headPose.x) / worldScale - car.halfL * fx;
+                cy = (frontPt.y - headPose.y) / worldScale - car.halfL * fy;
+            }
+        } else {
+            // Near route start: project remaining rear cars cleanly behind the first valid hinge
+            const anchorPt = samplePointAlongRoute(scene, Math.max(0, Math.min(1, curFrontDist / totalPathPx)));
+            angleRad = anchorPt.angleRad || headPose.angleRad || 0;
+            const fx = Math.cos(angleRad);
+            const fy = Math.sin(angleRad);
+            const overshootLocal = curFrontDist < 0 ? curFrontDist / worldScale : 0;
+            cx = (anchorPt.x - headPose.x) / worldScale + (overshootLocal - car.halfL) * fx;
+            cy = (anchorPt.y - headPose.y) / worldScale + (overshootLocal - car.halfL) * fy;
+        }
+
         posedCars[i] = {
-            car,
+            car: { ...car },
             idx: i,
-            P: createCarProjector(lx, ly, pose.angleRad || 0)
+            P: createCarProjector(cx, cy, angleRad)
         };
-        if (i > 0) {
-            backDistLocal += cars[i - 1].spacingPrev || 25;
+        curFrontDist = rearDist - jointGapLocal * worldScale;
+    }
+
+    // Prevent inner-corner box slicing on sharp bends by trimming coupled end overhang proportionally to bend angle
+    for (let i = 0; i < posedCars.length - 1; i++) {
+        const rear = posedCars[i];
+        const front = posedCars[i + 1];
+        let dAngle = front.P.angleRad - rear.P.angleRad;
+        while (dAngle > Math.PI) dAngle -= Math.PI * 2;
+        while (dAngle < -Math.PI) dAngle += Math.PI * 2;
+        const innerTrim = Math.min(2.4, Math.abs(Math.sin(dAngle * 0.5)) * rear.car.halfW * 0.85);
+        if (innerTrim > 0.2) {
+            rear.car.halfL = Math.max(4.5, rear.car.halfL - innerTrim * 0.5);
+            front.car.halfL = Math.max(4.5, front.car.halfL - innerTrim * 0.5);
         }
     }
 
