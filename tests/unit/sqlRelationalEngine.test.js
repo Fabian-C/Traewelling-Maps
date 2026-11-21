@@ -197,5 +197,100 @@ describe('Relational SQL Engine & Autocomplete', () => {
             expect(res.rows.map(r => r.username)).toEqual(['alice', 'bob']);
         });
     });
+
+    describe('GROUP BY, HAVING, and JOIN Execution', () => {
+        const richTrips = [
+            { id: 1, line: 'ICE 720', category: 'nationalExpress', operator: 'DB Fernverkehr AG', distance_km: 300, delay_dep: 10, year: 2025, backend_trip_id: 9001 },
+            { id: 2, line: 'ICE 722', category: 'nationalExpress', operator: 'DB Fernverkehr AG', distance_km: 500, delay_dep: 20, year: 2025, backend_trip_id: 9002 },
+            { id: 3, line: 'RE 1', category: 'regional', operator: 'DB Regio', distance_km: 40, delay_dep: 2, year: 2025, backend_trip_id: 9003 },
+            { id: 4, line: 'RE 2', category: 'regional', operator: 'DB Regio', distance_km: 60, delay_dep: 4, year: 2026, backend_trip_id: 9004 },
+            { id: 5, line: 'S 1', category: 'suburban', operator: 'S-Bahn Berlin', distance_km: 15, delay_dep: 0, year: 2026, backend_trip_id: 9005 }
+        ];
+
+        it('groups rows with GROUP BY and computes COUNT, SUM, AVG, MIN, MAX', () => {
+            const sql = 'SELECT category, COUNT(*) AS trips, SUM(distance_km) AS total_km, AVG(delay_dep) AS avg_delay FROM trips GROUP BY category ORDER BY total_km DESC';
+            const res = executeTripQuery(sql, richTrips);
+
+            expect(res.isAggregate).toBe(true);
+            expect(res.columns).toEqual(['category', 'trips', 'total_km', 'avg_delay']);
+            expect(res.rows).toHaveLength(3);
+            expect(res.rows[0]).toMatchObject({ category: 'nationalExpress', trips: 2, total_km: 800, avg_delay: 15 });
+            expect(res.rows[1]).toMatchObject({ category: 'regional', trips: 2, total_km: 100, avg_delay: 3 });
+            expect(res.rows[2]).toMatchObject({ category: 'suburban', trips: 1, total_km: 15, avg_delay: 0 });
+        });
+
+        it('filters grouped results using HAVING with aliases or aggregate expressions', () => {
+            const sql1 = 'SELECT category, COUNT(*) AS cnt, AVG(delay_dep) AS avg_d FROM trips GROUP BY category HAVING COUNT(*) >= 2 ORDER BY avg_d DESC';
+            const res1 = executeTripQuery(sql1, richTrips);
+            expect(res1.rows.map(r => r.category)).toEqual(['nationalExpress', 'regional']);
+
+            const sql2 = 'SELECT category, SUM(distance_km) AS total_km FROM trips GROUP BY category HAVING total_km > 500';
+            const res2 = executeTripQuery(sql2, richTrips);
+            expect(res2.rows).toHaveLength(1);
+            expect(res2.rows[0].category).toBe('nationalExpress');
+        });
+
+        it('supports COUNT(DISTINCT col) with GROUP BY', () => {
+            const sql = 'SELECT year, COUNT(DISTINCT category) AS unique_modes FROM trips GROUP BY year ORDER BY year ASC';
+            const res = executeTripQuery(sql, richTrips);
+            expect(res.rows).toEqual([
+                expect.objectContaining({ year: 2025, unique_modes: 2 }),
+                expect.objectContaining({ year: 2026, unique_modes: 2 })
+            ]);
+        });
+
+        it('performs INNER JOIN with table aliases and qualified columns', () => {
+            const sql = 'SELECT s.id, r.line_name, r.operator_name, s.departure_delay FROM statuses s INNER JOIN routes r ON s.trip_id = r.id ORDER BY s.departure_delay DESC';
+            const res = executeTripQuery(sql, [], { tables: mockDatasets });
+
+            expect(res.totalRows).toBe(2);
+            expect(res.columns).toEqual(['s.id', 'r.line_name', 'r.operator_name', 's.departure_delay']);
+            expect(res.rows[0]['s.id']).toBe(101);
+            expect(res.rows[0]['r.line_name']).toBe('ICE 720');
+            expect(res.rows[0]['r.operator_name']).toBe('DB Fernverkehr AG');
+        });
+
+        it('performs LEFT JOIN preserving unmatched left rows with null right columns', () => {
+            const tables = {
+                ...mockDatasets,
+                statuses: [
+                    ...mockDatasets.statuses,
+                    { id: 103, username: 'testuser', trip_id: 'MISSING_ROUTE', origin_id: 8000261, destination_id: 8000105, departure_delay: 5, distance_km: 10 }
+                ]
+            };
+            const sql = 'SELECT s.id, r.line_name AS line FROM statuses s LEFT JOIN routes r ON s.trip_id = r.id ORDER BY s.id ASC';
+            const res = executeTripQuery(sql, [], { tables });
+
+            expect(res.totalRows).toBe(3);
+            expect(res.rows[2]['s.id']).toBe(103);
+            expect(res.rows[2].line).toBeNull();
+        });
+
+        it('combines JOIN + GROUP BY + ORDER BY across trips and co_passengers', () => {
+            const tables = {
+                trips: richTrips,
+                co_passengers: [
+                    { trip_id: 9001, username: 'alice', origin: 'München Hbf' },
+                    { trip_id: 9002, username: 'alice', origin: 'Nürnberg Hbf' },
+                    { trip_id: 9002, username: 'bob', origin: 'Nürnberg Hbf' }
+                ]
+            };
+            const sql = 'SELECT c.username AS buddy, COUNT(*) AS shared_trips, SUM(t.distance_km) AS shared_km FROM trips t INNER JOIN co_passengers c ON t.backend_trip_id = c.trip_id GROUP BY c.username ORDER BY shared_trips DESC';
+            const res = executeTripQuery(sql, richTrips, { tables });
+
+            expect(res.rows).toHaveLength(2);
+            expect(res.rows[0]).toMatchObject({ buddy: 'alice', shared_trips: 2, shared_km: 800 });
+            expect(res.rows[1]).toMatchObject({ buddy: 'bob', shared_trips: 1, shared_km: 500 });
+        });
+
+        it('suggests tables after JOIN and columns after GROUP BY in autocomplete', () => {
+            const joinComp = getSQLCompletions('SELECT * FROM statuses s INNER JOIN ', 36);
+            expect(joinComp.items.map(i => i.label)).toContain('routes');
+            expect(joinComp.items.map(i => i.label)).toContain('stations');
+
+            const groupComp = getSQLCompletions('SELECT category, COUNT(*) FROM trips GROUP BY ', 46);
+            expect(groupComp.items.map(i => i.label)).toContain('category');
+        });
+    });
 });
 

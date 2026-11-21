@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Centralized Storage Manager for Träwelling Maps
  *
@@ -24,7 +25,7 @@ const memoryStore = new Map();
 function isStorageAvailable(type) {
     try {
         if (typeof window === 'undefined') return false;
-        const storage = window[type];
+        const storage = type === 'sessionStorage' ? window.sessionStorage : window.localStorage;
         if (!storage) return false;
         const testKey = '__tw_test__';
         storage.setItem(testKey, '1');

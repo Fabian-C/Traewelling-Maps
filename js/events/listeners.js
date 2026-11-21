@@ -548,12 +548,16 @@ export function applyFiltersAndRefresh({ immediate = false, debounceMs = 0, upda
         state.heatmap.cacheKey = null;
 
         const categories = dataProcessing.processTripsToGeoJSON(filteredTrips);
+        dataProcessing.syncGeometryGroupsToState(state, categories._geomTripIds);
         let missingApproxLayer = false;
         state.layers.order.forEach(layerId => {
             const data = categories[layerId] || { type: 'FeatureCollection', features: [] };
-            const source = state.map?.getSource(layerId);
-            if (source) source.setData(data);
             const layer = state.layers.data.get(layerId);
+            const prevCount = layer?.data?.features?.length || 0;
+            const source = state.map?.getSource(layerId);
+            if (source && (prevCount > 0 || data.features.length > 0)) {
+                source.setData(data);
+            }
             if (layer) layer.data = data;
             if (state.map && !state.map.getLayer(`${layerId}-approximated`)) {
                 missingApproxLayer = true;
@@ -577,7 +581,6 @@ export function applyFiltersAndRefresh({ immediate = false, debounceMs = 0, upda
             }
         }
 
-        analytics.updateMenuBuddyList(applyBuddyFilter);
         updateFilterBadges();
     };
 

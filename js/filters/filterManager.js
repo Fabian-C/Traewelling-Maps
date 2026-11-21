@@ -1,8 +1,39 @@
+// @ts-check
 // Centralized filter manager module
 // All filter logic is centralized here for consistency and modularity
 
 import { isAccuratePolyline, normalizeCategory, getTripBusinessType, matchesTripSearch } from '../data/processing.js';
 import { extractUniqueBuddiesFromTrip } from '../analytics/statistics.js';
+
+/** @type {WeakMap<Array<any>, Map<number, boolean>>} */
+const polylineAccuracyCache = new WeakMap();
+
+/**
+ * Cached polyline accuracy check keyed by coordinate array reference & filterLevel.
+ * Prevents recomputing Haversine geometry over 5,000+ trips on every search keystroke.
+ * @param {any} trip
+ * @param {number} filterLevel
+ * @returns {boolean}
+ */
+function isTripAccurateCached(trip, filterLevel) {
+    if (filterLevel === 0) return true;
+    const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin;
+    const coords = train?.polyline?.geometry?.coordinates;
+    if (!coords || coords.length < 2) return true;
+
+    let levelMap = polylineAccuracyCache.get(coords);
+    if (levelMap && levelMap.has(filterLevel)) {
+        return Boolean(levelMap.get(filterLevel));
+    }
+    const category = trip._index?.category || normalizeCategory(train?.category);
+    const accurate = isAccuratePolyline(coords, category, filterLevel);
+    if (!levelMap) {
+        levelMap = new Map();
+        polylineAccuracyCache.set(coords, levelMap);
+    }
+    levelMap.set(filterLevel, accurate);
+    return accurate;
+}
 
 // Filter registry - allows easy addition of new filters
 const filters = {
@@ -29,22 +60,93 @@ const filters = {
 };
 
 /**
- * Apply all filters in consistent order at trip level
- * This ensures all components (map, heatmap, statistics) see the same filtered data
+ * Apply all filters in a single short-circuiting pass at trip level.
+ * Avoids 5x intermediate array allocations and caches polyline accuracy checks.
+ * @param {Array<any>} trips
+ * @param {any} filterConfig
+ * @returns {Array<any>}
  */
 export function applyAllFilters(trips, filterConfig) {
     if (!trips || !Array.isArray(trips)) return [];
-    
-    let filtered = trips;
-    
-    // Apply filters in order: date -> business -> buddy -> search -> accuracy
-    filtered = filters.dateRange.apply(filtered, filterConfig);
-    filtered = filters.business.apply(filtered, filterConfig);
-    filtered = filters.buddy.apply(filtered, filterConfig);
-    filtered = filters.search.apply(filtered, filterConfig);
-    filtered = filters.accuracy.apply(filtered, filterConfig);
-    
-    return filtered;
+    if (!trips.length) return [];
+    const cfg = filterConfig || {};
+
+    // Pre-parse filter boundaries once (O(1))
+    const fromMs = cfg.fromDate ? new Date(cfg.fromDate + 'T00:00:00Z').getTime() : null;
+    const toMs = cfg.toDate ? new Date(cfg.toDate + 'T23:59:59.999Z').getTime() : null;
+    const hasDateFilter = fromMs !== null || toMs !== null;
+
+    const business = cfg.business || null;
+    const hasBusinessFilter = Boolean(business && (!business.personal || !business.work || !business.commute));
+
+    const rawBuddies = cfg.buddies || cfg.buddy;
+    const buddyList = rawBuddies ? (Array.isArray(rawBuddies) ? rawBuddies : [rawBuddies]) : [];
+    const targets = buddyList.map(b => String(b).toLowerCase().trim()).filter(Boolean);
+    const hasBuddyFilter = targets.length > 0;
+    const includeNotes = Boolean(cfg.includeNoteMentions);
+
+    const searchQ = (cfg.searchQuery && cfg.searchQuery.trim()) ? cfg.searchQuery.trim().toLowerCase() : '';
+    const filterLevel = cfg.filterLevel !== undefined ? cfg.filterLevel : 1;
+
+    const result = [];
+    for (let i = 0; i < trips.length; i++) {
+        const trip = trips[i];
+
+        // 1. Date Range
+        if (hasDateFilter) {
+            const idx = trip._index;
+            const time = idx?.timestamp !== undefined ? idx.timestamp : (trip.createdAt ? new Date(trip.createdAt).getTime() : null);
+            if (time !== null && !Number.isNaN(time)) {
+                if (fromMs !== null && time < fromMs) continue;
+                if (toMs !== null && time > toMs) continue;
+            }
+        }
+
+        // 2. Business Type
+        if (hasBusinessFilter) {
+            const b = trip._index?.business !== undefined ? trip._index.business : getTripBusinessType(trip);
+            if (b === 0 && !business.personal) continue;
+            if (b === 1 && !business.work) continue;
+            if (b === 2 && !business.commute) continue;
+        }
+
+        // 3. Travel Buddy
+        if (hasBuddyFilter) {
+            let matchedBuddy = false;
+            if (trip._index) {
+                const set = includeNotes ? trip._index.buddySetWithNotes : trip._index.buddySetNoNotes;
+                for (let j = 0; j < targets.length; j++) {
+                    if (set.has(targets[j])) {
+                        matchedBuddy = true;
+                        break;
+                    }
+                }
+            } else {
+                const tripBuddies = extractUniqueBuddiesFromTrip(trip, includeNotes);
+                for (let j = 0; j < targets.length; j++) {
+                    if (tripBuddies.has(targets[j])) {
+                        matchedBuddy = true;
+                        break;
+                    }
+                }
+            }
+            if (!matchedBuddy) continue;
+        }
+
+        // 4. Search Query
+        if (searchQ && !matchesTripSearch(trip, searchQ)) {
+            continue;
+        }
+
+        // 5. Polyline Accuracy (cached per coords array + filterLevel)
+        if (filterLevel !== 0 && !isTripAccurateCached(trip, filterLevel)) {
+            continue;
+        }
+
+        result.push(trip);
+    }
+
+    return result;
 }
 
 /**

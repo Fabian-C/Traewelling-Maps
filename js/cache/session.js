@@ -872,7 +872,7 @@ export const SessionDB = {
     },
 
     // Save materialized GeoJSON feature collection for a user
-    async saveMaterializedGeoJSON(username, geojson, count = 0) {
+    async saveMaterializedGeoJSON(username, geojson, count = 0, extra = {}) {
         if (!username || !geojson) return;
         const db = await this.open();
         if (!db.objectStoreNames.contains(this.GEOJSON_CACHE_STORE)) return;
@@ -884,7 +884,8 @@ export const SessionDB = {
                     username: String(username).toLowerCase(),
                     geojson,
                     count: count || (geojson.features ? geojson.features.length : 0),
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    ...(extra && typeof extra === 'object' ? extra : {})
                 };
                 store.put(record);
                 tx.oncomplete = () => resolve();

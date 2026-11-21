@@ -3,7 +3,7 @@ import { store } from '../state/store.js';
 import { toggleDelayOverlay } from './delayOverlay.js';
 import { RouteAnimation } from './routeAnimation.js';
 import { refreshActiveTrips } from '../fetch/orchestrator.js';
-import { normalizeCategory } from '../data/processing.js';
+import { normalizeCategory, computePolylineMeta } from '../data/processing.js';
 import { clearRouteHighlight } from './interactions.js';
 
 export function getCurrentBaseOpacity(state) {
@@ -191,7 +191,10 @@ export function buildRouteDensityLines(state, force = false) {
 
     const segmentMap = new Map();
     const roundVal = (v) => Math.round(v * 1e5);
-    
+
+    // Group identical (or exact reversed) polylines across visible trips so each unique
+    // polyline's segments are hashed only once and weighted by trip frequency.
+    const uniqueGeomCounts = new Map();
     for (let t = 0; t < trips.length; t++) {
         const trip = trips[t];
         const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
@@ -202,6 +205,18 @@ export function buildRouteDensityLines(state, force = false) {
         const layerInfo = state.layers.data.get(layerId);
         if (layerInfo && layerInfo.visible === false) continue;
 
+        const geomHash = computePolylineMeta(coords)?.geomHash;
+        if (!geomHash) continue;
+
+        const existing = uniqueGeomCounts.get(geomHash);
+        if (existing) {
+            existing.weight++;
+        } else {
+            uniqueGeomCounts.set(geomHash, { coords, weight: 1 });
+        }
+    }
+
+    uniqueGeomCounts.forEach(({ coords, weight }) => {
         const tripSegments = new Set();
 
         for (let i = 0; i < coords.length - 1; i++) {
@@ -222,17 +237,17 @@ export function buildRouteDensityLines(state, force = false) {
                 tripSegments.add(segKey);
                 const existing = segmentMap.get(segKey);
                 if (existing) {
-                    existing.count++;
+                    existing.count += weight;
                 } else {
                     segmentMap.set(segKey, {
                         source: [k1x / 1e5, k1y / 1e5],
                         target: [k2x / 1e5, k2y / 1e5],
-                        count: 1
+                        count: weight
                     });
                 }
             }
         }
-    }
+    });
 
     const lines = [];
     const intensity = state.heatmap.intensity || 1;

@@ -1,8 +1,8 @@
 // Trip focus and route highlighting module
 import { store } from '../state/store.js';
-import { showPopup, highlightRoute, measureFeatureDistance } from './interactions.js';
+import { showPopup, highlightRoute, measureFeatureDistance, resolveFeatureForPopup } from './interactions.js';
 import { snapLngLatToLine } from '../utils/geometry.js';
-import { normalizeCategory } from '../data/processing.js';
+import { normalizeCategory, computePolylineMeta } from '../data/processing.js';
 
 /**
  * Focus and highlight a trip on the map, opening its popup with identical fidelity to a normal map click
@@ -20,13 +20,19 @@ export function focusTripOnMap(trip, retryCount = 0) {
 
     // 1. Resolve real rendered GeoJSON feature from map layers if available
     let targetFeature = null;
+    const tripGeomKey = trip._index?.geomKey;
     if (state.layers?.data) {
         for (const [, layerObj] of state.layers.data.entries()) {
-            const found = layerObj.data?.features?.find(f => 
-                String(f.properties?.statusId || f.id) === String(trip.id)
+            const found = layerObj.data?.features?.find(f =>
+                String(f.properties?.statusId || f.id) === String(trip.id) ||
+                (tripGeomKey && f.properties?.geomKey === tripGeomKey)
             );
             if (found) {
-                targetFeature = found;
+                targetFeature = resolveFeatureForPopup({
+                    ...found,
+                    id: trip.id,
+                    properties: { ...(found.properties || {}), statusId: trip.id }
+                }, state);
                 break;
             }
         }
@@ -110,15 +116,54 @@ export function focusTripOnMap(trip, retryCount = 0) {
     const anchorLngLat = { lng: anchor[0], lat: anchor[1] };
 
     if (state.layers?.data) {
+        const bboxMargin = 0.002;
         for (const [, layerObj] of state.layers.data.entries()) {
             const features = layerObj.data?.features || [];
             for (const feat of features) {
-                const sid = feat.properties?.statusId || feat.id;
-                if (sid !== undefined && sid !== null && seenIds.has(String(sid))) continue;
+                const bbox = feat._bbox || (feat.geometry?.type === 'LineString' && Array.isArray(feat.geometry.coordinates)
+                    ? computePolylineMeta(feat.geometry.coordinates)?.bbox
+                    : null);
+                if (bbox) {
+                    if (
+                        anchorLngLat.lng < bbox[0] - bboxMargin ||
+                        anchorLngLat.lng > bbox[2] + bboxMargin ||
+                        anchorLngLat.lat < bbox[1] - bboxMargin ||
+                        anchorLngLat.lat > bbox[3] + bboxMargin
+                    ) {
+                        continue;
+                    }
+                }
+
                 const distKm = measureFeatureDistance(feat, anchorLngLat, null);
                 if (distKm <= MAX_LINE_STACK_DISTANCE_KM) {
-                    if (sid !== undefined && sid !== null) seenIds.add(String(sid));
-                    tightStack.push(feat);
+                    const gKey = feat.properties?.geomKey;
+                    const memberIds = (gKey && state.geometryGroups instanceof Map) ? state.geometryGroups.get(gKey) : null;
+                    if (Array.isArray(memberIds) && memberIds.length > 0) {
+                        for (const sid of memberIds) {
+                            const sidStr = String(sid);
+                            if (seenIds.has(sidStr)) continue;
+                            seenIds.add(sidStr);
+                            tightStack.push({
+                                type: 'Feature',
+                                id: sid,
+                                geometry: feat.geometry,
+                                layer: feat.layer,
+                                properties: {
+                                    statusId: sid,
+                                    geomKey: gKey,
+                                    category: feat.properties?.category,
+                                    isApproximated: Boolean(feat.properties?.isApproximated)
+                                }
+                            });
+                        }
+                    } else {
+                        const sid = feat.properties?.statusId || feat.id;
+                        if (sid !== undefined && sid !== null) {
+                            if (seenIds.has(String(sid))) continue;
+                            seenIds.add(String(sid));
+                        }
+                        tightStack.push(feat);
+                    }
                 }
             }
         }

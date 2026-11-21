@@ -24,6 +24,9 @@ class StateStore {
             datasetVersion: 0,
             fetchedTrips: [],
             activeTrips: [],
+            tripsById: new Map(),
+            geometryGroups: new Map(),
+            _highlightIsApproximated: null,
             filters: { 
                 fromDate: null, 
                 toDate: null, 

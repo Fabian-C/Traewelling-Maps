@@ -6,6 +6,7 @@ import { buildEndpointKey } from '../utils/format.js';
 import { computeRouteLengthKm } from '../utils/geometry.js';
 import { computeTripDurationMinutes } from '../utils/time.js';
 import { getRouteParticleCount } from '../utils/math.js';
+import { getTripByStatusId } from '../data/processing.js';
 
 const colorCache = new Map();
 
@@ -151,12 +152,11 @@ export const RouteAnimation = {
         const maxRoutes = this.getDensityRouteCap();
         const routeMap = new Map();       // endpoint key -> aggregated route info
         const routeGroupMap = new Map();  // endpoint key -> Map(lineId -> route)
-        const buildRouteKey = (feature, categoryId) => {
+        const buildRouteKey = (feature, categoryId, train = {}) => {
             const props = feature.properties || {};
-            const train = props.train || props.checkin || {};
             const originName = train.origin?.name || train.origin?.station?.name || '';
             const destName = train.destination?.name || train.destination?.station?.name || '';
-            const lineName = (train.lineName || train.number || props.statusId || categoryId || 'unknown').toString();
+            const lineName = (train.lineName || train.number || props.lineName || props.statusId || categoryId || 'unknown').toString();
             if (lineName && (originName || destName)) {
                 return `${lineName}|${originName}|${destName}`;
             }
@@ -178,15 +178,17 @@ export const RouteAnimation = {
                 
                 const endpointKey = buildEndpointKey(coords);
                 if (!endpointKey) return;
-                const routeKey = buildRouteKey(feature, categoryId);
+                const tripObj = getTripByStatusId(state, feature.properties?.statusId);
+                const train = tripObj?.train || tripObj?.checkin || feature.properties?.train || feature.properties?.checkin || {};
+                const routeKey = buildRouteKey(feature, categoryId, train);
                 const [lineId] = routeKey.split('|');
                 
                 const lengthKm = computeRouteLengthKm(coords);
-                const train = feature.properties?.train || feature.properties?.checkin || {};
                 const durationMinutes = computeTripDurationMinutes(train);
                 const baseCategorySpeed = this.config.speeds[categoryId] || 0.9;
                 const lengthFactor = lengthKm ? clamp(250 / lengthKm, 0.4, 1.2) : 1;
                 const adjustedSpeed = baseCategorySpeed * lengthFactor;
+                const weight = Math.max(1, Number(feature.properties?.tripCount) || 1);
                 
                 let endpointGroup = routeGroupMap.get(endpointKey);
                 if (!endpointGroup) {
@@ -212,11 +214,12 @@ export const RouteAnimation = {
                     };
                     endpointGroup.set(lineId, existing);
                 }
-                existing.usageCount++;
+                const prevCount = existing.usageCount;
+                existing.usageCount += weight;
                 if (durationMinutes) {
                     existing.durationMinutes = durationMinutes;
                 }
-                existing.speed = ((existing.speed || adjustedSpeed) * (existing.usageCount - 1) + adjustedSpeed) / existing.usageCount;
+                existing.speed = ((existing.speed || adjustedSpeed) * prevCount + adjustedSpeed * weight) / existing.usageCount;
                 
                 // Track the highest-usage route per endpoint to represent that corridor overall
                 const current = routeMap.get(endpointKey);

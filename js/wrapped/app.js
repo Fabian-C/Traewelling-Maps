@@ -24,6 +24,32 @@ let currentInsights = null;
 let currentCardCanvas = null;
 let duelOpponentSession = null;
 
+// Memoization caches for 5,000+ check-in accounts (0ms year-pill switching)
+const wrappedInsightsCache = new Map();
+const wrappedYearsCache = new WeakMap();
+
+function getCachedAvailableYears(trips) {
+    if (!Array.isArray(trips)) return [];
+    let years = wrappedYearsCache.get(trips);
+    if (!years) {
+        years = extractAvailableYears(trips);
+        wrappedYearsCache.set(trips, years);
+    }
+    return years;
+}
+
+function getCachedWrappedInsights(trips, username, yearKey) {
+    const cacheKey = `${(username || '').toLowerCase()}|${yearKey}|${trips.length}`;
+    let entry = wrappedInsightsCache.get(cacheKey);
+    if (!entry) {
+        const filteredTrips = filterTripsByYear(trips, yearKey);
+        const insights = calculateWrappedInsights(filteredTrips, username);
+        entry = { filteredCount: filteredTrips.length, insights };
+        wrappedInsightsCache.set(cacheKey, entry);
+    }
+    return entry;
+}
+
 // Initialize on DOM ready or immediately if already loaded
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initWrapped);
@@ -33,9 +59,9 @@ if (document.readyState === 'loading') {
 
 export async function initWrapped() {
     try {
-        allSessions = await SessionDB.getAll();
+        allSessions = await SessionDB.getSessionSummaries();
     } catch (e) {
-        console.warn('Failed to load sessions from SessionDB:', e);
+        console.warn('Failed to load session summaries from SessionDB:', e);
         allSessions = [];
     }
 
@@ -411,11 +437,11 @@ function renderYearPills(years) {
 
 function renderWrapped() {
     const trips = activeSession?.trips || [];
-    const availableYears = extractAvailableYears(trips);
+    const availableYears = getCachedAvailableYears(trips);
     renderYearPills(availableYears);
 
-    const filteredTrips = filterTripsByYear(trips, activeYear);
-    currentInsights = calculateWrappedInsights(filteredTrips, activeSession.username);
+    const { filteredCount, insights } = getCachedWrappedInsights(trips, activeSession.username, activeYear);
+    currentInsights = insights;
 
     // 1. Profile Banner
     const avatarEl = document.getElementById('heroAvatar');
@@ -435,7 +461,7 @@ function renderWrapped() {
 
     const yearText = activeYear === 'all' ? 'All-Time Journey Record' : `${activeYear} Year on Rails`;
     if (nameEl) nameEl.textContent = activeSession.displayName || activeSession.username;
-    if (subtitleEl) subtitleEl.textContent = `@${activeSession.username} · ${yearText} · ${filteredTrips.length} check-ins`;
+    if (subtitleEl) subtitleEl.textContent = `@${activeSession.username} · ${yearText} · ${filteredCount} check-ins`;
     if (mapLinkEl) mapLinkEl.href = `index.html?user=${encodeURIComponent(activeSession.username)}`;
 
     // 2. KPI Cards

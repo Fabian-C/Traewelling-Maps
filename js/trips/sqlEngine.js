@@ -170,6 +170,26 @@ export const QUERY_RECIPES = [
     {
         title: 'Travel Buddies: Journeys with Companions',
         sql: 'SELECT line, origin, destination, buddies, buddy_count, departure FROM trips WHERE buddy_count > 0 ORDER BY departure DESC LIMIT 50'
+    },
+    {
+        title: 'Analytics: Distance & Avg Delay by Category',
+        sql: 'SELECT category, COUNT(*) AS trips, SUM(distance_km) AS total_km, AVG(delay_dep) AS avg_delay FROM trips GROUP BY category ORDER BY total_km DESC'
+    },
+    {
+        title: 'Analytics: Yearly Travel Summary',
+        sql: 'SELECT year, COUNT(*) AS trips, SUM(distance_km) AS total_km, AVG(delay_dep) AS avg_delay FROM trips WHERE year IS NOT NULL GROUP BY year ORDER BY year DESC'
+    },
+    {
+        title: 'Analytics: Most Frequently Used Operators',
+        sql: 'SELECT operator, COUNT(*) AS trips, SUM(distance_km) AS total_km FROM trips GROUP BY operator HAVING COUNT(*) >= 3 ORDER BY trips DESC LIMIT 20'
+    },
+    {
+        title: 'JOIN: Statuses with Line & Operator Details',
+        sql: 'SELECT s.id, r.line_name, r.operator_name, s.distance_km, s.departure_delay FROM statuses s INNER JOIN routes r ON s.trip_id = r.id ORDER BY s.departure_delay DESC LIMIT 50'
+    },
+    {
+        title: 'JOIN: Top Co-Passengers Across Scanned Trips',
+        sql: 'SELECT c.username, COUNT(*) AS shared_trips, SUM(t.distance_km) AS shared_km FROM trips t INNER JOIN co_passengers c ON t.backend_trip_id = c.trip_id GROUP BY c.username ORDER BY shared_trips DESC LIMIT 25'
     }
 ];
 
@@ -342,6 +362,12 @@ function tokenize(sql) {
             continue;
         }
 
+        if (char === '.') {
+            tokens.push({ type: 'DOT', value: '.' });
+            i++;
+            continue;
+        }
+
         // Multi-char operators: <=, >=, !=, <>
         const twoChar = sql.substring(i, i + 2);
         if (twoChar === '<=' || twoChar === '>=' || twoChar === '!=' || twoChar === '<>') {
@@ -387,12 +413,169 @@ function tokenize(sql) {
     return tokens;
 }
 
+const CLAUSE_STOP_WORDS = new Set([
+    'WHERE', 'GROUP', 'HAVING', 'ORDER', 'LIMIT', 'OFFSET',
+    'JOIN', 'INNER', 'LEFT', 'RIGHT', 'OUTER', 'CROSS', 'ON'
+]);
+
+const VALID_TABLE_ALIASES = {
+    trips: 'trips',
+    trip: 'trips',
+    checkins: 'trips',
+    checkin: 'trips',
+    statuses: 'statuses',
+    status: 'statuses',
+    stations: 'stations',
+    station: 'stations',
+    routes: 'routes',
+    route: 'routes',
+    trips_runs: 'routes',
+    co_passengers: 'co_passengers',
+    copassengers: 'co_passengers',
+    companions: 'co_passengers',
+    buddies: 'co_passengers'
+};
+
+const SUPPORTED_AGGS = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX'];
+
+/**
+ * Resolve a raw SQL table identifier to a canonical schema table name.
+ * @param {string} rawName
+ * @param {Object} options
+ * @returns {string}
+ */
+function resolveCanonicalTable(rawName, options) {
+    const key = String(rawName || '').toLowerCase();
+    const mapped = VALID_TABLE_ALIASES[key];
+    if (!mapped) {
+        throw new Error("Target table must be 'trips', 'statuses', 'stations', 'routes', or 'co_passengers'");
+    }
+    if (mapped === 'co_passengers' && !options?.tables?.co_passengers) {
+        return 'trips';
+    }
+    return mapped;
+}
+
+/**
+ * Retrieve row array for a canonical table name.
+ * @param {string} tableName
+ * @param {Array<Object>} fallbackRecords
+ * @param {Object} options
+ * @returns {Array<Object>}
+ */
+function getTableDataset(tableName, fallbackRecords, options) {
+    if (options && options.tables && options.tables[tableName]) {
+        return options.tables[tableName];
+    }
+    if (tableName === 'trips') {
+        return fallbackRecords;
+    }
+    return [];
+}
+
+/**
+ * Normalize a join key value so numeric and string IDs match consistently.
+ * Returns null if the value is null/undefined/empty.
+ * @param {any} val
+ * @returns {string | null}
+ */
+function normalizeJoinKey(val) {
+    if (val === null || val === undefined || val === '') return null;
+    return String(val);
+}
+
+/**
+ * Compute an aggregate function over an array of rows.
+ * @param {string} fn
+ * @param {string} arg
+ * @param {Array<Object>} rows
+ * @param {boolean} [distinct=false]
+ * @returns {number | null}
+ */
+function computeAggregate(fn, arg, rows, distinct = false) {
+    if (fn === 'COUNT') {
+        if (arg === '*') return rows.length;
+        if (distinct) {
+            const seen = new Set();
+            for (const r of rows) {
+                const v = r[arg];
+                if (v !== null && v !== undefined && v !== '') {
+                    seen.add(String(v));
+                }
+            }
+            return seen.size;
+        }
+        let count = 0;
+        for (const r of rows) {
+            const v = r[arg];
+            if (v !== null && v !== undefined && v !== '') count++;
+        }
+        return count;
+    }
+
+    let sum = 0;
+    let count = 0;
+    let min = Infinity;
+    let max = -Infinity;
+    const seenDistinct = distinct ? new Set() : null;
+
+    for (const r of rows) {
+        const raw = r[arg];
+        if (raw === null || raw === undefined || raw === '') continue;
+        const num = Number(raw);
+        if (Number.isNaN(num)) continue;
+        if (seenDistinct) {
+            if (seenDistinct.has(num)) continue;
+            seenDistinct.add(num);
+        }
+        sum += num;
+        count++;
+        if (num < min) min = num;
+        if (num > max) max = num;
+    }
+
+    if (count === 0) return null;
+    if (fn === 'SUM') return Math.round(sum * 100) / 100;
+    if (fn === 'AVG') return Math.round((sum / count) * 100) / 100;
+    if (fn === 'MIN') return min;
+    if (fn === 'MAX') return max;
+    return null;
+}
+
+/**
+ * Sort rows in-place copy according to ORDER BY specification.
+ * @param {Array<Object>} rows
+ * @param {Array<{column: string, dir: string}>} orderByList
+ * @returns {Array<Object>}
+ */
+function sortResultRows(rows, orderByList) {
+    if (!orderByList.length) return rows;
+    return rows.slice().sort((a, b) => {
+        for (const { column, dir } of orderByList) {
+            const valA = a[column];
+            const valB = b[column];
+            if (valA === valB) continue;
+            if (valA === null || valA === undefined) return 1;
+            if (valB === null || valB === undefined) return -1;
+
+            let cmp = 0;
+            if (typeof valA === 'number' && typeof valB === 'number') {
+                cmp = valA - valB;
+            } else {
+                cmp = String(valA).localeCompare(String(valB));
+            }
+            return dir === 'DESC' ? -cmp : cmp;
+        }
+        return 0;
+    });
+}
+
 /**
  * Parse and execute a SQL query on a list of flattened records
  * @param {string} sql SQL query string
  * @param {Array<Object>} records Flattened trip records
- * @param {Object} options Execution options, e.g. { tables: { trips, statuses, stations, routes } }
- * @returns {Object} { table, columns, rows, totalRows, executionTimeMs, rawTrips, isSelectAll }
+ * @param {Object} options Execution options, e.g. { tables: { trips, statuses, stations, routes, co_passengers } }
+ * @returns {Object} { table, columns, rows, totalRows, executionTimeMs, rawTrips, isSelectAll, isAggregate }
  */
 export function executeTripQuery(sql, records = [], options = {}) {
     const startTime = performance.now();
@@ -406,7 +589,7 @@ export function executeTripQuery(sql, records = [], options = {}) {
     }
 
     let cursor = 0;
-    const peek = () => tokens[cursor];
+    const peek = (offset = 0) => tokens[cursor + offset];
     const consume = () => tokens[cursor++];
     const matchWord = (word) => {
         const tok = peek();
@@ -417,6 +600,42 @@ export function executeTripQuery(sql, records = [], options = {}) {
         return false;
     };
 
+    /**
+     * Read a possibly table-qualified column identifier (e.g. `col` or `t.col` or `t.*`).
+     */
+    const readColumnRef = () => {
+        const first = consume();
+        if (!first) return '';
+        let name = String(first.value).toLowerCase();
+        if (peek() && peek().type === 'DOT') {
+            consume(); // '.'
+            const second = consume();
+            if (second) {
+                name = `${name}.${String(second.value).toLowerCase()}`;
+            }
+        }
+        return name;
+    };
+
+    /**
+     * Read an optional table alias (`[AS] alias`) if not a SQL clause keyword.
+     */
+    const readOptionalAlias = (defaultAlias) => {
+        if (matchWord('AS')) {
+            const aliasTok = consume();
+            if (aliasTok && (aliasTok.type === 'WORD' || aliasTok.type === 'STRING')) {
+                return String(aliasTok.value).toLowerCase();
+            }
+        } else {
+            const next = peek();
+            if (next && next.type === 'WORD' && !CLAUSE_STOP_WORDS.has(next.value.toUpperCase())) {
+                consume();
+                return String(next.value).toLowerCase();
+            }
+        }
+        return defaultAlias;
+    };
+
     // 1. SELECT clause
     if (!matchWord('SELECT')) {
         throw new Error("Query must begin with 'SELECT'");
@@ -425,35 +644,47 @@ export function executeTripQuery(sql, records = [], options = {}) {
     const isDistinct = matchWord('DISTINCT');
     const selectedFields = [];
     while (cursor < tokens.length) {
-        const tok = consume();
+        const tok = peek();
         if (!tok) break;
 
         if (tok.type === 'OPERATOR' && tok.value === '*') {
-            selectedFields.push({ expr: '*', fn: null, arg: null, alias: '*' });
+            consume();
+            selectedFields.push({ expr: '*', fn: null, arg: null, alias: '*', distinct: false });
         } else if (tok.type === 'WORD' || tok.type === 'STRING') {
-            const next = peek();
+            const next = peek(1);
             if (next && next.type === 'PUNCT' && next.value === '(') {
+                consume(); // fn name
                 consume(); // '('
-                const inner = consume(); // '*' or field
-                consume(); // ')'
-                const fn = tok.value.toUpperCase();
-                const arg = inner ? (inner.value === '*' ? '*' : String(inner.value).toLowerCase()) : '*';
-                const expr = `${fn}(${arg})`;
+                const aggDistinct = matchWord('DISTINCT');
+                let arg = '*';
+                if (peek() && peek().type === 'OPERATOR' && peek().value === '*') {
+                    consume();
+                    arg = '*';
+                } else {
+                    arg = readColumnRef() || '*';
+                }
+                if (peek() && peek().type === 'PUNCT' && peek().value === ')') {
+                    consume(); // ')'
+                }
+                const fn = String(tok.value).toUpperCase();
+                const expr = aggDistinct ? `${fn}(DISTINCT ${arg})` : `${fn}(${arg})`;
                 let alias = expr;
                 if (matchWord('AS')) {
                     const aliasTok = consume();
                     if (aliasTok) alias = String(aliasTok.value);
                 }
-                selectedFields.push({ expr, fn, arg, alias });
+                selectedFields.push({ expr, fn, arg, alias, distinct: aggDistinct });
             } else {
-                const col = String(tok.value).toLowerCase();
+                const col = readColumnRef();
                 let alias = col;
                 if (matchWord('AS')) {
                     const aliasTok = consume();
                     if (aliasTok) alias = String(aliasTok.value);
                 }
-                selectedFields.push({ expr: col, fn: null, arg: col, alias });
+                selectedFields.push({ expr: col, fn: null, arg: col, alias, distinct: false });
             }
+        } else {
+            consume();
         }
 
         if (peek() && peek().type === 'COMMA') {
@@ -465,19 +696,60 @@ export function executeTripQuery(sql, records = [], options = {}) {
 
     // 2. FROM clause
     let targetTable = 'trips';
+    let targetAlias = 'trips';
     if (matchWord('FROM')) {
         const tableTok = consume();
-        const validTables = ['trips', 'trip', 'checkins', 'checkin', 'statuses', 'status', 'stations', 'station', 'routes', 'route', 'trips_runs', 'co_passengers', 'copassengers', 'companions', 'buddies'];
-        if (!tableTok || !validTables.includes(String(tableTok.value).toLowerCase())) {
+        if (!tableTok) {
             throw new Error("Target table must be 'trips', 'statuses', 'stations', 'routes', or 'co_passengers'");
         }
-        const rawTable = String(tableTok.value).toLowerCase();
-        if (['statuses', 'status'].includes(rawTable)) targetTable = 'statuses';
-        else if (['stations', 'station'].includes(rawTable)) targetTable = 'stations';
-        else if (['routes', 'route', 'trips_runs'].includes(rawTable)) targetTable = 'routes';
-        else if (['co_passengers', 'copassengers', 'companions', 'buddies'].includes(rawTable)) {
-            targetTable = options?.tables?.co_passengers ? 'co_passengers' : 'trips';
-        } else targetTable = 'trips';
+        targetTable = resolveCanonicalTable(tableTok.value, options);
+        targetAlias = readOptionalAlias(targetTable);
+    }
+
+    // 2b. Optional JOIN clauses (INNER JOIN, LEFT [OUTER] JOIN, JOIN)
+    const joins = [];
+    while (cursor < tokens.length) {
+        let joinType = null;
+        if (matchWord('INNER')) {
+            if (!matchWord('JOIN')) throw new Error("Expected 'JOIN' after 'INNER'");
+            joinType = 'INNER';
+        } else if (matchWord('LEFT')) {
+            matchWord('OUTER'); // optional OUTER
+            if (!matchWord('JOIN')) throw new Error("Expected 'JOIN' after 'LEFT'");
+            joinType = 'LEFT';
+        } else if (matchWord('JOIN')) {
+            joinType = 'INNER';
+        } else {
+            break;
+        }
+
+        const joinTableTok = consume();
+        if (!joinTableTok) {
+            throw new Error("Expected table name after 'JOIN'");
+        }
+        const joinTable = resolveCanonicalTable(joinTableTok.value, options);
+        const joinAlias = readOptionalAlias(joinTable);
+
+        if (!matchWord('ON')) {
+            throw new Error(`Expected 'ON' condition for JOIN '${joinTable}'`);
+        }
+        const leftCol = readColumnRef();
+        const opTok = consume();
+        if (!opTok || opTok.type !== 'OPERATOR' || opTok.value !== '=') {
+            throw new Error(`JOIN ON clause currently requires '=' equality (got '${opTok?.value || ''}')`);
+        }
+        const rightCol = readColumnRef();
+        if (!leftCol || !rightCol) {
+            throw new Error(`Invalid JOIN ON condition for '${joinTable}'`);
+        }
+
+        joins.push({
+            type: joinType,
+            table: joinTable,
+            alias: joinAlias,
+            leftCol,
+            rightCol
+        });
     }
 
     // 3. WHERE clause
@@ -486,7 +758,7 @@ export function executeTripQuery(sql, records = [], options = {}) {
         const whereTokens = [];
         while (cursor < tokens.length) {
             const tok = peek();
-            if (tok.type === 'WORD' && ['ORDER', 'LIMIT', 'OFFSET'].includes(tok.value.toUpperCase())) {
+            if (tok.type === 'WORD' && ['GROUP', 'HAVING', 'ORDER', 'LIMIT', 'OFFSET'].includes(tok.value.toUpperCase())) {
                 break;
             }
             whereTokens.push(consume());
@@ -494,16 +766,68 @@ export function executeTripQuery(sql, records = [], options = {}) {
         wherePredicate = compileWherePredicate(whereTokens);
     }
 
-    // 4. ORDER BY clause
+    // 4. GROUP BY clause
+    const groupByCols = [];
+    if (matchWord('GROUP')) {
+        if (!matchWord('BY')) {
+            throw new Error("Expected 'BY' after 'GROUP'");
+        }
+        while (cursor < tokens.length) {
+            const tok = peek();
+            if (!tok || (tok.type !== 'WORD' && tok.type !== 'STRING')) break;
+            if (tok.type === 'WORD' && ['HAVING', 'ORDER', 'LIMIT', 'OFFSET'].includes(tok.value.toUpperCase())) {
+                break;
+            }
+            groupByCols.push(readColumnRef());
+            if (peek() && peek().type === 'COMMA') {
+                consume();
+            } else {
+                break;
+            }
+        }
+    }
+
+    // 5. HAVING clause
+    let havingTokens = null;
+    let havingPredicate = null;
+    if (matchWord('HAVING')) {
+        havingTokens = [];
+        while (cursor < tokens.length) {
+            const tok = peek();
+            if (tok.type === 'WORD' && ['ORDER', 'LIMIT', 'OFFSET'].includes(tok.value.toUpperCase())) {
+                break;
+            }
+            havingTokens.push(consume());
+        }
+        havingPredicate = compileWherePredicate(havingTokens);
+    }
+
+    // 6. ORDER BY clause
     const orderByList = [];
     if (matchWord('ORDER') && matchWord('BY')) {
         while (cursor < tokens.length) {
-            const colTok = consume();
-            if (!colTok || (colTok.type !== 'WORD' && colTok.type !== 'STRING')) break;
+            const tok = peek();
+            if (!tok || (tok.type !== 'WORD' && tok.type !== 'STRING')) break;
+            let colExpr = '';
+            if (peek(1) && peek(1).type === 'PUNCT' && peek(1).value === '(') {
+                const fnTok = consume();
+                consume(); // '('
+                const aggDistinct = matchWord('DISTINCT');
+                let arg = '*';
+                if (peek() && peek().type === 'OPERATOR' && peek().value === '*') {
+                    consume();
+                } else {
+                    arg = readColumnRef() || '*';
+                }
+                if (peek() && peek().type === 'PUNCT' && peek().value === ')') consume();
+                colExpr = (aggDistinct ? `${fnTok.value}(DISTINCT ${arg})` : `${fnTok.value}(${arg})`).toLowerCase();
+            } else {
+                colExpr = readColumnRef();
+            }
             let dir = 'ASC';
             if (matchWord('DESC')) dir = 'DESC';
             else if (matchWord('ASC')) dir = 'ASC';
-            orderByList.push({ column: String(colTok.value).toLowerCase(), dir });
+            orderByList.push({ column: colExpr, dir });
 
             if (peek() && peek().type === 'COMMA') {
                 consume();
@@ -513,7 +837,7 @@ export function executeTripQuery(sql, records = [], options = {}) {
         }
     }
 
-    // 5. LIMIT & OFFSET clause
+    // 7. LIMIT & OFFSET clause
     let limit = null;
     let offset = 0;
     if (matchWord('LIMIT')) {
@@ -525,16 +849,147 @@ export function executeTripQuery(sql, records = [], options = {}) {
         if (numTok && numTok.type === 'NUMBER') offset = Math.max(0, parseInt(numTok.value, 10));
     }
 
-    // Determine dataset to query
-    let dataset = records;
-    if (options && options.tables && options.tables[targetTable]) {
-        dataset = options.tables[targetTable];
-    } else if (targetTable !== 'trips') {
-        dataset = [];
+    // Build participating table metadata & column validation set
+    const participatingTables = [{ table: targetTable, alias: targetAlias }];
+    for (const j of joins) {
+        participatingTables.push({ table: j.table, alias: j.alias });
+    }
+
+    const schemaDef = TABLE_SCHEMAS[targetTable] || TABLE_SCHEMAS.trips;
+    const baseCols = schemaDef.columns.map(c => c.name);
+    const validColsSet = new Set();
+    const allSelectStarCols = [];
+
+    if (joins.length === 0) {
+        for (const c of baseCols) {
+            validColsSet.add(c);
+            validColsSet.add(`${targetAlias}.${c}`);
+            validColsSet.add(`${targetTable}.${c}`);
+            allSelectStarCols.push(c);
+        }
+    } else {
+        for (const pt of participatingTables) {
+            const cols = (TABLE_SCHEMAS[pt.table] || TABLE_SCHEMAS.trips).columns.map(c => c.name);
+            for (const c of cols) {
+                validColsSet.add(c);
+                validColsSet.add(`${pt.alias}.${c}`);
+                validColsSet.add(`${pt.table}.${c}`);
+                allSelectStarCols.push(`${pt.alias}.${c}`);
+            }
+        }
+    }
+
+    const isSelectAll = selectedFields.length === 0 || selectedFields.some(f => f.expr === '*');
+
+    if (!isSelectAll) {
+        for (const field of selectedFields) {
+            if (field.fn) {
+                if (!SUPPORTED_AGGS.includes(field.fn)) {
+                    throw new Error(`Unsupported aggregate function '${field.fn}'`);
+                }
+                if (field.arg !== '*' && !validColsSet.has(field.arg)) {
+                    throw new Error(`Unknown column '${field.arg}' in table '${targetTable}'`);
+                }
+            } else if (!field.arg.endsWith('.*') && !validColsSet.has(field.arg)) {
+                throw new Error(`Unknown column '${field.arg}' in table '${targetTable}'`);
+            }
+        }
+    }
+
+    for (const gCol of groupByCols) {
+        if (!validColsSet.has(gCol)) {
+            throw new Error(`Unknown column '${gCol}' in GROUP BY`);
+        }
+    }
+
+    // Prepare base dataset (with alias-qualified keys if alias differs or joins exist)
+    const rawBaseDataset = getTableDataset(targetTable, records, options);
+    let dataset = rawBaseDataset;
+
+    if (joins.length > 0 || targetAlias !== targetTable) {
+        const needsQualify = joins.length > 0 || selectedFields.some(f => f.arg && f.arg.includes('.')) || groupByCols.some(c => c.includes('.'));
+        if (needsQualify) {
+            dataset = rawBaseDataset.map(row => {
+                const qualified = { ...row };
+                for (const key of Object.keys(row)) {
+                    if (key.startsWith('_')) continue;
+                    qualified[`${targetAlias}.${key}`] = row[key];
+                    if (targetTable !== targetAlias) {
+                        qualified[`${targetTable}.${key}`] = row[key];
+                    }
+                }
+                return qualified;
+            });
+        }
+    }
+
+    // Execute Hash Joins sequentially
+    for (const join of joins) {
+        const rightRows = getTableDataset(join.table, records, options);
+        const rightCols = (TABLE_SCHEMAS[join.table] || TABLE_SCHEMAS.trips).columns.map(c => c.name);
+        const rightPrefixAlias = `${join.alias}.`;
+        const rightPrefixTable = `${join.table}.`;
+
+        // Determine which side of ON refers to the right table
+        let leftKeyCol = join.leftCol;
+        let rightKeyCol = join.rightCol;
+        if (join.leftCol.startsWith(rightPrefixAlias) || join.leftCol.startsWith(rightPrefixTable)) {
+            leftKeyCol = join.rightCol;
+            rightKeyCol = join.leftCol;
+        }
+        const rightBareKey = rightKeyCol.includes('.') ? rightKeyCol.split('.').pop() : rightKeyCol;
+
+        // Build hash index on right table
+        const rightIndex = new Map();
+        for (const rRow of rightRows) {
+            const key = normalizeJoinKey(rRow[rightBareKey]);
+            if (key === null) continue;
+            let bucket = rightIndex.get(key);
+            if (!bucket) {
+                bucket = [];
+                rightIndex.set(key, bucket);
+            }
+            bucket.push(rRow);
+        }
+
+        const joinedRows = [];
+        for (const lRow of dataset) {
+            const lKey = normalizeJoinKey(lRow[leftKeyCol]);
+            const matches = lKey !== null ? rightIndex.get(lKey) : null;
+            if (matches && matches.length > 0) {
+                for (const rRow of matches) {
+                    const merged = { ...lRow };
+                    for (const k of Object.keys(rRow)) {
+                        if (k.startsWith('_')) continue;
+                        merged[`${join.alias}.${k}`] = rRow[k];
+                        if (join.table !== join.alias) {
+                            merged[`${join.table}.${k}`] = rRow[k];
+                        }
+                        if (!(k in merged)) {
+                            merged[k] = rRow[k];
+                        }
+                    }
+                    joinedRows.push(merged);
+                }
+            } else if (join.type === 'LEFT') {
+                const merged = { ...lRow };
+                for (const k of rightCols) {
+                    merged[`${join.alias}.${k}`] = null;
+                    if (join.table !== join.alias) {
+                        merged[`${join.table}.${k}`] = null;
+                    }
+                    if (!(k in merged)) {
+                        merged[k] = null;
+                    }
+                }
+                joinedRows.push(merged);
+            }
+        }
+        dataset = joinedRows;
     }
 
     // EXECUTION
-    // A. Filter
+    // A. Filter (WHERE)
     let filtered = dataset;
     if (wherePredicate) {
         filtered = dataset.filter(row => {
@@ -546,74 +1001,156 @@ export function executeTripQuery(sql, records = [], options = {}) {
         });
     }
 
-    // B. Sort
-    if (orderByList.length) {
-        filtered = filtered.slice().sort((a, b) => {
-            for (const { column, dir } of orderByList) {
-                const valA = a[column];
-                const valB = b[column];
-                if (valA === valB) continue;
-                if (valA === null || valA === undefined) return 1;
-                if (valB === null || valB === undefined) return -1;
-
-                let cmp = 0;
-                if (typeof valA === 'number' && typeof valB === 'number') {
-                    cmp = valA - valB;
-                } else {
-                    cmp = String(valA).localeCompare(String(valB));
-                }
-                return dir === 'DESC' ? -cmp : cmp;
-            }
-            return 0;
-        });
-    }
-
-    const SUPPORTED_AGGS = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX'];
-    const schemaDef = TABLE_SCHEMAS[targetTable] || TABLE_SCHEMAS.trips;
-    const availableCols = schemaDef.columns.map(c => c.name);
-    const isSelectAll = selectedFields.length === 0 || selectedFields.some(f => f.expr === '*');
-
-    if (!isSelectAll) {
-        for (const field of selectedFields) {
-            if (field.fn) {
-                if (!SUPPORTED_AGGS.includes(field.fn)) {
-                    throw new Error(`Unsupported aggregate function '${field.fn}'`);
-                }
-                if (field.arg !== '*' && !availableCols.includes(field.arg)) {
-                    throw new Error(`Unknown column '${field.arg}' in table '${targetTable}'`);
-                }
-            } else if (!availableCols.includes(field.arg)) {
-                throw new Error(`Unknown column '${field.arg}' in table '${targetTable}'`);
-            }
-        }
-    }
-
     const hasAnyAgg = !isSelectAll && selectedFields.some(f => Boolean(f.fn));
     const allAggs = !isSelectAll && selectedFields.length > 0 && selectedFields.every(f => Boolean(f.fn));
 
+    // B. GROUP BY execution
+    if (groupByCols.length > 0) {
+        const groups = new Map();
+        for (const row of filtered) {
+            const keyParts = groupByCols.map(c => {
+                const v = row[c];
+                return v === null || v === undefined ? '\0NULL' : String(v);
+            });
+            const gKey = keyParts.join('\x1f');
+            let bucket = groups.get(gKey);
+            if (!bucket) {
+                bucket = [];
+                groups.set(gKey, bucket);
+            }
+            bucket.push(row);
+        }
+
+        const activeFields = isSelectAll
+            ? groupByCols.map(c => ({ expr: c, fn: null, arg: c, alias: c, distinct: false }))
+            : selectedFields;
+
+        const activeColumns = activeFields.map(f => f.alias);
+
+        // Extract any aggregate expressions referenced in HAVING or ORDER BY that might not be in SELECT
+        const extraAggs = new Map();
+        const collectExtraAgg = (exprStr) => {
+            const m = String(exprStr || '').match(/^(count|sum|avg|min|max)\((distinct\s+)?([^)]+)\)$/i);
+            if (!m) return;
+            const fn = m[1].toUpperCase();
+            const distinct = Boolean(m[2]);
+            const arg = m[3].trim().toLowerCase();
+            const normKey = distinct ? `${fn.toLowerCase()}(distinct ${arg})` : `${fn.toLowerCase()}(${arg})`;
+            extraAggs.set(normKey, { fn, arg, distinct });
+        };
+        if (havingTokens) {
+            for (let i = 0; i < havingTokens.length; i++) {
+                const t = havingTokens[i];
+                if (t.type === 'WORD' && SUPPORTED_AGGS.includes(t.value.toUpperCase()) && havingTokens[i + 1]?.value === '(') {
+                    let j = i + 2;
+                    let distinct = false;
+                    if (havingTokens[j]?.type === 'WORD' && havingTokens[j].value.toUpperCase() === 'DISTINCT') {
+                        distinct = true;
+                        j++;
+                    }
+                    let arg = '';
+                    while (j < havingTokens.length && havingTokens[j].value !== ')') {
+                        arg += havingTokens[j].value;
+                        j++;
+                    }
+                    collectExtraAgg(`${t.value}(${distinct ? 'distinct ' : ''}${arg})`);
+                }
+            }
+        }
+        for (const o of orderByList) {
+            collectExtraAgg(o.column);
+        }
+
+        const groupedRows = [];
+        let rowIdx = 0;
+        for (const groupRows of groups.values()) {
+            const sample = groupRows[0];
+            /** @type {Record<string, any>} */
+            const outRow = { id: rowIdx++ };
+            /** @type {Record<string, any>} */
+            const evalRow = {};
+
+            // Populate group-by keys into evalRow so HAVING/ORDER BY can reference them even if aliased
+            for (const gCol of groupByCols) {
+                evalRow[gCol] = sample[gCol];
+            }
+
+            for (const field of activeFields) {
+                const val = field.fn
+                    ? computeAggregate(field.fn, field.arg, groupRows, field.distinct)
+                    : sample[field.arg];
+                outRow[field.alias] = val;
+                evalRow[field.alias] = val;
+                evalRow[field.alias.toLowerCase()] = val;
+                evalRow[field.expr.toLowerCase()] = val;
+            }
+
+            for (const [normKey, spec] of extraAggs.entries()) {
+                if (!(normKey in evalRow)) {
+                    evalRow[normKey] = computeAggregate(spec.fn, spec.arg, groupRows, spec.distinct);
+                }
+            }
+
+            if (!havingPredicate || havingPredicate(evalRow)) {
+                groupedRows.push({ outRow, evalRow });
+            }
+        }
+
+        // Sort grouped rows using evalRow (supports alias, column, or aggregate expr)
+        if (orderByList.length) {
+            groupedRows.sort((a, b) => {
+                for (const { column, dir } of orderByList) {
+                    const valA = a.evalRow[column];
+                    const valB = b.evalRow[column];
+                    if (valA === valB) continue;
+                    if (valA === null || valA === undefined) return 1;
+                    if (valB === null || valB === undefined) return -1;
+                    const cmp = (typeof valA === 'number' && typeof valB === 'number')
+                        ? valA - valB
+                        : String(valA).localeCompare(String(valB));
+                    return dir === 'DESC' ? -cmp : cmp;
+                }
+                return 0;
+            });
+        }
+
+        let finalRows = groupedRows.map(g => g.outRow);
+        if (isDistinct) {
+            const seenKeys = new Set();
+            finalRows = finalRows.filter(row => {
+                const key = JSON.stringify(activeColumns.map(col => row[col] ?? null));
+                if (seenKeys.has(key)) return false;
+                seenKeys.add(key);
+                return true;
+            });
+        }
+
+        const totalMatching = finalRows.length;
+        if (offset > 0 || limit !== null) {
+            const start = offset;
+            const end = limit !== null ? start + limit : finalRows.length;
+            finalRows = finalRows.slice(start, end);
+        }
+
+        return {
+            table: targetTable,
+            columns: activeColumns,
+            rows: finalRows,
+            totalRows: totalMatching,
+            rawTrips: [],
+            executionTimeMs: Math.round((performance.now() - startTime) * 100) / 100,
+            isSelectAll: false,
+            isAggregate: true
+        };
+    }
+
+    // C. Whole-table aggregate query (no GROUP BY)
     if (allAggs) {
         const aggRow = { id: 0 };
         const activeColumns = [];
         for (const field of selectedFields) {
             activeColumns.push(field.alias);
-            let value = null;
-            if (field.fn === 'COUNT') {
-                value = field.arg === '*'
-                    ? filtered.length
-                    : filtered.filter(r => r[field.arg] !== null && r[field.arg] !== undefined && r[field.arg] !== '').length;
-            } else {
-                const nums = filtered
-                    .map(r => r[field.arg])
-                    .filter(v => v !== null && v !== undefined && v !== '' && !isNaN(Number(v)))
-                    .map(Number);
-                if (nums.length > 0) {
-                    if (field.fn === 'SUM') value = Math.round(nums.reduce((a, b) => a + b, 0) * 100) / 100;
-                    else if (field.fn === 'AVG') value = Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 100) / 100;
-                    else if (field.fn === 'MIN') value = Math.min(...nums);
-                    else if (field.fn === 'MAX') value = Math.max(...nums);
-                }
-            }
-            aggRow[field.alias] = value;
+            aggRow[field.alias] = computeAggregate(field.fn, field.arg, filtered, field.distinct);
         }
         return {
             table: targetTable,
@@ -631,7 +1168,24 @@ export function executeTripQuery(sql, records = [], options = {}) {
         throw new Error('Cannot mix aggregate functions and raw columns without GROUP BY');
     }
 
-    const activeColumns = isSelectAll ? availableCols : selectedFields.map(f => f.alias);
+    // D. Standard row projection + sorting
+    // Map alias -> source column so ORDER BY can reference either raw column or SELECT alias
+    const aliasToSource = new Map();
+    for (const f of selectedFields) {
+        if (!f.fn && f.alias && f.arg) {
+            aliasToSource.set(f.alias.toLowerCase(), f.arg);
+        }
+    }
+    const resolvedOrderBy = orderByList.map(o => ({
+        column: aliasToSource.get(o.column) || o.column,
+        dir: o.dir
+    }));
+
+    if (resolvedOrderBy.length) {
+        filtered = sortResultRows(filtered, resolvedOrderBy);
+    }
+
+    const activeColumns = isSelectAll ? allSelectStarCols : selectedFields.map(f => f.alias);
 
     const projectRow = (row) => {
         if (isSelectAll) return { ...row };
@@ -657,7 +1211,7 @@ export function executeTripQuery(sql, records = [], options = {}) {
 
     const totalMatching = projectedAll.length;
 
-    // C. Paginate (Limit/Offset)
+    // E. Paginate (Limit/Offset)
     let paged = projectedAll;
     if (offset > 0 || limit !== null) {
         const start = offset;
@@ -730,10 +1284,31 @@ function compileWherePredicate(tokens) {
             return row => !inner(row);
         }
 
-        // Column comparison rule: [col] [op] [val]
+        // Column or aggregate comparison rule: [col | alias.col | AGG(col)] [op] [val]
         const colTok = tokens[c++];
         if (!colTok) return () => true;
-        const colName = String(colTok.value || '').toLowerCase();
+        let colName = String(colTok.value || '').toLowerCase();
+        if (c < len && tokens[c].type === 'DOT') {
+            c++; // skip '.'
+            if (c < len) {
+                colName = `${colName}.${String(tokens[c++].value || '').toLowerCase()}`;
+            }
+        } else if (c < len && tokens[c].type === 'PUNCT' && tokens[c].value === '(') {
+            c++; // skip '('
+            let aggDistinct = false;
+            if (c < len && tokens[c].type === 'WORD' && tokens[c].value.toUpperCase() === 'DISTINCT') {
+                aggDistinct = true;
+                c++;
+            }
+            let arg = '';
+            while (c < len && !(tokens[c].type === 'PUNCT' && tokens[c].value === ')')) {
+                arg += String(tokens[c++].value || '').toLowerCase();
+            }
+            if (c < len && tokens[c].type === 'PUNCT' && tokens[c].value === ')') {
+                c++; // skip ')'
+            }
+            colName = aggDistinct ? `${colName}(distinct ${arg})` : `${colName}(${arg})`;
+        }
 
         if (c >= len) return () => true;
         let opTok = tokens[c++];

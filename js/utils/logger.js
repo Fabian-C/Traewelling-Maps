@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Application Logger
  *
@@ -13,6 +14,7 @@ export const LOG_LEVELS = Object.freeze({
     SILENT: 4
 });
 
+/** @type {number} */
 let currentLevel = LOG_LEVELS.INFO;
 
 // Check for debug query param or stored preference if in browser environment

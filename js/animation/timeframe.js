@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Timeframe Presets & Date Filtering for Journey Animations
  */
@@ -168,18 +169,28 @@ export function filterTripsByTimeframe(
 
 /**
  * Format a human-readable label for the active timeframe.
+ * @param {string} [timeframe='all']
+ * @param {string | { from?: string, to?: string, fromTime?: string, startTime?: string, toTime?: string, endTime?: string }} [customFrom='']
+ * @param {string} [customTo='']
+ * @param {string} [customFromTime='']
+ * @param {string} [customToTime='']
+ * @returns {string}
  */
 export function getTimeframeLabel(timeframe = 'all', customFrom = '', customTo = '', customFromTime = '', customToTime = '') {
+    let fromVal = typeof customFrom === 'string' ? customFrom : '';
+    let toVal = customTo;
+    let fromTimeVal = customFromTime;
+    let toTimeVal = customToTime;
+
     if (typeof customFrom === 'object' && customFrom !== null) {
-        const opts = customFrom;
-        customFrom = opts.from || '';
-        customTo = opts.to || '';
-        customFromTime = opts.fromTime || opts.startTime || '';
-        customToTime = opts.toTime || opts.endTime || '';
+        fromVal = customFrom.from || '';
+        toVal = customFrom.to || '';
+        fromTimeVal = customFrom.fromTime || customFrom.startTime || '';
+        toTimeVal = customFrom.toTime || customFrom.endTime || '';
     }
     if (timeframe === 'custom') {
-        const fromStr = customFrom ? `${customFrom}${customFromTime ? ` ${customFromTime}` : ''}` : '';
-        const toStr = customTo ? `${customTo}${customToTime ? ` ${customToTime}` : ''}` : '';
+        const fromStr = fromVal ? `${fromVal}${fromTimeVal ? ` ${fromTimeVal}` : ''}` : '';
+        const toStr = toVal ? `${toVal}${toTimeVal ? ` ${toTimeVal}` : ''}` : '';
         if (fromStr && toStr) return `${fromStr} → ${toStr}`;
         if (fromStr) return `Since ${fromStr}`;
         if (toStr) return `Until ${toStr}`;

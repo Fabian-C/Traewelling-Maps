@@ -17,8 +17,8 @@ npm test           # Vitest unit tests (tests/unit)
 | Path | Purpose |
 |---|---|
 | `index.html` + `js/app.js` | Map (core product) |
-| `trips.html` + `js/trips/` | Trip database & SQL studio |
-| `animation.html` + `js/anim-v2/` | Route animation & video export |
+| `trips.html` + `js/trips/` | Trip database, detail modal, sorting & SQL studio (`GROUP BY`/`JOIN`) |
+| `animation.html` + `js/animation/` | Route animation studio (`1:1`/`9:16`/`16:9`, 3D sprites) & video export |
 | `wrapped.html` + `js/wrapped/` | Rail Wrapped |
 | `privacy.html` + `js/privacy/` | Visibility & privacy manager |
 | `docs.html` + `js/docs.js` | Documentation |

@@ -38,17 +38,9 @@ async function init() {
 
     let sessions = [];
     try {
-        sessions = await SessionDB.getAll();
+        sessions = await SessionDB.getSessionSummaries();
     } catch {
         sessions = [];
-    }
-
-    if (!currentToken && sessions.length > 0) {
-        const sessionWithToken = sessions.find(s => s.token);
-        if (sessionWithToken) {
-            currentToken = sessionWithToken.token;
-            currentUser = sessionWithToken.username || '';
-        }
     }
 
     if (!currentUser && requestedUser) {
@@ -112,13 +104,16 @@ function showBanner(message, isError = false) {
 
 async function loadFromLocalCache(usernameHint = '', silentIfEmpty = false) {
     try {
-        const sessions = await SessionDB.getAll();
         let targetSession = null;
         if (usernameHint) {
-            targetSession = sessions.find(s => (s.username || '').toLowerCase() === usernameHint.toLowerCase());
+            targetSession = await SessionDB.get(usernameHint.toLowerCase());
         }
-        if (!targetSession && sessions.length > 0) {
-            targetSession = sessions[0];
+        if (!targetSession || !Array.isArray(targetSession.trips) || targetSession.trips.length === 0) {
+            const summaries = await SessionDB.getSessionSummaries();
+            const fallbackUser = summaries[0]?.username;
+            if (fallbackUser) {
+                targetSession = await SessionDB.get(fallbackUser);
+            }
         }
 
         if (!targetSession || !Array.isArray(targetSession.trips) || targetSession.trips.length === 0) {
@@ -251,7 +246,6 @@ function applyFiltersAndSelectMatching() {
 }
 
 function applyFiltersKeepSelection() {
-    updateKpiSummary();
     privacyPage = 1;
     filteredTrips = filterTripsForPrivacy(allTrips, getCurrentFilterConfig());
     const validIds = new Set(filteredTrips.map(t => String(t.id)));
@@ -546,8 +540,12 @@ function setupEventListeners() {
         applyFiltersKeepSelection();
     });
 
+    let searchDebounceTimer = null;
     document.getElementById('filterSearchInput')?.addEventListener('input', () => {
-        applyFiltersKeepSelection();
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+            applyFiltersKeepSelection();
+        }, 120);
     });
 
     document.getElementById('selectAllBtn')?.addEventListener('click', () => {

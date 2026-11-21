@@ -1,10 +1,17 @@
+// @ts-check
 // Autocomplete & Smart Recommendations Engine for Database Studio SQL Console
 import { TRIP_COLUMNS, TABLE_SCHEMAS } from './sqlEngine.js';
 
 export const SQL_KEYWORDS = [
     { label: 'SELECT', insertText: 'SELECT ', type: 'keyword', detail: 'Select columns or expressions' },
     { label: 'FROM', insertText: 'FROM trips ', type: 'keyword', detail: 'Specify source table' },
+    { label: 'JOIN', insertText: 'JOIN ', type: 'keyword', detail: 'Inner join another table on matching keys' },
+    { label: 'INNER JOIN', insertText: 'INNER JOIN ', type: 'keyword', detail: 'Keep only rows matching both tables' },
+    { label: 'LEFT JOIN', insertText: 'LEFT JOIN ', type: 'keyword', detail: 'Keep all left rows + matching right rows' },
+    { label: 'ON', insertText: 'ON ', type: 'keyword', detail: 'Specify JOIN equality condition' },
     { label: 'WHERE', insertText: 'WHERE ', type: 'keyword', detail: 'Filter rows with conditions' },
+    { label: 'GROUP BY', insertText: 'GROUP BY ', type: 'keyword', detail: 'Group rows for aggregate functions' },
+    { label: 'HAVING', insertText: 'HAVING ', type: 'keyword', detail: 'Filter grouped aggregate results' },
     { label: 'ORDER BY', insertText: 'ORDER BY ', type: 'keyword', detail: 'Sort result rows' },
     { label: 'LIMIT', insertText: 'LIMIT ', type: 'keyword', detail: 'Limit row count' },
     { label: 'AND', insertText: 'AND ', type: 'keyword', detail: 'Logical AND condition' },
@@ -199,10 +206,24 @@ export function getSQLCompletions(sql = '', cursorPos = 0) {
 
     let candidateList = [];
 
-    // Context 1: Just after FROM
-    if (precedingUpper.endsWith('FROM')) {
+    // Context 1: Just after FROM or JOIN
+    if (precedingUpper.endsWith('FROM') || precedingUpper.endsWith('JOIN')) {
         candidateList = [
             ...SQL_TABLES,
+            ...columnSuggestions
+        ];
+    }
+    // Context 1b: After GROUP BY
+    else if (precedingUpper.endsWith('GROUP BY')) {
+        candidateList = [
+            ...columnSuggestions,
+            ...SQL_KEYWORDS.filter(k => ['HAVING', 'ORDER BY', 'LIMIT'].includes(k.label))
+        ];
+    }
+    // Context 1c: After HAVING
+    else if (precedingUpper.endsWith('HAVING')) {
+        candidateList = [
+            ...SQL_KEYWORDS.filter(k => ['COUNT(*)', 'SUM()', 'AVG()', 'MAX()', 'MIN()'].includes(k.label)),
             ...columnSuggestions
         ];
     }

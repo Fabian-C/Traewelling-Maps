@@ -8,7 +8,7 @@ import { getDelayOverlayFeatureAtLngLat, buildFeatureFromDelayOverlay } from './
 import { setupEventListeners } from '../events/listeners.js';
 import { updateRouteDensity } from './heatmap.js';
 import { escapeHtml } from '../utils/format.js';
-import { getTripSearchMatchReason } from '../data/processing.js';
+import { getTripSearchMatchReason, computePolylineMeta, getTripByStatusId } from '../data/processing.js';
 import {
     extractTripDetails,
     formatTimeShort,
@@ -27,6 +27,8 @@ export function initMap() {
         mapboxgl.accessToken = CONFIG.MAPBOX_TOKEN;
     }
     const isMobile = window.innerWidth <= 768;
+    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location?.search || '') : null;
+    const preserveDrawingBuffer = urlParams?.get('preserveBuffer') === '1' || urlParams?.get('screenshot') === '1';
     state.map = new mapboxgl.Map({
         container: 'map', style: mapStyle,
         center: [10.4515, 51.1657], zoom: isMobile ? 5 : 6, pitch: isMobile ? 0 : 15,
@@ -36,8 +38,8 @@ export function initMap() {
         touchPitch: false,
         dragRotate: !isMobile,
         maxZoom: 20,
-        // Ensure proper rendering and canvas screenshots on all devices
-        preserveDrawingBuffer: true
+        // Avoid full framebuffer readback copies on every frame unless explicitly requested
+        preserveDrawingBuffer
     });
 
     try {
@@ -114,16 +116,38 @@ export function fitMapToData(force = false) {
     if (!state.map) return;
     const bounds = new mapboxgl.LngLatBounds();
     let hasPoints = false;
+    let minLng = Infinity;
+    let minLat = Infinity;
+    let maxLng = -Infinity;
+    let maxLat = -Infinity;
+
     state.layers.data.forEach(layer => {
         if (!layer.visible || !layer.data?.features) return;
-        layer.data.features.forEach(f => {
-            if (f.geometry?.coordinates) {
+        const features = layer.data.features;
+        for (let i = 0; i < features.length; i++) {
+            const f = features[i];
+            const bbox = f?._bbox || (f?.geometry?.type === 'LineString' && Array.isArray(f.geometry.coordinates)
+                ? computePolylineMeta(f.geometry.coordinates)?.bbox
+                : null);
+            if (bbox) {
+                if (bbox[0] < minLng) minLng = bbox[0];
+                if (bbox[1] < minLat) minLat = bbox[1];
+                if (bbox[2] > maxLng) maxLng = bbox[2];
+                if (bbox[3] > maxLat) maxLat = bbox[3];
+                hasPoints = true;
+            } else if (f?.geometry?.coordinates) {
                 if (extendBoundsRecursively(f.geometry.coordinates, bounds)) {
                     hasPoints = true;
                 }
             }
-        });
+        }
     });
+
+    if (Number.isFinite(minLng) && Number.isFinite(minLat) && Number.isFinite(maxLng) && Number.isFinite(maxLat)) {
+        bounds.extend([minLng, minLat]);
+        bounds.extend([maxLng, maxLat]);
+    }
+
     if (hasPoints && !bounds.isEmpty()) {
         try {
             state.map.fitBounds(bounds, { padding: 50, maxZoom: 14 });
@@ -397,16 +421,16 @@ export function setupMapInteractions() {
         const lineFeatures = combined.filter(f => f.layer?.type === 'line');
         const features = lineFeatures.length ? lineFeatures : combined;
 
-        // Deduplicate distinct check-ins intersecting the tap area
-        const seenStatusIds = new Set();
+        // Deduplicate distinct geometries intersecting the tap area (one candidate per deduplicated corridor)
+        const seenKeys = new Set();
         const candidateFeatures = [];
         for (const feat of features) {
-            const rawSid = feat.properties?.statusId ?? feat.id;
-            const sidKey = rawSid !== undefined && rawSid !== null ? String(rawSid) : null;
-            if (sidKey && !seenStatusIds.has(sidKey)) {
-                seenStatusIds.add(sidKey);
+            const rawKey = feat.properties?.geomKey || (feat.properties?.statusId ?? feat.id);
+            const dedupeKey = rawKey !== undefined && rawKey !== null ? String(rawKey) : null;
+            if (dedupeKey && !seenKeys.has(dedupeKey)) {
+                seenKeys.add(dedupeKey);
                 candidateFeatures.push(feat);
-            } else if (!sidKey) {
+            } else if (!dedupeKey) {
                 candidateFeatures.push(feat);
             }
         }
@@ -415,20 +439,23 @@ export function setupMapInteractions() {
         const initialFeature = pickClosestFeature(candidateFeatures, e.lngLat, e.point) || candidateFeatures[0];
         const snapped = snapLngLatToLine(e.lngLat, initialFeature);
         const anchor = snapped || e.lngLat;
+        const initialGeomKey = initialFeature?.properties?.geomKey;
         const initialId = String(initialFeature?.properties?.statusId ?? initialFeature?.id ?? '');
 
         // Stacking corridor: match rides along the actual transit line based on geographic proximity
         // to this transit line anchor (within sensible proximity: 80 meters)
         const MAX_LINE_STACK_DISTANCE_KM = 0.080; // 80 meters actual proximity along line
         const layerOrder = Array.isArray(state?.layers?.order) ? state.layers.order : [];
-        const tightStack = [initialFeature];
-        const seenStackIds = new Set();
-        if (initialId) seenStackIds.add(initialId);
+        const seenMatchedKeys = new Set();
+        if (initialGeomKey) seenMatchedKeys.add(String(initialGeomKey));
+        else if (initialId) seenMatchedKeys.add(initialId);
 
         const otherCandidates = [];
         for (const feat of candidateFeatures) {
-            const sid = String(feat.properties?.statusId ?? feat.id ?? '');
-            if (sid && seenStackIds.has(sid)) continue;
+            const matchKey = feat.properties?.geomKey
+                ? String(feat.properties.geomKey)
+                : String(feat.properties?.statusId ?? feat.id ?? '');
+            if (matchKey && seenMatchedKeys.has(matchKey)) continue;
 
             const distKm = measureFeatureDistance(feat, anchor, null);
             if (distKm <= MAX_LINE_STACK_DISTANCE_KM) {
@@ -436,7 +463,7 @@ export function setupMapInteractions() {
                 const layerId = rawLayerId.replace('-approximated', '');
                 const rankIndex = layerOrder.indexOf(layerId);
                 const rank = rankIndex !== -1 ? rankIndex : 999;
-                otherCandidates.push({ feat, distKm, rank, sid });
+                otherCandidates.push({ feat, distKm, rank, matchKey });
             }
         }
 
@@ -446,13 +473,46 @@ export function setupMapInteractions() {
             return a.distKm - b.distKm;
         });
 
-        for (const item of otherCandidates) {
-            if (item.sid) seenStackIds.add(item.sid);
-            tightStack.push(item.feat);
+        // Expand deduplicated geometry groups into full per-trip stack entries on click
+        const expandedStack = [];
+        const seenExpandedIds = new Set();
+        const matchedGeoms = [initialFeature, ...otherCandidates.map(item => item.feat)];
+        for (const feat of matchedGeoms) {
+            const gKey = feat?.properties?.geomKey;
+            const memberIds = (gKey && state.geometryGroups instanceof Map) ? state.geometryGroups.get(gKey) : null;
+            if (Array.isArray(memberIds) && memberIds.length > 0) {
+                for (const sid of memberIds) {
+                    const sidStr = String(sid);
+                    if (seenExpandedIds.has(sidStr)) continue;
+                    seenExpandedIds.add(sidStr);
+                    expandedStack.push({
+                        type: 'Feature',
+                        id: sid,
+                        geometry: feat.geometry,
+                        layer: feat.layer,
+                        properties: {
+                            statusId: sid,
+                            geomKey: gKey,
+                            category: feat.properties?.category,
+                            isApproximated: Boolean(feat.properties?.isApproximated)
+                        }
+                    });
+                }
+            } else {
+                const sid = feat?.properties?.statusId ?? feat?.id;
+                const sidStr = sid !== undefined && sid !== null ? String(sid) : '';
+                if (sidStr) {
+                    if (seenExpandedIds.has(sidStr)) continue;
+                    seenExpandedIds.add(sidStr);
+                }
+                expandedStack.push(feat);
+            }
         }
 
-        const featureStack = tightStack.length > 1 ? tightStack : null;
-        showPopup(anchor, initialFeature, { stack: featureStack, stackIndex: 0 });
+        const firstFeature = resolveFeatureForPopup(expandedStack[0] || initialFeature, state);
+        const finalAnchor = snapLngLatToLine(e.lngLat, firstFeature) || anchor;
+        const featureStack = expandedStack.length > 1 ? expandedStack : null;
+        showPopup(finalAnchor, firstFeature, { stack: featureStack, stackIndex: 0 });
     };
 
     state.map.on('click', handleMapTap);
@@ -463,13 +523,69 @@ export function setupMapInteractions() {
     });
 }
 
+/**
+ * Hydrate a slim Mapbox GeoJSON feature (or stack stub) into a full trip-backed feature
+ * using O(1) lookup via `state.tripsById`. Falls back to the original feature if no matching
+ * trip exists in state (e.g., standalone mock features in tests or delay overlays).
+ */
+export function resolveFeatureForPopup(feature, state = store.get()) {
+    if (!feature) return feature;
+    const props = feature.properties || {};
+    const statusId = props.statusId ?? feature.id;
+    const trip = getTripByStatusId(state, statusId);
+    if (!trip) {
+        return feature;
+    }
+
+    const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
+    const idx = trip._index;
+    const isApproximated = Boolean(
+        props.isApproximated ||
+        idx?.isApproximated ||
+        train.polyline?.properties?.isApproximated ||
+        feature.layer?.id?.endsWith('-approximated')
+    );
+
+    return {
+        type: 'Feature',
+        id: trip.id,
+        geometry: train.polyline?.geometry || feature.geometry,
+        layer: feature.layer,
+        properties: {
+            ...props,
+            statusId: trip.id,
+            uuid: trip.uuid || props.uuid || null,
+            createdAt: trip.createdAt || props.createdAt || null,
+            train,
+            checkin: train,
+            isApproximated,
+            body: typeof trip.body === 'string' ? trip.body : (props.body || ''),
+            bodyMentions: Array.isArray(trip.bodyMentions) ? trip.bodyMentions : (props.bodyMentions || []),
+            createdBy: trip.createdBy || props.createdBy || null,
+            buddies: trip.buddies || trip.properties?.buddies || props.buddies || null,
+            companions: trip.companions || trip.properties?.companions || props.companions || null,
+            fellowPassengers: trip.fellowPassengers || trip.properties?.fellowPassengers || props.fellowPassengers || null,
+            co_passengers: trip.co_passengers || trip.properties?.co_passengers || props.co_passengers || null,
+            ticket: idx?.ticket || trip.ticket || trip.properties?.ticket || train.ticket || props.ticket || null,
+            tags: idx?.tags || trip.tags || trip.properties?.tags || train.tags || trip.customTags || trip.labels || props.tags || null,
+            wagon: idx?.wagon || train.seat?.wagon || train.wagon || train.coach || trip.wagon || trip.properties?.wagon || props.wagon || null,
+            seat: idx?.seat || train.seat?.number || (typeof train.seat === 'string' ? train.seat : null) || trip.seat?.number || (typeof trip.seat === 'string' ? trip.seat : null) || trip.properties?.seat || props.seat || null,
+            travelClass: idx?.travelClass || train.class || train.travelClass || trip.class || props.travelClass || null,
+            vehicleNumber: idx?.vehicleNumber || props.vehicleNumber || null,
+            locomotiveClass: idx?.locomotiveClass || props.locomotiveClass || null,
+            wagonClass: idx?.wagonClass || props.wagonClass || null
+        }
+    };
+}
+
 export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}) {
     const state = store.get();
     if (state.currentPopup) state.currentPopup.remove();
     clearRouteHighlight();
 
-    const activeStatusId = feature?.properties?.statusId || 'unknown';
-    highlightRoute(feature, activeStatusId);
+    const hydratedFeature = resolveFeatureForPopup(feature, state);
+    const activeStatusId = hydratedFeature?.properties?.statusId || 'unknown';
+    highlightRoute(hydratedFeature, activeStatusId);
 
     const isStacked = Boolean(stack && stack.length > 1);
 
@@ -563,9 +679,7 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
             const props = targetFeature?.properties || {};
             let train = props.train || props.checkin;
             if (typeof train === 'string') try { train = JSON.parse(train); } catch (e) { train = {}; }
-            const fullTrip = (statusId && Array.isArray(state.fetchedTrips))
-                ? state.fetchedTrips.find(t => String(t.id) === String(statusId))
-                : null;
+            const fullTrip = getTripByStatusId(state, statusId);
             const tripToEvaluate = fullTrip || { properties: props, train, body: props.body, ticket: props.ticket };
             const matchReasons = getTripSearchMatchReason(tripToEvaluate, activeSearchQuery);
             if (matchReasons.length > 0) {
@@ -669,7 +783,7 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
         </div>`;
     };
 
-    const html = buildFeaturePopupHtml(feature, stackIndex);
+    const html = buildFeaturePopupHtml(hydratedFeature, stackIndex);
 
     // Dynamic popup positioning: Allow both stacked and unstacked popups to open dynamically
     // above, below, or to either side based on available map viewport space.
@@ -698,7 +812,7 @@ export function showPopup(lngLat, feature, { stack = null, stackIndex = 0 } = {}
 
             const goToStackedIndex = (newIdx) => {
                 const targetIdx = (newIdx + stack.length) % stack.length;
-                const targetFeature = stack[targetIdx];
+                const targetFeature = resolveFeatureForPopup(stack[targetIdx], state);
                 // Keep route highlight preserved across cycling transitions without canvas flickers
                 state.preserveHighlightOnPopupClose = true;
                 // Dynamically snap anchor to the active ride's line geometry
@@ -821,7 +935,7 @@ export function highlightRoute(feature, statusId) {
     let coordinates = null;
     
     if (statusId && statusId !== 'unknown') {
-        const trip = state.fetchedTrips?.find(t => t.id === parseInt(statusId) || t.id === statusId);
+        const trip = getTripByStatusId(state, statusId);
         const train = trip?.train || trip?.checkin;
         if (train?.polyline?.geometry?.coordinates) {
             coordinates = train.polyline.geometry.coordinates;
@@ -838,60 +952,67 @@ export function highlightRoute(feature, statusId) {
         type: 'Feature',
         geometry: { type: 'LineString', coordinates }
     };
-    
-    if (state.map.getLayer('route-highlight')) {
-        state.map.removeLayer('route-highlight');
-    }
-    if (state.map.getLayer('route-highlight-glow')) {
-        state.map.removeLayer('route-highlight-glow');
-    }
-    if (state.map.getSource('route-highlight')) {
-        state.map.removeSource('route-highlight');
-    }
-    
-    state.map.addSource('route-highlight', { type: 'geojson', data: highlightData });
-    
-    const layers = state.map.getStyle?.()?.layers || [];
-    let topLayer = null;
-    for (let i = layers.length - 1; i >= 0; i--) {
-        if (layers[i].type === 'line' && layers[i].id !== 'route-highlight' && layers[i].id !== 'route-highlight-glow') {
-            topLayer = layers[i].id;
-            break;
-        }
-    }
-    
-    if (!topLayer) {
-        topLayer = layers.length > 0 ? layers[layers.length - 1].id : null;
-    }
-    
-    const isApproximated = Boolean(feature?.properties?.isApproximated || feature?.layer?.id?.endsWith('-approximated'));
 
-    state.map.addLayer({
-        id: 'route-highlight-glow',
-        type: 'line',
-        source: 'route-highlight',
-        layout: { 'line-join': 'round', 'line-cap': isApproximated ? 'butt' : 'round' },
-        paint: {
-            'line-color': '#ffffff',
-            'line-width': 12,
-            'line-opacity': 0.4,
-            'line-blur': 3,
-            ...(isApproximated ? { 'line-dasharray': [2, 2] } : {})
+    const isApproximated = Boolean(feature?.properties?.isApproximated || feature?.layer?.id?.endsWith('-approximated'));
+    const existingSource = state.map.getSource('route-highlight');
+    const hasHighlightLayers = Boolean(state.map.getLayer('route-highlight') && state.map.getLayer('route-highlight-glow'));
+
+    if (existingSource && typeof existingSource.setData === 'function' && hasHighlightLayers && state._highlightIsApproximated === isApproximated) {
+        existingSource.setData(highlightData);
+    } else {
+        if (state.map.getLayer('route-highlight')) {
+            state.map.removeLayer('route-highlight');
         }
-    }, topLayer);
-    
-    state.map.addLayer({
-        id: 'route-highlight',
-        type: 'line',
-        source: 'route-highlight',
-        layout: { 'line-join': 'round', 'line-cap': isApproximated ? 'butt' : 'round' },
-        paint: {
-            'line-color': '#ffff00',
-            'line-width': 5,
-            'line-opacity': 1,
-            ...(isApproximated ? { 'line-dasharray': [2, 2] } : {})
+        if (state.map.getLayer('route-highlight-glow')) {
+            state.map.removeLayer('route-highlight-glow');
         }
-    });
+        if (existingSource) {
+            state.map.removeSource('route-highlight');
+        }
+
+        state.map.addSource('route-highlight', { type: 'geojson', data: highlightData });
+
+        const layers = state.map.getStyle?.()?.layers || [];
+        let topLayer = null;
+        for (let i = layers.length - 1; i >= 0; i--) {
+            if (layers[i].type === 'line' && layers[i].id !== 'route-highlight' && layers[i].id !== 'route-highlight-glow') {
+                topLayer = layers[i].id;
+                break;
+            }
+        }
+
+        if (!topLayer) {
+            topLayer = layers.length > 0 ? layers[layers.length - 1].id : null;
+        }
+
+        state.map.addLayer({
+            id: 'route-highlight-glow',
+            type: 'line',
+            source: 'route-highlight',
+            layout: { 'line-join': 'round', 'line-cap': isApproximated ? 'butt' : 'round' },
+            paint: {
+                'line-color': '#ffffff',
+                'line-width': 12,
+                'line-opacity': 0.4,
+                'line-blur': 3,
+                ...(isApproximated ? { 'line-dasharray': [2, 2] } : {})
+            }
+        }, topLayer);
+
+        state.map.addLayer({
+            id: 'route-highlight',
+            type: 'line',
+            source: 'route-highlight',
+            layout: { 'line-join': 'round', 'line-cap': isApproximated ? 'butt' : 'round' },
+            paint: {
+                'line-color': '#ffff00',
+                'line-width': 5,
+                'line-opacity': 1,
+                ...(isApproximated ? { 'line-dasharray': [2, 2] } : {})
+            }
+        });
+        state._highlightIsApproximated = isApproximated;
+    }
 
     if (state.useDeckGL && state.deck && window.deck?.GeoJsonLayer) {
         const deckHighlight = new deck.GeoJsonLayer({
@@ -917,6 +1038,7 @@ export function highlightRoute(feature, statusId) {
 
 export function clearRouteHighlight() {
     const state = store.get();
+    state._highlightIsApproximated = null;
     if (state.currentPopup) {
         const popup = state.currentPopup;
         state.currentPopup = null;

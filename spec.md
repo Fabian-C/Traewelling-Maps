@@ -91,10 +91,9 @@ Root contains 7 HTML entry points, project configs, favicons, and CI metadata, p
 | `js/map/` | `interactions.js` (Mapbox + Deck init, popups, media viewer), `layers.js` (category layer order/toggles), `heatmap.js`, `delayOverlay.js`, `routeAnimation.js`, `tripCycler.js` (deep-link focus) |
 | `js/events/listeners.js` | DOM event bindings, debounced filter handlers, setup/menu controls, disabled share button stub |
 | `js/ui/` | `ui.js` (setup screen, cargo animation, banners, wake lock), `navigation.js` (`?user=` cross-link sync), `rateLimit.js`, `tripDetails.js`, `funFacts.js`, `loadingGame/` (`index.js`, `checkinRandomizer.js`) |
-| `js/trips/` | `app.js` (Trip Explorer + Studio controller), `sqlEngine.js` (in-memory SQL parser/evaluator & `QUERY_RECIPES`), `sqlAutocomplete.js`, `coPassengerScanner.js`, `formatters.js` (`hasJourneyOverlap`, `renderLinkedComment`), `mapPreview.js` (`SpatialMapPreview` canvas) |
+| `js/trips/` | `app.js` (Trip Explorer controller + cached filter index), `studioWorkbench.js` (`@ts-check` SQL Studio workbench + dataset memoization), `detailModal.js` (`@ts-check` modal inspector), `sorting.js` (`@ts-check` Schwartzian O(N) sorter), `sqlEngine.js` (in-memory SQL parser/evaluator with `GROUP BY`/`HAVING`/`JOIN` & `QUERY_RECIPES`), `sqlAutocomplete.js`, `coPassengerScanner.js`, `formatters.js` (`hasJourneyOverlap`, `renderLinkedComment`), `mapPreview.js` (`SpatialMapPreview` canvas) |
 | `js/wrapped/` | `app.js` (Rail Wrapped controller & Duel Mode), `analytics.js` (`calculateWrappedInsights`, `sanitizeTripDistanceKm`, `compareUsers`), `socialCard.js` (1080×1350 PNG generator) |
-| `js/anim-v2/` | `app.js` (Trip Clip V2 controller), `precompute.js` (1,000-sample `Float32Array` trajectory/camera LUTs & analytical spring), `player.js`, `renderer.js`, `export.js` (`VideoClipExporterV2`) |
-| `js/animation/` | Shared animation primitives (`geometry.js`, `tiles.js`, `timeframe.js`, `vectorData.js`, `vectorRenderer.js`, `webmFixer.js`, `renderer.js` shared by `js/anim-v2/`) |
+| `js/animation/` | Unified Trip Clip Animation Studio (`app.js`, `schema.js` for `1:1`/`9:16`/`16:9` presets, `precompute.js`, `player.js`, `renderer.js`, `sprites.js` 3D isometric/2D vehicles, `hud.js`, `exporter.js`, `geometry.js`, `tiles.js`, `timeframe.js`, `vectorData.js`, `vectorRenderer.js`, `webmFixer.js`) |
 | `js/privacy/` | `app.js` (bulk check-in visibility UI & API updater) and `visibility.js` (`VISIBILITY_LEVELS` `0`–`5`, lock guard, filters) |
 | `js/docs.js` | User Guide smooth-scroll spy, copy-to-clipboard buttons, search filter, keyboard `/` & `Escape` handlers |
 | `js/utils/` | `color.js`, `data.js`, `format.js`, `geometry.js`, `logger.js`, `math.js`, `time.js` |
@@ -145,14 +144,14 @@ Root contains 7 HTML entry points, project configs, favicons, and CI metadata, p
   - `compareUsers()` compares metrics head-to-head against a second cached profile or fetched public user.
   - `generateWrappedCardCanvas()` renders a `1080×1350` (4:5) PNG card (`<dialog>` preview modal) with PNG download and `navigator.share` fallback.
 
-### Trip Clip V2 Animation Studio (`animation.html` + `js/anim-v2/`)
-- **Single-Trip & Timeframe Montage Modes (`js/animation/timeframe.js`)**:
-  - Animate one selected check-in or an entire filtered timeframe (`all`, `today`, `last-7-days`, `this-week`, `last-week`, `this-month`, `last-30-days`, `this-year`, `custom` date/time range).
+### Trip Clip Animation Studio (`animation.html` + `js/animation/`)
+- **Single-Trip & Timeframe Montage Modes (`js/animation/timeframe.js`, `js/animation/schema.js`)**:
+  - Animate one selected check-in or an entire filtered timeframe (`all`, `today`, `last-7-days`, `this-week`, `last-week`, `this-month`, `last-30-days`, `this-year`, `custom` date/time range) in `1:1` (`960×960`), `9:16` (`720×1280`), or `16:9` (`1280×720`) aspect ratios.
   - External guest isolation: `?trip=` deep links can fetch and play/export a public check-in via `/status/{id}` & `/polyline/{id}` without polluting cached sessions.
-- **Playback & Styles (`js/anim-v2/player.js`, `js/animation/tiles.js`)**:
-  - 960×960 `@ 30fps` offscreen precomputed 1,000-sample `Float32Array` LUTs (`posLUT`, `angleLUT`, `camTargetLUT`) and analytical damped spring camera/badge animations (`computeSpring`).
+- **Playback, 3D Sprites & Styles (`js/animation/player.js`, `js/animation/sprites.js`, `js/animation/tiles.js`)**:
+  - `@ 30fps` offscreen precomputed 1,000-sample `Float32Array` LUTs (`posLUT`, `angleLUT`, `camTargetLUT`), analytical damped spring camera/badge animations (`computeSpring`), configurable `tileScale` (2x mobile-first labels), and 3D isometric / 2D vehicle sprites.
   - Supports 9 distinct map styles in `MAP_STYLES` (7 Mapbox/OSM/Cyclosm/ArcGIS raster styles with CORS fallbacks + `vector-dark` / `vector-light` via `vectorData.js`, plus a `vector` alias).
-- **Deterministic Offline Video Export (`js/anim-v2/export.js`)**:
+- **Deterministic Offline Video Export (`js/animation/exporter.js`)**:
   - Renders frame-by-frame to an offscreen canvas (`captureStream(0)` + `requestFrame()` at 10 Mbps), preferring `video/mp4;codecs=avc1` / `video/mp4` with automatic fallback to `video/webm` patched via `fixWebMBlob()` (`js/animation/webmFixer.js`) for seekable duration metadata.
 
 ### Check-in Privacy Manager (`privacy.html` + `js/privacy/`)
@@ -210,29 +209,26 @@ Base URL: `https://traewelling.de/api/v1` (`TraewellingAPI` enforces `55` reques
 - **Exposed Schemas (`TABLE_SCHEMAS`)**:
   - `trips` *(18 schema columns)*: `id`, `line`, `category`, `origin`, `destination`, `departure`, `arrival`, `year`, `delay_dep`, `delay_arr`, `distance_km`, `duration_min`, `operator`, `business`, `backend_trip_id`, `buddies`, `buddy_count`, `notes` (plus `flattenTripRecord` aliases `buddies_count` and `_rawTrip`).
   - `statuses` *(14 columns)*, `stations` *(6 columns)*, `routes` *(7 columns)*.
-- **Supported Grammar**: `SELECT [* | cols | COUNT(*)] [FROM table] [WHERE predicate] [ORDER BY col [ASC|DESC], ...] [LIMIT n] [OFFSET n]`, with `AND`, `OR`, `NOT`, `(...)`, `=`, `!=`/`<>`, `>`, `<`, `>=`, `<=`, `LIKE`, `ILIKE`, `IN (...)`, `BETWEEN ... AND ...`, `IS [NOT] NULL`.
+- **Supported Grammar**: `SELECT [DISTINCT] [* | cols | AGG([DISTINCT] col) [AS alias]] [FROM table [alias]] [(INNER | LEFT [OUTER]) JOIN table [alias] ON a = b ...] [WHERE predicate] [GROUP BY cols] [HAVING predicate] [ORDER BY col [ASC|DESC], ...] [LIMIT n] [OFFSET n]`, with `AND`, `OR`, `NOT`, `(...)`, `=`, `!=`/`<>`, `>`, `<`, `>=`, `<=`, `LIKE`, `ILIKE`, `[NOT] IN (...)`, `BETWEEN ... AND ...`, `IS [NOT] NULL`.
 
 ---
 
 ## 6. Known Issues & Technical Debt
 
-1. **SQL `JOIN` & `GROUP BY` Not Yet Implemented (`js/trips/sqlEngine.js`)**:
-   - `sqlEngine.js` now supports `SELECT DISTINCT`, `AVG`/`SUM`/`MIN`/`MAX`/`COUNT`, `AS` aliases, `NOT IN`, and the `co_passengers` table, while multi-table `JOIN` and `GROUP BY` grouping remain unimplemented.
-2. **OAuth Client Coupling (`js/config/config.js`)**:
+1. **OAuth Client Coupling (`js/config/config.js`)**:
    - `CONFIG.OAUTH.CLIENT_ID: '419'` restricts OAuth logins to pre-registered redirect domains, forcing PAT fallback on forks or unlisted hosts. (Mapbox tiling now supports tokenless `carto-dark`, `osm`, and `custom` raster tile fallbacks via `resolveMapStyle()`.)
-3. **Hidden Share View Feature (`index.html:882`, `js/events/listeners.js:324`)**:
+2. **Hidden Share View Feature (`index.html:882`, `js/events/listeners.js:324`)**:
    - `#shareBtn` remains intentionally hidden/commented out in `index.html` while its click binding (`if (shareBtn) shareBtn.onclick = shareView`) stays wired in `listeners.js`.
-4. **Partial `@ts-check` Coverage (`jsconfig.json`)**:
-   - Core modules (`config.js`, `visibility.js`, `traewelling.js`, `format.js`, `sqlEngine.js`, `analytics.js`, `normalizer.js`, `formatters.js`) have `// @ts-check` enabled, while UI/map modules remain untyped with `checkJs: false`.
-5. **Sequential E2E Execution & CI Scope**:
-   - `npm run test:e2e` executes 4 Node scripts sequentially, each spawning its own headless Chromium instance; `.github/workflows/ci.yml` runs unit tests and linters only (no automated E2E or `npm run format` check in CI).
+3. **Incremental `@ts-check` Coverage (`jsconfig.json`)**:
+   - 19 core modules (`config.js`, `visibility.js`, `traewelling.js`, `format.js`, `sqlEngine.js`, `sqlAutocomplete.js`, `sorting.js`, `detailModal.js`, `studioWorkbench.js`, `analytics.js`, `normalizer.js`, `formatters.js`, `schema.js`, `timeframe.js`, `storage.js`, `color.js`, `math.js`, `time.js`, `logger.js`) have `// @ts-check` enabled and are verified in CI (`npm run typecheck`); remaining UI/map controllers are untyped (`checkJs: false`).
+4. **E2E CI Execution**:
+   - `tests/e2e/browserHelper.js` provides a shared CDP Chromium launcher (supporting `CDP_PORT` reuse), while `.github/workflows/ci.yml` runs `lint`, `lint:css`, `typecheck`, and `test`.
 
 ---
 
 ## 7. Roadmap (Next Steps)
 
 - [x] **Remove CO₂ Emissions Stats**: Removed inconsistent CO₂ calculations/KPIs across `trips.html`, `wrapped.html`, and `socialCard.js` (replaced with `Stations Visited` in Wrapped).
-- [x] **Expand SQL Studio Engine**: Implemented `SELECT DISTINCT`, `AVG`/`SUM`/`MIN`/`MAX`, `AS` aliases, `NOT IN`, and queryable `co_passengers` table.
-- [x] **Retire Legacy Animation V1 & DelayBingo**: Removed `animation-v2.html`, `js/animation/recorder.js`, `delayBingo.js`, and legacy tests; `CheckinRandomizer` now launches minimized on small screens (`<= 768px`).
-- [x] **Hygiene, Self-Hosted Tiling & CSS Cleanup**: Eliminated all 26 Stylelint `!important` warnings, added `resolveMapStyle()` for tokenless/self-hosted raster tiles, added `// @ts-check` to core modules, and synced `README.md` / `CONTRIBUTING.md`.
-- [ ] **Optional Future Enhancements**: Add `GROUP BY` / `JOIN` to `sqlEngine.js`, extract a shared browser pool helper for `tests/e2e/`, and add `npm run format` to `.github/workflows/ci.yml`.
+- [x] **Expand SQL Studio Engine**: Implemented `SELECT DISTINCT`, `GROUP BY`, `HAVING`, `INNER JOIN` / `LEFT JOIN` (hash join), `COUNT(DISTINCT ...)`, `AVG`/`SUM`/`MIN`/`MAX`, `AS` aliases, `NOT IN`, and queryable `co_passengers` table.
+- [x] **Retire Legacy Animation V1 & Consolidate Studio**: Consolidated Trip Clip engine into `js/animation/` with `1:1`/`9:16`/`16:9` aspect presets and 3D isometric sprites.
+- [x] **Modularization, Hygiene, CI & Testing**: Split `js/trips/app.js` into `studioWorkbench.js`, `detailModal.js`, and `sorting.js`; expanded `@ts-check` to 19 modules; added `npm run typecheck` to CI; added `tests/e2e/browserHelper.js`; synced `README.md`, `CONTRIBUTING.md`, and `spec.md`.

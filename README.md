@@ -19,8 +19,8 @@ A modular, production-ready web application for visualizing Träwelling travel d
 - **Route Heatmap & Route Animation**: Dynamic heatmap density overlay with customizable color gradients and real-time trip playback animation.
 - **Delay Tracker & Railway Tracks Overlay**: Pinpoint worst delays and overlay detailed OpenRailwayMap infrastructure over base vector tiles.
 - **Trip Notes & Comment Search**: User notes and status text displayed safely in route popups, with instant client-side full-text search across lines, stations, buddies, and notes.
-- **Trip Database & SQL Studio (`trips.html`)**: Full-text searchable trip table, co-passenger scanning, and an in-browser SQL engine supporting `SELECT DISTINCT`, `AVG`/`SUM`/`MIN`/`MAX`/`COUNT`, `AS` aliases, `NOT IN`, and the `co_passengers` table.
-- **Route Animation Studio (`animation.html`)**: High-resolution canvas route animation with camera follow, 3D tilt, vector/tile map styles, and client-side WebM/MP4 export (`js/anim-v2/`).
+- **Trip Database & SQL Studio (`trips.html`)**: Full-text searchable trip table, co-passenger scanning, and an in-browser SQL engine supporting `SELECT DISTINCT`, `GROUP BY`, `HAVING`, `INNER JOIN` / `LEFT JOIN`, `AVG`/`SUM`/`MIN`/`MAX`/`COUNT`, `AS` aliases, `NOT IN`, and the `co_passengers` table.
+- **Route Animation Studio (`animation.html`)**: High-resolution canvas route animation (`js/animation/`) with `1:1`/`9:16`/`16:9` presets, 3D isometric/2D vehicle sprites, camera modes, tile label scaling, vector/tile map styles, and client-side MP4/WebM export.
 - **Rail Wrapped (`wrapped.html`)**: Annual travel analytics, transit habits heatmap, records, and downloadable social summary cards.
 - **Self-Hosting Tile Support**: Configurable basemap provider (`mapbox`, tokenless `carto-dark`, `osm`, or `custom` tile URL) via `CONFIG.MAP_TILES`, `localStorage`, or `?tiles=` query parameter.
 
@@ -30,8 +30,7 @@ A modular, production-ready web application for visualizing Träwelling travel d
 
 ```
 js/
-├── anim-v2/              # Unified animation studio engine (camera, renderer, WebM/MP4 export)
-├── animation/            # Shared animation geometry, tile preloader, vector map renderer
+├── animation/            # Unified animation studio engine (schema, camera, 3D sprites, HUD, vector/tile renderer, MP4/WebM export)
 ├── analytics/
 │   └── statistics.js     # Travel metrics, operator stats, buddy rankings
 ├── api/
@@ -90,24 +89,11 @@ js/
 
 ### Production Deployment
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+The repository root is deployed directly to GitHub Pages via `.github/workflows/pages.yml` (no build step required). For self-hosting without a Mapbox token, pass `?tiles=carto-dark`, `?tiles=osm`, or configure `CONFIG.MAP_TILES` in `js/config/config.js`.
 
-### Security
+### Configuration
 
-See [SECURITY.md](SECURITY.md) for security audit and recommendations.
-
-## Configuration
-
-Copy `.env.example` to `.env` and configure:
-
-```bash
-MAPBOX_TOKEN=your_mapbox_token
-API_BASE_URL=https://traewelling.de/api/v1
-RATE_LIMIT=55
-RATE_WINDOW=60000
-SESSION_MAX_AGE_DAYS=30
-MAX_SESSIONS=15
-```
+Runtime defaults live in `js/config/config.js` (`CONFIG.MAPBOX_TOKEN`, `CONFIG.MAP_TILES`, `CONFIG.API_BASE_URL`, `CONFIG.RATE_LIMIT`, `CONFIG.OAUTH`). Map tile providers can also be overridden at runtime via `localStorage` (`tw_map_provider`, `tw_custom_tile_url`, `tw_mapbox_token`) or `?tiles=`.
 
 ## Development
 

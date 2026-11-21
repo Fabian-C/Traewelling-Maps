@@ -1,15 +1,15 @@
 import { SessionDB } from '../cache/session.js';
-import { TraewellingAPI } from '../api/traewelling.js';
 import { Storage, STORAGE_KEYS } from '../storage/storage.js';
 import { tripsToGeoJSON, tripsToCSV, tripsToJSON, parseGeoJSONToTrips, parseCSVToTrips, downloadCSVFile, downloadJSONFile } from '../export/geojson.js';
 import { syncNavigationLinks } from '../ui/navigation.js';
 import { getTripBuddies, renderLinkedComment } from './formatters.js';
 import { deriveDelaySeconds, computeTripDurationMinutes } from '../utils/time.js';
-import { formatTotalTime, formatSpeed, escapeHtml } from '../utils/format.js';
+import { formatTotalTime, escapeHtml } from '../utils/format.js';
 import { normalizeCategory, getTripBusinessType, extractTripTags } from '../data/processing.js';
-import { extractTripDetails, formatTimeShort } from '../ui/tripDetails.js';
-import { spatialPreviewEngine } from './mapPreview.js';
 import { getUnscannedTrips, startIncrementalScan } from './coPassengerScanner.js';
+import { sortRawSqlRows, sortTrips, formatTime } from './sorting.js';
+import { openTripDetailModal as openDetailModalView } from './detailModal.js';
+import { createStudioWorkbench } from './studioWorkbench.js';
 
 let sqlEngine = null;
 let sqlAutocomplete = null;
@@ -49,6 +49,84 @@ const filterState = {
     page: 1,
     pageSize: 100
 };
+
+let rawSqlSort = { column: null, direction: 'asc' };
+
+// WeakMap cache of precomputed filter & telemetry metadata per trip object (invalidated on session switch / enrichment)
+let tripFilterMetaCache = new WeakMap();
+
+function invalidateTripCaches() {
+    tripFilterMetaCache = new WeakMap();
+    studioWorkbench.invalidateStudioCache();
+}
+
+function getTripFilterMeta(trip) {
+    let meta = tripFilterMetaCache.get(trip);
+    if (meta) return meta;
+
+    const train = trip.train || trip.checkin || {};
+    const category = normalizeCategory(train.category || 'regional');
+    const rawDate = train.origin?.departureReal || train.origin?.departure || trip.createdAt;
+    const year = rawDate ? String(new Date(rawDate).getFullYear()) : '';
+    const delays = deriveDelaySeconds(train);
+    const arrivalDelaySec = delays.arrival !== null ? delays.arrival : 0;
+    const arrivalDelayMin = Math.round(arrivalDelaySec / 60);
+    const businessType = getTripBusinessType(trip);
+    const distanceMeters = typeof train.totalDistance === 'number' ? train.totalDistance : (train.distance || 0);
+    const durationMin = computeTripDurationMinutes(train);
+
+    const buddies = getTripBuddies(trip, activeSession?.username);
+    const buddyUsernamesLower = new Set(buddies.map(b => b.username.toLowerCase()));
+
+    const tags = extractTripTags(trip.properties || {}).concat(extractTripTags({ tags: train.tags }));
+    const tagsText = tags.length ? tags.map(t => `${t.key} ${t.value}`).join(' ') : '';
+    const buddiesText = buddies.length ? buddies.map(b => `${b.username} ${b.displayName}`).join(' ') : '';
+
+    const searchCorpus = [
+        train.lineName || train.number || train.name || '',
+        train.origin?.name || '',
+        train.destination?.name || '',
+        trip.body || trip.properties?.body || '',
+        train.operator?.name || '',
+        tagsText,
+        buddiesText
+    ].join('\x1f').toLowerCase();
+
+    meta = {
+        category,
+        year,
+        arrivalDelaySec,
+        arrivalDelayMin,
+        businessType,
+        distanceMeters,
+        durationMin,
+        buddyUsernamesLower,
+        searchCorpus
+    };
+    tripFilterMetaCache.set(trip, meta);
+    return meta;
+}
+
+const studioWorkbench = createStudioWorkbench({
+    loadStudioModules,
+    getAppMode: () => appMode,
+    setAppMode: (m) => { appMode = m; },
+    getStudioTableMode: () => studioTableMode,
+    setStudioTableMode: (m) => { studioTableMode = m; },
+    getSqlQueryResult: () => sqlQueryResult,
+    setSqlQueryResult: (r) => { sqlQueryResult = r; },
+    getActiveSession: () => activeSession,
+    getAllSessions: () => allSessions,
+    getAllTrips: () => allTrips,
+    getFilteredTrips: () => filteredTrips,
+    getFlattenedTrips: () => flattenedTrips,
+    setFlattenedTrips: (rows) => { flattenedTrips = rows; },
+    resetRawSqlSort: () => { rawSqlSort = { column: null, direction: 'asc' }; },
+    setPage: (p) => { filterState.page = p; },
+    updateTelemetry: (trips) => updateTelemetry(trips),
+    renderResults: () => renderResults(),
+    applyFiltersAndRender: () => applyFiltersAndRender()
+});
 
 // Initialize on DOM ready or immediately if already loaded
 if (document.readyState === 'loading') {
@@ -309,6 +387,7 @@ export async function switchActiveSession(session) {
     allTrips = activeSession.trips || [];
     await hydrateTripsWithCoPassengers(allTrips);
     flattenedTrips = [];
+    invalidateTripCaches();
     populateYearPills(allTrips);
     populateBuddyDropdown(allTrips);
     filterState.page = 1;
@@ -828,6 +907,7 @@ function setupCoPassengerScanner() {
                     if (progressBar) progressBar.style.display = 'none';
                 }, 4000);
 
+                invalidateTripCaches();
                 if (sqlEngine) {
                     flattenedTrips = allTrips.map(sqlEngine.flattenTripRecord);
                 }
@@ -970,767 +1050,22 @@ function updateCategoryChipsUI() {
     });
 }
 
-/**
- * Initialize Database Studio workbench controls and recipes
- */
-async function initStudioWorkbench() {
-    const studioPanel = document.getElementById('tripsStudioPanel');
-    if (!studioPanel) return;
-
-    await loadStudioModules();
-    const recipes = sqlEngine?.QUERY_RECIPES || [];
-
-    // Populate Recipes dropdown
-    const recipeSelect = document.getElementById('sqlRecipeSelect');
-    if (recipeSelect && recipes.length > 0) {
-        recipeSelect.innerHTML = '<option value="">Choose a recipe...</option>' +
-            recipes.map((r, i) => `<option value="${i}">${escapeHtml(r.title)}</option>`).join('');
-    }
-
-    // Default SQL query if empty
-    const sqlInput = document.getElementById('sqlQueryInput');
-    if (sqlInput && !sqlInput.value.trim() && recipes.length > 0) {
-        sqlInput.value = recipes[0].sql;
-    }
-}
-
-/**
- * Setup Event Listeners for Database Studio Mode
- */
 function setupStudioEventListeners() {
-    // 1. Mode Switcher (Standard Explorer vs Database Studio)
-    const modeStandardBtn = document.getElementById('modeStandardBtn');
-    const modeStudioBtn = document.getElementById('modeStudioBtn');
-    const filterPanel = document.getElementById('tripsFilterPanel');
-    const studioPanel = document.getElementById('tripsStudioPanel');
-
-    const sqlTableToggle = document.getElementById('sqlTableModeToggle');
-    const btnTableUnified = document.getElementById('btnTableUnified');
-    const btnTableRawSql = document.getElementById('btnTableRawSql');
-
-    const updateSqlTableModeButtons = () => {
-        if (sqlTableToggle) {
-            sqlTableToggle.style.display = (appMode === 'studio') ? 'inline-flex' : 'none';
-        }
-        if (btnTableUnified && btnTableRawSql) {
-            if (studioTableMode === 'raw') {
-                btnTableRawSql.classList.add('active');
-                btnTableUnified.classList.remove('active');
-            } else {
-                btnTableUnified.classList.add('active');
-                btnTableRawSql.classList.remove('active');
-            }
-        }
-    };
-    updateSqlTableModeButtons();
-
-    if (btnTableUnified && btnTableRawSql) {
-        btnTableUnified.addEventListener('click', () => {
-            studioTableMode = 'unified';
-            Storage.set(STORAGE_KEYS.STUDIO_TABLE_MODE, 'unified');
-            updateSqlTableModeButtons();
-            renderResults();
-        });
-
-        btnTableRawSql.addEventListener('click', () => {
-            studioTableMode = 'raw';
-            Storage.set(STORAGE_KEYS.STUDIO_TABLE_MODE, 'raw');
-            updateSqlTableModeButtons();
-            renderResults();
-        });
-    }
-
-    if (modeStandardBtn && modeStudioBtn) {
-        modeStandardBtn.addEventListener('click', () => {
-            appMode = 'standard';
-            modeStandardBtn.classList.add('active');
-            modeStudioBtn.classList.remove('active');
-            if (filterPanel) filterPanel.style.display = 'flex';
-            if (studioPanel) studioPanel.style.display = 'none';
-            updateSqlTableModeButtons();
-            applyFiltersAndRender();
-        });
-
-        modeStudioBtn.addEventListener('click', async () => {
-            appMode = 'studio';
-            modeStudioBtn.classList.add('active');
-            modeStandardBtn.classList.remove('active');
-            if (filterPanel) filterPanel.style.display = 'none';
-            if (studioPanel) studioPanel.style.display = 'flex';
-            updateSqlTableModeButtons();
-            const viewTableBtn = document.getElementById('viewTableBtn');
-            if (viewTableBtn && !viewTableBtn.classList.contains('active')) {
-                viewTableBtn.click();
-            }
-
-            await initStudioWorkbench();
-            if (!sqlQueryResult) {
-                const currentSql = document.getElementById('sqlQueryInput')?.value || sqlEngine?.QUERY_RECIPES?.[0]?.sql;
-                if (currentSql) {
-                    await runSqlQuery(currentSql);
-                }
-            } else {
-                renderResults();
-                const spatialPanel = document.getElementById('spatialSqlPanel');
-                if (spatialPanel && spatialPanel.style.display !== 'none') {
-                    renderSpatialSqlPreview();
-                }
-            }
-        });
-    }
-
-    // 2. Studio SQL Console Tab
-    const tabSqlBtn = document.getElementById('studioTabSqlBtn');
-    if (tabSqlBtn) {
-        tabSqlBtn.addEventListener('click', () => {
-            tabSqlBtn.classList.add('active');
-            const sqlInput = document.getElementById('sqlQueryInput');
-            if (sqlInput) sqlInput.focus();
-        });
-    }
-
-    // 3. Quick Recipe Selector
-    const recipeSelect = document.getElementById('sqlRecipeSelect');
-    if (recipeSelect) {
-        recipeSelect.addEventListener('change', async (e) => {
-            await loadStudioModules();
-            const recipes = sqlEngine?.QUERY_RECIPES || [];
-            const idx = parseInt(e.target.value, 10);
-            if (!isNaN(idx) && recipes[idx]) {
-                const sql = recipes[idx].sql;
-                const sqlInput = document.getElementById('sqlQueryInput');
-                if (sqlInput) sqlInput.value = sql;
-                if (tabSqlBtn) tabSqlBtn.click();
-                runSqlQuery(sql);
-            }
-        });
-    }
-
-    // 4. SQL Console Run, Autocomplete, and Keyboard Navigation
-    const runSqlBtn = document.getElementById('runSqlQueryBtn');
-    const sqlInput = document.getElementById('sqlQueryInput');
-    const acPopover = document.getElementById('sqlAutocompletePopover');
-    let activeACIndex = 0;
-    let currentACResult = null;
-
-    async function renderAC() {
-        if (!sqlInput || !acPopover) return;
-        await loadStudioModules();
-        const val = sqlInput.value;
-        const cursorPos = sqlInput.selectionStart || 0;
-        currentACResult = sqlAutocomplete ? sqlAutocomplete.getSQLCompletions(val, cursorPos) : { items: [] };
-
-        if (!currentACResult.items || currentACResult.items.length === 0) {
-            acPopover.style.display = 'none';
-            return;
-        }
-
-        if (activeACIndex >= currentACResult.items.length) {
-            activeACIndex = 0;
-        }
-
-        acPopover.innerHTML = currentACResult.items.map((item, idx) => `
-            <div class="sql-ac-item ${idx === activeACIndex ? 'active' : ''}" data-ac-index="${idx}" role="option" aria-selected="${idx === activeACIndex}">
-                <div class="sql-ac-left">
-                    <span class="sql-ac-badge ${item.type}">${item.type === 'keyword' ? 'KW' : (item.type === 'column' ? 'COL' : (item.type === 'value' ? 'VAL' : (item.type === 'table' ? 'TBL' : 'REC')))}</span>
-                    <span class="sql-ac-label">${escapeHtml(item.label)}</span>
-                </div>
-                <div class="sql-ac-detail">${escapeHtml(item.detail || '')}</div>
-            </div>
-        `).join('') + `
-            <div class="sql-ac-footer">
-                <span>↑/↓ navigate • ↵ / Tab apply</span>
-                <button type="button" class="sql-ac-close-btn" aria-label="Dismiss suggestions">✕ Close</button>
-            </div>
-        `;
-
-        acPopover.style.display = 'flex';
-
-        acPopover.querySelectorAll('.sql-ac-item').forEach(itemEl => {
-            const handleSelect = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const idx = parseInt(itemEl.dataset.acIndex, 10);
-                applyAC(idx);
-            };
-            itemEl.addEventListener('pointerdown', handleSelect);
-            itemEl.addEventListener('click', handleSelect);
-            itemEl.addEventListener('mouseenter', () => {
-                activeACIndex = parseInt(itemEl.dataset.acIndex, 10);
-                updateACActiveItem();
-            });
-        });
-
-        const closeBtn = acPopover.querySelector('.sql-ac-close-btn');
-        if (closeBtn) {
-            closeBtn.addEventListener('pointerdown', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                acPopover.style.display = 'none';
-            });
-            closeBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                acPopover.style.display = 'none';
-            });
-        }
-    }
-
-    function updateACActiveItem() {
-        if (!acPopover) return;
-        acPopover.querySelectorAll('.sql-ac-item').forEach((el, idx) => {
-            el.classList.toggle('active', idx === activeACIndex);
-            el.setAttribute('aria-selected', idx === activeACIndex ? 'true' : 'false');
-        });
-    }
-
-    function applyAC(index) {
-        if (!currentACResult || !currentACResult.items[index]) return;
-        const item = currentACResult.items[index];
-        const val = sqlInput.value;
-        const tokenStart = currentACResult.tokenStart;
-        const tokenEnd = tokenStart + currentACResult.token.length;
-
-        const before = val.slice(0, tokenStart);
-        const after = val.slice(tokenEnd);
-        const insert = item.insertText;
-
-        sqlInput.value = before + insert + after;
-        const newCursor = tokenStart + insert.length;
-        sqlInput.selectionStart = newCursor;
-        sqlInput.selectionEnd = newCursor;
-        sqlInput.focus();
-
-        acPopover.style.display = 'none';
-        currentACResult = null;
-        activeACIndex = 0;
-    }
-
-    if (runSqlBtn && sqlInput) {
-        runSqlBtn.addEventListener('click', () => {
-            if (acPopover) acPopover.style.display = 'none';
-            runSqlQuery(sqlInput.value);
-        });
-
-        sqlInput.addEventListener('input', () => {
-            renderAC();
-        });
-
-        sqlInput.addEventListener('keydown', (e) => {
-            // Ctrl+Enter or Cmd+Enter to execute query
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                e.preventDefault();
-                if (acPopover) acPopover.style.display = 'none';
-                runSqlQuery(sqlInput.value);
-                return;
-            }
-
-            // Ctrl+Space to force open suggestions
-            if ((e.ctrlKey || e.metaKey) && e.key === ' ') {
-                e.preventDefault();
-                renderAC();
-                return;
-            }
-
-            // If autocomplete popover is open
-            if (acPopover && acPopover.style.display !== 'none' && currentACResult && currentACResult.items.length > 0) {
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    activeACIndex = (activeACIndex + 1) % currentACResult.items.length;
-                    updateACActiveItem();
-                    return;
-                }
-                if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    activeACIndex = (activeACIndex - 1 + currentACResult.items.length) % currentACResult.items.length;
-                    updateACActiveItem();
-                    return;
-                }
-                if (e.key === 'Enter' || e.key === 'Tab') {
-                    e.preventDefault();
-                    applyAC(activeACIndex);
-                    return;
-                }
-                if (e.key === 'Escape') {
-                    e.preventDefault();
-                    acPopover.style.display = 'none';
-                    return;
-                }
-            }
-        });
-
-        sqlInput.addEventListener('blur', () => {
-            setTimeout(() => {
-                if (acPopover) acPopover.style.display = 'none';
-            }, 200);
-        });
-    }
-
-    // 5. SQL Reference Chips
-    document.querySelectorAll('.sql-chip-tag').forEach(chip => {
-        chip.addEventListener('click', () => {
-            const snippet = chip.dataset.insert;
-            if (snippet && sqlInput) {
-                const currentVal = sqlInput.value.trim();
-                const hasFrom = /\bFROM\s+[a-zA-Z_]+\b/i.test(currentVal);
-                if (snippet.startsWith('SELECT *')) {
-                    sqlInput.value = snippet;
-                } else if (!currentVal || !currentVal.toUpperCase().startsWith('SELECT')) {
-                    sqlInput.value = `SELECT * FROM trips ${snippet}`;
-                } else if (!hasFrom && snippet.startsWith('WHERE')) {
-                    sqlInput.value = `${currentVal} FROM trips ${snippet}`;
-                } else if (!hasFrom && snippet.startsWith('ORDER BY')) {
-                    sqlInput.value = `${currentVal} FROM trips ${snippet}`;
-                } else if (snippet.startsWith('WHERE') && currentVal.toUpperCase().includes('WHERE')) {
-                    const extraCond = snippet.replace(/^WHERE\s+/i, '');
-                    if (currentVal.toUpperCase().includes('ORDER BY')) {
-                        const parts = currentVal.split(/ORDER\s+BY/i);
-                        sqlInput.value = `${parts[0].trim()} AND ${extraCond} ORDER BY${parts[1]}`;
-                    } else {
-                        sqlInput.value = `${currentVal} AND ${extraCond}`;
-                    }
-                } else if (snippet.startsWith('ORDER BY') && currentVal.toUpperCase().includes('ORDER BY')) {
-                    const base = currentVal.replace(/ORDER\s+BY\s+.*$/i, '').trim();
-                    sqlInput.value = `${base} ${snippet}`;
-                } else {
-                    sqlInput.value = `${currentVal} ${snippet}`;
-                }
-                sqlInput.focus();
-            }
-        });
-    });
-
-    // 6. Database Schema & Tables Guide Drawer
-    const schemaToggleBtn = document.getElementById('sqlSchemaToggleBtn');
-    const schemaDrawer = document.getElementById('sqlSchemaDrawer');
-    const closeSchemaBtn = document.getElementById('closeSchemaDrawerBtn');
-    const schemaContentPane = document.getElementById('sqlSchemaContentPane');
-    let activeSchemaTable = 'trips';
-
-    function renderSchemaDrawerTable(tableKey) {
-        if (!schemaContentPane) return;
-        activeSchemaTable = tableKey;
-        const schema = sqlEngine?.TABLE_SCHEMAS?.[tableKey] || sqlEngine?.TABLE_SCHEMAS?.trips;
-        if (!schema) return;
-
-        // Update active tab buttons
-        document.querySelectorAll('.sql-schema-tab-btn').forEach(btn => {
-            const isMatch = btn.dataset.table === tableKey;
-            btn.classList.toggle('active', isMatch);
-            btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
-        });
-
-        const colCardsHtml = schema.columns.map(col => {
-            const isNum = col.type === 'number';
-            const badgeClass = isNum ? 'num' : (col.type === 'datetime' ? 'date' : 'text');
-            const badgeLabel = isNum ? 'NUM' : (col.type === 'datetime' ? 'DATE' : 'TEXT');
-            return `
-                <button type="button" class="sql-schema-col-card" data-col="${escapeHtml(col.name)}" title="Click to insert '${escapeHtml(col.name)}' into query">
-                    <div class="sql-schema-col-top">
-                        <span class="sql-schema-col-name">${escapeHtml(col.name)}</span>
-                        <span class="sql-schema-col-type ${badgeClass}">${badgeLabel}</span>
-                    </div>
-                    <div class="sql-schema-col-desc">${escapeHtml(col.description || col.label)}</div>
-                </button>
-            `;
-        }).join('');
-
-        schemaContentPane.innerHTML = `
-            <div class="sql-schema-table-desc">
-                <strong>Table: <code>${escapeHtml(schema.name)}</code></strong> — ${escapeHtml(schema.description)}
-                <span style="color: var(--text-muted); font-size: 11px; margin-left: 6px;">(Click any column to insert into query)</span>
-            </div>
-            <div class="sql-schema-columns-grid">
-                ${colCardsHtml}
-            </div>
-            <div class="sql-schema-footer-actions">
-                <span class="sql-schema-example-query" title="Tested Query Template">${escapeHtml(schema.defaultQuery)}</span>
-                <button type="button" class="sql-schema-use-btn" id="schemaRunExampleBtn">Run Example</button>
-            </div>
-        `;
-
-        // Attach click listeners to column cards
-        schemaContentPane.querySelectorAll('.sql-schema-col-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const colName = card.dataset.col;
-                if (!colName || !sqlInput) return;
-                const cursorPos = sqlInput.selectionStart || sqlInput.value.length;
-                const before = sqlInput.value.substring(0, cursorPos);
-                const after = sqlInput.value.substring(cursorPos);
-                sqlInput.value = before + (before.endsWith(' ') || before.endsWith(',') || before === '' ? '' : ' ') + colName + ' ' + after;
-                sqlInput.focus();
-            });
-        });
-
-        // Attach listener to Run Example button
-        const runExBtn = schemaContentPane.querySelector('#schemaRunExampleBtn');
-        if (runExBtn) {
-            runExBtn.addEventListener('click', () => {
-                if (sqlInput) {
-                    sqlInput.value = schema.defaultQuery;
-                    if (tabSqlBtn) tabSqlBtn.click();
-                    runSqlQuery(schema.defaultQuery);
-                }
-            });
-        }
-    }
-
-    if (schemaToggleBtn && schemaDrawer) {
-        schemaToggleBtn.addEventListener('click', async () => {
-            await loadStudioModules();
-            const isVisible = schemaDrawer.style.display !== 'none';
-            if (isVisible) {
-                schemaDrawer.style.display = 'none';
-                schemaToggleBtn.classList.remove('active');
-                schemaToggleBtn.setAttribute('aria-expanded', 'false');
-            } else {
-                schemaDrawer.style.display = 'flex';
-                schemaToggleBtn.classList.add('active');
-                schemaToggleBtn.setAttribute('aria-expanded', 'true');
-                renderSchemaDrawerTable(activeSchemaTable);
-            }
-        });
-    }
-
-    if (closeSchemaBtn && schemaDrawer) {
-        closeSchemaBtn.addEventListener('click', () => {
-            schemaDrawer.style.display = 'none';
-            if (schemaToggleBtn) {
-                schemaToggleBtn.classList.remove('active');
-                schemaToggleBtn.setAttribute('aria-expanded', 'false');
-            }
-        });
-    }
-
-    document.querySelectorAll('.sql-schema-tab-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            await loadStudioModules();
-            const tbl = btn.dataset.table;
-            if (tbl) renderSchemaDrawerTable(tbl);
-        });
-    });
-
-    // 8. Studio Result Exports (CSV, JSON, GeoJSON)
-    const exportCsvBtn = document.getElementById('exportCsvBtn');
-    const exportJsonBtn = document.getElementById('exportJsonBtn');
-    const exportSqlGeoBtn = document.getElementById('exportSqlGeoJsonBtn');
-
-    if (exportCsvBtn) {
-        exportCsvBtn.addEventListener('click', async () => {
-            if (!sqlQueryResult || !sqlQueryResult.rows?.length) {
-                alert('No active query results to export.');
-                return;
-            }
-            await loadStudioModules();
-            const csv = sqlEngine.exportRowsToCSV(sqlQueryResult.rows, sqlQueryResult.columns);
-            downloadFile(csv, `traewelling-query-${Date.now()}.csv`, 'text/csv');
-        });
-    }
-
-    if (exportJsonBtn) {
-        exportJsonBtn.addEventListener('click', () => {
-            if (!sqlQueryResult || !sqlQueryResult.rows?.length) {
-                alert('No active query results to export.');
-                return;
-            }
-            const json = JSON.stringify(sqlQueryResult.rows, null, 2);
-            downloadFile(json, `traewelling-query-${Date.now()}.json`, 'application/json');
-        });
-    }
-
-    if (exportSqlGeoBtn) {
-        exportSqlGeoBtn.addEventListener('click', () => {
-            if (!sqlQueryResult) {
-                alert('No active query results to export.');
-                return;
-            }
-
-            // Export stations as Point GeoJSON
-            if (sqlQueryResult.table === 'stations') {
-                const validStations = (sqlQueryResult.rows || []).filter(
-                    stn => stn.latitude !== null && stn.latitude !== undefined && stn.longitude !== null && stn.longitude !== undefined && !isNaN(Number(stn.latitude)) && !isNaN(Number(stn.longitude))
-                );
-                if (!validStations.length) {
-                    alert('No stations with geographic coordinates in current result.');
-                    return;
-                }
-                const geojson = {
-                    type: 'FeatureCollection',
-                    title: 'SQL Stations Export',
-                    exportDate: new Date().toISOString(),
-                    features: validStations.map(stn => ({
-                        type: 'Feature',
-                        geometry: {
-                            type: 'Point',
-                            coordinates: [parseFloat(stn.longitude), parseFloat(stn.latitude)]
-                        },
-                        properties: {
-                            id: stn.id,
-                            name: stn.name || 'Station',
-                            country_code: stn.country_code || null,
-                            eva_number: stn.eva_number || null
-                        }
-                    }))
-                };
-                downloadFile(JSON.stringify(geojson, null, 2), `traewelling-stations-${Date.now()}.geojson`, 'application/geo+json');
-                return;
-            }
-
-            // Export trips as Journey LineStrings
-            const trips = sqlQueryResult.rawTrips || [];
-            if (!trips.length) {
-                alert('No geo-referenced trips in current query results.');
-                return;
-            }
-            const geojson = tripsToGeoJSON(trips, {
-                title: 'SQL Query Export',
-                exportDate: new Date().toISOString()
-            });
-            downloadFile(JSON.stringify(geojson, null, 2), `traewelling-query-${Date.now()}.geojson`, 'application/geo+json');
-        });
-    }
-
-    // 9. Spatial SQL Map Preview Controls
-    const toggleSpatialBtn = document.getElementById('toggleSpatialPreviewBtn');
-    const toggleStandardSpatialBtn = document.getElementById('toggleStandardSpatialBtn');
-    const spatialPanel = document.getElementById('spatialSqlPanel');
-    const closeSpatialBtn = document.getElementById('closeSpatialPanelBtn');
-
-    const toggleSpatialPanel = () => {
-        if (!spatialPanel) return;
-        const isVisible = spatialPanel.style.display !== 'none';
-        if (isVisible) {
-            spatialPanel.style.display = 'none';
-            if (toggleSpatialBtn) toggleSpatialBtn.classList.remove('active');
-            if (toggleStandardSpatialBtn) toggleStandardSpatialBtn.classList.remove('active');
-        } else {
-            spatialPanel.style.display = 'block';
-            if (toggleSpatialBtn) toggleSpatialBtn.classList.add('active');
-            if (toggleStandardSpatialBtn) toggleStandardSpatialBtn.classList.add('active');
-            renderSpatialSqlPreview();
-        }
-    };
-
-    if (toggleSpatialBtn) {
-        toggleSpatialBtn.addEventListener('click', toggleSpatialPanel);
-    }
-    if (toggleStandardSpatialBtn) {
-        toggleStandardSpatialBtn.addEventListener('click', toggleSpatialPanel);
-    }
-
-    if (closeSpatialBtn && spatialPanel) {
-        closeSpatialBtn.addEventListener('click', () => {
-            spatialPanel.style.display = 'none';
-            if (toggleSpatialBtn) toggleSpatialBtn.classList.remove('active');
-            if (toggleStandardSpatialBtn) toggleStandardSpatialBtn.classList.remove('active');
-        });
-    }
-
-    // Pre-populate Database Studio recipes and default state immediately
-    initStudioWorkbench();
+    studioWorkbench.setupStudioEventListeners();
 }
 
-let studioStationsCache = [];
-
-/**
- * Render small spatial map preview canvas for current SQL query results or filtered trips
- */
 export function renderSpatialSqlPreview() {
-    const user = activeSession?.username || (allSessions.length ? allSessions[0].username : '');
-    const titleEl = document.getElementById('spatialSqlTitle') || document.querySelector('.spatial-sql-title');
-    if (titleEl) {
-        titleEl.textContent = appMode === 'studio' ? 'Spatial Query Preview' : 'Spatial Map Preview';
-    }
-    spatialPreviewEngine.init(user);
-    spatialPreviewEngine.indexStations(allTrips, studioStationsCache);
-    spatialPreviewEngine.updateData({
-        sqlQueryResult: appMode === 'studio' ? sqlQueryResult : null,
-        trips: filteredTrips.length ? filteredTrips : allTrips,
-        activeUser: user
-    });
-
-    if (!studioStationsCache.length && user) {
-        SessionDB.getAllStations().then(stns => {
-            if (stns && stns.length) {
-                studioStationsCache = stns;
-                spatialPreviewEngine.indexStations(allTrips, studioStationsCache);
-                spatialPreviewEngine.updateData({
-                    sqlQueryResult: appMode === 'studio' ? sqlQueryResult : null,
-                    trips: filteredTrips.length ? filteredTrips : allTrips,
-                    activeUser: user
-                });
-            }
-        }).catch(() => {});
-    }
+    return studioWorkbench.renderSpatialSqlPreview();
 }
 
-/**
- * Retrieve normalized relational datasets for Studio SQL Console
- */
 export async function getStudioDatasets() {
-    await loadStudioModules();
-
-    let allCoPassengers = [];
-    try {
-        allCoPassengers = await SessionDB.getAllCoPassengers();
-    } catch (e) {
-        console.warn('SessionDB co_passengers query fallback:', e);
-    }
-
-    if (allCoPassengers.length > 0) {
-        const coByTrip = new Map();
-        for (const cp of allCoPassengers) {
-            const tid = Number(cp.trip_id);
-            if (!coByTrip.has(tid)) coByTrip.set(tid, []);
-            coByTrip.get(tid).push(cp);
-        }
-        for (const trip of allTrips) {
-            const bId = Number(trip.properties?.backend_trip_id || trip.backend_trip_id || trip.train?.trip || trip.checkin?.trip);
-            if (bId && coByTrip.has(bId)) {
-                trip.co_passengers = coByTrip.get(bId);
-            }
-        }
-        if (sqlEngine?.flattenTripRecord) {
-            flattenedTrips = allTrips.map(sqlEngine.flattenTripRecord);
-        }
-    } else if (!flattenedTrips.length && allTrips.length) {
-        flattenedTrips = allTrips.map(sqlEngine.flattenTripRecord);
-    }
-
-    const activeUser = activeSession?.username || (allSessions.length ? allSessions[0].username : '');
-    let statuses = [];
-    let stations = [];
-    let routes = [];
-
-    try {
-        if (activeUser) {
-            statuses = await SessionDB.getStatusesByUser(activeUser);
-        }
-        stations = await SessionDB.getAllStations();
-        routes = await SessionDB.getAllTrips();
-    } catch (e) {
-        console.warn('SessionDB relational query fallback:', e);
-    }
-
-    if (!statuses.length || !stations.length || !routes.length) {
-        const stnMap = new Map();
-        const routeMap = new Map();
-        const statusList = [];
-
-        for (const trip of allTrips) {
-            const norm = SessionDB.normalizeTrip(trip, activeUser);
-            if (norm) {
-                for (const stn of norm.stations) {
-                    if (stn && !stnMap.has(stn.id)) stnMap.set(stn.id, stn);
-                }
-                if (norm.tripRun && !routeMap.has(norm.tripRun.id)) {
-                    routeMap.set(norm.tripRun.id, norm.tripRun);
-                }
-                if (norm.status) {
-                    statusList.push(norm.status);
-                }
-            }
-        }
-        if (!statuses.length) statuses = statusList;
-        if (!stations.length) stations = Array.from(stnMap.values());
-        if (!routes.length) routes = Array.from(routeMap.values());
-    }
-
-    if (stations.length) {
-        studioStationsCache = stations;
-    }
-
-    return {
-        trips: flattenedTrips,
-        statuses,
-        stations,
-        routes,
-        co_passengers: allCoPassengers
-    };
+    return studioWorkbench.getStudioDatasets();
 }
 
-/**
- * Execute an arbitrary SQL query on the dataset
- */
 export async function runSqlQuery(sql) {
-    if (!sql) return;
-
-    await loadStudioModules();
-
-    const datasets = await getStudioDatasets();
-    if (!datasets.trips.length && !datasets.statuses.length && !datasets.stations.length && !datasets.routes.length && !datasets.co_passengers.length) return;
-
-    try {
-        const result = sqlEngine.executeTripQuery(sql, datasets.trips, { tables: datasets });
-        sqlQueryResult = result;
-
-        // Reset raw SQL sort on new query execution
-        rawSqlSort = { column: null, direction: 'asc' };
-
-        // Update target table badge in console toolbar
-        const targetBadge = document.querySelector('.sql-editor-target code');
-        if (targetBadge && result.table) {
-            targetBadge.textContent = result.table;
-        }
-
-        // Update benchmark badge
-        const badge = document.getElementById('sqlBenchmarkBadge');
-        if (badge) {
-            badge.textContent = `⏱️ ${result.executionTimeMs}ms • ${result.totalRows.toLocaleString()} rows`;
-            badge.style.color = '#34d399';
-            badge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-        }
-
-        // Update main telemetry chips for trips queries
-        if (result.table === 'trips' && result.rawTrips && result.rawTrips.length) {
-            updateTelemetry(result.rawTrips);
-        }
-
-        // Set page to 1 and render
-        filterState.page = 1;
-        renderResults();
-
-        // Update Spatial SQL preview if active
-        const spatialPanel = document.getElementById('spatialSqlPanel');
-        if (spatialPanel && spatialPanel.style.display !== 'none') {
-            renderSpatialSqlPreview();
-        }
-    } catch (err) {
-        console.error('SQL execution error:', err);
-        const badge = document.getElementById('sqlBenchmarkBadge');
-        if (badge) {
-            badge.textContent = `❌ ${err.message}`;
-            badge.style.color = '#ef4444';
-            badge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
-        }
-        sqlQueryResult = {
-            table: 'trips',
-            columns: ['error'],
-            rows: [],
-            totalRows: 0,
-            rawTrips: [],
-            executionTimeMs: 0,
-            isSelectAll: false,
-            error: err.message
-        };
-        filterState.page = 1;
-        renderResults();
-    }
+    return studioWorkbench.runSqlQuery(sql);
 }
 window.runSqlQuery = runSqlQuery;
-
-function downloadFile(content, filename, mimeType) {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => {
-        try { URL.revokeObjectURL(url); } catch {}
-    }, 1000);
-}
 
 /**
  * Main filter and sort executor
@@ -1743,82 +1078,43 @@ export function applyFiltersAndRender() {
     const selectedYear = filterState.selectedYear;
     const selectedDelay = filterState.selectedDelay;
     const selectedBuddy = filterState.selectedBuddy;
+    const selectedBuddyLower = selectedBuddy !== 'all' ? selectedBuddy.toLowerCase() : '';
     const selectedPurpose = filterState.selectedPurpose;
 
     filteredTrips = allTrips.filter(trip => {
-        const train = trip.train || trip.checkin || {};
-        const cat = normalizeCategory(train.category || 'regional');
+        const meta = getTripFilterMeta(trip);
 
-        // 1. Category Filter
-        if (!isAllCategories && !filterState.selectedCategories.has(cat)) {
+        if (!isAllCategories && !filterState.selectedCategories.has(meta.category)) {
             return false;
         }
-
-        // 2. Year Filter
-        const rawDate = train.origin?.departureReal || train.origin?.departure || trip.createdAt;
-        if (selectedYear !== 'all') {
-            if (!rawDate) return false;
-            const tripYear = String(new Date(rawDate).getFullYear());
-            if (tripYear !== selectedYear) return false;
+        if (selectedYear !== 'all' && meta.year !== selectedYear) {
+            return false;
         }
-
-        // 3. Delay Tier Filter
         if (selectedDelay !== 'all') {
-            const delays = deriveDelaySeconds(train);
-            const arrivalDelayMin = delays.arrival !== null ? Math.round(delays.arrival / 60) : 0;
+            const arrivalDelayMin = meta.arrivalDelayMin;
             if (selectedDelay === 'ontime' && arrivalDelayMin > 5) return false;
             if (selectedDelay === 'minor' && (arrivalDelayMin <= 5 || arrivalDelayMin > 15)) return false;
             if (selectedDelay === 'moderate' && (arrivalDelayMin <= 15 || arrivalDelayMin > 30)) return false;
             if (selectedDelay === 'severe' && arrivalDelayMin <= 30) return false;
             if (selectedDelay === 'delayed' && arrivalDelayMin <= 0) return false;
         }
-
-        // 4. Companion Filter
-        if (selectedBuddy !== 'all') {
-            const buddies = getTripBuddies(trip, activeSession?.username);
-            const hasBuddy = buddies.some(b => b.username.toLowerCase() === selectedBuddy.toLowerCase());
-            if (!hasBuddy) return false;
+        if (selectedBuddyLower && !meta.buddyUsernamesLower.has(selectedBuddyLower)) {
+            return false;
         }
-
-        // 5. Purpose Filter
         if (selectedPurpose !== 'all') {
-            const bType = getTripBusinessType(trip);
-            if (selectedPurpose === 'work' && bType !== 1) return false;
-            if (selectedPurpose === 'commute' && bType !== 2) return false;
-            if (selectedPurpose === 'personal' && bType !== 0) return false;
+            if (selectedPurpose === 'work' && meta.businessType !== 1) return false;
+            if (selectedPurpose === 'commute' && meta.businessType !== 2) return false;
+            if (selectedPurpose === 'personal' && meta.businessType !== 0) return false;
         }
-
-        // 6. Free-Text Search
-        if (query) {
-            const line = (train.lineName || train.number || train.name || '').toLowerCase();
-            const origin = (train.origin?.name || '').toLowerCase();
-            const dest = (train.destination?.name || '').toLowerCase();
-            const body = (trip.body || trip.properties?.body || '').toLowerCase();
-            const operator = (train.operator?.name || '').toLowerCase();
-
-            // Search tags
-            const tags = extractTripTags(trip.properties || {}).concat(extractTripTags({ tags: train.tags }));
-            const tagsText = tags.map(t => `${t.key} ${t.value}`).join(' ').toLowerCase();
-
-            // Search mentions and buddies
-            const buddies = getTripBuddies(trip, activeSession?.username);
-            const buddiesText = buddies.map(b => `${b.username} ${b.displayName}`).join(' ').toLowerCase();
-
-            const matched = line.includes(query) ||
-                            origin.includes(query) ||
-                            dest.includes(query) ||
-                            body.includes(query) ||
-                            operator.includes(query) ||
-                            tagsText.includes(query) ||
-                            buddiesText.includes(query);
-            if (!matched) return false;
+        if (query && !meta.searchCorpus.includes(query)) {
+            return false;
         }
 
         return true;
     });
 
-    // Sort Results
-    sortTrips(filteredTrips, filterState.sortBy);
+    // Sort Results (O(N) Schwartzian key extraction)
+    sortTrips(filteredTrips, filterState.sortBy, activeSession?.username);
 
     // Update Telemetry Bar
     updateTelemetry(filteredTrips);
@@ -1834,115 +1130,6 @@ export function applyFiltersAndRender() {
     if (spatialPanel && spatialPanel.style.display !== 'none') {
         renderSpatialSqlPreview();
     }
-}
-
-let rawSqlSort = { column: null, direction: 'asc' };
-
-/**
- * Sort raw SQL result rows by specific column
- */
-function sortRawSqlRows(rows, column, direction = 'asc') {
-    if (!column || !Array.isArray(rows)) return rows;
-    const isDesc = direction === 'desc';
-    rows.sort((a, b) => {
-        const valA = a[column];
-        const valB = b[column];
-        if (valA === valB) return 0;
-        if (valA === null || valA === undefined || valA === '') return 1;
-        if (valB === null || valB === undefined || valB === '') return -1;
-
-        if (typeof valA === 'number' && typeof valB === 'number') {
-            return isDesc ? valB - valA : valA - valB;
-        }
-        const numA = Number(valA);
-        const numB = Number(valB);
-        if (!isNaN(numA) && !isNaN(numB) && typeof valA !== 'boolean' && typeof valB !== 'boolean') {
-            return isDesc ? numB - numA : numA - numB;
-        }
-        return isDesc
-            ? String(valB).localeCompare(String(valA))
-            : String(valA).localeCompare(String(valB));
-    });
-    return rows;
-}
-
-/**
- * Sort trips array in-place across all supported fields
- */
-function sortTrips(trips, sortBy) {
-    if (!sortBy || !Array.isArray(trips)) return;
-    const isDesc = sortBy.endsWith('-desc');
-    const field = sortBy.replace(/-(asc|desc)$/, '');
-
-    trips.sort((a, b) => {
-        const rawA = a._rawTrip || a;
-        const rawB = b._rawTrip || b;
-        const trainA = rawA.train || rawA.checkin || rawA.properties?.train || rawA.properties?.checkin || rawA.properties || rawA || {};
-        const trainB = rawB.train || rawB.checkin || rawB.properties?.train || rawB.properties?.checkin || rawB.properties || rawB || {};
-
-        let valA, valB;
-
-        if (field === 'date') {
-            valA = new Date(trainA.origin?.departureReal || trainA.origin?.departure || trainA.departure || rawA.createdAt || 0).getTime();
-            valB = new Date(trainB.origin?.departureReal || trainB.origin?.departure || trainB.departure || rawB.createdAt || 0).getTime();
-            return isDesc ? valB - valA : valA - valB;
-        }
-        if (field === 'line') {
-            valA = (trainA.lineName || trainA.number || trainA.name || a.line || '').toLowerCase();
-            valB = (trainB.lineName || trainB.number || trainB.name || b.line || '').toLowerCase();
-            return isDesc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-        }
-        if (field === 'origin') {
-            valA = (trainA.origin?.name || a.origin || '').toLowerCase();
-            valB = (trainB.origin?.name || b.origin || '').toLowerCase();
-            return isDesc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-        }
-        if (field === 'destination') {
-            valA = (trainA.destination?.name || a.destination || '').toLowerCase();
-            valB = (trainB.destination?.name || b.destination || '').toLowerCase();
-            return isDesc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-        }
-        if (field === 'dist') {
-            valA = typeof trainA.totalDistance === 'number' ? trainA.totalDistance : (trainA.distance || a.distance_km || 0);
-            valB = typeof trainB.totalDistance === 'number' ? trainB.totalDistance : (trainB.distance || b.distance_km || 0);
-            return isDesc ? valB - valA : valA - valB;
-        }
-        if (field === 'dur') {
-            valA = a.duration_min !== undefined ? a.duration_min : computeTripDurationMinutes(trainA);
-            valB = b.duration_min !== undefined ? b.duration_min : computeTripDurationMinutes(trainB);
-            return isDesc ? valB - valA : valA - valB;
-        }
-        if (field === 'delay') {
-            valA = a.delay_arr !== undefined ? a.delay_arr : (deriveDelaySeconds(trainA).arrival || 0);
-            valB = b.delay_arr !== undefined ? b.delay_arr : (deriveDelaySeconds(trainB).arrival || 0);
-            return isDesc ? valB - valA : valA - valB;
-        }
-        if (field === 'buddies') {
-            valA = a.buddy_count !== undefined ? a.buddy_count : getTripBuddies(rawA, activeSession?.username).length;
-            valB = b.buddy_count !== undefined ? b.buddy_count : getTripBuddies(rawB, activeSession?.username).length;
-            return isDesc ? valB - valA : valA - valB;
-        }
-
-        // Fallback for custom SQL projected columns
-        valA = a[field] !== undefined ? a[field] : (rawA[field] !== undefined ? rawA[field] : trainA[field]);
-        valB = b[field] !== undefined ? b[field] : (rawB[field] !== undefined ? rawB[field] : trainB[field]);
-
-        if (valA === valB) return 0;
-        if (valA === null || valA === undefined) return 1;
-        if (valB === null || valB === undefined) return -1;
-
-        if (typeof valA === 'number' && typeof valB === 'number') {
-            return isDesc ? valB - valA : valA - valB;
-        }
-        const nA = Number(valA);
-        const nB = Number(valB);
-        if (!isNaN(nA) && !isNaN(nB) && typeof valA !== 'boolean' && typeof valB !== 'boolean') {
-            return isDesc ? nB - nA : nA - nB;
-        }
-        return isDesc
-            ? String(valB).localeCompare(String(valA))
-            : String(valA).localeCompare(String(valB));
-    });
 }
 
 /**
@@ -1961,16 +1148,14 @@ function updateTelemetry(trips) {
     let onTimeCount = 0;
     let totalMinutes = 0;
 
-    trips.forEach(t => {
-        const train = t.train || t.checkin || {};
-        totalDistMeters += (typeof train.totalDistance === 'number' ? train.totalDistance : (train.distance || 0));
-        const delays = deriveDelaySeconds(train);
-        const arrDelay = delays.arrival !== null ? delays.arrival : 0;
-        if (arrDelay <= 300) { // <= 5 min is on-time
+    for (let i = 0; i < trips.length; i++) {
+        const meta = getTripFilterMeta(trips[i]);
+        totalDistMeters += meta.distanceMeters;
+        if (meta.arrivalDelaySec <= 300) {
             onTimeCount++;
         }
-        totalMinutes += computeTripDurationMinutes(train);
-    });
+        totalMinutes += meta.durationMin;
+    }
 
     const distKm = Math.round(totalDistMeters / 1000);
     const punctRate = trips.length > 0 ? Math.round((onTimeCount / trips.length) * 100) : 100;
@@ -2538,283 +1723,15 @@ function renderResults() {
     });
 }
 
-/**
- * Open Trip Detail Inspector Modal
- */
 export function openTripDetailModal(trip) {
-    const modal = document.getElementById('tripDetailModal');
-    if (!modal || !trip) return;
-
-    const details = extractTripDetails(trip, activeSession?.username);
-    if (!details) return;
-
-    const {
-        statusId,
-        backendTripId,
-        category,
-        lineName,
-        origin,
-        destination: dest,
-        operator,
-        plannedDeparture,
-        actualDeparture,
-        plannedArrival,
-        actualArrival,
-        platform: originPlatform,
-        destPlatform,
-        distanceKm,
-        durationMin,
-        durationDisplay: durStr,
-        arrivalDelay,
-        seat,
-        wagon,
-        ticketName: ticket,
-        buddies,
-        bodyText
-    } = details;
-
-    const originPlanned = formatTimeShort(plannedDeparture);
-    const originReal = actualDeparture ? formatTimeShort(actualDeparture) : originPlanned;
-    const destPlanned = formatTimeShort(plannedArrival);
-    const destReal = actualArrival ? formatTimeShort(actualArrival) : destPlanned;
-
-    const distKm = Math.round(distanceKm);
-    const speedStr = formatSpeed(distKm, durationMin);
-
-    const arrDelaySec = (arrivalDelay !== null && arrivalDelay !== undefined) ? arrivalDelay : 0;
-    const arrDelayMin = Math.round(arrDelaySec / 60);
-    const delayFormatted = arrDelayMin > 0 ? `+${arrDelayMin} min late` : (arrDelayMin < 0 ? `${Math.abs(arrDelayMin)} min early` : 'Punctual (On-time)');
-
-    // Store active modal trip for devtools & export actions
-    window.currentModalTrip = trip;
-
-    // Modal elements
-    document.getElementById('modalLineBadge').textContent = lineName;
-    document.getElementById('modalLineBadge').className = `line-badge ${category}`;
-    document.getElementById('modalTripTitle').textContent = `${origin} → ${dest}`;
-
-    document.getElementById('modalOrigin').textContent = origin;
-    document.getElementById('modalDepartureTime').textContent = `Sched: ${originPlanned} · Actual: ${originReal}`;
-    document.getElementById('modalOriginPlatform').textContent = `Platform ${originPlatform || '—'}`;
-
-    document.getElementById('modalDest').textContent = dest;
-    document.getElementById('modalArrivalTime').textContent = `Sched: ${destPlanned} · Actual: ${destReal}`;
-    document.getElementById('modalDestPlatform').textContent = `Platform ${destPlatform || '—'}`;
-
-    document.getElementById('modalDistance').textContent = `${distKm} km${speedStr !== '—' ? ` (Avg: ${speedStr})` : ''}`;
-    document.getElementById('modalDuration').textContent = durStr;
-    document.getElementById('modalDelay').textContent = delayFormatted;
-    document.getElementById('modalOperator').textContent = operator;
-    document.getElementById('modalSeat').textContent = `Wagon ${wagon || '—'}, Seat ${seat || '—'}`;
-    document.getElementById('modalTicket').textContent = String(ticket || '—');
-
-    // Buddies & Travel Companions (Unified)
-    const buddiesSec = document.getElementById('modalBuddiesSection');
-    const buddiesList = document.getElementById('modalBuddiesList');
-    const enrichBtn = document.getElementById('modalEnrichCoPassengersBtn');
-
-    const renderBuddies = (buddiesListArray) => {
-        if (!buddiesList) return;
-        if (buddiesListArray && buddiesListArray.length > 0) {
-            buddiesList.innerHTML = buddiesListArray.map(b => {
-                const fromTo = (b.origin && b.destination) ? ` · ${escapeHtml(b.origin)} → ${escapeHtml(b.destination)}` : '';
-                const msg = b.body ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">💬 ${escapeHtml(b.body)}</div>` : '';
-                if (fromTo || msg) {
-                    return `
-                        <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px 10px; width: 100%;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    <a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 2px 6px; font-size: 12px; font-weight: 600;">
-                                        <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
-                                        <span>@${escapeHtml(b.username)}</span>
-                                    </a>
-                                    ${b.status_id ? `
-                                        <a href="https://traewelling.de/status/${encodeURIComponent(b.status_id)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 2px 6px; font-size: 11px; opacity: 0.85;" title="Open check-in #${escapeHtml(String(b.status_id))} on Träwelling">
-                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                                            <span>#${escapeHtml(String(b.status_id))}</span>
-                                        </a>
-                                    ` : ''}
-                                </div>
-                                ${fromTo ? `<span style="font-size: 11px; color: var(--text-muted);">${fromTo}</span>` : ''}
-                            </div>
-                            ${msg}
-                        </div>
-                    `;
-                }
-                return `
-                    <span style="display: inline-flex; align-items: center; gap: 4px;">
-                        <a href="https://traewelling.de/@${encodeURIComponent(b.username)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 4px 10px; font-size: 12px;" title="Open @${escapeHtml(b.username)} profile on Träwelling">
-                            <span class="buddy-badge-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
-                            <span>@${escapeHtml(b.username)}</span>
-                        </a>
-                        ${b.status_id ? `
-                            <a href="https://traewelling.de/status/${encodeURIComponent(b.status_id)}" target="_blank" rel="noopener noreferrer" class="buddy-badge-link" style="padding: 4px 6px; font-size: 11px; opacity: 0.85;" title="Open check-in #${escapeHtml(String(b.status_id))} on Träwelling">
-                                #${escapeHtml(String(b.status_id))}
-                            </a>
-                        ` : ''}
-                    </span>
-                `;
-            }).join('');
-        } else {
-            buddiesList.innerHTML = `<span style="color: var(--text-muted); font-size: 12px; font-style: italic;">No buddies recorded yet.</span>`;
-        }
-    };
-
-    const hasBuddies = buddies && buddies.length > 0;
-    if (buddiesSec) {
-        const canEnrich = backendTripId || statusId;
-        if (hasBuddies || canEnrich) {
-            buddiesSec.style.display = 'block';
-            renderBuddies(buddies);
-        } else {
-            buddiesSec.style.display = 'none';
-        }
-
-        if (enrichBtn) {
-            if (canEnrich) {
-                enrichBtn.style.display = 'inline-flex';
-                enrichBtn.disabled = false;
-                if (trip.co_passengers && trip.co_passengers.length > 0) {
-                    const withUser = getTripBuddies(trip, activeSession?.username);
-                    enrichBtn.innerHTML = withUser.length > 0
-                        ? `<span>Enriched (${withUser.length})</span>`
-                        : `<span>Enriched (0 on your segment)</span>`;
-                } else {
-                    enrichBtn.innerHTML = `
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                        <span>Enrich from Träwelling</span>
-                    `;
-                }
-
-                // Check IndexedDB cache if not loaded yet on trip
-                if (!trip.co_passengers && backendTripId) {
-                    SessionDB.getTripCoPassengers(backendTripId).then(cached => {
-                        if (cached !== null && Array.isArray(cached)) {
-                            const currentU = (activeSession?.username || '').toLowerCase();
-                            const filtered = cached.filter(p => (p.username || '').toLowerCase() !== currentU);
-                            trip.co_passengers = filtered;
-                            if (filtered.length > 0) {
-                                const updated = getTripBuddies(trip, activeSession?.username);
-                                renderBuddies(updated);
-                                enrichBtn.innerHTML = updated.length > 0
-                                    ? `<span>Enriched (${updated.length})</span>`
-                                    : `<span>Enriched (0 on your segment)</span>`;
-                            }
-                        }
-                    }).catch(() => {});
-                }
-
-                enrichBtn.onclick = async () => {
-                    enrichBtn.disabled = true;
-                    enrichBtn.textContent = 'Fetching...';
-                    try {
-                        const api = new TraewellingAPI(Storage.get(STORAGE_KEYS.TOKEN));
-                        let effectiveBackendId = backendTripId;
-                        if (!effectiveBackendId && statusId) {
-                            const statusResp = await api.getStatus(statusId);
-                            const resolved = statusResp?.data?.train?.trip || statusResp?.data?.checkin?.trip || statusResp?.data?.trip;
-                            if (resolved) {
-                                effectiveBackendId = Number(resolved);
-                                trip.backend_trip_id = effectiveBackendId;
-                                if (trip.train) trip.train.trip = effectiveBackendId;
-                                if (trip.checkin) trip.checkin.trip = effectiveBackendId;
-                            }
-                        }
-
-                        if (!effectiveBackendId) {
-                            enrichBtn.innerHTML = `<span>⚠️ No upstream trip</span>`;
-                            enrichBtn.disabled = false;
-                            return;
-                        }
-
-                        const resp = await api.getTripStatuses(effectiveBackendId);
-                        const rawStatuses = resp?.data || [];
-                        const currentU = (activeSession?.username || '').toLowerCase();
-                        const companions = rawStatuses
-                            .filter(s => (s.user?.username || '').toLowerCase() !== currentU)
-                            .map(s => ({
-                                trip_id: Number(effectiveBackendId),
-                                status_id: s.id,
-                                co_status_id: s.id,
-                                username: s.user?.username || 'unknown',
-                                display_name: s.user?.name || s.user?.username || '',
-                                origin: s.checkin?.origin?.name || 'Unknown',
-                                destination: s.checkin?.destination?.name || 'Unknown',
-                                departure_time: s.checkin?.origin?.departureReal || s.checkin?.origin?.departurePlanned || null,
-                                arrival_time: s.checkin?.destination?.arrivalReal || s.checkin?.destination?.arrivalPlanned || null,
-                                body: s.body || '',
-                                created_at: s.createdAt || null
-                            }));
-
-                        await SessionDB.saveTripCoPassengers(effectiveBackendId, companions);
-                        trip.co_passengers = companions;
-                        const updated = getTripBuddies(trip, activeSession?.username);
-                        renderBuddies(updated);
-                        const withUser = updated.length;
-                        enrichBtn.innerHTML = withUser > 0
-                            ? `<span>Updated (${withUser})</span>`
-                            : `<span>Updated (0 on your segment)</span>`;
-                        enrichBtn.disabled = false;
-
-                        populateBuddyDropdown(allTrips);
-                        applyFiltersAndRender();
-                        updateScanButtonState();
-                    } catch (err) {
-                        console.warn('Enrichment failed:', err);
-                        enrichBtn.innerHTML = `<span>⚠️ Failed</span>`;
-                        enrichBtn.disabled = false;
-                    }
-                };
-            } else {
-                enrichBtn.style.display = 'none';
-            }
-        }
-    }
-
-    // Notes
-    const notesSec = document.getElementById('modalNotesSection');
-    const notesText = document.getElementById('modalNotesText');
-    if (bodyText) {
-        notesSec.style.display = 'block';
-        notesText.innerHTML = renderLinkedComment(bodyText);
-    } else {
-        notesSec.style.display = 'none';
-    }
-
-    const tripId = statusId || trip.id;
-    const tripRef = trip.uuid || tripId;
-    // Traewelling Status Link
-    const traewellingLink = document.getElementById('modalTraewellingLink');
-    if (traewellingLink) {
-        traewellingLink.href = `https://traewelling.de/status/${encodeURIComponent(tripRef)}`;
-    }
-
-    // Animation Studio Deep-Link (Alpha)
-    const animLink = document.getElementById('modalAnimLink');
-    if (animLink) {
-        animLink.href = `animation.html?trip=${tripId}&user=${encodeURIComponent(activeSession?.username || '')}`;
-    }
-
-    // Map Deep-Link
-    const mapLink = document.getElementById('modalMapLink');
-    if (mapLink) {
-        mapLink.href = `index.html?user=${encodeURIComponent(activeSession?.username || '')}&trip=${tripId}`;
-    }
-
-    modal.showModal();
-}
-
-/**
- * Format timestamp to HH:mm
- */
-function formatTime(isoStr) {
-    if (!isoStr) return '—';
-    try {
-        const d = new Date(isoStr);
-        return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-    } catch {
-        return '—';
-    }
+    openDetailModalView(trip, {
+        getActiveSession: () => activeSession,
+        getAllTrips: () => allTrips,
+        populateBuddyDropdown,
+        applyFiltersAndRender,
+        updateScanButtonState,
+        invalidateCaches: invalidateTripCaches
+    });
 }
 
 /**

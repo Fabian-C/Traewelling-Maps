@@ -388,6 +388,9 @@ export function logout() {
     Storage.remove(STORAGE_KEYS.TOKEN);
     Storage.remove(STORAGE_KEYS.AUTH_METHOD);
     state.token = null; state.authMethod = null; state.username = null; state.fetchedTrips = [];
+    state.activeTrips = [];
+    if (state.tripsById?.clear) state.tripsById.clear();
+    if (state.geometryGroups?.clear) state.geometryGroups.clear();
     state.tokenOwner = { username: null, displayName: null, avatar: null, profileUrl: null, validated: false };
     state.layers.data.clear();
     CONFIG.LAYER_CONFIG.forEach(([id]) => {

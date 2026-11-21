@@ -511,80 +511,243 @@ export function indexTrips(trips, currentUsername = '') {
 }
 
 /**
- * Process trips to GeoJSON by category
+ * Process trips to slim, direction-agnostic deduplicated GeoJSON by category.
+ * Identical (or exact reversed) polylines in the same category and approximation tier
+ * are collapsed into a single GeoJSON feature while preserving all member status IDs
+ * in `_geomTripIds` (newest-first) for stacked popups and click resolution.
  */
+const polylineMetaCache = new WeakMap();
+
+/**
+ * Computes and caches bounding box + direction-agnostic dual FNV-1a geometry hash
+ * for a LineString coordinate array.
+ * @param {Array<Array<number>>} coords
+ * @returns {{ geomHash: string, bbox: [number, number, number, number] } | null}
+ */
+export function computePolylineMeta(coords) {
+    if (!Array.isArray(coords) || coords.length < 2) return null;
+    const cached = polylineMetaCache.get(coords);
+    if (cached) return cached;
+
+    const len = coords.length;
+    let minLng = Infinity;
+    let minLat = Infinity;
+    let maxLng = -Infinity;
+    let maxLat = -Infinity;
+
+    for (let i = 0; i < len; i++) {
+        const pt = coords[i];
+        if (!pt) continue;
+        const lng = pt[0];
+        const lat = pt[1];
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+    }
+
+    if (!Number.isFinite(minLng)) {
+        minLng = 0; minLat = 0; maxLng = 0; maxLat = 0;
+    }
+
+    // Determine canonical traversal direction (A->B === B->A)
+    let reverse = false;
+    let li = 0;
+    let ri = len - 1;
+    while (li < ri) {
+        const leftPt = coords[li] || [0, 0];
+        const rightPt = coords[ri] || [0, 0];
+        const ax = Math.round(leftPt[0] * 1e5);
+        const ay = Math.round(leftPt[1] * 1e5);
+        const bx = Math.round(rightPt[0] * 1e5);
+        const by = Math.round(rightPt[1] * 1e5);
+        if (ax !== bx) {
+            reverse = bx < ax;
+            break;
+        }
+        if (ay !== by) {
+            reverse = by < ay;
+            break;
+        }
+        li++;
+        ri--;
+    }
+
+    let h1 = 0x811c9dc5;
+    let h2 = 0x01000193 ^ 0x9e3779b9;
+    const step = reverse ? -1 : 1;
+    const startIdx = reverse ? len - 1 : 0;
+    const endIdx = reverse ? -1 : len;
+
+    for (let idx = startIdx; idx !== endIdx; idx += step) {
+        const pt = coords[idx] || [0, 0];
+        const rx = Math.round(pt[0] * 1e5) | 0;
+        const ry = Math.round(pt[1] * 1e5) | 0;
+
+        h1 = Math.imul(h1 ^ (rx & 0xffff), 0x01000193);
+        h1 = Math.imul(h1 ^ ((rx >>> 16) & 0xffff), 0x01000193);
+        h1 = Math.imul(h1 ^ (ry & 0xffff), 0x01000193);
+        h1 = Math.imul(h1 ^ ((ry >>> 16) & 0xffff), 0x01000193);
+
+        h2 = Math.imul(h2 ^ ((ry + 0x9e3779b9) | 0), 0x85ebca6b);
+        h2 = Math.imul(h2 ^ ((rx + 0xc2b2ae35) | 0), 0x27d4eb2f);
+    }
+
+    const sPt = coords[startIdx] || [0, 0];
+    const ePt = coords[reverse ? 0 : len - 1] || [0, 0];
+    const sx = Math.round(sPt[0] * 1e5);
+    const sy = Math.round(sPt[1] * 1e5);
+    const ex = Math.round(ePt[0] * 1e5);
+    const ey = Math.round(ePt[1] * 1e5);
+
+    const geomHash = `${len}:${sx},${sy}:${ex},${ey}:${(h1 >>> 0).toString(36)}_${(h2 >>> 0).toString(36)}`;
+    const meta = {
+        geomHash,
+        bbox: /** @type {[number, number, number, number]} */ ([minLng, minLat, maxLng, maxLat])
+    };
+    polylineMetaCache.set(coords, meta);
+    return meta;
+}
+
+/**
+ * O(1) trip lookup by status ID using state.tripsById, with array fallback for unit tests.
+ */
+export function getTripByStatusId(state, statusId) {
+    if (!state || statusId === undefined || statusId === null || statusId === 'unknown') return null;
+    const key = String(statusId);
+    if (state.tripsById instanceof Map && state.tripsById.has(key)) {
+        return state.tripsById.get(key) || null;
+    }
+    if (Array.isArray(state.activeTrips)) {
+        const foundActive = state.activeTrips.find(t => String(t?.id) === key);
+        if (foundActive) return foundActive;
+    }
+    if (Array.isArray(state.fetchedTrips)) {
+        return state.fetchedTrips.find(t => String(t?.id) === key) || null;
+    }
+    return null;
+}
+
+/**
+ * Populate state.geometryGroups from a geomKey -> statusId[] record or Map.
+ */
+export function syncGeometryGroupsToState(state, geomTripIds) {
+    if (!state) return;
+    if (geomTripIds instanceof Map) {
+        state.geometryGroups = new Map(geomTripIds);
+    } else if (geomTripIds && typeof geomTripIds === 'object') {
+        state.geometryGroups = new Map(Object.entries(geomTripIds));
+    } else {
+        state.geometryGroups = new Map();
+    }
+}
+
 export function processTripsToGeoJSON(trips) {
     const categories = {};
     CONFIG.LAYER_CONFIG.forEach(([cat]) => { categories[cat] = { type: 'FeatureCollection', features: [] }; });
 
-    trips.forEach(trip => {
-        if (!trip) return;
-        normalizeTripStatus(trip);
-        const idx = trip._index || indexTrip(trip);
-        const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
-        const category = idx?.category || normalizeCategory(train.category);
-        const targetCat = categories[category] ? category : 'unknown';
-        const polyline = train.polyline;
-        let geometry = polyline?.geometry;
-        let isApproximated = false;
+    const buckets = new Map();
+    const geomTripIds = {};
 
-        if (!geometry?.coordinates || !Array.isArray(geometry.coordinates) || geometry.coordinates.length < 2) {
-            const origLng = parseFloat(train.origin?.station?.longitude ?? train.origin?.longitude);
-            const origLat = parseFloat(train.origin?.station?.latitude ?? train.origin?.latitude);
-            const destLng = parseFloat(train.destination?.station?.longitude ?? train.destination?.longitude);
-            const destLat = parseFloat(train.destination?.station?.latitude ?? train.destination?.latitude);
-            if (!isNaN(origLng) && !isNaN(origLat) && !isNaN(destLng) && !isNaN(destLat)) {
-                geometry = {
-                    type: 'LineString',
-                    coordinates: (origLng === destLng && origLat === destLat)
-                        ? [[origLng, origLat], [destLng + 0.00001, destLat + 0.00001]]
-                        : [[origLng, origLat], [destLng, destLat]]
-                };
-                isApproximated = true;
-                train.polyline = {
-                    type: 'Feature',
+    if (Array.isArray(trips)) {
+        trips.forEach(trip => {
+            if (!trip) return;
+            normalizeTripStatus(trip);
+            const idx = trip._index || indexTrip(trip);
+            const train = trip.train || trip.checkin || trip.properties?.train || trip.properties?.checkin || {};
+            const category = idx?.category || normalizeCategory(train.category);
+            const targetCat = categories[category] ? category : 'unknown';
+            const polyline = train.polyline;
+            let geometry = polyline?.geometry;
+            let isApproximated = false;
+
+            if (!geometry?.coordinates || !Array.isArray(geometry.coordinates) || geometry.coordinates.length < 2) {
+                const origLng = parseFloat(train.origin?.station?.longitude ?? train.origin?.longitude);
+                const origLat = parseFloat(train.origin?.station?.latitude ?? train.origin?.latitude);
+                const destLng = parseFloat(train.destination?.station?.longitude ?? train.destination?.longitude);
+                const destLat = parseFloat(train.destination?.station?.latitude ?? train.destination?.latitude);
+                if (!isNaN(origLng) && !isNaN(origLat) && !isNaN(destLng) && !isNaN(destLat)) {
+                    geometry = {
+                        type: 'LineString',
+                        coordinates: (origLng === destLng && origLat === destLat)
+                            ? [[origLng, origLat], [destLng + 0.00001, destLat + 0.00001]]
+                            : [[origLng, origLat], [destLng, destLat]]
+                    };
+                    isApproximated = true;
+                    train.polyline = {
+                        type: 'Feature',
+                        geometry,
+                        properties: { statusId: trip.id, isApproximated: true }
+                    };
+                } else {
+                    return;
+                }
+            } else {
+                if (polyline?.properties?.isApproximated !== undefined) {
+                    isApproximated = polyline.properties.isApproximated;
+                } else if (idx?.isApproximated !== undefined) {
+                    isApproximated = idx.isApproximated;
+                } else {
+                    isApproximated = isApproximatedPolyline(geometry.coordinates, category);
+                    if (idx) idx.isApproximated = isApproximated;
+                    if (polyline?.properties) polyline.properties.isApproximated = isApproximated;
+                }
+            }
+
+            const meta = computePolylineMeta(geometry.coordinates);
+            if (!meta) return;
+
+            const geomKey = `${targetCat}|${isApproximated ? 1 : 0}|${meta.geomHash}`;
+            if (idx) {
+                idx.geomKey = geomKey;
+                idx.bbox = meta.bbox;
+            }
+
+            const rawTs = idx?.timestamp ?? (trip.createdAt ? Date.parse(trip.createdAt) : 0);
+            const ts = Number.isFinite(rawTs) ? rawTs : 0;
+            const lineName = idx?.lineName || train.lineName || train.number || train.name || 'Train';
+
+            const existingBucket = buckets.get(geomKey);
+            if (existingBucket) {
+                existingBucket.entries.push({ id: trip.id, ts, lineName });
+            } else {
+                buckets.set(geomKey, {
+                    targetCat,
+                    geomKey,
+                    isApproximated,
                     geometry,
-                    properties: { statusId: trip.id, isApproximated: true }
-                };
-            } else {
-                return;
-            }
-        } else {
-            if (polyline?.properties?.isApproximated !== undefined) {
-                isApproximated = polyline.properties.isApproximated;
-            } else if (idx?.isApproximated !== undefined) {
-                isApproximated = idx.isApproximated;
-            } else {
-                isApproximated = isApproximatedPolyline(geometry.coordinates, category);
-                if (idx) idx.isApproximated = isApproximated;
-                if (polyline?.properties) polyline.properties.isApproximated = isApproximated;
-            }
-        }
-
-        const trainSummary = train ? { ...train, polyline: undefined, stopovers: undefined } : null;
-
-        categories[targetCat].features.push({
-            type: 'Feature',
-            geometry: geometry,
-            properties: {
-                statusId: trip.id,
-                createdAt: trip.createdAt,
-                train: trainSummary,
-                isApproximated: isApproximated,
-                body: typeof trip.body === 'string' ? trip.body : '',
-                bodyMentions: Array.isArray(trip.bodyMentions) ? trip.bodyMentions : [],
-                createdBy: trip.createdBy || null,
-                ticket: trip._index?.ticket || trip.ticket || trip.properties?.ticket || train.ticket || null,
-                tags: trip._index?.tags || trip.tags || trip.properties?.tags || train.tags || trip.customTags || trip.labels || null,
-                wagon: trip._index?.wagon || train.seat?.wagon || train.wagon || train.coach || trip.wagon || trip.properties?.wagon || null,
-                seat: trip._index?.seat || train.seat?.number || (typeof train.seat === 'string' ? train.seat : null) || trip.seat?.number || (typeof trip.seat === 'string' ? trip.seat : null) || trip.properties?.seat || null,
-                travelClass: trip._index?.travelClass || train.class || train.travelClass || trip.class || null,
-                vehicleNumber: trip._index?.vehicleNumber || null,
-                locomotiveClass: trip._index?.locomotiveClass || null,
-                wagonClass: trip._index?.wagonClass || null
+                    bbox: meta.bbox,
+                    entries: [{ id: trip.id, ts, lineName }]
+                });
             }
         });
+    }
+
+    buckets.forEach(bucket => {
+        if (bucket.entries.length > 1) {
+            bucket.entries.sort((a, b) => b.ts - a.ts);
+        }
+        const newest = bucket.entries[0];
+        const tripIds = bucket.entries.map(e => e.id);
+        geomTripIds[bucket.geomKey] = tripIds;
+
+        const feature = {
+            type: 'Feature',
+            geometry: bucket.geometry,
+            properties: {
+                statusId: newest.id,
+                geomKey: bucket.geomKey,
+                category: bucket.targetCat,
+                isApproximated: bucket.isApproximated,
+                tripCount: tripIds.length,
+                lineName: newest.lineName
+            }
+        };
+        Object.defineProperty(feature, '_bbox', { value: bucket.bbox, enumerable: false });
+        categories[bucket.targetCat].features.push(feature);
     });
+
+    Object.defineProperty(categories, '_geomTripIds', { value: geomTripIds, enumerable: false });
     return categories;
 }
 

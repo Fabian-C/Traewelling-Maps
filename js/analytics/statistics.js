@@ -281,6 +281,8 @@ export function initializeDateInputs(trips = null) {
 }
 
 let activeBuddySelectHandler = null;
+let cachedTotalBuddyCountKey = null;
+let cachedTotalBuddyCount = 0;
 
 export function registerBuddySelectHandler(handler) {
     activeBuddySelectHandler = handler;
@@ -356,8 +358,17 @@ export function updateMenuBuddyList(onSelectBuddy = null) {
     const sorted = Object.entries(buddies).sort((a, b) => b[1] - a[1]);
     const metCount = sorted.length;
 
-    // Update count in travel buddy expanded section
-    const totalMet = Object.keys(getBuddyStats(state.fetchedTrips || [])).length;
+    // Update count in travel buddy expanded section (reuse metCount when unfiltered, cache otherwise)
+    const fetchedTrips = state.fetchedTrips || [];
+    let totalMet = metCount;
+    if (contextTrips.length !== fetchedTrips.length) {
+        const cacheKey = `${state.datasetVersion}|${fetchedTrips.length}|${!!state.filters?.includeNoteMentions}`;
+        if (cachedTotalBuddyCountKey !== cacheKey) {
+            cachedTotalBuddyCount = Object.keys(getBuddyStats(fetchedTrips)).length;
+            cachedTotalBuddyCountKey = cacheKey;
+        }
+        totalMet = cachedTotalBuddyCount;
+    }
     const metCountEl = document.getElementById('travelBuddiesMetCount');
     if (metCountEl) {
         if (totalMet > metCount) {

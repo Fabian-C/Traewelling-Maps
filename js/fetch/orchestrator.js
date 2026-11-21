@@ -880,6 +880,15 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
     } catch (_) {}
 
     dataProcessing.indexTrips(state.fetchedTrips, state.username);
+    const tripsById = new Map();
+    for (let i = 0; i < state.fetchedTrips.length; i++) {
+        const t = state.fetchedTrips[i];
+        if (t && t.id !== undefined && t.id !== null) {
+            tripsById.set(String(t.id), t);
+        }
+    }
+    state.tripsById = tripsById;
+
     // Reset buddy and time filters for fresh dataset, and prefill dates from travel data
     state.filters.buddies = [];
     state.filters.buddy = null;
@@ -890,21 +899,26 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
     const activeTrips = refreshActiveTrips();
     let categories = null;
 
-    // Check materialized GeoJSON cache for instant render on unfiltered datasets
+    // Check materialized GeoJSON cache (v2 slim + deduplicated + geomTripIds) for instant render
     const isUnfiltered = activeTrips.length === state.fetchedTrips.length;
     if (isUnfiltered && state.username) {
         try {
             const cachedMat = await SessionDB.getMaterializedGeoJSON(state.username);
-            if (cachedMat?.count === activeTrips.length && cachedMat?.geojson) {
+            if (cachedMat?.schemaVersion === 2 && cachedMat?.count === activeTrips.length && cachedMat?.geojson && cachedMat?.geomTripIds) {
                 categories = cachedMat.geojson;
+                dataProcessing.syncGeometryGroupsToState(state, cachedMat.geomTripIds);
             }
         } catch (_) {}
     }
 
     if (!categories) {
         categories = dataProcessing.processTripsToGeoJSON(activeTrips);
+        dataProcessing.syncGeometryGroupsToState(state, categories._geomTripIds);
         if (isUnfiltered && state.username && activeTrips.length > 0) {
-            SessionDB.saveMaterializedGeoJSON(state.username, categories, activeTrips.length).catch(() => {});
+            SessionDB.saveMaterializedGeoJSON(state.username, categories, activeTrips.length, {
+                geomTripIds: categories._geomTripIds,
+                schemaVersion: 2
+            }).catch(() => {});
         }
     }
 
@@ -922,8 +936,6 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
     });
 
     analytics.updateAllStatistics();
-    analytics.updateMenuBuddyList();
-    analytics.refreshStatsDisplay(state.statistics);
 
     if (!state.map) {
         if (!window.mapboxgl || !window.deck) {
@@ -975,24 +987,15 @@ export async function processAndDisplayData(trips, { hideFetchUI = true } = {}) 
 
         // 2. Synchronize all route line layers (both solid and dotted approximated layers)
         syncMapLayerOrder();
-
-        analytics.updateAllStatistics();
-        analytics.updateMenuBuddyList();
         loadLayers();
     };
-    
-    // Populate layers UI immediately
-    loadLayers();
 
     if (RouteAnimation.isMobile()) {
         await new Promise(r => setTimeout(r, 200));
     }
     await addRouteLayers();
-    
-    setTimeout(() => analytics.refreshStatsDisplay(state.statistics), 100);
 
     setupMapInteractions();
-    analytics.updateMenuBuddyList();
     updateFilterBadges();
     const statsPanel = document.getElementById('statsPanel');
     if (statsPanel) {

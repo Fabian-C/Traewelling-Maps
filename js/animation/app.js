@@ -576,16 +576,27 @@ async function loadUserTrips(username, targetTripId = '') {
     }
 }
 
+const TRIP_SELECT_INITIAL_LIMIT = 250;
+let tripSelectExpanded = false;
+const shortDateFormatter = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+function formatTripOptionDate(isoStr) {
+    if (!isoStr) return '';
+    const ms = Date.parse(isoStr);
+    return Number.isFinite(ms) ? shortDateFormatter.format(ms) : '';
+}
+
 function renderTripSelect() {
     const tripSelect = document.getElementById('tripSelect');
     if (!tripSelect) return;
-    tripSelect.replaceChildren();
+
+    const frag = document.createDocumentFragment();
 
     const allOpt = document.createElement('option');
     allOpt.value = 'all';
     allOpt.textContent = `★ All ${userTrips.length} Rides (Replay)`;
     if (currentMode === 'all') allOpt.selected = true;
-    tripSelect.appendChild(allOpt);
+    frag.appendChild(allOpt);
 
     let matchedSelected = false;
 
@@ -594,7 +605,7 @@ function renderTripSelect() {
         const line = checkin.lineName || checkin.number || 'Trip';
         const origin = checkin.origin?.name || checkin.origin?.station?.name || externalTrip.origin || 'Origin';
         const dest = checkin.destination?.name || checkin.destination?.station?.name || externalTrip.destination || 'Destination';
-        const dateStr = externalTrip.createdAt ? new Date(externalTrip.createdAt).toLocaleDateString() : '';
+        const dateStr = formatTripOptionDate(externalTrip.createdAt);
         const owner = externalTrip.user?.username ? `@${externalTrip.user.username}` : 'Shared';
 
         const opt = document.createElement('option');
@@ -605,15 +616,16 @@ function renderTripSelect() {
             matchedSelected = true;
             currentTrip = externalTrip;
         }
-        tripSelect.appendChild(opt);
+        frag.appendChild(opt);
     }
 
-    userTrips.forEach((trip) => {
+    const limit = tripSelectExpanded ? userTrips.length : Math.min(userTrips.length, TRIP_SELECT_INITIAL_LIMIT);
+    const appendTripOption = (trip) => {
         const checkin = trip.checkin || trip.train || {};
         const line = checkin.lineName || checkin.number || 'Trip';
         const origin = checkin.origin?.name || checkin.origin?.station?.name || trip.origin || 'Origin';
         const dest = checkin.destination?.name || checkin.destination?.station?.name || trip.destination || 'Destination';
-        const dateStr = trip.createdAt ? new Date(trip.createdAt).toLocaleDateString() : '';
+        const dateStr = formatTripOptionDate(trip.createdAt);
 
         const opt = document.createElement('option');
         opt.value = String(trip.id);
@@ -623,8 +635,29 @@ function renderTripSelect() {
             matchedSelected = true;
             currentTrip = trip;
         }
-        tripSelect.appendChild(opt);
-    });
+        frag.appendChild(opt);
+    };
+
+    for (let i = 0; i < limit; i++) {
+        appendTripOption(userTrips[i]);
+    }
+
+    // Ensure deep-linked older trip beyond initial cap is still present and selected
+    if (!matchedSelected && currentMode !== 'all' && currentTripId && limit < userTrips.length) {
+        const olderMatch = userTrips.find((t, idx) => idx >= limit && String(t.id) === String(currentTripId));
+        if (olderMatch) {
+            appendTripOption(olderMatch);
+        }
+    }
+
+    if (limit < userTrips.length) {
+        const moreOpt = document.createElement('option');
+        moreOpt.value = '__load_all_trips__';
+        moreOpt.textContent = `Load all ${userTrips.length.toLocaleString()} rides…`;
+        frag.appendChild(moreOpt);
+    }
+
+    tripSelect.replaceChildren(frag);
 
     if (currentMode !== 'all') {
         if (!matchedSelected) {
@@ -1065,6 +1098,7 @@ function setupControls() {
             }
 
             currentUser = selectedVal.toLowerCase();
+            tripSelectExpanded = false;
             currentTripId = '';
             currentTrip = null;
             await loadUserTrips(currentUser);
@@ -1080,6 +1114,11 @@ function setupControls() {
     if (tripSelect) {
         tripSelect.addEventListener('change', (e) => {
             const val = e.target.value;
+            if (val === '__load_all_trips__') {
+                tripSelectExpanded = true;
+                renderTripSelect();
+                return;
+            }
             if (val === 'all') {
                 currentMode = 'all';
                 currentTrip = null;

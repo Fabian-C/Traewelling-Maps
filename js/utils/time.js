@@ -1,3 +1,4 @@
+// @ts-check
 // Time and date utilities
 
 /**
@@ -78,8 +79,8 @@ export function deriveDelaySeconds(tripOrTrain = {}) {
     const plannedArrival = getDelayDate(dest.arrivalPlanned || train.plannedArrival || train.manualArrival);
     const actualArrival = getDelayDate(dest.arrivalReal || dest.arrival || train.arrival || train.manualArrival);
 
-    const derivedDepartureDelay = (plannedDeparture && actualDeparture) ? Math.round((actualDeparture - plannedDeparture) / 1000) : null;
-    const derivedArrivalDelay = (plannedArrival && actualArrival) ? Math.round((actualArrival - plannedArrival) / 1000) : null;
+    const derivedDepartureDelay = (plannedDeparture && actualDeparture) ? Math.round((actualDeparture.getTime() - plannedDeparture.getTime()) / 1000) : null;
+    const derivedArrivalDelay = (plannedArrival && actualArrival) ? Math.round((actualArrival.getTime() - plannedArrival.getTime()) / 1000) : null;
 
     const departureDelay = typeof train.departureDelay === 'number' ? train.departureDelay : derivedDepartureDelay;
     const arrivalDelay = typeof train.arrivalDelay === 'number' ? train.arrivalDelay : derivedArrivalDelay;

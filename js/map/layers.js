@@ -151,6 +151,16 @@ export function loadLayers() {
         loadLayers();
     };
 
+    // Single-pass category count over activeTrips (avoids 12x O(N) array filters)
+    const countsByCategory = Object.create(null);
+    if (state.activeTrips && state.activeTrips.length) {
+        for (let i = 0; i < state.activeTrips.length; i++) {
+            const t = state.activeTrips[i];
+            const cat = t._index?.category || normalizeCategory(t.train?.category || t.checkin?.category);
+            countsByCategory[cat] = (countsByCategory[cat] || 0) + 1;
+        }
+    }
+
     // Render layers in defined order
     state.layers.order.forEach((layerId) => {
         const layer = state.layers.data.get(layerId);
@@ -161,7 +171,7 @@ export function loadLayers() {
         // Count from active trips in category (fallback to GeoJSON features length)
         let routeCount = 0;
         if (state.activeTrips && state.activeTrips.length) {
-            routeCount = state.activeTrips.filter(t => (t._index?.category || normalizeCategory(t.train?.category || t.checkin?.category)) === layerId).length;
+            routeCount = countsByCategory[layerId] || 0;
         } else if (state.statistics?.typeCounts?.[layerId] !== undefined) {
             routeCount = state.statistics.typeCounts[layerId];
         } else {
@@ -494,6 +504,7 @@ export function reloadAllLayers() {
 
     const sourceTrips = state.activeTrips?.length ? state.activeTrips : refreshActiveTrips();
     const categories = dataProcessing.processTripsToGeoJSON(sourceTrips);
+    dataProcessing.syncGeometryGroupsToState(state, categories._geomTripIds);
     const baseOpacity = heatmap.getCurrentBaseOpacity(state);
 
     // Populate data for every layer in state.layers.order
@@ -502,6 +513,7 @@ export function reloadAllLayers() {
         const color = config ? config[1] : '#888888';
         const data = categories[id] || { type: 'FeatureCollection', features: [] };
         const isVisible = visibilityStates.get(id) ?? true;
+        const prevCount = state.layers.data.get(id)?.data?.features?.length || 0;
 
         state.layers.data.set(id, { data, color, visible: isVisible });
 
@@ -510,7 +522,9 @@ export function reloadAllLayers() {
             try {
                 const existingSource = state.map.getSource(id);
                 if (existingSource) {
-                    existingSource.setData(data);
+                    if (prevCount > 0 || data.features.length > 0) {
+                        existingSource.setData(data);
+                    }
                 } else {
                     state.map.addSource(id, { type: 'geojson', data: data });
                 }
